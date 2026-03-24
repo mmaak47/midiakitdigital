@@ -2,7 +2,7 @@ module.exports = {
   apps: [{
     name: 'intermidia-midiakit',
     script: 'server.js',
-    cwd: '/home/intermidia/midiakit/backend',
+    cwd: '/home/mmak/midiakit/backend',
     instances: 1,
     exec_mode: 'fork',
     env: {
