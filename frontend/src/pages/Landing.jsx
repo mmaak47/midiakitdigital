@@ -122,7 +122,7 @@ export default function Landing() {
                   className="text-center"
                 >
                   <item.icon className="mx-auto mb-3 text-brand-orange" size={24} />
-                  <div className="text-3xl md:text-4xl font-bold mb-1">{item.value}</div>
+                  <div className="text-3xl md:text-4xl font-bold font-heading mb-1">{item.value}</div>
                   <div className="text-sm text-brand-gray-500">{item.label}</div>
                 </motion.div>
               ))}

@@ -69,7 +69,7 @@ export default function MapView({ pontos, onSelect }) {
             eventHandlers={{ click: () => onSelect(ponto) }}
           >
             <Popup>
-              <div style={{ fontFamily: 'Poppins, sans-serif', minWidth: 180 }}>
+              <div style={{ fontFamily: 'Montserrat, sans-serif', minWidth: 180 }}>
                 <div style={{ fontWeight: 600, fontSize: 14, color: '#fff', marginBottom: 4 }}>
                   {ponto.nome}
                 </div>

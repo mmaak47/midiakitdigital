@@ -94,7 +94,7 @@ export default function PointCard({ ponto, onSelect, index = 0 }) {
         {/* Price + CTA */}
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-lg font-bold text-white">{formatCurrency(ponto.preco)}</div>
+            <div className="text-lg font-bold font-heading text-white">{formatCurrency(ponto.preco)}</div>
             <div className="text-[10px] text-brand-gray-500 -mt-0.5">por mês</div>
           </div>
           <span className="text-xs text-brand-orange font-medium group-hover:underline">

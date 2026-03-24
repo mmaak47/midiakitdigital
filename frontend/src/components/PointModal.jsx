@@ -119,7 +119,7 @@ export default function PointModal({ ponto, onClose }) {
                   <DollarSign size={16} className="text-brand-orange" />
                   <span className="text-xs text-brand-gray-500 uppercase tracking-wider">Investimento mensal</span>
                 </div>
-                <div className="text-3xl font-bold text-white">
+                <div className="text-3xl font-bold font-heading text-white">
                   {formatCurrency(ponto.preco)}
                 </div>
               </div>

@@ -22,7 +22,7 @@ export default function Navbar({ transparent = false }) {
           <div className="w-8 h-8 rounded-lg bg-brand-orange flex items-center justify-center font-bold text-sm transition-transform group-hover:scale-105">
             i
           </div>
-          <span className="text-white font-semibold text-lg tracking-tight">
+          <span className="text-white font-semibold text-lg tracking-tight font-logo">
             inter<span className="text-brand-orange">midia</span>
           </span>
         </Link>

@@ -83,7 +83,7 @@ export default function FavoritesBar() {
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <div className="text-xs text-brand-gray-500">Total mensal</div>
-              <div className="text-lg font-bold text-white">{formatCurrency(totalPreco)}</div>
+              <div className="text-lg font-bold font-heading text-white">{formatCurrency(totalPreco)}</div>
             </div>
 
             <button

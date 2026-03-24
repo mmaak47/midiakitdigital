@@ -63,7 +63,7 @@ export default function ProposalModal({ onClose }) {
             ].map(item => (
               <div key={item.label} className="bg-white/[0.03] border border-white/5 rounded-xl p-4 text-center">
                 <item.icon size={18} className="text-brand-orange mx-auto mb-2" />
-                <div className="text-lg font-bold text-white">{item.value}</div>
+                <div className="text-lg font-bold font-heading text-white">{item.value}</div>
                 <div className="text-[10px] text-brand-gray-500 uppercase tracking-wider">{item.label}</div>
               </div>
             ))}
@@ -119,11 +119,11 @@ export default function ProposalModal({ onClose }) {
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm text-brand-gray-400 mb-1">Investimento mensal total</div>
-                <div className="text-3xl font-bold text-white">{formatCurrency(totalPreco)}</div>
+                <div className="text-3xl font-bold font-heading text-white">{formatCurrency(totalPreco)}</div>
               </div>
               <div className="text-right">
                 <div className="text-sm text-brand-gray-400 mb-1">Alcance estimado</div>
-                <div className="text-2xl font-bold text-brand-orange">{formatNumber(totalFluxo)}</div>
+                <div className="text-2xl font-bold font-heading text-brand-orange">{formatNumber(totalFluxo)}</div>
                 <div className="text-xs text-brand-gray-500">pessoas/mês</div>
               </div>
             </div>
