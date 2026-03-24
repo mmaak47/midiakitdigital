@@ -1,10 +1,10 @@
 # Intermidia — Mídia Kit Digital: Design System & Guidelines
 
-> Guia de referência pra qualquer dev que mexa neste projeto.
+> Documento de referência para qualquer agente ou desenvolvedor que trabalhe neste projeto.
 
 ---
 
-## Identidade Visual
+## 🎨 Identidade Visual
 
 ### Cores
 
@@ -36,89 +36,89 @@ Importação via Google Fonts no `<head>` do HTML. CSS global em `index.css` def
 
 ### Logo
 
-- Arq: `/logo.png` (fundo transparente)
-- Usa no Navbar (`<img>` com `h-8`) e no Footer (`h-6`)
-- Sem alt text — só a imagem oficial mesmo
+- Arquivo: `/logo.png` (fundo transparente)
+- Usado no Navbar (`<img>` com `h-8`) e no Footer (`h-6`)
+- Não usar texto alternativo — sempre usar a imagem oficial
 
 ---
 
-## Arquitetura de Páginas (Jornada do Mídia Kit)
+## 🏗️ Arquitetura de Páginas (Jornada do Mídia Kit)
 
 A Landing Page segue a jornada estratégica de um mídia kit profissional:
 
 ### 1. CAPA / HERO — Impacto + Posicionamento
 **Objetivo:** Criar desejo e autoridade antes de qualquer dado.
 
-- Visual forte com rosto, luz e contraste (foto hero full)
-- BG: `/hero-bg.jpg` (mulher com LEDs coloridos)
-- Overlay escuro (`bg-black/60`) pra legib
-- Glow laranja com blur no meio
-- Badge "Mídia Kit Digital 2026" com pulse
-- Headline: conceitual, sobre posição (n vende mídia direto)
-- CTA primário (laranja) + CTA sec (outline)
-- Indicador scroll com anim
+- Visual forte com rosto, luz e contraste (foto hero em tela cheia)
+- Background: `/hero-bg.jpg` (mulher com luzes LED coloridas)
+- Overlay escuro (`bg-black/60`) para legibilidade
+- Glow laranja com blur no centro
+- Badge "Mídia Kit Digital 2026" com pulsação
+- Headline: conceitual, sobre posicionamento (não vende mídia diretamente)
+- CTA primário (laranja) + CTA secundário (outline)
+- Indicador de scroll animado
 
 ### 2. STATS — Prova Social em Números
 **Objetivo:** Impactar com escala antes do conteúdo detalhado.
 
 - Grid 4 colunas: Pontos, Cidades, Telas, Fluxo Mensal
-- Dados via API (`/api/stats`) — dinâmicos
+- Dados vindos da API (`/api/stats`) — dinâmicos
 - Ícones laranja + números grandes (Poppins bold)
-- FadeUp anim ao entrar no viewport
+- Animação fadeUp ao entrar no viewport
 
 ### 3. MANIFESTO / SOBRE — Autoridade Institucional
 **Objetivo:** Transformar a empresa em especialista confiável.
 
-- Layout: texto left + grid 2 fotos right (escalonadas)
-- Fotos: `/about-1.jpg` e `/about-2.jpg` (reais mesmo)
+- Layout: texto à esquerda + grid 2 fotos à direita (escalonadas)
+- Fotos: `/about-1.jpg` e `/about-2.jpg` (fotos reais Intermidia)
 - Texto: quem é a Intermidia, cobertura, expertise
-- "Desde 2007" — pra construir confiança
+- "Desde 2007" — construir confiança temporal
 
 ### 4. PORTFÓLIO DE FORMATOS — Ecossistema de Presença
 **Objetivo:** Mostrar que se vende ecossistema, não pontos isolados.
 
-- Grid 5 cards com ícone laranja + label + desc
-- **5 formatos na landing:**
+- Grid 5 cards com ícone laranja + label + descrição
+- **5 formatos exibidos na landing:**
   - Elevadores (Building2)
   - Telas Indoor (Tv)
   - Painéis LED (Columns3)
   - Backlights (Lightbulb)
   - Frontlights (Sun)
-- Cards com `bg-white/[0.02]`, border sutil, hover laranja
-- Note: tem 9 tipos no sistema (+ Totem Digital, Muffato, LED Posto, Video Wall) mas na landing só mostra 5 pra n poluir
+- Cards com `bg-white/[0.02]`, border sutil, hover com borda laranja
+- Nota: existem 9 tipos no sistema (+ Totem Digital, Circuito Muffato, LED Posto, Video Wall) mas na landing mostramos apenas 5 para não poluir
 
 ### 5. SHOWCASE / TECNOLOGIA — Produto como Protagonista
 **Objetivo:** Destacar a infraestrutura e tecnologia.
 
-- Layout: totem triplaface left + texto right
-- `/totem-sample.png` = PNG transparente, flutuando
-- Efeito: glow laranja atrás (blur), drop-shadow laranja, hover scale
-- Lista benefícios com bullets laranja
-- Sem container/box — a imagem só "flutua" no escuro
+- Layout: totem triplaface à esquerda + texto à direita
+- `/totem-sample.png` = PNG com fundo transparente, exibido flutuando
+- Efeito: glow laranja por trás (blur), drop-shadow laranja, hover scale
+- Lista de benefícios com bullet points laranja
+- Sem container/box ao redor da imagem — ela "flutua" no fundo escuro
 
 ### 6. PÚBLICO ENGAJADO — Audiência e Números
 **Objetivo:** Provar que o público é real e engajado.
 
-- BG textura sutil (wallpaper, opacity-15)
-- Grid: texto + mini-cards left / foto right
-- Foto: `/audience.jpg` (público interagindo)
-- Mini-cards: fluxo, telas, pontos, cidades (dados estáticos)
+- Background sutil de textura (wallpaper, opacity-15)
+- Grid: texto + mini-cards de números à esquerda / foto à direita
+- Foto: `/audience.jpg` (público interagindo com conteúdo)
+- Mini-cards: fluxo, telas, pontos, cidades (dados estáticos de referência)
 
 ### 7. GALERIA — Presença Visual
 **Objetivo:** Reforçar credibilidade com fotos reais.
 
-- Grid 3 colunas com zoom hover
+- Grid 3 colunas com hover zoom
 - Fotos: showcase, about-1, about-2
-- Gradient overlay bottom-to-top com label
-- Scale transition hover (1.05x)
+- Gradient overlay de baixo pra cima com label
+- Transição de escala no hover (1.05x)
 
 ### 8. CTA FINAL — Conversão
 **Objetivo:** Fechar a jornada com ação clara.
 
-- BG: `/city-bg.jpg` (bokeh noturno, opacity-20)
-- Gradient overlay pra legib
-- Headline + parágrafo + btn laranja
-- Total simplicidade — sem distrações
+- Background: `/city-bg.jpg` (bokeh noturno, opacity-20)
+- Gradient overlay para legibilidade
+- Headline + parágrafo + botão laranja
+- Simplicidade total — sem distrações
 
 ### 9. FOOTER
 - Logo oficial + copyright
@@ -127,12 +127,12 @@ A Landing Page segue a jornada estratégica de um mídia kit profissional:
 
 ---
 
-## Padrões de Componentes
+## 📐 Padrões de Componentes
 
 ### Animações (Framer Motion)
 
 ```javascript
-// fadeUp padrão pra sections
+// fadeUp padrão para seções
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
   visible: (i = 0) => ({
@@ -142,9 +142,9 @@ const fadeUp = {
 };
 ```
 
-- Tudo usa `whileInView` com `viewport={{ once: true }}`
+- Todos os blocos usam `whileInView` com `viewport={{ once: true }}`
 - Delay incremental entre items: `delay: i * 0.08` a `i * 0.1`
-- Scroll indicator: `animate={{ y: [0, 8, 0] }}` loop infinito
+- Scroll indicator: `animate={{ y: [0, 8, 0] }}` infinito
 
 ### Botões
 
@@ -163,198 +163,77 @@ transition-all duration-300
 
 ### Imagens
 
-- Sempre `rounded-2xl overflow-hidden`
+- Sempre com `rounded-2xl overflow-hidden`
 - Gradient overlay: `bg-gradient-to-t from-black/40 to-transparent` (ou variações)
-- Fotos reais, n ícones genéricos
+- Fotos reais, nunca ilustrações genéricas
 
 ### Seções
 
 - Separadas por `border-t border-white/5`
-- Padding: `py-24` (seções) ou `py-20` (stats)
+- Padding vertical: `py-24` (seções) ou `py-20` (stats)
 - Container: `max-w-6xl mx-auto px-6`
 
 ---
 
-## Assets (frontend/public/)
+## 🖼️ Assets (frontend/public/)
 
-| Arq                  | Desc                                        | Uso                      |
+| Arquivo              | Descrição                                   | Uso na Landing           |
 |----------------------|---------------------------------------------|--------------------------|
-| `hero-bg.jpg`        | Mulher com LEDs (stock)                      | Hero BG                  |
-| `about-1.jpg`        | Foto Intermidia real (equipe/install)        | About + Galeria          |
-| `about-2.jpg`        | Foto Intermidia real (mídia ext)             | About + Galeria          |
-| `totem-sample.png`   | Totem triplaface (PNG transp)                | Seção Tech               |
-| `audience.jpg`       | Público interagindo                          | Seção Engajado           |
+| `hero-bg.jpg`        | Mulher com luzes LED coloridas (stock)       | Hero background          |
+| `about-1.jpg`        | Foto real Intermidia (equipe/instalação)     | Seção Sobre + Galeria    |
+| `about-2.jpg`        | Foto real Intermidia (mídia exterior)        | Seção Sobre + Galeria    |
+| `totem-sample.png`   | Totem triplaface (PNG transparente)          | Seção Tecnologia         |
+| `audience.jpg`       | Público interagindo com conteúdo             | Seção Público Engajado   |
 | `showcase.png`       | Mídia em elevadores                          | Galeria                  |
-| `city-bg.jpg`        | Bokeh noturno abstrato                       | CTA BG                   |
-| `stock-wallpaper.jpg`| Textura (stock)                              | Seção Engajamento        |
-| `wallpaper.jpg`      | Wallpaper alt                                | Disponível               |
-| `logo.png`           | Logo oficial (transp)                        | Navbar + Footer          |
-| `favicon.svg`        | Favicon SVG                                  | Tab browser              |
+| `city-bg.jpg`        | Bokeh noturno abstrato de cidade             | CTA background           |
+| `stock-wallpaper.jpg`| Textura/wallpaper (stock)                    | Seção Engajamento (bg)   |
+| `wallpaper.jpg`      | Wallpaper alternativo                        | Disponível               |
+| `logo.png`           | Logo oficial Intermidia (transparente)       | Navbar + Footer          |
+| `favicon.svg`        | Favicon SVG                                  | Browser tab              |
 
 ---
 
-## Componentes do Sistema
-
-## Fórmulas Comerciais
-
-As métricas comerciais do app são centralizadas em [frontend/src/lib/strategy.js](/c:/midia%20kit/frontend/src/lib/strategy.js). A documentação abaixo descreve o cálculo real usado pelo sistema hoje.
-
-### Ticket médio
-
-- Fórmula: `valorTotal / quantidadeDePontos`
-- Origen: soma preço mensal dos pontos selecionados e divide pela qtd
-- Uso: mostra investimento médio por ponto da proposta
-
-### CPM estimado
-
-- Fórmula: `valorTotal / (fluxoTotal / 1000)`
-- Onde:
-  - `valorTotal` = soma dos preços selecionados
-  - `fluxoTotal` = soma do fluxo mensal dos pontos
-- Significado: quanto custa gerar 1k impactos estimados
-- Proteção: se `fluxoTotal` for `0`, retorna `0` (evita divisão quebrada)
-
-### Score da campanha
-
-Score vai de `0` a `10`, soma de 6 blocos com teto cada um. Depois arredonda 1 casa decimal e limita em 10.
-
-Fórmula consolidada:
-
-```text
-scoreRaw =
-  min(2.2, formatos / 3) +
-  min(2.4, fluxoTotal / 700000) +
-  min(2.0, coveragePct / 25) +
-  min(1.8, presencePct / 28) +
-  min(1.6, aderenciaPublico) +
-  min(1.4, aderenciaObjetivo)
-
-scoreFinal = min(10, round(scoreRaw, 1))
-```
-
-Componentes:
-
-- Diversidade formatos: `min(2.2, formatos / 3)`
-  - + tipos = + robustez rápido
-- Volume fluxo: `min(2.4, fluxoTotal / 700000)`
-  - Premia planos com + impactos/mês
-- Cobertura física: `min(2.0, coveragePct / 25)`
-  - Compare qtd selecionada vs inventário da praça
-- Presença potencial: `min(1.8, presencePct / 28)`
-  - Compare fluxo selecionado vs fluxo total da praça
-- Aderência público: `min(1.6, publicoMatches / selected.length * 1.6)`
-  - Quantos pontos batem com o público desejado
-- Aderência objetivo: `min(1.4, objectiveBoost / selected.length * 1.4)`
-  - Quantos pontos pontuaram forte pro objetivo
-
-### Como define cobertura
-
-- `coveragePct = (qtd_selecionada / qtd_total_praça) * 100`
-- `presencePct = (fluxo_selecionado / fluxo_total_praça) * 100`
-
-Níveis na interface:
-
-- Essencial: base inicial, abaixo dos cortes
-- Estratégico: `coveragePct >= 25` ou `presencePct >= 30`
-- Domínio regional: `coveragePct >= 50` ou `presencePct >= 55`
-
-### Score do Entorno
-
-Score do entorno mede qualidade do ambiente comercial ao redor do ponto pra um segmento específico.
-
-**Fórmula:**
-
-```text
-scoreEntorno = min(48, relevancia * 0.62 + estabelecimentos * 1.35 + categorias * 2.8)
-```
-
-**Componentes:**
-
-- `relevancia` (coef: 0.62)
-  - Score de relevância da análise de entorno (0-100)
-  - Mede proximidade + compatibilidade do entorno vs segmento
-  
-- `estabelecimentos_relacionados` (coef: 1.35)
-  - Qtd de estabelecimentos que combinam com segmento
-  - + estabelecimentos = + valor pra campanhas direcionadas
-  
-- `categorias_encontradas` (coef: 2.8)
-  - Variedade de categorias comerciais no entorno
-  - + diversidade = + ecossistema rico + sinergia
-
-**Teto:** máx 48 pts por ponto.
-
-**Uso:** Incorporado no `_baseScore` na recomendação de planos, elevando prioridade de pontos com ambiente comercial rico e relevante pro segmento.
-
-### Observações de produto
-
-- Score n mede vendas; mede qualidade estrutural da campanha
-- CPM é estimado do fluxo cadastrado, n impressões auditadas
-- Ticket médio, CPM e score mudam conforme seleção de pontos, praça, público, objetivo
-- Score entorno depende muito da qualidade dos dados; sem análise = score 0
-
-## Ajuste Manual de PDF
-
-- Arq central: `frontend/src/lib/pdfLayoutConfig.js`
-- Midia Kit: seção `PDF_LAYOUT.midiaKit`
-- Proposta: seção `PDF_LAYOUT.proposal`
-- Fluxo:
-  - Ajusta valor numérico no config
-  - Gera PDF pra validar visualmente
-  - Repete microajustes até ficar ok
-- Modo calibração no app:
-  - Entre `/admin`
-  - Use painel `Modo calibração PDF`
-  - Valores salvam no servidor (compartilha entre máquinas/admins)
-  - Browser guarda cache local só como fallback seguro
-
-Campos pra ajuste fino:
-
-- `midiaKit.pointPage.nameFontSize` e `.nameTop`
-- `midiaKit.pointPage.metricLabelFontSize` e `.metricValueFontSize`
-- `midiaKit.pointPage.priceValueFontSize` e `.footerBottom`
-- `proposal.cover.chipMinHeight` e `.badgeMinHeight`
-- `proposal.point.counterMinWidth` e `.counterMinHeight`
+## 🗺️ Componentes do Sistema
 
 ### Explorer (`/explorar`)
-- Sidebar filters: cidade, tipo (9 tipos), público, busca nome
-- Grid cards com cores por tipo
-- Mapa interativo (Leaflet) com marcadores laranja
-- Favoritos (localStorage)
+- Sidebar de filtros: cidade, tipo (9 tipos), público, busca por nome
+- Grid de cards (`PointCard`) com cores por tipo
+- Mapa interativo (React Leaflet) com marcadores custom laranja
+- Sistema de favoritos (localStorage)
 
 ### Mapa (`/mapa`)
-- Tela cheia Leaflet
-- Estilo dark
+- Tela cheia com Leaflet
+- Estilo dark (tiles dark)
 - Marcadores com cluster
-- Popup com dados ponto
+- Popup com dados do ponto
 
 ### Favoritos + Propostas
-- Seleção pontos favoritos
-- Geração proposta (resumo selecionados)
+- Seleção de pontos favoritos
+- Geração de proposta (resumo dos pontos selecionados)
 
 ### Admin (`/admin`)
-- Login autenticado
-- CRUD completo pontos
-- Upload imagens
-- 9 tipos mídia dropdown
-- 4 cidades
+- Login com autenticação
+- CRUD completo de pontos
+- Upload de imagens
+- 9 tipos de mídia no dropdown
+- 4 cidades disponíveis
 
 ---
 
-## Princípios
+## 🎯 Princípios de Design
 
-1. **Dark-first:** Todo design começa no preto absoluto. Luz dos acentos.
-2. **Laranja = ação:** Só cor primária (#FE5C2B) direciona.
-3. **Fotos reais > Ícones:** Prioriza fotografia real.
-4. **Jornada:** Impacto → Autoridade → Escala → Clareza → Números → CTA
-5. **Minimalismo:** Menos é mais. Todo elem tem propósito.
-6. **Animação sutil:** fadeUp e scale, nunca rotação ou bounce demais.
-7. **Espaço negativo:** Padding generoso entre seções (py-24).
-8. **Tipografia:** Poppins bold p/ títulos, Montserrat regular p/ corpo.
+1. **Dark-first:** Todo o design parte do preto absoluto. A luz vem dos acentos.
+2. **Laranja como ação:** Só a cor primária (#FE5C2B) direciona o olhar.
+3. **Fotos reais > Ícones genéricos:** Priorizar fotografia real da empresa.
+4. **Jornada de conversão:** Impacto → Autoridade → Escala → Clareza → Números → CTA
+5. **Minimalismo funcional:** Menos é mais. Cada elemento tem propósito.
+6. **Animação sutil:** fadeUp e scale, nunca rotação ou bounce excessivo.
+7. **Espaço negativo:** Usar padding generoso entre seções (py-24).
+8. **Tipografia hierárquica:** Poppins bold para títulos, Montserrat regular para corpo.
 
 ---
 
-## Stack Técnica
+## ⚙️ Stack Técnica
 
 | Camada    | Tecnologia                        |
 |-----------|-----------------------------------|
@@ -364,11 +243,11 @@ Campos pra ajuste fino:
 | Ícones    | Lucide React                      |
 | Backend   | Express.js + better-sqlite3       |
 | Deploy    | Ubuntu 24.04, nginx, PM2          |
-| VPS       | Azure `REDACTED_OLD_VPS_IP`             |
+| VPS       | Azure `4.229.233.157`             |
 
 ---
 
-## Dados Reais (Seed)
+## 📊 Dados Reais (Seed)
 
 - **93 pontos** de mídia
 - **4 cidades:** Londrina, Maringá, Balneário Camboriú, Itajaí
