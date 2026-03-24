@@ -2,17 +2,7 @@ import { motion } from 'framer-motion';
 import { MapPin, Users, Monitor, Heart } from 'lucide-react';
 import { useFavorites } from '../context/FavoritesContext';
 
-const typeColors = {
-  'Elevador': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  'Tela Indoor': 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
-  'Painel LED': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  'Backlight': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  'Frontlight': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-  'Totem Digital': 'bg-green-500/10 text-green-400 border-green-500/20',
-  'Circuito Muffato': 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-  'LED Posto': 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  'Video Wall': 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
-};
+const typeBadgeClass = 'bg-brand-orange/12 text-brand-orange border-brand-orange/30';
 
 export default function PointCard({ ponto, onSelect, index = 0 }) {
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
@@ -33,7 +23,7 @@ export default function PointCard({ ponto, onSelect, index = 0 }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="group relative bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden hover:border-brand-orange/20 hover:bg-white/[0.04] transition-all duration-300 cursor-pointer"
+      className="group relative bg-white/[0.08] border border-white/15 rounded-2xl overflow-hidden hover:border-brand-orange/30 hover:bg-white/[0.12] transition-all duration-300 cursor-pointer"
       onClick={() => onSelect(ponto)}
     >
       {/* Image */}
@@ -51,7 +41,7 @@ export default function PointCard({ ponto, onSelect, index = 0 }) {
         )}
 
         {/* Type badge */}
-        <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg text-xs font-medium border ${typeColors[ponto.tipo] || 'bg-white/10 text-white border-white/20'}`}>
+        <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg text-xs font-medium border ${typeBadgeClass}`}>
           {ponto.tipo}
         </div>
 

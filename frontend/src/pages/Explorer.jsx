@@ -40,7 +40,7 @@ export default function Explorer() {
   }, [loadPontos]);
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-[#0f131b] text-white">
       <Navbar />
 
       <div className="pt-16 flex h-screen">
@@ -55,7 +55,7 @@ export default function Explorer() {
         {/* Main content */}
         <main className="flex-1 overflow-y-auto pb-28">
           {/* Toolbar */}
-          <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-xl border-b border-white/5 px-6 py-3 flex items-center justify-between">
+          <div className="sticky top-0 z-10 bg-brand-gray-900/90 backdrop-blur-xl border-b border-white/10 px-6 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setMobileFilters(true)}

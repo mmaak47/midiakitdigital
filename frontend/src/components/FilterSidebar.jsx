@@ -48,7 +48,7 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
           placeholder="Buscar ponto..."
           value={filters.search}
           onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
-          className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-500 focus:outline-none focus:border-brand-orange/40 transition-colors"
+          className="w-full pl-9 pr-4 py-2.5 bg-white/10 border border-white/15 rounded-xl text-sm text-white placeholder:text-brand-gray-500 focus:outline-none focus:border-brand-orange/40 transition-colors"
         />
       </div>
 
@@ -142,7 +142,7 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden lg:block w-72 shrink-0 border-r border-white/5 p-6 overflow-y-auto h-full">
+      <aside className="hidden lg:block w-72 shrink-0 border-r border-white/10 bg-white/[0.02] p-6 overflow-y-auto h-full">
         <div className="flex items-center gap-2 mb-6">
           <SlidersHorizontal size={16} className="text-brand-orange" />
           <h2 className="font-semibold text-sm uppercase tracking-wider">Filtros</h2>
@@ -158,13 +158,13 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 lg:hidden"
         >
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
           <motion.div
             initial={{ x: -300 }}
             animate={{ x: 0 }}
             exit={{ x: -300 }}
             transition={{ type: 'spring', damping: 25 }}
-            className="absolute left-0 top-0 bottom-0 w-80 bg-brand-dark border-r border-white/10 p-6 overflow-y-auto"
+            className="absolute left-0 top-0 bottom-0 w-80 bg-[#131924] border-r border-white/10 p-6 overflow-y-auto"
           >
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">

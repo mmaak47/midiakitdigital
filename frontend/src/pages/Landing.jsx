@@ -170,15 +170,15 @@ export default function Landing() {
   const explorerPath = `/explorar${selectedPraca !== 'Todas as praças' ? `?cidade=${encodeURIComponent(selectedPraca)}` : ''}`;
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white">
+    <div className="min-h-screen bg-[#0c121b] text-white">
       <Navbar />
 
-      <section className="pt-20 pb-10 border-b border-white/5 relative overflow-hidden">
+      <section className="pt-20 pb-10 border-b border-white/10 relative overflow-hidden">
         <div
           className="absolute inset-0 opacity-35 bg-cover bg-center"
           style={{ backgroundImage: "url('/city-bg.jpg')" }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/90 via-black/80 to-[#050505]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0d1420]/90 via-[#0d1420]/75 to-[#0c121b]" />
         <div className="absolute -top-16 left-10 w-64 h-64 bg-brand-orange/20 rounded-full blur-[90px]" />
 
         <div className="relative max-w-7xl mx-auto px-6">
@@ -213,7 +213,7 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={3}
-            className="grid lg:grid-cols-[1fr_auto] gap-4 p-4 bg-white/[0.03] border border-white/10 rounded-2xl backdrop-blur-xl"
+            className="grid lg:grid-cols-[1fr_auto] gap-4 p-4 bg-white/[0.08] border border-white/15 rounded-2xl backdrop-blur-xl"
           >
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
@@ -221,7 +221,7 @@ export default function Landing() {
                 <select
                   value={selectedPraca}
                   onChange={(e) => setSelectedPraca(e.target.value)}
-                  className="mt-1 w-full px-3 py-3 rounded-xl bg-black/60 border border-white/15 focus:border-brand-orange outline-none"
+                  className="mt-1 w-full px-3 py-3 rounded-xl bg-white/10 border border-white/20 focus:border-brand-orange outline-none"
                 >
                   {pracas.map((praca) => (
                     <option key={praca} value={praca}>{praca}</option>
@@ -231,7 +231,7 @@ export default function Landing() {
 
               <div>
                 <label className="text-xs text-brand-gray-500 uppercase tracking-wide">Visualizacao</label>
-                <div className="mt-1 h-[50px] rounded-xl bg-black/50 border border-white/10 px-3 flex items-center text-sm text-brand-gray-300">
+                <div className="mt-1 h-[50px] rounded-xl bg-white/10 border border-white/20 px-3 flex items-center text-sm text-brand-gray-300">
                   {selectedPraca === 'Todas as praças' ? 'Consolidado multirregional' : `Foco em ${selectedPraca}`}
                 </div>
               </div>
@@ -264,7 +264,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-10 border-b border-white/5">
+      <section className="py-10 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6">
           {loading ? (
             <div className="text-sm text-brand-gray-500">Carregando inventario...</div>
@@ -284,7 +284,7 @@ export default function Landing() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.1, duration: 0.4 }}
-                  className="rounded-2xl border border-white/10 bg-white/[0.02] p-4"
+                  className="rounded-2xl border border-white/15 bg-white/[0.07] p-4"
                 >
                   <card.icon className="text-brand-orange mb-3" size={18} />
                   <div className="text-lg md:text-2xl font-bold mb-1">{card.value}</div>
@@ -296,13 +296,13 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-12 border-b border-white/5">
+      <section className="py-12 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-3 gap-6">
           <motion.article
             initial={{ opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="lg:col-span-2 rounded-2xl border border-white/10 bg-[#090909] overflow-hidden"
+            className="lg:col-span-2 rounded-2xl border border-white/15 bg-[#161d29] overflow-hidden"
           >
             <div className="p-5 border-b border-white/10 flex items-center justify-between">
               <h2 className="text-xl font-bold flex items-center gap-2">
@@ -344,7 +344,7 @@ export default function Landing() {
             initial={{ opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="rounded-2xl border border-white/10 bg-[#090909] p-5"
+            className="rounded-2xl border border-white/15 bg-[#161d29] p-5"
           >
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
               <BarChart3 size={18} className="text-brand-orange" />
@@ -373,7 +373,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-12 border-b border-white/5">
+      <section className="py-12 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-2xl font-bold">Catalogo completo da selecao</h2>
@@ -381,7 +381,7 @@ export default function Landing() {
           </div>
 
           {!loading && tiposComAncora.length > 0 && (
-            <div className="sticky top-16 z-20 mb-5 rounded-xl border border-white/10 bg-black/80 backdrop-blur-xl p-3">
+            <div className="sticky top-16 z-20 mb-5 rounded-xl border border-white/15 bg-[#151c27]/90 backdrop-blur-xl p-3">
               <div className="text-[11px] uppercase tracking-wide text-brand-gray-500 mb-2">Ancoragem por formato</div>
               <div className="flex flex-wrap gap-2">
                 {tiposComAncora.map((tipoInfo) => (
@@ -413,7 +413,7 @@ export default function Landing() {
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
                       transition={{ delay: Math.min((groupIndex + itemIndex) * 0.02, 0.45), duration: 0.4 }}
-                      className="rounded-2xl border border-white/10 bg-[#0a0a0a] p-4 lg:p-5"
+                      className="rounded-2xl border border-white/15 bg-[#18202c] p-4 lg:p-5"
                     >
                       <div className="grid lg:grid-cols-[220px_1fr] gap-4">
                         <div className="rounded-xl overflow-hidden bg-white/[0.03] min-h-[180px]">
@@ -507,7 +507,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-16 border-b border-white/5 relative overflow-hidden">
+      <section className="py-16 border-b border-white/10 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-brand-orange/10 via-transparent to-transparent" />
         <div className="relative max-w-7xl mx-auto px-6">
           <motion.div
@@ -533,7 +533,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="py-12 border-t border-white/5">
+      <footer className="py-12 border-t border-white/10">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="Intermidia" className="h-6" />
