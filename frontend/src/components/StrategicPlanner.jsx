@@ -22,26 +22,26 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
   const totals = suggestion.totals;
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <Sparkles size={16} className="text-brand-orange" />
-        <h2 className="text-sm font-semibold uppercase tracking-wider">Sugestao de plano ideal</h2>
+    <section className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-white/[0.01] p-6 shadow-lg shadow-black/20">
+      <div className="flex items-center gap-2 mb-5">
+        <Sparkles size={18} className="text-brand-orange" />
+        <h2 className="text-sm font-bold uppercase tracking-wider text-white">Sugestao de plano ideal</h2>
       </div>
 
-      <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-3 mb-4">
+      <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-4 mb-5">
         <SelectField label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS} />
         <SelectField label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} />
         <SelectField label="Praca" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={['', ...cidades]} emptyLabel="Todas" />
         <SelectField label="Publico" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={['', ...publicos]} emptyLabel="Todos" />
         <div>
-          <label className="text-[11px] uppercase tracking-wide text-brand-gray-500">Investimento mensal</label>
+          <label className="text-[11px] uppercase tracking-wide text-brand-gray-500 font-semibold">Investimento mensal</label>
           <input
             type="number"
             min={0}
             step={500}
             value={form.investimentoMensal}
             onChange={(e) => setForm((s) => ({ ...s, investimentoMensal: Number(e.target.value) || 0 }))}
-            className="mt-1 w-full bg-white/10 border border-white/15 rounded-xl px-3 py-2 text-sm outline-none focus:border-brand-orange/40"
+            className="mt-1 w-full bg-white/10 border border-white/15 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-brand-orange/40 transition-colors"
           />
         </div>
       </div>
@@ -49,14 +49,14 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
       <div className="grid lg:grid-cols-[1fr_auto] gap-4 items-start">
         <div>
           <p className="text-sm text-brand-gray-300 mb-3">{suggestion.justificativa}</p>
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="flex flex-wrap gap-2.5 mb-4">
             {suggestion.pontos.slice(0, 8).map((p) => (
-              <span key={p.id} className="px-2.5 py-1 rounded-full bg-white/10 border border-white/15 text-xs text-brand-gray-300">
+              <span key={p.id} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-orange/15 to-brand-orange/5 border border-brand-orange/30 text-xs font-medium text-brand-orange hover:border-brand-orange/60 transition-colors">
                 {p.nome}
               </span>
             ))}
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
             <Metric label="Pontos" value={totals.quantidade} />
             <Metric label="Valor total" value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totals.valorTotal)} />
             <Metric label="Fluxo total" value={new Intl.NumberFormat('pt-BR').format(totals.fluxoTotal)} />
@@ -67,10 +67,10 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
         <button
           onClick={() => onAddPlan?.(suggestion.pontos)}
           disabled={!suggestion.pontos.length}
-          className="inline-flex items-center justify-center gap-2 h-11 px-4 bg-brand-orange text-white text-sm font-semibold rounded-xl hover:bg-brand-orange-hover transition-colors disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-2 h-12 px-5 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white text-sm font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all disabled:opacity-60 disabled:shadow-none whitespace-nowrap"
         >
-          <PlusCircle size={16} />
-          Adicionar este plano a proposta
+          <PlusCircle size={17} />
+          Adicionar plano
         </button>
       </div>
 
@@ -85,11 +85,11 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
 function SelectField({ label, value, onChange, options, emptyLabel }) {
   return (
     <div>
-      <label className="text-[11px] uppercase tracking-wide text-brand-gray-500">{label}</label>
+      <label className="text-[11px] uppercase tracking-wide text-brand-gray-500 font-semibold">{label}</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full bg-white/10 border border-white/15 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-brand-orange/40"
+        className="mt-1 w-full bg-white/10 border border-white/15 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-brand-orange/40 transition-colors"
       >
         {options.map((opt) => (
           <option key={opt || '__empty'} value={opt}>{opt || emptyLabel || 'Selecione'}</option>
@@ -101,9 +101,9 @@ function SelectField({ label, value, onChange, options, emptyLabel }) {
 
 function Metric({ label, value }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2">
-      <div className="text-[10px] uppercase tracking-wide text-brand-gray-500">{label}</div>
-      <div className="text-sm font-semibold text-white">{value}</div>
+    <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.01] p-3 shadow-md shadow-black/10">
+      <div className="text-[10px] uppercase tracking-wider text-brand-gray-500 font-semibold">{label}</div>
+      <div className="text-sm font-bold text-white mt-1">{value}</div>
     </div>
   );
 }

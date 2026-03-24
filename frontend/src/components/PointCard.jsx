@@ -23,7 +23,7 @@ export default function PointCard({ ponto, onSelect, index = 0 }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="group relative bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden hover:border-brand-orange/20 hover:bg-white/[0.04] transition-all duration-300 cursor-pointer"
+      className="group relative bg-gradient-to-br from-white/[0.05] to-white/[0.01] border border-white/10 rounded-2xl overflow-hidden shadow-lg shadow-black/20 hover:shadow-2xl hover:shadow-brand-orange/5 hover:border-brand-orange/30 hover:bg-gradient-to-br hover:from-white/[0.08] hover:to-white/[0.02] transition-all duration-300 cursor-pointer"
       onClick={() => onSelect(ponto)}
     >
       {/* Image */}
@@ -41,7 +41,7 @@ export default function PointCard({ ponto, onSelect, index = 0 }) {
         )}
 
         {/* Type badge */}
-        <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg text-xs font-medium border ${typeBadgeClass}`}>
+        <div className={`absolute top-3 left-3 px-3 py-1.5 rounded-lg text-xs font-semibold border backdrop-blur-sm ${typeBadgeClass}`}>
           {ponto.tipo}
         </div>
 
@@ -62,37 +62,38 @@ export default function PointCard({ ponto, onSelect, index = 0 }) {
       </div>
 
       {/* Content */}
-      <div className="p-4">
-        <h3 className="font-semibold text-white mb-1 group-hover:text-brand-orange transition-colors">
+      <div className="p-5">
+        <h3 className="font-bold text-lg text-white mb-2 group-hover:text-brand-orange transition-colors line-clamp-2">
           {ponto.nome}
         </h3>
 
-        <div className="flex items-center gap-1.5 text-xs text-brand-gray-500 mb-3">
+        <div className="flex items-center gap-1.5 text-xs text-brand-gray-400 mb-3.5">
           <MapPin size={12} />
           {ponto.cidade}
         </div>
 
         {/* Tags */}
-        <div className="flex items-center gap-3 text-xs text-brand-gray-400 mb-4">
-          <span className="flex items-center gap-1">
-            <Users size={12} className="text-brand-orange" />
+        <div className="flex items-center gap-3 text-xs text-brand-gray-500 mb-4 pb-3 border-b border-white/5">
+          <span className="flex items-center gap-1.5 text-brand-gray-300">
+            <Users size={13} className="text-brand-orange" />
             {ponto.publico}
           </span>
-          <span className="flex items-center gap-1">
-            <Monitor size={12} className="text-brand-orange" />
-            {ponto.telas} tela{ponto.telas > 1 ? 's' : ''}
+          <span className="flex items-center gap-1.5 text-brand-gray-300">
+            <Monitor size={13} className="text-brand-orange" />
+            {ponto.telas}T
           </span>
-          <span>{formatNumber(ponto.fluxo)}/mês</span>
+          <span className="text-brand-gray-400 ml-auto">{formatNumber(ponto.fluxo)}/mês</span>
         </div>
 
         {/* Price + CTA */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between pt-2">
           <div>
             <div className="text-lg font-bold font-heading text-white">{formatCurrency(ponto.preco)}</div>
-            <div className="text-[10px] text-brand-gray-500 -mt-0.5">por mês</div>
+            <div className="text-[11px] text-brand-gray-500 font-medium">mês</div>
           </div>
-          <span className="text-xs text-brand-orange font-medium group-hover:underline">
-            Ver detalhes →
+          <span className="text-xs text-brand-orange font-semibold group-hover:text-brand-orange-hover transition-colors flex items-center gap-1">
+            Visualizar
+            <span className="group-hover:translate-x-0.5 transition-transform">→</span>
           </span>
         </div>
       </div>
