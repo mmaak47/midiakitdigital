@@ -22,6 +22,7 @@ import {
 import Navbar from '../components/Navbar';
 import CustomSelect from '../components/CustomSelect';
 import { fetchPontos } from '../lib/api';
+import { generateMidiaKitPdf } from '../lib/midiaKitPdf';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -58,6 +59,7 @@ export default function Landing() {
   const [allPontos, setAllPontos] = useState([]);
   const [selectedPraca, setSelectedPraca] = useState('Todas as praças');
   const [loading, setLoading] = useState(true);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -170,6 +172,22 @@ export default function Landing() {
 
   const explorerPath = `/explorar${selectedPraca !== 'Todas as praças' ? `?cidade=${encodeURIComponent(selectedPraca)}` : ''}`;
 
+  const handleExportPdf = async () => {
+    if (!pontos.length || generatingPdf) return;
+    setGeneratingPdf(true);
+    try {
+      await generateMidiaKitPdf({
+        praca: selectedPraca,
+        pontos
+      });
+    } catch (err) {
+      console.error(err);
+      window.alert('Nao foi possivel gerar o PDF agora. Tente novamente.');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#050505] text-white">
       <Navbar />
@@ -214,7 +232,7 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={3}
-            className="grid lg:grid-cols-[1fr_auto] gap-4 p-6 bg-gradient-to-br from-white/[0.05] to-white/[0.01] border border-white/10 rounded-2xl backdrop-blur-xl shadow-lg shadow-black/20"
+            className="grid lg:grid-cols-[1fr_auto_auto] gap-4 p-6 bg-gradient-to-br from-white/[0.05] to-white/[0.01] border border-white/10 rounded-2xl backdrop-blur-xl shadow-lg shadow-black/20"
           >
             <div className="grid sm:grid-cols-2 gap-4">
               <CustomSelect 
@@ -239,6 +257,14 @@ export default function Landing() {
             >
               Abrir mapa
               <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            </button>
+
+            <button
+              onClick={handleExportPdf}
+              disabled={generatingPdf || pontos.length === 0}
+              className="h-[50px] self-end px-6 bg-white/5 border border-white/15 text-white font-semibold rounded-xl hover:bg-white/10 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              {generatingPdf ? 'Gerando PDF...' : 'Gerar PDF da praca'}
             </button>
           </motion.div>
 
