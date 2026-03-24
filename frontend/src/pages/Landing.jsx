@@ -174,7 +174,7 @@ export default function Landing() {
     <div className="min-h-screen bg-[#050505] text-white">
       <Navbar />
 
-      <section className="pt-20 pb-10 border-b border-white/5 relative overflow-hidden">
+      <section className="pt-20 pb-10 border-b border-white/5 relative overflow-visible">
         <div
           className="absolute inset-0 opacity-35 bg-cover bg-center"
           style={{ backgroundImage: "url('/city-bg.jpg')" }}
