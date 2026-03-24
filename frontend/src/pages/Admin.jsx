@@ -7,8 +7,8 @@ import {
 import Navbar from '../components/Navbar';
 import { login, fetchAdminPontos, createPonto, updatePonto, deletePonto } from '../lib/api';
 
-const CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
-const TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
+const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
+const DEFAULT_TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
 const PUBLICOS = ['A', 'B', 'A/B'];
 
 const emptyForm = {
@@ -33,7 +33,31 @@ export default function Admin() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
 
+    // Dynamic cidades and tipos management
+    const [activeTab, setActiveTab] = useState('pontos');
+    const [cidades, setCidades] = useState([]);
+    const [tipos, setTipos] = useState([]);
+    const [newCidade, setNewCidade] = useState('');
+    const [newTipo, setNewTipo] = useState('');
+
   const handleLogin = async (e) => {
+
+    // Load cidades/tipos from localStorage on mount
+    useEffect(() => {
+      const savedCidades = localStorage.getItem('midia-kit-cidades');
+      const savedTipos = localStorage.getItem('midia-kit-formatos');
+      setCidades(savedCidades ? JSON.parse(savedCidades) : DEFAULT_CIDADES);
+      setTipos(savedTipos ? JSON.parse(savedTipos) : DEFAULT_TIPOS);
+    }, []);
+
+    // Persist cidades and tipos to localStorage
+    useEffect(() => {
+      if (cidades.length > 0) localStorage.setItem('midia-kit-cidades', JSON.stringify(cidades));
+    }, [cidades]);
+
+    useEffect(() => {
+      if (tipos.length > 0) localStorage.setItem('midia-kit-formatos', JSON.stringify(tipos));
+    }, [tipos]);
     e.preventDefault();
     setLoginError('');
     try {
@@ -46,6 +70,28 @@ export default function Admin() {
   };
 
   const loadPontos = async () => {
+
+    const addCidade = () => {
+      if (newCidade.trim() && !cidades.includes(newCidade)) {
+        setCidades([...cidades, newCidade]);
+        setNewCidade('');
+      }
+    };
+
+    const removeCidade = (cidade) => {
+      setCidades(cidades.filter(c => c !== cidade));
+    };
+
+    const addTipo = () => {
+      if (newTipo.trim() && !tipos.includes(newTipo)) {
+        setTipos([...tipos, newTipo]);
+        setNewTipo('');
+      }
+    };
+
+    const removeTipo = (tipo) => {
+      setTipos(tipos.filter(t => t !== tipo));
+    };
     setLoading(true);
     try {
       const data = await fetchAdminPontos();
@@ -342,8 +388,8 @@ export default function Admin() {
               <form onSubmit={handleSave} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField label="Nome *" value={form.nome} onChange={v => updateField('nome', v)} required />
-                  <FormSelect label="Cidade" value={form.cidade} onChange={v => updateField('cidade', v)} options={CIDADES} />
-                  <FormSelect label="Tipo" value={form.tipo} onChange={v => updateField('tipo', v)} options={TIPOS} />
+                  <FormSelect label="Cidade" value={form.cidade} onChange={v => updateField('cidade', v)} options={cidades} />
+                  <FormSelect label="Tipo" value={form.tipo} onChange={v => updateField('tipo', v)} options={tipos} />
                   <FormSelect label="Público" value={form.publico} onChange={v => updateField('publico', v)} options={PUBLICOS} />
                   <FormField label="Endereço" value={form.endereco} onChange={v => updateField('endereco', v)} className="md:col-span-2" />
                   <FormField label="Latitude" value={form.lat} onChange={v => updateField('lat', v)} type="number" step="any" />

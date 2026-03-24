@@ -47,9 +47,9 @@ export default function CustomSelect({ value, onChange, options, label, placehol
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-full left-0 right-0 mt-2 bg-gradient-to-b from-[#1a1a1a] to-[#121212] border border-white/15 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50"
+            className="absolute top-full left-0 right-0 mt-2 bg-gradient-to-b from-[#1a1a1a] to-[#121212] border border-white/15 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50 max-h-96"
           >
-            <div className="max-h-72 overflow-y-auto">
+            <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
               {options.map((option, i) => (
                 <motion.button
                   key={option}

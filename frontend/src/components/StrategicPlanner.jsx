@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Sparkles, PlusCircle, Target } from 'lucide-react';
+import CustomSelect from './CustomSelect';
 import { SEGMENTOS, OBJETIVOS, suggestIdealPlan } from '../lib/strategy';
 
 export default function StrategicPlanner({ pontos = [], publicos = [], cidades = [], onAddPlan }) {
@@ -29,10 +30,10 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
       </div>
 
       <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-4 mb-5">
-        <SelectField label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS} />
-        <SelectField label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} />
-        <SelectField label="Praca" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={['', ...cidades]} emptyLabel="Todas" />
-        <SelectField label="Publico" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={['', ...publicos]} emptyLabel="Todos" />
+        <CustomSelect label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS} />
+        <CustomSelect label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} />
+        <CustomSelect label="Praca" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={['Todas', ...cidades]} />
+        <CustomSelect label="Publico" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={['Todos', ...publicos]} />
         <div>
           <label className="text-[11px] uppercase tracking-wide text-brand-gray-500 font-semibold">Investimento mensal</label>
           <input
@@ -79,23 +80,6 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
         Recomendacao automatica com base em objetivo, publico e faixa de investimento.
       </div>
     </section>
-  );
-}
-
-function SelectField({ label, value, onChange, options, emptyLabel }) {
-  return (
-    <div>
-      <label className="text-[11px] uppercase tracking-wide text-brand-gray-500 font-semibold">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full bg-white/10 border border-white/15 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-brand-orange/40 transition-colors"
-      >
-        {options.map((opt) => (
-          <option key={opt || '__empty'} value={opt}>{opt || emptyLabel || 'Selecione'}</option>
-        ))}
-      </select>
-    </div>
   );
 }
 
