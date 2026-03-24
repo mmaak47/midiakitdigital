@@ -43,6 +43,22 @@ h1, h2, h3, h4, h5, h6 {
   background: #555;
 }
 
+/* Select dropdown styling */
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #1a1a1a;
+  color: #ffffff;
+}
+
+select option:checked {
+  background-color: #FE5C2B;
+  background-image: linear-gradient(#FE5C2B, #FE5C2B);
+  color: white;
+}
+
 /* Leaflet overrides */
 .leaflet-container {
   background: #0A0A0A !important;

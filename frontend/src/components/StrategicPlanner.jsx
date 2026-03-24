@@ -89,7 +89,7 @@ function SelectField({ label, value, onChange, options, emptyLabel }) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full bg-white/10 border border-white/15 rounded-xl px-3 py-2 text-sm outline-none focus:border-brand-orange/40"
+        className="mt-1 w-full bg-white/10 border border-white/15 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-brand-orange/40"
       >
         {options.map((opt) => (
           <option key={opt || '__empty'} value={opt}>{opt || emptyLabel || 'Selecione'}</option>
