@@ -104,7 +104,7 @@ app.post('/api/auth/login', (req, res) => {
 app.post('/api/pontos', upload.single('imagem'), (req, res) => {
   try {
     const data = req.body;
-    const imagem = req.file ? `/uploads/${req.file.filename}` : (data.imagem || null);
+    const imagem = req.file ? `/midiakit/uploads/${req.file.filename}` : (data.imagem || null);
 
     const stmt = db.prepare(`
       INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem)
@@ -134,7 +134,7 @@ app.put('/api/pontos/:id', upload.single('imagem'), (req, res) => {
     const existing = db.prepare('SELECT * FROM pontos WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Ponto não encontrado' });
 
-    const imagem = req.file ? `/uploads/${req.file.filename}` : (data.imagem || existing.imagem);
+    const imagem = req.file ? `/midiakit/uploads/${req.file.filename}` : (data.imagem || existing.imagem);
 
     const stmt = db.prepare(`
       UPDATE pontos SET

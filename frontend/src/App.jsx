@@ -7,7 +7,7 @@ import Admin from './pages/Admin';
 export default function App() {
   return (
     <FavoritesProvider>
-      <BrowserRouter>
+      <BrowserRouter basename="/midiakit">
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/explorar" element={<Explorer />} />

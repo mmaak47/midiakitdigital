@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const API_BASE = '/midiakit/api';
 
 export async function fetchPontos(filters = {}) {
   const params = new URLSearchParams();
