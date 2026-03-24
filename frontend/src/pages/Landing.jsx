@@ -20,6 +20,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import CustomSelect from '../components/CustomSelect';
 import { fetchPontos } from '../lib/api';
 
 const fadeUp = {
@@ -213,25 +214,20 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={3}
-            className="grid lg:grid-cols-[1fr_auto] gap-4 p-4 bg-white/[0.03] border border-white/10 rounded-2xl backdrop-blur-xl"
+            className="grid lg:grid-cols-[1fr_auto] gap-4 p-6 bg-gradient-to-br from-white/[0.05] to-white/[0.01] border border-white/10 rounded-2xl backdrop-blur-xl shadow-lg shadow-black/20"
           >
-            <div className="grid sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-brand-gray-500 uppercase tracking-wide">Praca</label>
-                <select
-                  value={selectedPraca}
-                  onChange={(e) => setSelectedPraca(e.target.value)}
-                  className="mt-1 w-full px-3 py-3 rounded-xl bg-black/60 border border-white/15 focus:border-brand-orange outline-none"
-                >
-                  {pracas.map((praca) => (
-                    <option key={praca} value={praca}>{praca}</option>
-                  ))}
-                </select>
-              </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <CustomSelect 
+                label="Praca"
+                value={selectedPraca}
+                onChange={setSelectedPraca}
+                options={pracas}
+                placeholder="Selecionar praça"
+              />
 
               <div>
-                <label className="text-xs text-brand-gray-500 uppercase tracking-wide">Visualizacao</label>
-                <div className="mt-1 h-[50px] rounded-xl bg-black/50 border border-white/10 px-3 flex items-center text-sm text-brand-gray-300">
+                <label className="text-xs text-brand-gray-500 uppercase tracking-wide font-semibold block mb-2">Visualizacao</label>
+                <div className="h-[50px] rounded-xl bg-gradient-to-r from-white/10 to-white/5 border border-white/15 px-4 flex items-center text-sm font-medium text-white">
                   {selectedPraca === 'Todas as praças' ? 'Consolidado multirregional' : `Foco em ${selectedPraca}`}
                 </div>
               </div>
@@ -239,10 +235,10 @@ export default function Landing() {
 
             <button
               onClick={() => navigate(explorerPath)}
-              className="group h-[50px] self-end px-7 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200"
+              className="group h-[50px] self-end px-7 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
             >
-              Abrir mapa da praca
-              <ArrowRight size={16} className="inline ml-2 group-hover:translate-x-1 transition-transform" />
+              Abrir mapa
+              <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
             </button>
           </motion.div>
 
