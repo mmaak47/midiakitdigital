@@ -23,7 +23,7 @@ export default function PointCard({ ponto, onSelect, index = 0 }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="group relative bg-white/[0.08] border border-white/15 rounded-2xl overflow-hidden hover:border-brand-orange/30 hover:bg-white/[0.12] transition-all duration-300 cursor-pointer"
+      className="group relative bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden hover:border-brand-orange/20 hover:bg-white/[0.04] transition-all duration-300 cursor-pointer"
       onClick={() => onSelect(ponto)}
     >
       {/* Image */}
