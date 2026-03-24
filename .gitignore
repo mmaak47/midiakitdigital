@@ -4,3 +4,6 @@ dist/
 *.db
 backend/uploads/*
 !backend/uploads/.gitkeep
+*.ps1
+*.txt
+*.log
