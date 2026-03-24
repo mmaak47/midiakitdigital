@@ -151,54 +151,293 @@ function scorePointByObjective(point, objective) {
   return score;
 }
 
+function normalizeFilterValue(value, allLabel) {
+  if (!value) return '';
+  const v = String(value).trim();
+  if (!v) return '';
+  if (v.toLowerCase() === String(allLabel).toLowerCase()) return '';
+  return v;
+}
+
+function scoreSegmentAffinity(point, segmento) {
+  if (!segmento) return 0;
+  const text = `${point.nome || ''} ${point.tipo || ''} ${point.descricao || ''} ${point.endereco || ''}`.toLowerCase();
+  const lookup = {
+    clinica: ['hospital', 'lab', 'saude', 'clinica', 'uniorte'],
+    hospital: ['hospital', 'lab', 'saude', 'clinica'],
+    escola: ['escola', 'colegio', 'universidade', 'faculdade'],
+    faculdade: ['faculdade', 'universidade', 'campus'],
+    construtora: ['premium', 'residence', 'palhano', 'elevador', 'residencial'],
+    imobiliaria: ['residence', 'residencial', 'palhano', 'elevador'],
+    varejo: ['muffato', 'posto', 'mercad', 'indoor', 'painel'],
+    restaurante: ['restaurante', 'boteco', 'grill', 'panetteria', 'cafeteria'],
+    contabilidade: ['comercial', 'business', 'centro', 'elevador'],
+    advocacia: ['comercial', 'business', 'premium', 'elevador'],
+    industria: ['rod', 'frontlight', 'backlight', 'painel', 'posto'],
+    outro: []
+  };
+
+  const terms = lookup[String(segmento).toLowerCase()] || [];
+  if (!terms.length) return 0;
+  const hits = terms.filter((term) => text.includes(term)).length;
+  return Math.min(18, hits * 4.5);
+}
+
+function scorePublicoAffinity(point, publicoDesejado) {
+  if (!publicoDesejado) return 0;
+  const target = String(publicoDesejado).toUpperCase();
+  const pointPublico = String(point.publico || '').toUpperCase();
+
+  if (!pointPublico) return -2;
+  if (pointPublico === target) return 16;
+
+  const targetParts = target.split('/').map((p) => p.trim()).filter(Boolean);
+  const pointParts = pointPublico.split('/').map((p) => p.trim()).filter(Boolean);
+  const overlap = targetParts.filter((part) => pointParts.includes(part)).length;
+  if (overlap > 0) return 8 + overlap * 3;
+  if (pointPublico.includes(target) || target.includes(pointPublico)) return 8;
+
+  return -5;
+}
+
+function scoreCostEfficiency(point) {
+  const fluxo = toNumber(point.fluxo);
+  const insercoes = toNumber(point.insercoes);
+  const preco = Math.max(1, toNumber(point.preco));
+
+  const fluxoPerCost = fluxo / preco;
+  const insercoesPerCost = insercoes / preco;
+
+  return (
+    Math.min(34, fluxoPerCost / 14) +
+    Math.min(16, insercoesPerCost / 60)
+  );
+}
+
+function getObjectiveFormatBoost(tipo, objetivo) {
+  const normalized = String(tipo || '').toLowerCase();
+
+  if (objetivo === 'presenca premium') {
+    if (normalized.includes('elevador')) return 12;
+    if (normalized.includes('indoor') || normalized.includes('video wall')) return 10;
+    if (normalized.includes('painel led')) return 6;
+    return 0;
+  }
+
+  if (objetivo === 'reconhecimento de marca' || objetivo === 'cobertura regional') {
+    if (normalized.includes('painel led') || normalized.includes('frontlight') || normalized.includes('backlight')) return 12;
+    if (normalized.includes('totem') || normalized.includes('indoor')) return 6;
+    return 0;
+  }
+
+  if (objetivo === 'proximidade da decisao de compra') {
+    if (normalized.includes('indoor') || normalized.includes('muffato') || normalized.includes('posto')) return 12;
+    if (normalized.includes('elevador')) return 7;
+    return 0;
+  }
+
+  if (objetivo === 'lembranca continua') {
+    if (normalized.includes('elevador') || normalized.includes('indoor')) return 10;
+    if (normalized.includes('painel led') || normalized.includes('frontlight')) return 7;
+    return 0;
+  }
+
+  return 0;
+}
+
+function buildCandidate(point, { objetivo, publico, segmento, medianPrice, maxPrice }) {
+  const preco = Math.max(0, toNumber(point.preco));
+  const objectiveScore = scorePointByObjective(point, objetivo);
+  const efficiencyScore = scoreCostEfficiency(point);
+  const publicoScore = scorePublicoAffinity(point, publico);
+  const segmentoScore = scoreSegmentAffinity(point, segmento);
+  const formatBoost = getObjectiveFormatBoost(point.tipo, objetivo);
+  const premiumPenalty = preco > medianPrice * 2.4 ? -8 : 0;
+  const hugePenalty = maxPrice > 0 && preco > maxPrice * 0.85 ? -4 : 0;
+
+  return {
+    ...point,
+    _preco: preco,
+    _baseScore:
+      objectiveScore * 1.25 +
+      efficiencyScore * 0.9 +
+      publicoScore +
+      segmentoScore +
+      formatBoost +
+      premiumPenalty +
+      hugePenalty
+  };
+}
+
+function marginalGain(candidate, selected, budget, spend, objetivo) {
+  const formatos = new Set(selected.map((p) => p.tipo).filter(Boolean));
+  const cidades = new Set(selected.map((p) => p.cidade).filter(Boolean));
+
+  const sameTypeCount = selected.filter((p) => p.tipo === candidate.tipo).length;
+  const sameCityCount = selected.filter((p) => p.cidade === candidate.cidade).length;
+
+  const diversidadeFormato = formatos.has(candidate.tipo) ? 0 : 14;
+  const diversidadeCidade = cidades.has(candidate.cidade) ? 0 : 8;
+  const saturacaoTipo = sameTypeCount * 5.2;
+  const saturacaoCidade = sameCityCount * 1.2;
+
+  const projected = spend + candidate._preco;
+  let budgetPenalty = 0;
+  if (budget > 0 && projected > budget) {
+    const overflowRatio = (projected - budget) / Math.max(budget, 1);
+    budgetPenalty = 52 * overflowRatio;
+  }
+
+  const cpm = candidate._preco > 0 && toNumber(candidate.fluxo) > 0
+    ? candidate._preco / (toNumber(candidate.fluxo) / 1000)
+    : 9999;
+  const cpmBonus = cpm < 18 ? 10 : cpm < 28 ? 5 : cpm < 40 ? 1 : -3;
+
+  const objetivoCapilaridade = objetivo === 'cobertura regional' ? (diversidadeFormato * 0.45 + diversidadeCidade * 0.75) : 0;
+
+  return (
+    candidate._baseScore +
+    diversidadeFormato +
+    diversidadeCidade +
+    cpmBonus +
+    objetivoCapilaridade -
+    saturacaoTipo -
+    saturacaoCidade -
+    budgetPenalty
+  );
+}
+
 export function suggestIdealPlan({
   pontos = [],
   cidade,
   publico,
   objetivo,
+  segmento,
   investimentoMensal = 0
 }) {
   const budget = Math.max(0, toNumber(investimentoMensal));
+  const cidadeNormalizada = normalizeFilterValue(cidade, 'Todas');
+  const publicoNormalizado = normalizeFilterValue(publico, 'Todos');
 
-  const base = pontos
-    .filter((p) => !cidade || p.cidade === cidade)
-    .filter((p) => !publico || p.publico === publico)
-    .map((p) => ({ ...p, _score: scorePointByObjective(p, objetivo) }))
-    .sort((a, b) => b._score - a._score);
+  const filtered = pontos
+    .filter((p) => !cidadeNormalizada || p.cidade === cidadeNormalizada)
+    .filter((p) => !publicoNormalizado || String(p.publico || '').toUpperCase().includes(publicoNormalizado.toUpperCase()));
+
+  if (!filtered.length) {
+    return {
+      pontos: [],
+      totals: campaignTotals([]),
+      justificativa: 'Nao encontramos pontos para os filtros selecionados. Ajuste praca, publico ou objetivo para gerar um plano ideal.'
+    };
+  }
+
+  const prices = filtered.map((p) => Math.max(0, toNumber(p.preco))).sort((a, b) => a - b);
+  const medianPrice = prices[Math.floor(prices.length / 2)] || 0;
+  const maxPrice = prices[prices.length - 1] || 0;
+
+  const candidates = filtered
+    .map((point) => buildCandidate(point, {
+      objetivo,
+      publico: publicoNormalizado,
+      segmento,
+      medianPrice,
+      maxPrice
+    }))
+    .sort((a, b) => b._baseScore - a._baseScore);
+
+  const targetCount = budget > 0
+    ? Math.min(14, Math.max(4, Math.round(budget / Math.max(medianPrice || 1, 900))))
+    : 7;
 
   const selected = [];
-  let running = 0;
+  let spend = 0;
+  const used = new Set();
 
-  for (const point of base) {
-    const preco = toNumber(point.preco);
-    const shouldPick = budget <= 0 ? selected.length < 6 : running + preco <= budget || selected.length < 3;
-    if (shouldPick) {
-      selected.push(point);
-      running += preco;
+  // Seed phase: guarantee at least one strong candidate per key format.
+  for (const candidate of candidates) {
+    if (selected.length >= Math.min(3, targetCount)) break;
+    if (used.has(candidate.id)) continue;
+
+    const formatoJaExiste = selected.some((p) => p.tipo === candidate.tipo);
+    if (formatoJaExiste && selected.length > 0) continue;
+
+    if (budget > 0 && spend + candidate._preco > budget * 1.06 && selected.length > 0) continue;
+
+    selected.push(candidate);
+    used.add(candidate.id);
+    spend += candidate._preco;
+  }
+
+  // Iterative improvement: choose point with highest marginal gain each round.
+  while (selected.length < targetCount) {
+    let best = null;
+    let bestGain = -Infinity;
+
+    for (const candidate of candidates) {
+      if (used.has(candidate.id)) continue;
+
+      const gain = marginalGain(candidate, selected, budget, spend, objetivo);
+      if (gain > bestGain) {
+        bestGain = gain;
+        best = candidate;
+      }
     }
-    if (selected.length >= 10) break;
+
+    if (!best) break;
+
+    const projectedSpend = spend + best._preco;
+    const allowOverBudget = budget > 0 && selected.length < 3 && projectedSpend <= budget * 1.12;
+    const withinBudget = budget <= 0 || projectedSpend <= budget;
+
+    if (!withinBudget && !allowOverBudget) {
+      const hasAnyAffordable = candidates.some((c) => !used.has(c.id) && (budget <= 0 || spend + c._preco <= budget));
+      if (!hasAnyAffordable) break;
+      used.add(best.id);
+      continue;
+    }
+
+    if (bestGain < 8 && selected.length >= Math.max(4, Math.floor(targetCount * 0.7))) {
+      break;
+    }
+
+    selected.push(best);
+    used.add(best.id);
+    spend = projectedSpend;
   }
 
-  if (selected.length === 0 && base.length > 0) {
-    selected.push(base[0]);
-    running = toNumber(base[0].preco);
+  if (!selected.length && candidates.length) {
+    selected.push(candidates[0]);
+    spend = candidates[0]._preco;
   }
 
-  const totals = campaignTotals(selected);
+  const cleaned = selected.map(({ _baseScore, _preco, ...point }) => point);
+  const totals = campaignTotals(cleaned);
+  const formatos = new Set(cleaned.map((p) => p.tipo).filter(Boolean)).size;
+  const orcamentoUsoPct = budget > 0 ? Math.round((totals.valorTotal / budget) * 100) : null;
 
-  let justificativa = 'Plano equilibrado com foco em frequencia e alcance.';
+  let foco = 'equilibrio entre frequencia, eficiencia de custo e cobertura.';
   if (objetivo === 'presenca premium') {
-    justificativa = 'Combinacao orientada para autoridade de marca, privilegiando ambientes premium e recorrentes.';
+    foco = 'ambientes premium com alta recorrencia para elevar percepcao de marca.';
   } else if (objetivo === 'reconhecimento de marca') {
-    justificativa = 'Plano focado em volume de impactos para ampliar lembranca da marca na praca.';
+    foco = 'volume de impacto e repeticao para acelerar lembranca.';
   } else if (objetivo === 'cobertura regional') {
-    justificativa = 'Distribuicao multiformato para aumentar capilaridade e presenca regional.';
+    foco = 'capilaridade de formatos e distribuicao por praca.';
   } else if (objetivo === 'proximidade da decisao de compra') {
-    justificativa = 'Selecao de pontos com alta intencao e proximidade de conversao no momento de compra.';
+    foco = 'pontos proximos de decisao com maior propensao de conversao.';
+  } else if (objetivo === 'lembranca continua') {
+    foco = 'continuidade de exposicao com bom ritmo de insercoes.';
   }
+
+  const justificativa = [
+    `Plano recomendado com ${totals.quantidade} ponto${totals.quantidade > 1 ? 's' : ''} e ${formatos} formato${formatos > 1 ? 's' : ''}, priorizando ${foco}`,
+    `Fluxo potencial de ${new Intl.NumberFormat('pt-BR').format(totals.fluxoTotal)} impactos/mensais e CPM estimado em R$ ${totals.cpmEstimado.toFixed(2)}.`,
+    budget > 0
+      ? `Uso de orçamento em ${orcamentoUsoPct}% (R$ ${new Intl.NumberFormat('pt-BR').format(totals.valorTotal)} de R$ ${new Intl.NumberFormat('pt-BR').format(budget)}), com seleção por ganho marginal para evitar pontos redundantes.`
+      : 'Sem limite de orçamento informado, o motor priorizou eficiência e diversidade para um plano-base robusto.'
+  ].join(' ');
 
   return {
-    pontos: selected,
+    pontos: cleaned,
     totals,
     justificativa
   };

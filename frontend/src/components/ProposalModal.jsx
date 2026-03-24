@@ -183,27 +183,38 @@ export default function ProposalModal({ onClose }) {
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="relative w-full max-w-5xl max-h-[90vh] overflow-y-auto bg-brand-dark border border-white/10 rounded-2xl"
+          className="relative w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-3xl border border-white/15 bg-gradient-to-b from-[#11141b] via-[#0d1016] to-[#090c11] shadow-[0_30px_120px_rgba(0,0,0,0.75)]"
           onClick={(e) => e.stopPropagation()}
         >
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_5%,rgba(254,92,43,0.12),transparent_35%),radial-gradient(circle_at_90%_0%,rgba(255,255,255,0.07),transparent_28%)]" />
+
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white/60 hover:text-white transition-all"
+            className="absolute top-4 right-4 z-10 p-2.5 rounded-full border border-white/10 bg-black/35 hover:bg-black/60 text-white/70 hover:text-white transition-all"
           >
             <X size={18} />
           </button>
 
-          <div className="p-6 md:p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <FileText size={24} className="text-brand-orange" />
-              <div>
-                <h2 className="text-2xl font-bold text-white">Modo gerar proposta automatica</h2>
-                <p className="text-sm text-brand-gray-400">Estrutura pronta para exportacao em PDF e apresentacao comercial.</p>
+          <div className="relative p-6 md:p-8 space-y-5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 md:p-6">
+              <div className="flex flex-wrap items-start gap-4">
+                <div className="h-12 w-12 rounded-xl bg-brand-orange/15 border border-brand-orange/30 flex items-center justify-center shadow-[0_8px_30px_rgba(254,92,43,0.2)]">
+                  <FileText size={22} className="text-brand-orange" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-brand-gray-500 mb-1">Proposta Comercial</p>
+                  <h2 className="text-2xl md:text-[30px] leading-tight font-bold text-white">Modo gerar proposta automatica</h2>
+                  <p className="text-sm text-brand-gray-400 mt-2">Estrutura pronta para exportacao em PDF e apresentacao comercial, com simulacao da criacao aplicada por ponto.</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-right">
+                  <div className="text-[10px] uppercase tracking-wide text-brand-gray-500">Pontos no carrinho</div>
+                  <div className="text-lg font-bold text-white">{favorites.length}</div>
+                </div>
               </div>
             </div>
 
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 mb-5">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-brand-gray-400 mb-3">Dados da proposta</h3>
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-4">Dados da proposta</h3>
               <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-3">
                 <Input label="Nome do cliente" value={form.clientName} onChange={(value) => setForm((s) => ({ ...s, clientName: value }))} />
                 <Input label="Cidade" value={form.city} onChange={(value) => setForm((s) => ({ ...s, city: value }))} />
@@ -213,15 +224,15 @@ export default function ProposalModal({ onClose }) {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 mb-5 space-y-4">
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-5">
               <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
                 <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-brand-gray-400 mb-1">Arte da campanha</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Arte da campanha</h3>
                   <p className="text-sm text-brand-gray-400">A arte enviada aqui sera aplicada sobre a area de tela cadastrada no admin para cada ponto da proposta.</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  <label className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-brand-gray-300 hover:bg-white/10 cursor-pointer transition-colors">
+                  <label className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/15 rounded-xl text-sm text-brand-gray-300 hover:bg-white/10 cursor-pointer transition-colors">
                     <Upload size={16} />
                     {simulationArtFile ? simulationArtFile.name : 'Escolher arte da campanha'}
                     <input
@@ -240,7 +251,7 @@ export default function ProposalModal({ onClose }) {
                     type="button"
                     onClick={handleGenerateSimulations}
                     disabled={simulationBusy || !favorites.length}
-                    className="px-4 py-2.5 rounded-xl bg-brand-orange text-white font-medium hover:bg-brand-orange-hover disabled:opacity-50"
+                    className="px-5 py-2.5 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover disabled:opacity-50 shadow-[0_10px_24px_rgba(254,92,43,0.28)]"
                   >
                     {simulationBusy ? 'Gerando simulacoes...' : 'Gerar simulacoes'}
                   </button>
@@ -248,12 +259,12 @@ export default function ProposalModal({ onClose }) {
               </div>
 
               {simulationError && (
-                <p className="text-xs text-red-400">{simulationError}</p>
+                <p className="text-xs text-red-300 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">{simulationError}</p>
               )}
 
               <div className="grid lg:grid-cols-[220px_1fr] gap-4 items-start">
-                <div className="rounded-xl border border-white/10 bg-black/20 p-2">
-                  <p className="text-[11px] text-brand-gray-500 px-1 pb-2">Preview da arte enviada</p>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-2.5">
+                  <p className="text-[11px] text-brand-gray-500 px-1 pb-2 uppercase tracking-wide">Preview da arte enviada</p>
                   {simulationArtUrl ? (
                     <img src={simulationArtUrl} alt="Arte da campanha" className="w-full h-40 object-cover rounded-lg" />
                   ) : (
@@ -284,7 +295,7 @@ export default function ProposalModal({ onClose }) {
 
               <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-4">
                 <div>
-                  <p className="text-[11px] uppercase tracking-wide text-brand-gray-400 mb-1">Realismo da tela</p>
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Realismo da tela</p>
                   <p className="text-sm text-brand-gray-400">Esses controles aproximam o resultado do simulador com brilho, reflexo, vazamento de luz e textura de LED.</p>
                 </div>
 
@@ -313,7 +324,7 @@ export default function ProposalModal({ onClose }) {
 
             {step === 'generated' && (
               <section className="space-y-4">
-                <div className="rounded-2xl border border-brand-orange/30 bg-brand-orange/10 p-4">
+                <div className="rounded-2xl border border-brand-orange/30 bg-gradient-to-r from-brand-orange/20 to-brand-orange/5 p-4">
                   <h3 className="text-lg font-semibold text-white mb-1">Proposta gerada com sucesso</h3>
                   <p className="text-sm text-brand-gray-300">Apresentacao pronta para reuniao comercial, com narrativa estrategica e indicadores executivos.</p>
                 </div>
@@ -331,7 +342,7 @@ export default function ProposalModal({ onClose }) {
                 <div className="grid sm:grid-cols-3 gap-3">
                   <button
                     onClick={handlePrint}
-                    className="h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2"
+                    className="h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(254,92,43,0.28)]"
                   >
                     <Download size={16} />
                     Exportar / Imprimir
@@ -339,7 +350,7 @@ export default function ProposalModal({ onClose }) {
 
                   <button
                     onClick={() => setShowPresentation(true)}
-                    className="h-11 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.06] font-medium inline-flex items-center justify-center gap-2"
+                    className="h-11 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] font-medium inline-flex items-center justify-center gap-2"
                   >
                     <Presentation size={16} />
                     Modo apresentacao
@@ -347,7 +358,7 @@ export default function ProposalModal({ onClose }) {
 
                   <button
                     onClick={() => setStep('review')}
-                    className="h-11 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.06] font-medium"
+                    className="h-11 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] font-medium"
                   >
                     Voltar para revisao
                   </button>
@@ -372,11 +383,11 @@ export default function ProposalModal({ onClose }) {
 function Input({ label, value, onChange }) {
   return (
     <div>
-      <label className="text-[11px] uppercase tracking-wide text-brand-gray-500">{label}</label>
+      <label className="text-[11px] uppercase tracking-[0.12em] text-brand-gray-500">{label}</label>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full bg-white/10 border border-white/15 rounded-xl px-3 py-2 text-sm outline-none focus:border-brand-orange/40"
+        className="mt-1.5 w-full bg-white/[0.07] border border-white/15 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-brand-orange/45 focus:bg-white/[0.09] transition-colors"
       />
     </div>
   );
@@ -391,7 +402,7 @@ function StatusCard({ label, value, tone }) {
 
   return (
     <div className={`rounded-xl border p-3 ${toneClass}`}>
-      <div className="text-[10px] uppercase tracking-wide text-brand-gray-500">{label}</div>
+      <div className="text-[10px] uppercase tracking-[0.12em] text-brand-gray-500">{label}</div>
       <div className="text-2xl font-bold mt-1">{value}</div>
     </div>
   );
@@ -411,7 +422,7 @@ function SliderField({ label, value, min, max, step, onChange }) {
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-brand-orange"
+        className="proposal-slider w-full"
       />
     </div>
   );

@@ -17,6 +17,7 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
     cidade: form.cidade,
     publico: form.publico,
     objetivo: form.objetivo,
+    segmento: form.segmento,
     investimentoMensal: form.investimentoMensal
   }), [pontos, form]);
 
