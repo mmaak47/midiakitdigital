@@ -2,8 +2,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import {
-  ArrowRight, MapPin, Monitor, Users, TrendingUp,
-  Building2, Tv, UtensilsCrossed, Croissant, Route
+  ArrowRight, MapPin, Monitor, Users,
+  Building2, Tv, Lightbulb, Sun, Columns3, ShoppingCart, Fuel
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { fetchStats } from '../lib/api';
@@ -30,13 +30,12 @@ export default function Landing() {
 
       {/* Hero */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        {/* Background grid */}
-        <div className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: 'linear-gradient(rgba(255,255,255,.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.3) 1px, transparent 1px)',
-            backgroundSize: '60px 60px'
-          }}
+        {/* Background image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: "url('/hero-bg.jpg')" }}
         />
+        <div className="absolute inset-0 bg-black/60" />
         {/* Glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-orange/10 rounded-full blur-[120px]" />
 
@@ -52,9 +51,9 @@ export default function Landing() {
             variants={fadeUp} initial="hidden" animate="visible" custom={1}
             className="text-4xl sm:text-5xl md:text-7xl font-bold leading-[1.1] tracking-tight mb-6"
           >
-            Explore os melhores{' '}
+            Sua marca nos melhores{' '}
             <span className="text-brand-orange">pontos de mídia</span>{' '}
-            da cidade
+            do Sul do Brasil
           </motion.h1>
 
           <motion.p
@@ -134,29 +133,47 @@ export default function Landing() {
       {/* About */}
       <section id="sobre" className="py-24 border-t border-white/5">
         <div className="max-w-6xl mx-auto px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="max-w-3xl"
-          >
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">
-              Mídia que <span className="text-brand-orange">conecta</span>
-            </h2>
-            <p className="text-lg text-brand-gray-400 leading-relaxed mb-8">
-              A Intermidia é referência em mídia OOH e DOOH no sul do Brasil.
-              Com pontos estratégicos em elevadores, painéis LED, restaurantes, padarias e vias públicas,
-              levamos sua marca para onde seu público está — com precisão, tecnologia e impacto real.
-            </p>
-          </motion.div>
+          <div className="grid md:grid-cols-2 gap-12 items-center mb-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+            >
+              <h2 className="text-3xl md:text-4xl font-bold mb-6">
+                Mídia que <span className="text-brand-orange">conecta</span>
+              </h2>
+              <p className="text-lg text-brand-gray-400 leading-relaxed mb-4">
+                A Intermidia é referência em mídia OOH e DOOH no Sul do Brasil.
+                Com mais de 90 pontos estratégicos em Londrina, Maringá, Balneário Camboriú e Itajaí,
+                levamos sua marca para onde seu público está — com precisão, tecnologia e impacto real.
+              </p>
+              <p className="text-brand-gray-500 leading-relaxed">
+                Elevadores, painéis LED, backlights, frontlights, totens digitais, circuitos de supermercados
+                e postos de combustível. A cobertura que sua campanha precisa.
+              </p>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              className="relative rounded-2xl overflow-hidden aspect-[4/3]"
+            >
+              <img src="/about-1.jpg" alt="Intermidia OOH" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+            </motion.div>
+          </div>
 
-          <div className="grid md:grid-cols-5 gap-6 mt-12">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             {[
               { icon: Building2, label: 'Elevadores', desc: 'Edifícios premium' },
-              { icon: Tv, label: 'Painéis LED', desc: 'Alta visibilidade' },
-              { icon: UtensilsCrossed, label: 'Restaurantes', desc: 'Público qualificado' },
-              { icon: Croissant, label: 'Padarias', desc: 'Fluxo constante' },
-              { icon: Route, label: 'Vias Públicas', desc: 'Máximo alcance' },
+              { icon: Tv, label: 'Telas Indoor', desc: 'Pontos comerciais' },
+              { icon: Monitor, label: 'Painéis LED', desc: 'Alta visibilidade' },
+              { icon: Lightbulb, label: 'Backlights', desc: 'Iluminação traseira' },
+              { icon: Sun, label: 'Frontlights', desc: 'Iluminação frontal' },
+              { icon: Columns3, label: 'Totens Digitais', desc: 'Conteúdo dinâmico' },
+              { icon: ShoppingCart, label: 'Circuito Muffato', desc: 'Supermercados' },
+              { icon: Fuel, label: 'LED Posto', desc: 'Postos de combustível' },
+              { icon: Monitor, label: 'Video Wall', desc: 'Impacto máximo' },
             ].map((item, i) => (
               <motion.div
                 key={item.label}
@@ -176,8 +193,13 @@ export default function Landing() {
       </section>
 
       {/* CTA */}
-      <section className="py-24 border-t border-white/5">
-        <div className="max-w-4xl mx-auto px-6 text-center">
+      <section className="py-24 border-t border-white/5 relative overflow-hidden">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-20"
+          style={{ backgroundImage: "url('/city-bg.jpg')" }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-black" />
+        <div className="relative max-w-4xl mx-auto px-6 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -204,9 +226,9 @@ export default function Landing() {
       <footer className="py-12 border-t border-white/5">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-brand-orange flex items-center justify-center text-xs font-bold">i</div>
+            <img src="/logo.png" alt="Intermidia" className="h-6" />
             <span className="text-sm text-brand-gray-500">
-              inter<span className="text-brand-gray-300">midia</span> © {new Date().getFullYear()}
+              © {new Date().getFullYear()}
             </span>
           </div>
           <div className="flex gap-6 text-sm text-brand-gray-500">

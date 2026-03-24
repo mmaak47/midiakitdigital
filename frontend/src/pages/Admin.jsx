@@ -8,7 +8,7 @@ import Navbar from '../components/Navbar';
 import { login, fetchAdminPontos, createPonto, updatePonto, deletePonto } from '../lib/api';
 
 const CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
-const TIPOS = ['Elevador', 'LED', 'Restaurante', 'Padaria', 'Via Pública'];
+const TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
 const PUBLICOS = ['A', 'B', 'A/B'];
 
 const emptyForm = {

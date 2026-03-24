@@ -1,16 +1,20 @@
 import { motion } from 'framer-motion';
 import {
-  MapPin, Building2, Tv, UtensilsCrossed, Croissant, Route,
-  Search, X, SlidersHorizontal
+  MapPin, Building2, Tv, Monitor, Lightbulb, Sun, Columns3,
+  ShoppingCart, Fuel, Search, X, SlidersHorizontal
 } from 'lucide-react';
 
 const CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const TIPOS = [
   { value: 'Elevador', icon: Building2 },
-  { value: 'LED', icon: Tv },
-  { value: 'Restaurante', icon: UtensilsCrossed },
-  { value: 'Padaria', icon: Croissant },
-  { value: 'Via Pública', icon: Route },
+  { value: 'Tela Indoor', icon: Tv },
+  { value: 'Painel LED', icon: Monitor },
+  { value: 'Backlight', icon: Lightbulb },
+  { value: 'Frontlight', icon: Sun },
+  { value: 'Totem Digital', icon: Columns3 },
+  { value: 'Circuito Muffato', icon: ShoppingCart },
+  { value: 'LED Posto', icon: Fuel },
+  { value: 'Video Wall', icon: Monitor },
 ];
 const PUBLICOS = ['A', 'B', 'A/B'];
 

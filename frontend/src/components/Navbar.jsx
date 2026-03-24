@@ -19,12 +19,7 @@ export default function Navbar({ transparent = false }) {
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-lg bg-brand-orange flex items-center justify-center font-bold text-sm transition-transform group-hover:scale-105">
-            i
-          </div>
-          <span className="text-white font-semibold text-lg tracking-tight font-logo">
-            inter<span className="text-brand-orange">midia</span>
-          </span>
+          <img src="/logo.png" alt="Intermidia" className="h-8 transition-transform group-hover:scale-105" />
         </Link>
 
         {/* Desktop Nav */}
