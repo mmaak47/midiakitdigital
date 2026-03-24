@@ -195,23 +195,27 @@ export default function Landing() {
       </section>
 
       {/* Showcase — Totem & Product */}
-      <section className="py-24 border-t border-white/5">
+      <section className="py-24 border-t border-white/5 relative overflow-hidden">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <motion.div
               initial={{ opacity: 0, x: -30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              className="relative flex items-center justify-center"
+              className="relative flex flex-col items-center justify-end min-h-[520px]"
             >
-              {/* Glow behind totem */}
-              <div className="absolute w-64 h-64 bg-brand-orange/20 rounded-full blur-[80px]" />
-              <div className="absolute w-48 h-48 bg-brand-orange/10 rounded-full blur-[100px] translate-y-12" />
+              {/* Floor glow / ambient light */}
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[300px] h-[60px] bg-brand-orange/25 rounded-[50%] blur-[40px]" />
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[200px] h-[200px] bg-brand-orange/8 rounded-full blur-[80px]" />
+              {/* Totem image */}
               <img
                 src="/totem-sample.png"
                 alt="Totem Digital Triplaface Intermidia"
-                className="relative z-10 max-h-[500px] object-contain drop-shadow-[0_20px_60px_rgba(246,130,31,0.3)] hover:scale-105 transition-transform duration-500"
+                className="relative z-10 max-h-[460px] object-contain drop-shadow-[0_4px_40px_rgba(254,92,43,0.15)] hover:scale-[1.03] transition-transform duration-500"
               />
+              {/* Ground reflection line */}
+              <div className="relative z-10 w-[180px] h-px bg-gradient-to-r from-transparent via-brand-orange/30 to-transparent mt-2" />
+              <div className="relative z-10 w-[120px] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mt-1" />
             </motion.div>
             <motion.div
               initial={{ opacity: 0, x: 30 }}
@@ -225,10 +229,10 @@ export default function Landing() {
                 Totens digitais de alta definição, painéis LED de grande formato e telas indoor
                 em pontos de alto fluxo. Toda a infraestrutura para sua campanha brilhar.
               </p>
-              <ul className="space-y-3">
+              <ul className="space-y-4">
                 {['Conteúdo dinâmico em tempo real', 'Segmentação por horário e local', 'Relatórios de audiência e impacto', 'Suporte técnico dedicado'].map((item) => (
                   <li key={item} className="flex items-center gap-3 text-brand-gray-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-orange flex-shrink-0" />
+                    <span className="w-2 h-2 rounded-full bg-brand-orange flex-shrink-0" />
                     {item}
                   </li>
                 ))}
