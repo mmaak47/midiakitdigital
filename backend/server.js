@@ -45,10 +45,15 @@ const upload = multer({
   storage,
   limits: {
     fileSize: 5 * 1024 * 1024,
-    files: 1,
+    files: 3,
     fields: 30
   }
 });
+
+function pickUploadedPath(req, fieldName) {
+  const file = req.files?.[fieldName]?.[0];
+  return file ? `/uploads/${file.filename}` : null;
+}
 
 // ==================== API ROUTES ====================
 
@@ -132,14 +137,21 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // CREATE ponto
-app.post('/api/pontos', upload.single('imagem'), (req, res) => {
+app.post('/api/pontos', upload.fields([
+  { name: 'imagem', maxCount: 1 },
+  { name: 'simulacao_arte', maxCount: 1 },
+  { name: 'simulacao_preview', maxCount: 1 }
+]), (req, res) => {
   try {
     const data = req.body;
-    const imagem = req.file ? `/uploads/${req.file.filename}` : (data.imagem || null);
+    const imagem = pickUploadedPath(req, 'imagem') || data.imagem || null;
+    const simulacaoArte = pickUploadedPath(req, 'simulacao_arte') || data.simulacao_arte || null;
+    const simulacaoPreview = pickUploadedPath(req, 'simulacao_preview') || data.simulacao_preview || null;
+    const simulacaoTela = data.simulacao_tela || null;
 
     const stmt = db.prepare(`
-      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, simulacao_tela, simulacao_arte, simulacao_preview)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -148,7 +160,7 @@ app.post('/api/pontos', upload.single('imagem'), (req, res) => {
       data.horario, parseInt(data.fluxo) || 0, parseInt(data.insercoes) || 0,
       data.tempo || '15s', data.loop || '3 min', data.veiculacao || 'Vídeo sem áudio',
       data.publico || 'A/B', parseInt(data.telas) || 1, parseFloat(data.preco) || 0,
-      data.descricao, imagem
+      data.descricao, imagem, simulacaoTela, simulacaoArte, simulacaoPreview
     );
 
     const ponto = db.prepare('SELECT * FROM pontos WHERE id = ?').get(result.lastInsertRowid);
@@ -159,20 +171,28 @@ app.post('/api/pontos', upload.single('imagem'), (req, res) => {
 });
 
 // UPDATE ponto
-app.put('/api/pontos/:id', upload.single('imagem'), (req, res) => {
+app.put('/api/pontos/:id', upload.fields([
+  { name: 'imagem', maxCount: 1 },
+  { name: 'simulacao_arte', maxCount: 1 },
+  { name: 'simulacao_preview', maxCount: 1 }
+]), (req, res) => {
   try {
     const data = req.body;
     const existing = db.prepare('SELECT * FROM pontos WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Ponto não encontrado' });
 
-    const imagem = req.file ? `/uploads/${req.file.filename}` : (data.imagem || existing.imagem);
+    const imagem = pickUploadedPath(req, 'imagem') || data.imagem || existing.imagem;
+    const simulacaoArte = pickUploadedPath(req, 'simulacao_arte') || data.simulacao_arte || existing.simulacao_arte;
+    const simulacaoPreview = pickUploadedPath(req, 'simulacao_preview') || data.simulacao_preview || existing.simulacao_preview;
+    const simulacaoTela = data.simulacao_tela || existing.simulacao_tela;
 
     const stmt = db.prepare(`
       UPDATE pontos SET
         nome = ?, cidade = ?, tipo = ?, endereco = ?, lat = ?, lng = ?,
         horario = ?, fluxo = ?, insercoes = ?, tempo = ?, loop = ?,
         veiculacao = ?, publico = ?, telas = ?, preco = ?, descricao = ?,
-        imagem = ?, updated_at = datetime('now')
+        imagem = ?, simulacao_tela = ?, simulacao_arte = ?, simulacao_preview = ?,
+        updated_at = datetime('now')
       WHERE id = ?
     `);
 
@@ -186,6 +206,7 @@ app.put('/api/pontos/:id', upload.single('imagem'), (req, res) => {
       data.veiculacao || existing.veiculacao, data.publico || existing.publico,
       parseInt(data.telas) || existing.telas, parseFloat(data.preco) || existing.preco,
       data.descricao || existing.descricao, imagem,
+      simulacaoTela, simulacaoArte, simulacaoPreview,
       req.params.id
     );
 

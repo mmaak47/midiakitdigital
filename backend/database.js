@@ -40,6 +40,17 @@ db.exec(`
   )
 `);
 
+function ensureColumn(table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+ensureColumn('pontos', 'simulacao_tela', 'TEXT');
+ensureColumn('pontos', 'simulacao_arte', 'TEXT');
+ensureColumn('pontos', 'simulacao_preview', 'TEXT');
+
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_pontos_ativo_cidade_nome
   ON pontos (ativo, cidade, nome)

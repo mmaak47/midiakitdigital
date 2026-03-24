@@ -25,6 +25,7 @@ export default function ProposalBuilder({
           <thead className="bg-white/[0.03] border-b border-white/10">
             <tr>
               <th className="text-left px-3 py-2">Ponto</th>
+              <th className="text-left px-3 py-2 hidden lg:table-cell">Simulação</th>
               <th className="text-left px-3 py-2 hidden md:table-cell">Cidade</th>
               <th className="text-left px-3 py-2 hidden md:table-cell">Tipo</th>
               <th className="text-right px-3 py-2">Valor</th>
@@ -34,6 +35,17 @@ export default function ProposalBuilder({
             {points.map((p) => (
               <tr key={p.id} className="border-b border-white/5">
                 <td className="px-3 py-2">{p.nome}</td>
+                <td className="px-3 py-2 hidden lg:table-cell">
+                  {p.simulacao_preview ? (
+                    <img
+                      src={p.simulacao_preview}
+                      alt={`Simulação ${p.nome}`}
+                      className="w-20 h-12 rounded object-cover border border-white/10"
+                    />
+                  ) : (
+                    <span className="text-xs text-brand-gray-500">Sem simulação</span>
+                  )}
+                </td>
                 <td className="px-3 py-2 hidden md:table-cell text-brand-gray-400">{p.cidade}</td>
                 <td className="px-3 py-2 hidden md:table-cell text-brand-gray-400">{p.tipo}</td>
                 <td className="px-3 py-2 text-right text-brand-orange font-semibold">{formatCurrency(p.preco)}</td>

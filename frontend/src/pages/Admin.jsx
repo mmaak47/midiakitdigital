@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
-  MapPin, Building2, Save
+  Building2, Save
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { login, fetchAdminPontos, createPonto, updatePonto, deletePonto } from '../lib/api';
@@ -15,8 +15,26 @@ const emptyForm = {
   nome: '', cidade: 'Londrina', tipo: 'Elevador', endereco: '',
   lat: '', lng: '', horario: '06:00 às 22:00', fluxo: '',
   insercoes: '', tempo: '15s', loop: '3 min', veiculacao: 'Vídeo sem áudio',
-  publico: 'A/B', telas: '1', preco: '', descricao: '', imagem: ''
+  publico: 'A/B', telas: '1', preco: '', descricao: '', imagem: '',
+  simulacao_tela: '', simulacao_arte: '', simulacao_preview: ''
 };
+
+const defaultScreen = {
+  x: 20,
+  y: 25,
+  width: 45,
+  height: 35,
+  opacity: 0.92
+};
+
+function parseScreen(raw) {
+  if (!raw) return { ...defaultScreen };
+  try {
+    return normalizeScreenConfig(JSON.parse(raw));
+  } catch {
+    return { ...defaultScreen };
+  }
+}
 
 export default function Admin() {
   const [auth, setAuth] = useState(!!sessionStorage.getItem('admin_token'));
@@ -30,34 +48,45 @@ export default function Admin() {
   const [editing, setEditing] = useState(null); // null | 'new' | ponto object
   const [form, setForm] = useState(emptyForm);
   const [imageFile, setImageFile] = useState(null);
+  const [simulationArtFile, setSimulationArtFile] = useState(null);
+  const [simulationPreviewFile, setSimulationPreviewFile] = useState(null);
+  const [simulationPreviewUrl, setSimulationPreviewUrl] = useState('');
+  const [baseImagePreviewUrl, setBaseImagePreviewUrl] = useState('');
+  const [screen, setScreen] = useState(defaultScreen);
+  const [simulationBusy, setSimulationBusy] = useState(false);
+  const [simulationError, setSimulationError] = useState('');
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
 
-    // Dynamic cidades and tipos management
-    const [activeTab, setActiveTab] = useState('pontos');
-    const [cidades, setCidades] = useState([]);
-    const [tipos, setTipos] = useState([]);
-    const [newCidade, setNewCidade] = useState('');
-    const [newTipo, setNewTipo] = useState('');
+  const [cidades, setCidades] = useState([]);
+  const [tipos, setTipos] = useState([]);
+
+  useEffect(() => {
+    const savedCidades = localStorage.getItem('midia-kit-cidades');
+    const savedTipos = localStorage.getItem('midia-kit-formatos');
+    setCidades(savedCidades ? JSON.parse(savedCidades) : DEFAULT_CIDADES);
+    setTipos(savedTipos ? JSON.parse(savedTipos) : DEFAULT_TIPOS);
+  }, []);
+
+  useEffect(() => {
+    if (cidades.length > 0) localStorage.setItem('midia-kit-cidades', JSON.stringify(cidades));
+  }, [cidades]);
+
+  useEffect(() => {
+    if (tipos.length > 0) localStorage.setItem('midia-kit-formatos', JSON.stringify(tipos));
+  }, [tipos]);
+
+  useEffect(() => {
+    if (!imageFile) {
+      setBaseImagePreviewUrl('');
+      return;
+    }
+    const blobUrl = URL.createObjectURL(imageFile);
+    setBaseImagePreviewUrl(blobUrl);
+    return () => URL.revokeObjectURL(blobUrl);
+  }, [imageFile]);
 
   const handleLogin = async (e) => {
-
-    // Load cidades/tipos from localStorage on mount
-    useEffect(() => {
-      const savedCidades = localStorage.getItem('midia-kit-cidades');
-      const savedTipos = localStorage.getItem('midia-kit-formatos');
-      setCidades(savedCidades ? JSON.parse(savedCidades) : DEFAULT_CIDADES);
-      setTipos(savedTipos ? JSON.parse(savedTipos) : DEFAULT_TIPOS);
-    }, []);
-
-    // Persist cidades and tipos to localStorage
-    useEffect(() => {
-      if (cidades.length > 0) localStorage.setItem('midia-kit-cidades', JSON.stringify(cidades));
-    }, [cidades]);
-
-    useEffect(() => {
-      if (tipos.length > 0) localStorage.setItem('midia-kit-formatos', JSON.stringify(tipos));
-    }, [tipos]);
     e.preventDefault();
     setLoginError('');
     try {
@@ -70,28 +99,6 @@ export default function Admin() {
   };
 
   const loadPontos = async () => {
-
-    const addCidade = () => {
-      if (newCidade.trim() && !cidades.includes(newCidade)) {
-        setCidades([...cidades, newCidade]);
-        setNewCidade('');
-      }
-    };
-
-    const removeCidade = (cidade) => {
-      setCidades(cidades.filter(c => c !== cidade));
-    };
-
-    const addTipo = () => {
-      if (newTipo.trim() && !tipos.includes(newTipo)) {
-        setTipos([...tipos, newTipo]);
-        setNewTipo('');
-      }
-    };
-
-    const removeTipo = (tipo) => {
-      setTipos(tipos.filter(t => t !== tipo));
-    };
     setLoading(true);
     try {
       const data = await fetchAdminPontos();
@@ -110,6 +117,11 @@ export default function Admin() {
   const openNew = () => {
     setForm(emptyForm);
     setImageFile(null);
+    setSimulationArtFile(null);
+    setSimulationPreviewFile(null);
+    setSimulationPreviewUrl('');
+    setSimulationError('');
+    setScreen({ ...defaultScreen });
     setEditing('new');
   };
 
@@ -132,9 +144,62 @@ export default function Admin() {
       preco: ponto.preco?.toString() || '',
       descricao: ponto.descricao || '',
       imagem: ponto.imagem || '',
+      simulacao_tela: ponto.simulacao_tela || '',
+      simulacao_arte: ponto.simulacao_arte || '',
+      simulacao_preview: ponto.simulacao_preview || ''
     });
     setImageFile(null);
+    setSimulationArtFile(null);
+    setSimulationPreviewFile(null);
+    setSimulationPreviewUrl(ponto.simulacao_preview || '');
+    setSimulationError('');
+    setScreen(parseScreen(ponto.simulacao_tela));
     setEditing(ponto);
+  };
+
+  const handleGenerateSimulation = async () => {
+    setSimulationError('');
+    if (!simulationArtFile) {
+      setSimulationError('Selecione uma arte para gerar a simulação.');
+      return;
+    }
+
+    const baseImageUrl = baseImagePreviewUrl || form.imagem || '';
+
+    if (!baseImageUrl) {
+      setSimulationError('Selecione a imagem base do ponto antes da simulação.');
+      return;
+    }
+
+    const creativeUrl = URL.createObjectURL(simulationArtFile);
+    setSimulationBusy(true);
+
+    try {
+      const result = await generateSimulationPreview({
+        baseImageUrl,
+        creativeImageUrl: creativeUrl,
+        screen
+      });
+
+      const fileName = `simulacao-${Date.now()}.png`;
+      const previewFile = new File([result.blob], fileName, { type: 'image/png' });
+      setSimulationPreviewFile(previewFile);
+
+      if (simulationPreviewUrl && simulationPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(simulationPreviewUrl);
+      }
+      setSimulationPreviewUrl(result.previewUrl);
+
+      setForm((prev) => ({
+        ...prev,
+        simulacao_tela: JSON.stringify(result.screen)
+      }));
+    } catch (err) {
+      setSimulationError(err.message || 'Falha ao gerar simulação.');
+    } finally {
+      URL.revokeObjectURL(creativeUrl);
+      setSimulationBusy(false);
+    }
   };
 
   const handleSave = async (e) => {
@@ -142,8 +207,14 @@ export default function Admin() {
     setSaving(true);
     try {
       const fd = new FormData();
-      Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+      const payload = {
+        ...form,
+        simulacao_tela: JSON.stringify(normalizeScreenConfig(screen))
+      };
+      Object.entries(payload).forEach(([k, v]) => fd.append(k, v ?? ''));
       if (imageFile) fd.append('imagem', imageFile);
+      if (simulationArtFile) fd.append('simulacao_arte', simulationArtFile);
+      if (simulationPreviewFile) fd.append('simulacao_preview', simulationPreviewFile);
 
       if (editing === 'new') {
         await createPonto(fd);
@@ -370,7 +441,7 @@ export default function Admin() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-brand-dark border border-white/10 rounded-2xl p-6"
+              className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-brand-dark border border-white/10 rounded-2xl p-6"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
@@ -436,6 +507,81 @@ export default function Admin() {
                   </div>
                 </div>
 
+                <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-semibold">Simulação do ponto</h3>
+                    <p className="text-xs text-brand-gray-500 mt-1">
+                      Marque a área da tela, escolha a arte e gere o preview que entra na proposta comercial.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <FormField label="Tela X (%)" value={screen.x} onChange={(v) => setScreen((s) => normalizeScreenConfig({ ...s, x: Number(v) }))} type="number" min="0" max="95" step="1" />
+                    <FormField label="Tela Y (%)" value={screen.y} onChange={(v) => setScreen((s) => normalizeScreenConfig({ ...s, y: Number(v) }))} type="number" min="0" max="95" step="1" />
+                    <FormField label="Largura (%)" value={screen.width} onChange={(v) => setScreen((s) => normalizeScreenConfig({ ...s, width: Number(v) }))} type="number" min="3" max="100" step="1" />
+                    <FormField label="Altura (%)" value={screen.height} onChange={(v) => setScreen((s) => normalizeScreenConfig({ ...s, height: Number(v) }))} type="number" min="3" max="100" step="1" />
+                    <FormField label="Opacidade" value={screen.opacity} onChange={(v) => setScreen((s) => normalizeScreenConfig({ ...s, opacity: Number(v) }))} type="number" min="0.35" max="1" step="0.05" />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-brand-gray-300 hover:bg-white/10 cursor-pointer transition-colors">
+                      <Upload size={16} />
+                      {simulationArtFile ? simulationArtFile.name : 'Escolher arte da simulação'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e => setSimulationArtFile(e.target.files[0] || null)}
+                        className="hidden"
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={handleGenerateSimulation}
+                      disabled={simulationBusy}
+                      className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 disabled:opacity-50 text-sm font-medium"
+                    >
+                      {simulationBusy ? 'Gerando simulação...' : 'Gerar simulação'}
+                    </button>
+                  </div>
+
+                  {simulationError && (
+                    <p className="text-xs text-red-400">{simulationError}</p>
+                  )}
+
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-white/10 bg-black/30 p-2">
+                      <p className="text-[11px] text-brand-gray-500 px-1 pb-2">Imagem base do ponto</p>
+                      {form.imagem || baseImagePreviewUrl ? (
+                        <img
+                          src={baseImagePreviewUrl || form.imagem}
+                          alt="Base do ponto"
+                          className="w-full h-44 object-cover rounded-lg"
+                        />
+                      ) : (
+                        <div className="h-44 rounded-lg border border-dashed border-white/15 flex items-center justify-center text-xs text-brand-gray-500">
+                          Sem imagem base
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-black/30 p-2">
+                      <p className="text-[11px] text-brand-gray-500 px-1 pb-2">Preview da simulação</p>
+                      {simulationPreviewUrl ? (
+                        <img
+                          src={simulationPreviewUrl}
+                          alt="Simulação"
+                          className="w-full h-44 object-cover rounded-lg"
+                        />
+                      ) : (
+                        <div className="h-44 rounded-lg border border-dashed border-white/15 flex items-center justify-center text-xs text-brand-gray-500">
+                          Gere uma simulação para visualizar
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
@@ -490,4 +636,114 @@ function FormSelect({ label, value, onChange, options }) {
       </select>
     </div>
   );
+}
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Falha ao carregar imagem para simulacao'));
+    img.src = url;
+  });
+}
+
+function drawCreativeCover(ctx, creative, targetX, targetY, targetW, targetH) {
+  const imgAspect = creative.width / creative.height;
+  const targetAspect = targetW / targetH;
+
+  let srcX = 0;
+  let srcY = 0;
+  let srcW = creative.width;
+  let srcH = creative.height;
+
+  if (imgAspect > targetAspect) {
+    srcW = Math.round(creative.height * targetAspect);
+    srcX = Math.round((creative.width - srcW) / 2);
+  } else {
+    srcH = Math.round(creative.width / targetAspect);
+    srcY = Math.round((creative.height - srcH) / 2);
+  }
+
+  ctx.drawImage(creative, srcX, srcY, srcW, srcH, targetX, targetY, targetW, targetH);
+}
+
+function normalizeScreenConfig(input) {
+  const min = (value, fallback) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
+  const x = Math.min(95, Math.max(0, min(input?.x, 20)));
+  const y = Math.min(95, Math.max(0, min(input?.y, 25)));
+  const width = Math.min(100 - x, Math.max(3, min(input?.width, 45)));
+  const height = Math.min(100 - y, Math.max(3, min(input?.height, 35)));
+  const opacity = Math.min(1, Math.max(0.35, min(input?.opacity, 0.92)));
+
+  return { x, y, width, height, opacity };
+}
+
+async function generateSimulationPreview({
+  baseImageUrl,
+  creativeImageUrl,
+  screen,
+  maxWidth = 1800
+}) {
+  const normalized = normalizeScreenConfig(screen);
+  const [base, creative] = await Promise.all([
+    loadImage(baseImageUrl),
+    loadImage(creativeImageUrl)
+  ]);
+
+  const scale = base.width > maxWidth ? (maxWidth / base.width) : 1;
+  const outW = Math.max(1, Math.round(base.width * scale));
+  const outH = Math.max(1, Math.round(base.height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas indisponivel para simulacao');
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(base, 0, 0, outW, outH);
+
+  const x = Math.round((normalized.x / 100) * outW);
+  const y = Math.round((normalized.y / 100) * outH);
+  const w = Math.max(1, Math.round((normalized.width / 100) * outW));
+  const h = Math.max(1, Math.round((normalized.height / 100) * outH));
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  ctx.globalAlpha = normalized.opacity;
+  drawCreativeCover(ctx, creative, x, y, w, h);
+
+  const glow = ctx.createLinearGradient(x, y, x, y + h);
+  glow.addColorStop(0, 'rgba(255,255,255,0.10)');
+  glow.addColorStop(0.35, 'rgba(255,255,255,0.02)');
+  glow.addColorStop(1, 'rgba(0,0,0,0.10)');
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = glow;
+  ctx.fillRect(x, y, w, h);
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+  ctx.lineWidth = Math.max(1, Math.round(Math.min(outW, outH) * 0.0015));
+  ctx.strokeRect(x, y, w, h);
+
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob((value) => {
+      if (!value) {
+        reject(new Error('Falha ao exportar imagem da simulacao'));
+        return;
+      }
+      resolve(value);
+    }, 'image/png', 0.92);
+  });
+
+  const previewUrl = URL.createObjectURL(blob);
+  return { blob, previewUrl, screen: normalized };
 }
