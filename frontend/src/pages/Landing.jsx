@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import {
   ArrowRight, MapPin, Monitor, Users,
-  Building2, Tv, Lightbulb, Sun, Columns3, ShoppingCart, Fuel
+  Building2, Tv, Lightbulb, Sun, Columns3
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { fetchStats } from '../lib/api';
@@ -43,7 +43,7 @@ export default function Landing() {
           <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0}>
             <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-brand-gray-400 mb-8">
               <span className="w-1.5 h-1.5 rounded-full bg-brand-orange animate-pulse" />
-              Mídia Kit Digital 2025
+              Mídia Kit Digital 2026
             </span>
           </motion.div>
 
@@ -173,13 +173,9 @@ export default function Landing() {
             {[
               { icon: Building2, label: 'Elevadores', desc: 'Edifícios premium' },
               { icon: Tv, label: 'Telas Indoor', desc: 'Pontos comerciais' },
-              { icon: Monitor, label: 'Painéis LED', desc: 'Alta visibilidade' },
+              { icon: Columns3, label: 'Painéis LED', desc: 'Alta visibilidade' },
               { icon: Lightbulb, label: 'Backlights', desc: 'Iluminação traseira' },
               { icon: Sun, label: 'Frontlights', desc: 'Iluminação frontal' },
-              { icon: Columns3, label: 'Totens Digitais', desc: 'Conteúdo dinâmico' },
-              { icon: ShoppingCart, label: 'Circuito Muffato', desc: 'Supermercados' },
-              { icon: Fuel, label: 'LED Posto', desc: 'Postos de combustível' },
-              { icon: Monitor, label: 'Video Wall', desc: 'Impacto máximo' },
             ].map((item, i) => (
               <motion.div
                 key={item.label}
@@ -206,11 +202,16 @@ export default function Landing() {
               initial={{ opacity: 0, x: -30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              className="relative"
+              className="relative flex items-center justify-center"
             >
-              <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-brand-orange/10 to-transparent p-8 flex items-center justify-center">
-                <img src="/totem-sample.png" alt="Totem Digital Intermidia" className="max-h-[420px] object-contain drop-shadow-2xl" />
-              </div>
+              {/* Glow behind totem */}
+              <div className="absolute w-64 h-64 bg-brand-orange/20 rounded-full blur-[80px]" />
+              <div className="absolute w-48 h-48 bg-brand-orange/10 rounded-full blur-[100px] translate-y-12" />
+              <img
+                src="/totem-sample.png"
+                alt="Totem Digital Triplaface Intermidia"
+                className="relative z-10 max-h-[500px] object-contain drop-shadow-[0_20px_60px_rgba(246,130,31,0.3)] hover:scale-105 transition-transform duration-500"
+              />
             </motion.div>
             <motion.div
               initial={{ opacity: 0, x: 30 }}
