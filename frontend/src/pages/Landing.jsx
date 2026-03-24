@@ -1,378 +1,422 @@
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRight, MapPin, Monitor, Users,
-  Building2, Tv, Lightbulb, Sun, Columns3
+  ArrowRight,
+  Building2,
+  MapPinned,
+  Monitor,
+  Users,
+  BarChart3,
+  CircleDollarSign,
+  Layers3,
+  Activity,
+  Target
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
-import { fetchStats } from '../lib/api';
+import { fetchPontos } from '../lib/api';
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 30 },
+  hidden: { opacity: 0, y: 24 },
   visible: (i = 0) => ({
-    opacity: 1, y: 0,
-    transition: { delay: i * 0.1, duration: 0.6, ease: [0.22, 1, 0.36, 1] }
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.08, duration: 0.5, ease: [0.22, 1, 0.36, 1] }
   })
 };
 
+function formatInt(value) {
+  return new Intl.NumberFormat('pt-BR').format(value || 0);
+}
+
+function formatMoney(value) {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0
+  }).format(value || 0);
+}
+
 export default function Landing() {
   const navigate = useNavigate();
-  const [stats, setStats] = useState(null);
+  const [allPontos, setAllPontos] = useState([]);
+  const [selectedPraca, setSelectedPraca] = useState('Todas as praças');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchStats().then(setStats).catch(() => {});
+    let active = true;
+
+    async function loadPontos() {
+      try {
+        const data = await fetchPontos();
+        if (active) setAllPontos(data);
+      } catch {
+        if (active) setAllPontos([]);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadPontos();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
+  const pracas = useMemo(() => {
+    const unique = new Set(allPontos.map((p) => p.cidade).filter(Boolean));
+    return ['Todas as praças', ...Array.from(unique).sort((a, b) => a.localeCompare(b, 'pt-BR'))];
+  }, [allPontos]);
+
+  const quickPracas = useMemo(() => pracas.slice(0, 5), [pracas]);
+
+  const pontos = useMemo(() => {
+    if (selectedPraca === 'Todas as praças') return allPontos;
+    return allPontos.filter((p) => p.cidade === selectedPraca);
+  }, [allPontos, selectedPraca]);
+
+  const resumo = useMemo(() => {
+    const totals = pontos.reduce((acc, p) => {
+      acc.telas += Number(p.telas) || 0;
+      acc.fluxo += Number(p.fluxo) || 0;
+      acc.insercoes += Number(p.insercoes) || 0;
+      acc.preco += Number(p.preco) || 0;
+      return acc;
+    }, { telas: 0, fluxo: 0, insercoes: 0, preco: 0 });
+
+    const ticketMedio = pontos.length ? Math.round(totals.preco / pontos.length) : 0;
+    const cpm = totals.fluxo > 0 ? ((ticketMedio / totals.fluxo) * 1000).toFixed(2) : '0.00';
+
+    return {
+      pontos: pontos.length,
+      telas: totals.telas,
+      fluxo: totals.fluxo,
+      insercoes: totals.insercoes,
+      ticketMedio,
+      cpm
+    };
+  }, [pontos]);
+
+  const formatos = useMemo(() => {
+    const map = new Map();
+
+    pontos.forEach((p) => {
+      const tipo = p.tipo || 'Sem tipo';
+      if (!map.has(tipo)) {
+        map.set(tipo, { tipo, quantidade: 0, telas: 0, fluxo: 0 });
+      }
+      const current = map.get(tipo);
+      current.quantidade += 1;
+      current.telas += Number(p.telas) || 0;
+      current.fluxo += Number(p.fluxo) || 0;
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.quantidade - a.quantidade);
+  }, [pontos]);
+
+  const topPontos = useMemo(() => {
+    return [...pontos]
+      .sort((a, b) => (Number(b.fluxo) || 0) - (Number(a.fluxo) || 0))
+      .slice(0, 6);
+  }, [pontos]);
+
+  const publicos = useMemo(() => {
+    const map = new Map();
+
+    pontos.forEach((p) => {
+      const label = p.publico || 'Nao informado';
+      map.set(label, (map.get(label) || 0) + 1);
+    });
+
+    return Array.from(map.entries())
+      .map(([label, total]) => ({ label, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [pontos]);
+
+  const explorerPath = `/explorar${selectedPraca !== 'Todas as praças' ? `?cidade=${encodeURIComponent(selectedPraca)}` : ''}`;
+
   return (
-    <div className="min-h-screen bg-black text-white">
-      <Navbar transparent />
+    <div className="min-h-screen bg-[#050505] text-white">
+      <Navbar />
 
-      {/* Hero */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        {/* Background image */}
+      <section className="pt-20 pb-10 border-b border-white/5 relative overflow-hidden">
         <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url('/hero-bg.jpg')" }}
+          className="absolute inset-0 opacity-35 bg-cover bg-center"
+          style={{ backgroundImage: "url('/city-bg.jpg')" }}
         />
-        <div className="absolute inset-0 bg-black/60" />
-        {/* Glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-orange/10 rounded-full blur-[120px]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/90 via-black/80 to-[#050505]" />
+        <div className="absolute -top-16 left-10 w-64 h-64 bg-brand-orange/20 rounded-full blur-[90px]" />
 
-        <div className="relative max-w-5xl mx-auto px-6 text-center">
+        <div className="relative max-w-7xl mx-auto px-6">
           <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0}>
-            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-brand-gray-400 mb-8">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-orange animate-pulse" />
-              Mídia Kit Digital 2026
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-brand-orange/30 bg-brand-orange/10 text-xs font-semibold tracking-wide text-brand-orange mb-6">
+              MIDIA KIT DIGITAL INTERMIDIA 2026
             </span>
           </motion.div>
 
           <motion.h1
-            variants={fadeUp} initial="hidden" animate="visible" custom={1}
-            className="text-4xl sm:text-5xl md:text-7xl font-bold leading-[1.1] tracking-tight mb-6"
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={1}
+            className="text-3xl sm:text-4xl md:text-5xl font-bold leading-[1.05] tracking-tight mb-4 max-w-4xl"
           >
-            Sua marca nos melhores{' '}
-            <span className="text-brand-orange">pontos de mídia</span>{' '}
-            do Sul do Brasil
+            Planejamento por praca com inventario real, audiencia e oportunidades de midia.
           </motion.h1>
 
           <motion.p
-            variants={fadeUp} initial="hidden" animate="visible" custom={2}
-            className="text-lg md:text-xl text-brand-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed"
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={2}
+            className="text-base md:text-lg text-brand-gray-400 max-w-3xl mb-8"
           >
-            A Intermidia conecta sua marca ao público certo, nos melhores locais.
-            Mídia OOH e DOOH com tecnologia, cobertura e resultados reais.
+            Selecione uma praca para gerar um midia kit focado na cidade ou visualize o consolidado de todas as pracas.
           </motion.p>
 
           <motion.div
-            variants={fadeUp} initial="hidden" animate="visible" custom={3}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4"
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={3}
+            className="grid lg:grid-cols-[1fr_auto] gap-4 p-4 bg-white/[0.03] border border-white/10 rounded-2xl backdrop-blur-xl"
           >
-            <button
-              onClick={() => navigate('/explorar')}
-              className="group flex items-center gap-2 px-8 py-4 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              Explorar pontos
-              <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-            </button>
-            <a
-              href="#sobre"
-              className="px-8 py-4 border border-white/10 text-white/70 font-medium rounded-xl hover:bg-white/5 hover:text-white transition-all duration-200"
-            >
-              Saiba mais
-            </a>
-          </motion.div>
-        </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-brand-gray-500 uppercase tracking-wide">Praca</label>
+                <select
+                  value={selectedPraca}
+                  onChange={(e) => setSelectedPraca(e.target.value)}
+                  className="mt-1 w-full px-3 py-3 rounded-xl bg-black/60 border border-white/15 focus:border-brand-orange outline-none"
+                >
+                  {pracas.map((praca) => (
+                    <option key={praca} value={praca}>{praca}</option>
+                  ))}
+                </select>
+              </div>
 
-        {/* Scroll indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.5 }}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2"
-        >
-          <motion.div
-            animate={{ y: [0, 8, 0] }}
-            transition={{ repeat: Infinity, duration: 2 }}
-            className="w-6 h-10 rounded-full border-2 border-white/20 flex items-start justify-center pt-2"
-          >
-            <div className="w-1 h-2 rounded-full bg-white/40" />
+              <div>
+                <label className="text-xs text-brand-gray-500 uppercase tracking-wide">Visualizacao</label>
+                <div className="mt-1 h-[50px] rounded-xl bg-black/50 border border-white/10 px-3 flex items-center text-sm text-brand-gray-300">
+                  {selectedPraca === 'Todas as praças' ? 'Consolidado multirregional' : `Foco em ${selectedPraca}`}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => navigate(explorerPath)}
+              className="group h-[50px] self-end px-7 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200"
+            >
+              Abrir mapa da praca
+              <ArrowRight size={16} className="inline ml-2 group-hover:translate-x-1 transition-transform" />
+            </button>
           </motion.div>
-        </motion.div>
+
+          <div className="flex flex-wrap gap-2 mt-4">
+            {quickPracas.map((praca) => (
+              <button
+                key={praca}
+                onClick={() => setSelectedPraca(praca)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                  selectedPraca === praca
+                    ? 'bg-brand-orange text-white border-brand-orange'
+                    : 'bg-white/[0.03] text-brand-gray-400 border-white/10 hover:text-white'
+                }`}
+              >
+                {praca}
+              </button>
+            ))}
+          </div>
+        </div>
       </section>
 
-      {/* Stats */}
-      {stats && (
-        <section className="py-20 border-t border-white/5">
-          <div className="max-w-6xl mx-auto px-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+      <section className="py-10 border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-6">
+          {loading ? (
+            <div className="text-sm text-brand-gray-500">Carregando inventario...</div>
+          ) : (
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
               {[
-                { label: 'Pontos de Mídia', value: stats.total, icon: MapPin },
-                { label: 'Cidades', value: stats.cidades, icon: Building2 },
-                { label: 'Telas Ativas', value: stats.telas, icon: Monitor },
-                { label: 'Fluxo Mensal', value: `${(stats.fluxo / 1000000).toFixed(1)}M`, icon: Users }
-              ].map((item, i) => (
+                { label: 'Pontos', value: formatInt(resumo.pontos), icon: MapPinned },
+                { label: 'Telas', value: formatInt(resumo.telas), icon: Monitor },
+                { label: 'Fluxo estimado', value: formatInt(resumo.fluxo), icon: Users },
+                { label: 'Insercoes', value: formatInt(resumo.insercoes), icon: Activity },
+                { label: 'Ticket medio', value: formatMoney(resumo.ticketMedio), icon: CircleDollarSign },
+                { label: 'CPM medio', value: `R$ ${resumo.cpm}`, icon: Target }
+              ].map((card, i) => (
                 <motion.div
-                  key={item.label}
+                  key={card.label}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  transition={{ delay: i * 0.1, duration: 0.5 }}
-                  className="text-center"
+                  transition={{ delay: i * 0.1, duration: 0.4 }}
+                  className="rounded-2xl border border-white/10 bg-white/[0.02] p-4"
                 >
-                  <item.icon className="mx-auto mb-3 text-brand-orange" size={24} />
-                  <div className="text-3xl md:text-4xl font-bold font-heading mb-1">{item.value}</div>
-                  <div className="text-sm text-brand-gray-500">{item.label}</div>
+                  <card.icon className="text-brand-orange mb-3" size={18} />
+                  <div className="text-lg md:text-2xl font-bold mb-1">{card.value}</div>
+                  <div className="text-xs text-brand-gray-500 uppercase tracking-wide">{card.label}</div>
                 </motion.div>
               ))}
             </div>
-          </div>
-        </section>
-      )}
-
-      {/* About */}
-      <section id="sobre" className="py-24 border-t border-white/5">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="grid md:grid-cols-2 gap-12 items-center mb-16">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-            >
-              <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                Mídia que <span className="text-brand-orange">conecta</span>
-              </h2>
-              <p className="text-lg text-brand-gray-400 leading-relaxed mb-4">
-                A Intermidia é referência em mídia OOH e DOOH no Sul do Brasil.
-                Com mais de 90 pontos estratégicos em Londrina, Maringá, Balneário Camboriú e Itajaí,
-                levamos sua marca para onde seu público está — com precisão, tecnologia e impacto real.
-              </p>
-              <p className="text-brand-gray-500 leading-relaxed">
-                Elevadores, painéis LED, backlights, frontlights, totens digitais, circuitos de supermercados
-                e postos de combustível. A cobertura que sua campanha precisa.
-              </p>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              className="grid grid-cols-2 gap-4"
-            >
-              <div className="relative rounded-2xl overflow-hidden aspect-[3/4]">
-                <img src="/about-1.jpg" alt="Intermidia OOH" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-              </div>
-              <div className="relative rounded-2xl overflow-hidden aspect-[3/4] mt-8">
-                <img src="/about-2.jpg" alt="Intermidia mídia exterior" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-              </div>
-            </motion.div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            {[
-              { icon: Building2, label: 'Elevadores', desc: 'Edifícios premium' },
-              { icon: Tv, label: 'Telas Indoor', desc: 'Pontos comerciais' },
-              { icon: Columns3, label: 'Painéis LED', desc: 'Alta visibilidade' },
-              { icon: Lightbulb, label: 'Backlights', desc: 'Iluminação traseira' },
-              { icon: Sun, label: 'Frontlights', desc: 'Iluminação frontal' },
-            ].map((item, i) => (
-              <motion.div
-                key={item.label}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.08, duration: 0.5 }}
-                className="group bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:bg-white/[0.04] hover:border-brand-orange/20 transition-all duration-300"
-              >
-                <item.icon className="text-brand-orange mb-3" size={24} />
-                <div className="font-semibold mb-1">{item.label}</div>
-                <div className="text-sm text-brand-gray-500">{item.desc}</div>
-              </motion.div>
-            ))}
-          </div>
+          )}
         </div>
       </section>
 
-      {/* Showcase — Totem & Product */}
-      <section className="py-24 border-t border-white/5 relative overflow-hidden">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="relative flex flex-col items-center justify-end min-h-[520px]"
-            >
-              {/* Floor glow / ambient light */}
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[300px] h-[60px] bg-brand-orange/25 rounded-[50%] blur-[40px]" />
-              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[200px] h-[200px] bg-brand-orange/8 rounded-full blur-[80px]" />
-              {/* Totem image */}
-              <img
-                src="/totem-sample.png"
-                alt="Totem Digital Triplaface Intermidia"
-                className="relative z-10 max-h-[460px] object-contain drop-shadow-[0_4px_40px_rgba(254,92,43,0.15)] hover:scale-[1.03] transition-transform duration-500"
-              />
-              {/* Ground reflection line */}
-              <div className="relative z-10 w-[180px] h-px bg-gradient-to-r from-transparent via-brand-orange/30 to-transparent mt-2" />
-              <div className="relative z-10 w-[120px] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mt-1" />
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-            >
-              <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                Tecnologia que <span className="text-brand-orange">impacta</span>
+      <section className="py-12 border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-3 gap-6">
+          <motion.article
+            initial={{ opacity: 0, y: 18 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="lg:col-span-2 rounded-2xl border border-white/10 bg-[#090909] overflow-hidden"
+          >
+            <div className="p-5 border-b border-white/10 flex items-center justify-between">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Layers3 size={18} className="text-brand-orange" />
+                Inventario por formato
               </h2>
-              <p className="text-lg text-brand-gray-400 leading-relaxed mb-6">
-                Totens digitais de alta definição, painéis LED de grande formato e telas indoor
-                em pontos de alto fluxo. Toda a infraestrutura para sua campanha brilhar.
-              </p>
-              <ul className="space-y-4">
-                {['Conteúdo dinâmico em tempo real', 'Segmentação por horário e local', 'Relatórios de audiência e impacto', 'Suporte técnico dedicado'].map((item) => (
-                  <li key={item} className="flex items-center gap-3 text-brand-gray-400">
-                    <span className="w-2 h-2 rounded-full bg-brand-orange flex-shrink-0" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </motion.div>
-          </div>
-        </div>
-      </section>
+              <span className="text-xs text-brand-gray-500 uppercase tracking-wide">{selectedPraca}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-brand-gray-500 border-b border-white/10 bg-white/[0.02]">
+                  <tr>
+                    <th className="text-left font-medium px-5 py-3">Formato</th>
+                    <th className="text-left font-medium px-5 py-3">Pontos</th>
+                    <th className="text-left font-medium px-5 py-3">Telas</th>
+                    <th className="text-left font-medium px-5 py-3">Fluxo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {formatos.map((f) => (
+                    <tr key={f.tipo} className="border-b border-white/5 hover:bg-white/[0.02]">
+                      <td className="px-5 py-3 text-white">{f.tipo}</td>
+                      <td className="px-5 py-3 text-brand-gray-300">{formatInt(f.quantidade)}</td>
+                      <td className="px-5 py-3 text-brand-gray-300">{formatInt(f.telas)}</td>
+                      <td className="px-5 py-3 text-brand-gray-300">{formatInt(f.fluxo)}</td>
+                    </tr>
+                  ))}
+                  {!loading && formatos.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-5 py-4 text-brand-gray-500">Nenhum formato encontrado para esta selecao.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </motion.article>
 
-      {/* Audience / Engagement */}
-      <section className="py-24 border-t border-white/5 relative overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-15"
-          style={{ backgroundImage: "url('/stock-wallpaper.jpg')" }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black via-black/90 to-black" />
-        <div className="relative max-w-6xl mx-auto px-6">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-            >
-              <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                Público <span className="text-brand-orange">engajado</span>
-              </h2>
-              <p className="text-lg text-brand-gray-400 leading-relaxed mb-6">
-                Nossas telas estão onde as pessoas vivem, trabalham e se divertem.
-                Conteúdo relevante no momento certo gera conexão real com a audiência.
-              </p>
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { value: '2.9M+', label: 'Fluxo mensal' },
-                  { value: '221', label: 'Telas ativas' },
-                  { value: '93', label: 'Pontos estratégicos' },
-                  { value: '4', label: 'Cidades' },
-                ].map((item) => (
-                  <div key={item.label} className="bg-white/[0.03] border border-white/5 rounded-xl p-4">
-                    <div className="text-2xl font-bold text-brand-orange font-heading">{item.value}</div>
-                    <div className="text-sm text-brand-gray-500">{item.label}</div>
+          <motion.article
+            initial={{ opacity: 0, y: 18 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="rounded-2xl border border-white/10 bg-[#090909] p-5"
+          >
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <BarChart3 size={18} className="text-brand-orange" />
+              Perfil de publico
+            </h3>
+            <div className="space-y-2">
+              {publicos.length === 0 && (
+                <div className="text-sm text-brand-gray-500">Sem dados de publico para esta selecao.</div>
+              )}
+              {publicos.map((item) => {
+                const pct = resumo.pontos ? Math.round((item.total / resumo.pontos) * 100) : 0;
+                return (
+                  <div key={item.label} className="rounded-xl border border-white/10 p-3">
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span>{item.label}</span>
+                      <span className="text-brand-gray-400">{item.total} pontos</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                      <div className="h-full bg-brand-orange" style={{ width: `${pct}%` }} />
+                    </div>
                   </div>
-                ))}
-              </div>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              className="relative rounded-2xl overflow-hidden aspect-[4/3]"
-            >
-              <img src="/audience.jpg" alt="Público assistindo conteúdo" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-l from-black/50 to-transparent" />
-            </motion.div>
-          </div>
+                );
+              })}
+            </div>
+          </motion.article>
         </div>
       </section>
 
-      {/* Showcase Gallery */}
-      <section className="py-24 border-t border-white/5">
-        <div className="max-w-6xl mx-auto px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Presença que <span className="text-brand-orange">marca</span>
-            </h2>
-            <p className="text-brand-gray-400 max-w-2xl mx-auto">
-              De elevadores de alto padrão a avenidas movimentadas, sua marca está sempre visível.
-            </p>
-          </motion.div>
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              { src: '/showcase.png', label: 'Mídia em elevadores' },
-              { src: '/about-1.jpg', label: 'Painéis e backlights' },
-              { src: '/about-2.jpg', label: 'Cobertura urbana' },
-            ].map((item, i) => (
-              <motion.div
-                key={item.label}
+      <section className="py-12 border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-2xl font-bold">Pontos de destaque da selecao</h2>
+            <span className="text-xs uppercase tracking-wide text-brand-gray-500">Top 6 por fluxo</span>
+          </div>
+
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {topPontos.map((ponto, i) => (
+              <motion.article
+                key={ponto.id}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-                className="group relative rounded-2xl overflow-hidden aspect-[4/3]"
+                transition={{ delay: i * 0.08, duration: 0.45 }}
+                className="rounded-2xl border border-white/10 bg-[#0a0a0a] p-4"
               >
-                <img src={item.src} alt={item.label} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                <div className="absolute bottom-4 left-4 right-4">
-                  <div className="font-semibold text-sm">{item.label}</div>
+                <div className="text-xs uppercase tracking-wide text-brand-gray-500 mb-2">{ponto.tipo}</div>
+                <h3 className="font-semibold mb-2">{ponto.nome}</h3>
+                <p className="text-sm text-brand-gray-500 mb-4">{ponto.endereco || ponto.cidade}</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-lg bg-white/[0.03] p-2">
+                    <div className="text-brand-gray-500 text-xs">Fluxo</div>
+                    <div className="font-semibold">{formatInt(Number(ponto.fluxo) || 0)}</div>
+                  </div>
+                  <div className="rounded-lg bg-white/[0.03] p-2">
+                    <div className="text-brand-gray-500 text-xs">Insercoes</div>
+                    <div className="font-semibold">{formatInt(Number(ponto.insercoes) || 0)}</div>
+                  </div>
                 </div>
-              </motion.div>
+              </motion.article>
             ))}
+            {!loading && topPontos.length === 0 && (
+              <div className="text-sm text-brand-gray-500">Nenhum ponto disponivel para a selecao atual.</div>
+            )}
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-24 border-t border-white/5 relative overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-20"
-          style={{ backgroundImage: "url('/city-bg.jpg')" }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-black" />
-        <div className="relative max-w-4xl mx-auto px-6 text-center">
+      <section className="py-16 border-b border-white/5 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-brand-orange/10 via-transparent to-transparent" />
+        <div className="relative max-w-7xl mx-auto px-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
+            className="grid lg:grid-cols-[1fr_auto] gap-6 items-center"
           >
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">
-              Pronto para impactar?
-            </h2>
-            <p className="text-brand-gray-400 text-lg mb-8 max-w-xl mx-auto">
-              Explore nossos pontos, monte seu plano de mídia e gere sua proposta em minutos.
-            </p>
+            <div>
+              <h2 className="text-3xl md:text-4xl font-bold mb-3">Quer fechar o plano desta praca?</h2>
+              <p className="text-brand-gray-400 max-w-2xl">
+                Continue para o explorador com filtros aplicados e selecione os pontos para montar sua proposta comercial.
+              </p>
+            </div>
             <button
-              onClick={() => navigate('/explorar')}
-              className="group inline-flex items-center gap-2 px-8 py-4 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              onClick={() => navigate(explorerPath)}
+              className="group inline-flex items-center justify-center gap-2 px-8 h-[52px] bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200"
             >
-              Explorar agora
+              Explorar inventario completo
               <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
           </motion.div>
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="py-12 border-t border-white/5">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="Intermidia" className="h-6" />
-            <span className="text-sm text-brand-gray-500">
-              © {new Date().getFullYear()}
-            </span>
+            <span className="text-sm text-brand-gray-500">© {new Date().getFullYear()}</span>
           </div>
-          <div className="flex gap-6 text-sm text-brand-gray-500">
+          <div className="flex items-center gap-6 text-sm text-brand-gray-500">
             <Link to="/explorar" className="hover:text-white transition-colors">Pontos</Link>
-            <a href="#sobre" className="hover:text-white transition-colors">Sobre</a>
+            <button onClick={() => setSelectedPraca('Todas as praças')} className="hover:text-white transition-colors">Todas as pracas</button>
+            <span className="inline-flex items-center gap-2">
+              <Building2 size={14} /> {formatInt(Math.max(pracas.length - 1, 0))} pracas
+            </span>
           </div>
         </div>
       </footer>

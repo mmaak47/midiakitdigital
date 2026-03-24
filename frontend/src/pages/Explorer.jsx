@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { LayoutGrid, Map, SlidersHorizontal } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import FilterSidebar from '../components/FilterSidebar';
 import PointCard from '../components/PointCard';
@@ -11,9 +12,12 @@ import FavoritesBar from '../components/FavoritesBar';
 import { fetchPontos } from '../lib/api';
 
 export default function Explorer() {
+  const [searchParams] = useSearchParams();
+  const initialCidade = searchParams.get('cidade') || '';
+
   const [pontos, setPontos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ cidade: '', tipo: '', publico: '', search: '' });
+  const [filters, setFilters] = useState({ cidade: initialCidade, tipo: '', publico: '', search: '' });
   const [view, setView] = useState('grid');
   const [selected, setSelected] = useState(null);
   const [mobileFilters, setMobileFilters] = useState(false);
