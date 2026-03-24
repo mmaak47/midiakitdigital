@@ -40,7 +40,7 @@ export default function Explorer() {
   }, [loadPontos]);
 
   return (
-    <div className="min-h-screen bg-[#0f131b] text-white">
+    <div className="min-h-screen bg-black text-white">
       <Navbar />
 
       <div className="pt-16 flex h-screen">

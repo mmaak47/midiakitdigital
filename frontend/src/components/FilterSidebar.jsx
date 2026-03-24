@@ -164,7 +164,7 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
             animate={{ x: 0 }}
             exit={{ x: -300 }}
             transition={{ type: 'spring', damping: 25 }}
-            className="absolute left-0 top-0 bottom-0 w-80 bg-[#131924] border-r border-white/10 p-6 overflow-y-auto"
+            className="absolute left-0 top-0 bottom-0 w-80 bg-brand-dark border-r border-white/10 p-6 overflow-y-auto"
           >
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">

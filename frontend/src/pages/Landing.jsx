@@ -170,7 +170,7 @@ export default function Landing() {
   const explorerPath = `/explorar${selectedPraca !== 'Todas as praças' ? `?cidade=${encodeURIComponent(selectedPraca)}` : ''}`;
 
   return (
-    <div className="min-h-screen bg-[#0c121b] text-white">
+    <div className="min-h-screen bg-black text-white">
       <Navbar />
 
       <section className="pt-20 pb-10 border-b border-white/10 relative overflow-hidden">
@@ -178,7 +178,7 @@ export default function Landing() {
           className="absolute inset-0 opacity-35 bg-cover bg-center"
           style={{ backgroundImage: "url('/city-bg.jpg')" }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0d1420]/90 via-[#0d1420]/75 to-[#0c121b]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/90 via-black/80 to-black" />
         <div className="absolute -top-16 left-10 w-64 h-64 bg-brand-orange/20 rounded-full blur-[90px]" />
 
         <div className="relative max-w-7xl mx-auto px-6">
@@ -302,7 +302,7 @@ export default function Landing() {
             initial={{ opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="lg:col-span-2 rounded-2xl border border-white/15 bg-[#161d29] overflow-hidden"
+            className="lg:col-span-2 rounded-2xl border border-white/15 bg-brand-gray-900 overflow-hidden"
           >
             <div className="p-5 border-b border-white/10 flex items-center justify-between">
               <h2 className="text-xl font-bold flex items-center gap-2">
@@ -344,7 +344,7 @@ export default function Landing() {
             initial={{ opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="rounded-2xl border border-white/15 bg-[#161d29] p-5"
+            className="rounded-2xl border border-white/15 bg-brand-gray-900 p-5"
           >
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
               <BarChart3 size={18} className="text-brand-orange" />
@@ -381,7 +381,7 @@ export default function Landing() {
           </div>
 
           {!loading && tiposComAncora.length > 0 && (
-            <div className="sticky top-16 z-20 mb-5 rounded-xl border border-white/15 bg-[#151c27]/90 backdrop-blur-xl p-3">
+            <div className="sticky top-16 z-20 mb-5 rounded-xl border border-white/15 bg-brand-gray-900/95 backdrop-blur-xl p-3">
               <div className="text-[11px] uppercase tracking-wide text-brand-gray-500 mb-2">Ancoragem por formato</div>
               <div className="flex flex-wrap gap-2">
                 {tiposComAncora.map((tipoInfo) => (
@@ -413,7 +413,7 @@ export default function Landing() {
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
                       transition={{ delay: Math.min((groupIndex + itemIndex) * 0.02, 0.45), duration: 0.4 }}
-                      className="rounded-2xl border border-white/15 bg-[#18202c] p-4 lg:p-5"
+                      className="rounded-2xl border border-white/15 bg-brand-gray-900 p-4 lg:p-5"
                     >
                       <div className="grid lg:grid-cols-[220px_1fr] gap-4">
                         <div className="rounded-xl overflow-hidden bg-white/[0.03] min-h-[180px]">
