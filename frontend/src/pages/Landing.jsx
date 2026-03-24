@@ -43,6 +43,15 @@ function formatMoney(value) {
   }).format(value || 0);
 }
 
+function anchorIdFromTipo(tipo) {
+  const base = (tipo || 'sem-tipo').toLowerCase().trim();
+  return `tipo-${base
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')}`;
+}
+
 export default function Landing() {
   const navigate = useNavigate();
   const [allPontos, setAllPontos] = useState([]);
@@ -133,6 +142,30 @@ export default function Landing() {
       .map(([label, total]) => ({ label, total }))
       .sort((a, b) => b.total - a.total);
   }, [pontos]);
+
+  const tiposComAncora = useMemo(() => {
+    return formatos.map((f) => ({
+      ...f,
+      anchorId: anchorIdFromTipo(f.tipo)
+    }));
+  }, [formatos]);
+
+  const pontosPorTipo = useMemo(() => {
+    const map = new Map();
+
+    pontos.forEach((p) => {
+      const tipo = p.tipo || 'Sem tipo';
+      if (!map.has(tipo)) {
+        map.set(tipo, []);
+      }
+      map.get(tipo).push(p);
+    });
+
+    return tiposComAncora.map((tipoInfo) => ({
+      ...tipoInfo,
+      pontos: (map.get(tipoInfo.tipo) || []).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+    }));
+  }, [pontos, tiposComAncora]);
 
   const explorerPath = `/explorar${selectedPraca !== 'Todas as praças' ? `?cidade=${encodeURIComponent(selectedPraca)}` : ''}`;
 
@@ -347,97 +380,125 @@ export default function Landing() {
             <span className="text-xs uppercase tracking-wide text-brand-gray-500">{formatInt(pontos.length)} pontos</span>
           </div>
 
-          <div className="space-y-4">
-            {pontos.map((ponto, i) => (
-              <motion.article
-                key={ponto.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: Math.min(i * 0.02, 0.45), duration: 0.4 }}
-                className="rounded-2xl border border-white/10 bg-[#0a0a0a] p-4 lg:p-5"
-              >
-                <div className="grid lg:grid-cols-[220px_1fr] gap-4">
-                  <div className="rounded-xl overflow-hidden bg-white/[0.03] min-h-[180px]">
-                    {ponto.imagem ? (
-                      <img src={ponto.imagem} alt={ponto.nome} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full min-h-[180px] flex items-center justify-center text-brand-gray-600 text-sm">
-                        Sem imagem
-                      </div>
-                    )}
-                  </div>
+          {!loading && tiposComAncora.length > 0 && (
+            <div className="sticky top-16 z-20 mb-5 rounded-xl border border-white/10 bg-black/80 backdrop-blur-xl p-3">
+              <div className="text-[11px] uppercase tracking-wide text-brand-gray-500 mb-2">Ancoragem por formato</div>
+              <div className="flex flex-wrap gap-2">
+                {tiposComAncora.map((tipoInfo) => (
+                  <a
+                    key={tipoInfo.anchorId}
+                    href={`#${tipoInfo.anchorId}`}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium border border-white/10 bg-white/[0.03] text-brand-gray-300 hover:text-white hover:border-brand-orange/40 transition-colors"
+                  >
+                    {tipoInfo.tipo} ({tipoInfo.quantidade})
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
-                  <div>
-                    <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <span className="text-[11px] uppercase tracking-wide rounded-md px-2 py-1 bg-brand-orange/15 text-brand-orange border border-brand-orange/30">
-                            {ponto.tipo}
-                          </span>
-                          <span className="text-[11px] uppercase tracking-wide rounded-md px-2 py-1 bg-white/[0.04] text-brand-gray-300 border border-white/10">
-                            Publico {ponto.publico || 'N/I'}
-                          </span>
-                        </div>
-                        <h3 className="text-xl font-semibold leading-tight">{ponto.nome}</h3>
-                        <p className="text-sm text-brand-gray-500 mt-1">{ponto.cidade}</p>
-                      </div>
-                      <div className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-3 min-w-[160px]">
-                        <div className="flex items-center gap-1 text-[11px] text-brand-gray-500 uppercase tracking-wide mb-1">
-                          <DollarSign size={12} className="text-brand-orange" />
-                          Investimento mensal
-                        </div>
-                        <div className="text-xl font-bold">{formatMoney(Number(ponto.preco) || 0)}</div>
-                      </div>
-                    </div>
-
-                    {ponto.endereco && (
-                      <p className="text-sm text-brand-gray-300 mb-2 flex items-start gap-2">
-                        <MapPin size={14} className="text-brand-orange mt-0.5 shrink-0" />
-                        {ponto.endereco}
-                      </p>
-                    )}
-
-                    {ponto.descricao && (
-                      <p className="text-sm text-brand-gray-400 mb-3">
-                        {ponto.descricao}
-                      </p>
-                    )}
-
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
-                      <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
-                        <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Users size={12} /> Fluxo</div>
-                        <div className="font-medium">{formatInt(Number(ponto.fluxo) || 0)} / mes</div>
-                      </div>
-                      <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
-                        <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Hash size={12} /> Insercoes</div>
-                        <div className="font-medium">{formatInt(Number(ponto.insercoes) || 0)} / mes</div>
-                      </div>
-                      <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
-                        <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Monitor size={12} /> Telas</div>
-                        <div className="font-medium">{formatInt(Number(ponto.telas) || 0)}</div>
-                      </div>
-                      <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
-                        <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Clock size={12} /> Horario</div>
-                        <div className="font-medium">{ponto.horario || 'N/I'}</div>
-                      </div>
-                      <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
-                        <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Play size={12} /> Tempo</div>
-                        <div className="font-medium">{ponto.tempo || 'N/I'}</div>
-                      </div>
-                      <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
-                        <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><RotateCcw size={12} /> Loop</div>
-                        <div className="font-medium">{ponto.loop || 'N/I'}</div>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs text-brand-gray-500">
-                      <span>Veiculacao: {ponto.veiculacao || 'N/I'}</span>
-                      {(ponto.lat && ponto.lng) && <span>Coordenadas: {ponto.lat}, {ponto.lng}</span>}
-                    </div>
-                  </div>
+          <div className="space-y-8">
+            {pontosPorTipo.map((grupo, groupIndex) => (
+              <section key={grupo.anchorId} id={grupo.anchorId} className="scroll-mt-24">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-lg font-semibold text-white">{grupo.tipo}</h3>
+                  <span className="text-xs text-brand-gray-500 uppercase tracking-wide">{formatInt(grupo.quantidade)} pontos</span>
                 </div>
-              </motion.article>
+
+                <div className="space-y-4">
+                  {grupo.pontos.map((ponto, itemIndex) => (
+                    <motion.article
+                      key={ponto.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: Math.min((groupIndex + itemIndex) * 0.02, 0.45), duration: 0.4 }}
+                      className="rounded-2xl border border-white/10 bg-[#0a0a0a] p-4 lg:p-5"
+                    >
+                      <div className="grid lg:grid-cols-[220px_1fr] gap-4">
+                        <div className="rounded-xl overflow-hidden bg-white/[0.03] min-h-[180px]">
+                          {ponto.imagem ? (
+                            <img src={ponto.imagem} alt={ponto.nome} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full min-h-[180px] flex items-center justify-center text-brand-gray-600 text-sm">
+                              Sem imagem
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                                <span className="text-[11px] uppercase tracking-wide rounded-md px-2 py-1 bg-brand-orange/15 text-brand-orange border border-brand-orange/30">
+                                  {ponto.tipo}
+                                </span>
+                                <span className="text-[11px] uppercase tracking-wide rounded-md px-2 py-1 bg-white/[0.04] text-brand-gray-300 border border-white/10">
+                                  Publico {ponto.publico || 'N/I'}
+                                </span>
+                              </div>
+                              <h4 className="text-xl font-semibold leading-tight">{ponto.nome}</h4>
+                              <p className="text-sm text-brand-gray-500 mt-1">{ponto.cidade}</p>
+                            </div>
+                            <div className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-3 min-w-[160px]">
+                              <div className="flex items-center gap-1 text-[11px] text-brand-gray-500 uppercase tracking-wide mb-1">
+                                <DollarSign size={12} className="text-brand-orange" />
+                                Investimento mensal
+                              </div>
+                              <div className="text-xl font-bold">{formatMoney(Number(ponto.preco) || 0)}</div>
+                            </div>
+                          </div>
+
+                          {ponto.endereco && (
+                            <p className="text-sm text-brand-gray-300 mb-2 flex items-start gap-2">
+                              <MapPin size={14} className="text-brand-orange mt-0.5 shrink-0" />
+                              {ponto.endereco}
+                            </p>
+                          )}
+
+                          {ponto.descricao && (
+                            <p className="text-sm text-brand-gray-400 mb-3">
+                              {ponto.descricao}
+                            </p>
+                          )}
+
+                          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
+                            <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
+                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Users size={12} /> Fluxo</div>
+                              <div className="font-medium">{formatInt(Number(ponto.fluxo) || 0)} / mes</div>
+                            </div>
+                            <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
+                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Hash size={12} /> Insercoes</div>
+                              <div className="font-medium">{formatInt(Number(ponto.insercoes) || 0)} / mes</div>
+                            </div>
+                            <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
+                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Monitor size={12} /> Telas</div>
+                              <div className="font-medium">{formatInt(Number(ponto.telas) || 0)}</div>
+                            </div>
+                            <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
+                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Clock size={12} /> Horario</div>
+                              <div className="font-medium">{ponto.horario || 'N/I'}</div>
+                            </div>
+                            <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
+                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Play size={12} /> Tempo</div>
+                              <div className="font-medium">{ponto.tempo || 'N/I'}</div>
+                            </div>
+                            <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
+                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><RotateCcw size={12} /> Loop</div>
+                              <div className="font-medium">{ponto.loop || 'N/I'}</div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs text-brand-gray-500">
+                            <span>Veiculacao: {ponto.veiculacao || 'N/I'}</span>
+                            {(ponto.lat && ponto.lng) && <span>Coordenadas: {ponto.lat}, {ponto.lng}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.article>
+                  ))}
+                </div>
+              </section>
             ))}
             {!loading && pontos.length === 0 && (
               <div className="text-sm text-brand-gray-500">Nenhum ponto disponivel para a selecao atual.</div>
