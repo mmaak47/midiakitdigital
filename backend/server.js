@@ -76,6 +76,16 @@ app.get('/api/pontos/:id', (req, res) => {
   }
 });
 
+// GET distinct publico values
+app.get('/api/publicos', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT DISTINCT publico FROM pontos WHERE ativo = 1 AND publico IS NOT NULL ORDER BY publico').all();
+    res.json(rows.map(r => r.publico));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET stats
 app.get('/api/stats', (req, res) => {
   try {

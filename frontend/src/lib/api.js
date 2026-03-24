@@ -23,6 +23,12 @@ export async function fetchStats() {
   return res.json();
 }
 
+export async function fetchPublicos() {
+  const res = await fetch(`${API_BASE}/publicos`);
+  if (!res.ok) throw new Error('Erro ao carregar públicos');
+  return res.json();
+}
+
 export async function login(username, password) {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',

@@ -1,8 +1,10 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   MapPin, Building2, Tv, Monitor, Lightbulb, Sun, Columns3,
   ShoppingCart, Fuel, Search, X, SlidersHorizontal
 } from 'lucide-react';
+import { fetchPublicos } from '../lib/api';
 
 const CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const TIPOS = [
@@ -16,9 +18,13 @@ const TIPOS = [
   { value: 'LED Posto', icon: Fuel },
   { value: 'Video Wall', icon: Monitor },
 ];
-const PUBLICOS = ['A', 'B', 'A/B'];
 
 export default function FilterSidebar({ filters, setFilters, total, mobileOpen, setMobileOpen }) {
+  const [publicos, setPublicos] = useState([]);
+
+  useEffect(() => {
+    fetchPublicos().then(setPublicos).catch(() => setPublicos([]));
+  }, []);
   const hasFilters = filters.cidade || filters.tipo || filters.publico || filters.search;
 
   const updateFilter = (key, value) => {
@@ -108,26 +114,28 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
       </div>
 
       {/* Público */}
-      <div>
-        <h3 className="text-xs font-semibold text-brand-gray-400 uppercase tracking-wider mb-3">
-          Público
-        </h3>
-        <div className="flex gap-2">
-          {PUBLICOS.map(p => (
-            <button
-              key={p}
-              onClick={() => updateFilter('publico', p)}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
-                filters.publico === p
-                  ? 'bg-brand-orange text-white'
-                  : 'bg-white/5 text-brand-gray-400 hover:bg-white/10 border border-white/5'
-              }`}
-            >
-              {p}
-            </button>
-          ))}
+      {publicos.length > 0 && (
+        <div>
+          <h3 className="text-xs font-semibold text-brand-gray-400 uppercase tracking-wider mb-3">
+            Público
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {publicos.map(p => (
+              <button
+                key={p}
+                onClick={() => updateFilter('publico', p)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
+                  filters.publico === p
+                    ? 'bg-brand-orange text-white'
+                    : 'bg-white/5 text-brand-gray-400 hover:bg-white/10 border border-white/5'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 
