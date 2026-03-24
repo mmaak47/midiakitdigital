@@ -6,6 +6,7 @@ export default function ProposalBuilder({
   points,
   totals,
   strategicText,
+  simulationSummary,
   onGenerate
 }) {
   const formatCurrency = (n) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
@@ -36,14 +37,14 @@ export default function ProposalBuilder({
               <tr key={p.id} className="border-b border-white/5">
                 <td className="px-3 py-2">{p.nome}</td>
                 <td className="px-3 py-2 hidden lg:table-cell">
-                  {p.simulacao_preview ? (
+                  {p.proposalSimulationPreview || p.simulacao_preview ? (
                     <img
-                      src={p.simulacao_preview}
+                      src={p.proposalSimulationPreview || p.simulacao_preview}
                       alt={`Simulação ${p.nome}`}
                       className="w-20 h-12 rounded object-cover border border-white/10"
                     />
                   ) : (
-                    <span className="text-xs text-brand-gray-500">Sem simulação</span>
+                    <span className="text-xs text-brand-gray-500">{p.proposalSimulationStatus || 'Sem simulação'}</span>
                   )}
                 </td>
                 <td className="px-3 py-2 hidden md:table-cell text-brand-gray-400">{p.cidade}</td>
@@ -54,6 +55,13 @@ export default function ProposalBuilder({
           </tbody>
         </table>
       </section>
+
+      {simulationSummary && (
+        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <h3 className="text-sm font-semibold uppercase tracking-wider mb-2">Simulação da campanha</h3>
+          <p className="text-sm text-brand-gray-300">{simulationSummary}</p>
+        </section>
+      )}
 
       <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat label="Valor total" value={formatCurrency(totals.valorTotal)} />

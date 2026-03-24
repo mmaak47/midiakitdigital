@@ -10,3 +10,5 @@ backend/uploads/*
 *.pem
 midiakit_key.pem
 src/
+!frontend/src/
+!frontend/src/**

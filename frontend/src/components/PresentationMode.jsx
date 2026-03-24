@@ -23,7 +23,13 @@ export default function PresentationMode({ points = [], totals, onClose }) {
             <div className="text-xs uppercase tracking-wide text-brand-gray-500 mb-2">Ponto {index + 1} de {points.length}</div>
             <h3 className="text-3xl font-bold mb-2">{current.nome}</h3>
             <p className="text-brand-gray-400 mb-4">{current.cidade} • {current.tipo}</p>
-            {current.imagem && <img src={current.imagem} alt={current.nome} className="w-full max-h-[360px] object-cover rounded-xl border border-white/10" />}
+            {(current.proposalSimulationPreview || current.simulacao_preview || current.imagem) && (
+              <img
+                src={current.proposalSimulationPreview || current.simulacao_preview || current.imagem}
+                alt={current.nome}
+                className="w-full max-h-[360px] object-cover rounded-xl border border-white/10"
+              />
+            )}
             <p className="text-sm text-brand-gray-300 mt-4">{current.endereco}</p>
           </section>
 
