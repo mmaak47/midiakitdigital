@@ -7,20 +7,43 @@ import FilterSidebar from '../components/FilterSidebar';
 import PointCard from '../components/PointCard';
 import PointModal from '../components/PointModal';
 import SkeletonCard from '../components/SkeletonCard';
-import MapView from '../components/MapView';
+import SmartMap from '../components/SmartMap';
 import FavoritesBar from '../components/FavoritesBar';
+import StrategicPlanner from '../components/StrategicPlanner';
+import CoverageMeter from '../components/CoverageMeter';
+import CampaignMetrics from '../components/CampaignMetrics';
+import CampaignScore from '../components/CampaignScore';
+import RecommendationEngine from '../components/RecommendationEngine';
+import ImpactSimulator from '../components/ImpactSimulator';
 import { fetchPontos } from '../lib/api';
+import { useFavorites } from '../context/FavoritesContext';
+import { calculateCampaignScore, calculateCoverageLevel, campaignTotals } from '../lib/strategy';
 
 export default function Explorer() {
   const [searchParams] = useSearchParams();
   const initialCidade = searchParams.get('cidade') || '';
 
   const [pontos, setPontos] = useState([]);
+  const [allPontos, setAllPontos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ cidade: initialCidade, tipo: '', publico: '', search: '' });
   const [view, setView] = useState('grid');
   const [selected, setSelected] = useState(null);
   const [mobileFilters, setMobileFilters] = useState(false);
+  const { favorites, addFavorites, history, registerView } = useFavorites();
+
+  const cityInventory = allPontos.filter((p) => !filters.cidade || p.cidade === filters.cidade);
+  const coverage = calculateCoverageLevel(favorites, cityInventory);
+  const totals = campaignTotals(favorites);
+  const scoreInfo = calculateCampaignScore({
+    selected: favorites,
+    objective: 'cobertura regional',
+    desiredPublico: filters.publico,
+    cityInventory
+  });
+
+  const publicos = Array.from(new Set(allPontos.map((p) => p.publico).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const cidades = Array.from(new Set(allPontos.map((p) => p.cidade).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
   const loadPontos = useCallback(async () => {
     setLoading(true);
@@ -39,6 +62,15 @@ export default function Explorer() {
     return () => clearTimeout(timer);
   }, [loadPontos]);
 
+  useEffect(() => {
+    fetchPontos().then(setAllPontos).catch(() => setAllPontos([]));
+  }, []);
+
+  const handleSelectPoint = (ponto) => {
+    registerView(ponto);
+    setSelected(ponto);
+  };
+
   return (
     <div className="min-h-screen bg-black text-white">
       <Navbar />
@@ -54,6 +86,26 @@ export default function Explorer() {
 
         {/* Main content */}
         <main className="flex-1 overflow-y-auto pb-28">
+          <div className="px-6 pt-4 space-y-4">
+            <StrategicPlanner
+              pontos={allPontos}
+              cidades={cidades}
+              publicos={publicos}
+              onAddPlan={addFavorites}
+            />
+
+            <div className="grid xl:grid-cols-4 gap-4">
+              <div className="xl:col-span-2">
+                <CoverageMeter coverage={coverage} />
+              </div>
+              <CampaignScore scoreInfo={scoreInfo} />
+              <ImpactSimulator points={cityInventory} onAdd={addFavorites} />
+            </div>
+
+            <CampaignMetrics totals={totals} />
+            <RecommendationEngine history={history} onApplyCombo={addFavorites} />
+          </div>
+
           {/* Toolbar */}
           <div className="sticky top-0 z-10 bg-brand-gray-900/90 backdrop-blur-xl border-b border-white/10 px-6 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -122,7 +174,7 @@ export default function Explorer() {
                       <PointCard
                         key={ponto.id}
                         ponto={ponto}
-                        onSelect={setSelected}
+                        onSelect={handleSelectPoint}
                         index={i}
                       />
                     ))}
@@ -131,7 +183,12 @@ export default function Explorer() {
               </>
             ) : (
               <div className="h-[calc(100vh-180px)]">
-                <MapView pontos={pontos} onSelect={setSelected} />
+                <SmartMap
+                  pontos={pontos}
+                  selectedId={selected?.id}
+                  onSelect={handleSelectPoint}
+                  onOpenDetails={handleSelectPoint}
+                />
               </div>
             )}
           </div>
