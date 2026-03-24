@@ -40,6 +40,21 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_pontos_ativo_cidade_nome
+  ON pontos (ativo, cidade, nome)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_pontos_ativo_tipo
+  ON pontos (ativo, tipo)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_pontos_ativo_publico
+  ON pontos (ativo, publico)
+`);
+
 // Seed data if empty
 const count = db.prepare('SELECT COUNT(*) as c FROM pontos').get();
 if (count.c === 0) {

@@ -1,23 +1,37 @@
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const path = require('path');
 const multer = require('multer');
 const db = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
+const uploadsPath = path.join(__dirname, 'uploads');
+const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
 
 // Middleware
+app.disable('x-powered-by');
 app.use(cors());
-app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use(express.json({ limit: '1mb' }));
+app.use(compression({ threshold: 1024 }));
+app.use('/uploads', express.static(uploadsPath, {
+  maxAge: '7d',
+  etag: true,
+  lastModified: true
+}));
 
 // Serve frontend build
-app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
+app.use(express.static(frontendDistPath, {
+  maxAge: '30d',
+  etag: true,
+  lastModified: true,
+  index: false
+}));
 
 // Multer config for image uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, 'uploads')),
+  destination: (req, file, cb) => cb(null, uploadsPath),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
     const allowed = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
@@ -27,7 +41,14 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
+    fields: 30
+  }
+});
 
 // ==================== API ROUTES ====================
 
@@ -198,7 +219,8 @@ app.get('/api/admin/pontos', (req, res) => {
 
 // SPA fallback
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'frontend', 'dist', 'index.html'));
+  res.set('Cache-Control', 'no-cache');
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
 });
 
 app.listen(PORT, () => {

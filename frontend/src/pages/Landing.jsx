@@ -22,7 +22,6 @@ import {
 import Navbar from '../components/Navbar';
 import CustomSelect from '../components/CustomSelect';
 import { fetchPontos } from '../lib/api';
-import { generateMidiaKitPdf } from '../lib/midiaKitPdf';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -176,6 +175,7 @@ export default function Landing() {
     if (!pontos.length || generatingPdf) return;
     setGeneratingPdf(true);
     try {
+      const { generateMidiaKitPdf } = await import('../lib/midiaKitPdf');
       await generateMidiaKitPdf({
         praca: selectedPraca,
         pontos
