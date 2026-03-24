@@ -156,10 +156,16 @@ export default function Landing() {
               initial={{ opacity: 0, scale: 0.95 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
-              className="relative rounded-2xl overflow-hidden aspect-[4/3]"
+              className="grid grid-cols-2 gap-4"
             >
-              <img src="/about-1.jpg" alt="Intermidia OOH" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+              <div className="relative rounded-2xl overflow-hidden aspect-[3/4]">
+                <img src="/about-1.jpg" alt="Intermidia OOH" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+              </div>
+              <div className="relative rounded-2xl overflow-hidden aspect-[3/4] mt-8">
+                <img src="/about-2.jpg" alt="Intermidia mídia exterior" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+              </div>
             </motion.div>
           </div>
 
@@ -186,6 +192,134 @@ export default function Landing() {
                 <item.icon className="text-brand-orange mb-3" size={24} />
                 <div className="font-semibold mb-1">{item.label}</div>
                 <div className="text-sm text-brand-gray-500">{item.desc}</div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Showcase — Totem & Product */}
+      <section className="py-24 border-t border-white/5">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="relative"
+            >
+              <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-brand-orange/10 to-transparent p-8 flex items-center justify-center">
+                <img src="/totem-sample.png" alt="Totem Digital Intermidia" className="max-h-[420px] object-contain drop-shadow-2xl" />
+              </div>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+            >
+              <h2 className="text-3xl md:text-4xl font-bold mb-6">
+                Tecnologia que <span className="text-brand-orange">impacta</span>
+              </h2>
+              <p className="text-lg text-brand-gray-400 leading-relaxed mb-6">
+                Totens digitais de alta definição, painéis LED de grande formato e telas indoor
+                em pontos de alto fluxo. Toda a infraestrutura para sua campanha brilhar.
+              </p>
+              <ul className="space-y-3">
+                {['Conteúdo dinâmico em tempo real', 'Segmentação por horário e local', 'Relatórios de audiência e impacto', 'Suporte técnico dedicado'].map((item) => (
+                  <li key={item} className="flex items-center gap-3 text-brand-gray-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-orange flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Audience / Engagement */}
+      <section className="py-24 border-t border-white/5 relative overflow-hidden">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-15"
+          style={{ backgroundImage: "url('/stock-wallpaper.jpg')" }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black via-black/90 to-black" />
+        <div className="relative max-w-6xl mx-auto px-6">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+            >
+              <h2 className="text-3xl md:text-4xl font-bold mb-6">
+                Público <span className="text-brand-orange">engajado</span>
+              </h2>
+              <p className="text-lg text-brand-gray-400 leading-relaxed mb-6">
+                Nossas telas estão onde as pessoas vivem, trabalham e se divertem.
+                Conteúdo relevante no momento certo gera conexão real com a audiência.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { value: '2.9M+', label: 'Fluxo mensal' },
+                  { value: '221', label: 'Telas ativas' },
+                  { value: '93', label: 'Pontos estratégicos' },
+                  { value: '4', label: 'Cidades' },
+                ].map((item) => (
+                  <div key={item.label} className="bg-white/[0.03] border border-white/5 rounded-xl p-4">
+                    <div className="text-2xl font-bold text-brand-orange font-heading">{item.value}</div>
+                    <div className="text-sm text-brand-gray-500">{item.label}</div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              className="relative rounded-2xl overflow-hidden aspect-[4/3]"
+            >
+              <img src="/audience.jpg" alt="Público assistindo conteúdo" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-l from-black/50 to-transparent" />
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Showcase Gallery */}
+      <section className="py-24 border-t border-white/5">
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Presença que <span className="text-brand-orange">marca</span>
+            </h2>
+            <p className="text-brand-gray-400 max-w-2xl mx-auto">
+              De elevadores de alto padrão a avenidas movimentadas, sua marca está sempre visível.
+            </p>
+          </motion.div>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              { src: '/showcase.png', label: 'Mídia em elevadores' },
+              { src: '/about-1.jpg', label: 'Painéis e backlights' },
+              { src: '/about-2.jpg', label: 'Cobertura urbana' },
+            ].map((item, i) => (
+              <motion.div
+                key={item.label}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1, duration: 0.5 }}
+                className="group relative rounded-2xl overflow-hidden aspect-[4/3]"
+              >
+                <img src={item.src} alt={item.label} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                <div className="absolute bottom-4 left-4 right-4">
+                  <div className="font-semibold text-sm">{item.label}</div>
+                </div>
               </motion.div>
             ))}
           </div>
