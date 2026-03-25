@@ -237,7 +237,7 @@ function buildMetricCards(cards, options = {}) {
       ${cards.map((card) => `
         <div style="border:1px solid ${options.borderColor || BRAND_BORDER};background:${options.background || 'rgba(255,255,255,0.06)'};border-radius:${options.radius || 26}px;padding:${options.padding || '24px 26px'};backdrop-filter:blur(10px);min-height:${options.minHeight || 0}px;box-sizing:border-box;">
           <div style="display:flex;align-items:center;gap:12px;color:${options.labelColor || 'rgba(255,255,255,0.72)'};font-size:${options.labelSize || 16}px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">
-            <span style="display:inline-flex;align-items:center;justify-content:center;width:${options.iconSize || 36}px;height:${options.iconSize || 36}px;border-radius:999px;background:rgba(254,92,43,0.18);color:${BRAND_ORANGE};font-weight:700;line-height:1;flex:0 0 auto;">${escapeHtml(card.icon || '•')}</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:${options.iconSize || 36}px;height:${options.iconSize || 36}px;border-radius:999px;background:rgba(254,92,43,0.18);color:${BRAND_ORANGE};font-weight:700;line-height:1;flex:0 0 auto;">${card.iconHtml || escapeHtml(card.icon || '•')}</span>
             <span style="line-height:1.2;">${escapeHtml(card.label)}</span>
           </div>
           <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:${options.valueSize || 36}px;line-height:1.05;font-weight:700;color:${options.valueColor || '#ffffff'};letter-spacing:-0.03em;word-break:${options.valueWordBreak || 'break-word'};white-space:${options.valueWhiteSpace || 'normal'};">${escapeHtml(card.value)}</div>
@@ -245,6 +245,26 @@ function buildMetricCards(cards, options = {}) {
       `).join('')}
     </div>
   `;
+}
+
+function proposalIcon(kind) {
+  if (kind === 'target') {
+    return `<span style="position:relative;display:inline-flex;width:16px;height:16px;align-items:center;justify-content:center;"><span style="position:absolute;inset:0;border:2px solid ${BRAND_ORANGE};border-radius:999px;opacity:0.85;"></span><span style="position:absolute;width:6px;height:6px;border-radius:999px;background:${BRAND_ORANGE};"></span></span>`;
+  }
+  if (kind === 'flow') {
+    return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7a8 8 0 0 0-13.7-2.5"></path><path d="M17 7h3V4"></path><path d="M4 17a8 8 0 0 0 13.7 2.5"></path><path d="M7 17H4v3"></path></svg>`;
+  }
+  if (kind === 'money') {
+    return `<span style="font-family:Poppins, system-ui, sans-serif;font-size:32px;font-weight:700;line-height:1;display:block;transform:translateY(1px);">R$</span>`;
+  }
+  if (kind === 'cpm') {
+    return `<span style="font-family:Poppins, system-ui, sans-serif;font-size:28px;font-weight:700;line-height:1;display:block;transform:translateY(1px);">CP</span>`;
+  }
+  return `<span style="display:block;width:8px;height:8px;border-radius:999px;background:${BRAND_ORANGE};"></span>`;
+}
+
+function formatPointCountLabel(count) {
+  return `${count} ${count === 1 ? 'ponto' : 'pontos'}`;
 }
 
 function buildHeroImageFrame(image, options = {}) {
@@ -506,10 +526,10 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
 
 function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, highlights, simulationSummary, assets }) {
   const cards = [
-    { icon: '◎', label: 'Pontos', value: formatInt(proposalPoints.length) },
-    { icon: '↺', label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
-    { icon: 'R$', label: 'Valor total', value: formatMoney(proposalTotals.valorTotal) },
-    { icon: 'CP', label: 'CPM estimado', value: formatDecimalMoney(proposalTotals.cpmEstimado) }
+    { iconHtml: proposalIcon('target'), label: 'Pontos', value: formatInt(proposalPoints.length) },
+    { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
+    { iconHtml: proposalIcon('money'), label: 'Valor total', value: formatMoney(proposalTotals.valorTotal) },
+    { iconHtml: proposalIcon('cpm'), label: 'CPM estimado', value: formatDecimalMoney(proposalTotals.cpmEstimado) }
   ];
   const strategicItems = highlights.length ? highlights : ['Argumentos estratégicos serão definidos na reunião comercial.'];
 
@@ -521,7 +541,9 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
       <div style="display:flex;flex-direction:column;min-width:0;">
         <div style="display:flex;align-items:center;gap:18px;">
           <img src="${assets.logo || ''}" alt="" style="height:48px;width:auto;object-fit:contain;" />
-          <div style="display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 20px;border-radius:999px;background:rgba(254,92,43,0.14);border:1px solid rgba(254,92,43,0.24);font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};line-height:1;">Proposta comercial</div>
+          <div style="display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 20px;border-radius:999px;background:rgba(254,92,43,0.14);border:1px solid rgba(254,92,43,0.24);font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};line-height:1;text-align:center;">
+            <span style="display:block;transform:translateY(1px);">Proposta comercial</span>
+          </div>
         </div>
 
         <div style="margin-top:40px;font-family:Poppins, system-ui, sans-serif;font-size:84px;line-height:0.92;font-weight:700;letter-spacing:-0.05em;max-width:760px;">${escapeHtml(proposalClient)}</div>
@@ -530,10 +552,12 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
         <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:24px;">
           ${[
             proposalCity,
-            `${proposalPoints.length || 0} pontos`,
+            formatPointCountLabel(proposalPoints.length || 0),
             `Gerado em ${new Date().toLocaleDateString('pt-BR')}`
           ].map((chip) => `
-            <div style="display:inline-flex;align-items:center;justify-content:center;min-height:58px;padding:0 24px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:600;color:rgba(255,255,255,0.78);line-height:1;">${escapeHtml(chip)}</div>
+            <div style="display:inline-flex;align-items:center;justify-content:center;min-height:58px;padding:0 24px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:600;color:rgba(255,255,255,0.78);line-height:1;text-align:center;">
+              <span style="display:block;transform:translateY(1px);">${escapeHtml(chip)}</span>
+            </div>
           `).join('')}
         </div>
 
@@ -552,7 +576,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
 
       <div style="display:grid;grid-template-rows:1fr;gap:20px;min-width:0;">
         <div style="padding:28px 30px;border-radius:34px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.09);backdrop-filter:blur(14px);display:flex;flex-direction:column;">
-          <div style="display:flex;align-items:center;gap:12px;font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};"><span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;background:rgba(254,92,43,0.16);">◎</span>Direcionamento estratégico</div>
+          <div style="display:flex;align-items:center;gap:12px;font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};"><span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;background:rgba(254,92,43,0.16);">${proposalIcon('target')}</span>Direcionamento estratégico</div>
           <div style="margin-top:22px;display:grid;gap:14px;">
             ${strategicItems.map((item) => `
               <div style="display:grid;grid-template-columns:36px 1fr;gap:14px;align-items:flex-start;padding:16px 18px;border-radius:22px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);">
@@ -590,9 +614,10 @@ function buildProposalPointPage({ point, index, total, image, assets }) {
             <div style="margin-top:6px;font-size:18px;line-height:1.4;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} · ${escapeHtml(point.tipo || '-')}</div>
           </div>
         </div>
-        <div style="display:inline-flex;align-items:center;justify-content:center;min-width:98px;min-height:56px;padding:0 18px;border-radius:20px;background:#111;border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;color:#fff;line-height:1;">
-          <span style="display:inline-flex;align-items:center;justify-content:center;color:${BRAND_ORANGE};">${index}</span>
-          <span style="display:inline-flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.56);padding-left:8px;">/ ${total}</span>
+        <div style="display:inline-grid;grid-template-columns:auto auto auto;align-items:center;justify-content:center;column-gap:8px;min-width:102px;min-height:56px;padding:0 16px;border-radius:20px;background:#111;border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;color:#fff;line-height:1;font-family:Poppins, system-ui, sans-serif;">
+          <span style="display:block;color:${BRAND_ORANGE};transform:translateY(1px);">${index}</span>
+          <span style="display:block;color:rgba(255,255,255,0.56);transform:translateY(1px);">/</span>
+          <span style="display:block;color:rgba(255,255,255,0.86);transform:translateY(1px);">${total}</span>
         </div>
       </div>
 
