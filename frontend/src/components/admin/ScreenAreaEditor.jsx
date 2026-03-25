@@ -348,7 +348,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
 
               {hasSelection && (
                 <>
-                  <polygon points={polygonPoints} fill="rgba(254,92,43,0.08)" stroke="rgba(254,92,43,0.58)" strokeWidth={SELECTION_STROKE} />
+                  <polygon points={polygonPoints} fill="rgba(254,92,43,0.08)" stroke="rgba(254,92,43,0.38)" strokeWidth={SELECTION_STROKE} />
 
                   {Array.from({ length: 4 }).map((_, index) => (
                     <polyline key={`grid-h-${index}`} points={polylineForInterpolation(activeCorners, 'v', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.11)" strokeWidth={GRID_STROKE} />
