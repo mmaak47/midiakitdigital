@@ -16,7 +16,11 @@ const {
   listJobs,
   getScoresWithCoverage,
   invalidatePointCache,
-  getProviderRuntimeInfo
+  getProviderRuntimeInfo,
+  startAutoRefreshScheduler,
+  getAutoRefreshConfig,
+  getAutoRefreshState,
+  runAutoRefreshCycle
 } = require('./entornoAnalysis');
 
 const app = express();
@@ -386,6 +390,28 @@ app.get('/api/entorno/jobs', (req, res) => {
       city: cidade
     });
     res.json({ jobs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Auto-refresh scheduler status and config
+app.get('/api/entorno/auto', (req, res) => {
+  try {
+    res.json({
+      config: getAutoRefreshConfig(),
+      state: getAutoRefreshState()
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Trigger one immediate auto-refresh cycle manually
+app.post('/api/entorno/auto/run-now', (req, res) => {
+  try {
+    runAutoRefreshCycle();
+    res.json({ success: true, state: getAutoRefreshState() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -917,5 +943,13 @@ app.listen(PORT, () => {
     createBackupScheduler(db);
   } else {
     console.log('[backup] Automatic SQLite backup disabled by SQLITE_BACKUP_ENABLED=false');
+  }
+
+  const scheduler = startAutoRefreshScheduler();
+  if (scheduler) {
+    const config = getAutoRefreshConfig();
+    console.log(`[entorno-auto] enabled. interval=${config.intervalMinutes}min radius=${config.radius}m segments=${config.segments.join(',') || 'clinica'} cities=${config.cities.join(',') || 'todas'}`);
+  } else {
+    console.log('[entorno-auto] disabled by ENTORNO_AUTO_REFRESH_ENABLED=false');
   }
 });

@@ -12,6 +12,14 @@ const FETCH_TIMEOUT_MS = Number(process.env.ENTORNO_FETCH_TIMEOUT_MS) || 12000;
 const PLACES_PROVIDER = String(process.env.ENTORNO_PLACES_PROVIDER || 'auto').toLowerCase();
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || '';
 const FOURSQUARE_API_KEY = process.env.FOURSQUARE_API_KEY || '';
+const AUTO_REFRESH_ENABLED = String(process.env.ENTORNO_AUTO_REFRESH_ENABLED || 'true').toLowerCase() !== 'false';
+const AUTO_REFRESH_INTERVAL_MINUTES = Math.max(5, Number(process.env.ENTORNO_AUTO_REFRESH_INTERVAL_MINUTES) || 90);
+const AUTO_REFRESH_RADIUS_RAW = process.env.ENTORNO_AUTO_REFRESH_RADIUS || DEFAULT_RADIUS;
+const AUTO_REFRESH_SEGMENTS_RAW = String(process.env.ENTORNO_AUTO_REFRESH_SEGMENTS || 'clinica');
+const AUTO_REFRESH_CITIES = String(process.env.ENTORNO_AUTO_REFRESH_CITIES || '')
+  .split(',')
+  .map((item) => String(item || '').trim())
+  .filter(Boolean);
 
 const SEGMENT_CATEGORIES = {
   clinica: ['hospital', 'farmacia', 'clinica', 'laboratorio', 'consultorio odontologico', 'pronto atendimento', 'centro medico'],
@@ -32,6 +40,17 @@ const SEGMENT_CATEGORIES = {
 
 const jobQueue = [];
 let activeJobId = null;
+let autoRefreshTimer = null;
+let autoRefreshState = {
+  enabled: AUTO_REFRESH_ENABLED,
+  intervalMinutes: AUTO_REFRESH_INTERVAL_MINUTES,
+  radius: DEFAULT_RADIUS,
+  segments: ['clinica'],
+  cities: AUTO_REFRESH_CITIES,
+  lastRunAt: null,
+  lastQueued: [],
+  lastError: null
+};
 
 function normalize(value) {
   return String(value || '')
@@ -760,6 +779,102 @@ function getProviderRuntimeInfo() {
   };
 }
 
+function getAutoRefreshSegments() {
+  return AUTO_REFRESH_SEGMENTS_RAW
+    .split(',')
+    .map((item) => normalizeSegment(item))
+    .filter(Boolean);
+}
+
+function getAutoRefreshRadius() {
+  return normalizeRadius(AUTO_REFRESH_RADIUS_RAW);
+}
+
+function getAutoRefreshConfig() {
+  return {
+    enabled: AUTO_REFRESH_ENABLED,
+    intervalMinutes: AUTO_REFRESH_INTERVAL_MINUTES,
+    radius: getAutoRefreshRadius(),
+    segments: getAutoRefreshSegments(),
+    cities: AUTO_REFRESH_CITIES
+  };
+}
+
+function getAutoRefreshState() {
+  return {
+    ...autoRefreshState,
+    nextRunAt: autoRefreshState.lastRunAt
+      ? new Date(new Date(autoRefreshState.lastRunAt).getTime() + AUTO_REFRESH_INTERVAL_MINUTES * 60 * 1000).toISOString()
+      : null
+  };
+}
+
+function runAutoRefreshCycle() {
+  const queued = [];
+  try {
+    const segments = getAutoRefreshSegments().length ? getAutoRefreshSegments() : ['clinica'];
+    const radius = getAutoRefreshRadius();
+    const cities = AUTO_REFRESH_CITIES.length ? AUTO_REFRESH_CITIES : [''];
+
+    for (const segment of segments) {
+      for (const city of cities) {
+        const result = enqueueJob({
+          segment,
+          radius,
+          city: city || ''
+        });
+        queued.push(result);
+      }
+    }
+
+    autoRefreshState = {
+      ...autoRefreshState,
+      lastRunAt: new Date().toISOString(),
+      lastQueued: queued,
+      lastError: null
+    };
+  } catch (err) {
+    autoRefreshState = {
+      ...autoRefreshState,
+      lastRunAt: new Date().toISOString(),
+      lastError: String(err?.message || err)
+    };
+  }
+}
+
+function startAutoRefreshScheduler() {
+  if (!AUTO_REFRESH_ENABLED) {
+    autoRefreshState = {
+      ...autoRefreshState,
+      enabled: false
+    };
+    return null;
+  }
+
+  autoRefreshState = {
+    ...autoRefreshState,
+    enabled: true,
+    radius: getAutoRefreshRadius(),
+    segments: getAutoRefreshSegments().length ? getAutoRefreshSegments() : ['clinica']
+  };
+
+  if (autoRefreshTimer) return autoRefreshTimer;
+
+  runAutoRefreshCycle();
+  autoRefreshTimer = setInterval(runAutoRefreshCycle, AUTO_REFRESH_INTERVAL_MINUTES * 60 * 1000);
+  if (typeof autoRefreshTimer.unref === 'function') {
+    autoRefreshTimer.unref();
+  }
+
+  return autoRefreshTimer;
+}
+
+function stopAutoRefreshScheduler() {
+  if (!autoRefreshTimer) return;
+  clearInterval(autoRefreshTimer);
+  autoRefreshTimer = null;
+}
+
 module.exports = {
   DEFAULT_RADIUS,
   SEGMENT_CATEGORIES,
@@ -772,5 +887,10 @@ module.exports = {
   listJobs,
   getScoresWithCoverage,
   invalidatePointCache,
-  getProviderRuntimeInfo
+  getProviderRuntimeInfo,
+  startAutoRefreshScheduler,
+  stopAutoRefreshScheduler,
+  getAutoRefreshConfig,
+  getAutoRefreshState,
+  runAutoRefreshCycle
 };
