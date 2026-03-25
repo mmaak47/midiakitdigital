@@ -49,6 +49,27 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function formatPointNameHtml(name, options = {}) {
+  const source = String(name || '').trim().toUpperCase();
+  if (!source) return 'PONTO SEM NOME';
+
+  const innerStyle = options.innerStyle || 'font-size:0.62em;font-weight:600;letter-spacing:-0.01em;';
+  const regex = /\(([^)]+)\)/g;
+  let html = '';
+  let cursor = 0;
+  let match = regex.exec(source);
+
+  while (match) {
+    html += escapeHtml(source.slice(cursor, match.index));
+    html += `<span style="${innerStyle}">(${escapeHtml(match[1])})</span>`;
+    cursor = regex.lastIndex;
+    match = regex.exec(source);
+  }
+
+  html += escapeHtml(source.slice(cursor));
+  return html;
+}
+
 function pickImageUrl(ponto) {
   if (Array.isArray(ponto?.imagens) && ponto.imagens.length > 0) {
     const first = ponto.imagens[0];
@@ -385,20 +406,29 @@ function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
   const lines = splitFormatTitle(tipo);
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:170px;background:#050505;border-right:1px solid rgba(255,255,255,0.12);"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:170px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.1;"></div>
-    <div style="position:absolute;left:32px;top:82px;transform:rotate(-90deg);transform-origin:left top;display:flex;align-items:center;gap:24px;white-space:nowrap;">
-      <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:56px;width:auto;object-fit:contain;" />
-      <div style="font-family:Poppins, system-ui, sans-serif;font-size:58px;line-height:1;font-weight:700;color:#fff;letter-spacing:-0.02em;text-transform:uppercase;">${escapeHtml((cityStats.cidade || '').toUpperCase())}</div>
+    <img src="${assets.wallpaper || assets.heroBg || ''}" alt="" style="position:absolute;inset:-80px;width:calc(100% + 160px);height:calc(100% + 160px);object-fit:cover;filter:blur(16px) saturate(1.12);opacity:0.18;" />
+    <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 46%, rgba(254,92,43,0.16) 0%, rgba(254,92,43,0.03) 38%, rgba(0,0,0,0.92) 78%);"></div>
+
+    <div style="position:absolute;left:0;top:0;bottom:0;width:170px;background:linear-gradient(180deg,#0a0a0a,#050505);border-right:1px solid rgba(255,255,255,0.12);"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:170px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
+    <div style="position:absolute;left:16px;top:18px;right:16px;display:flex;justify-content:center;">
+      <img src="${assets.logo07 || assets.logoHorizontal || assets.logo || ''}" alt="" style="height:60px;width:auto;object-fit:contain;" />
+    </div>
+    <div style="position:absolute;left:50%;top:150px;bottom:26px;transform:translateX(-50%);writing-mode:vertical-rl;text-orientation:mixed;font-family:Poppins, system-ui, sans-serif;font-size:44px;line-height:1;font-weight:700;color:rgba(255,255,255,0.9);letter-spacing:-0.02em;text-transform:uppercase;white-space:nowrap;">
+      ${escapeHtml((cityStats.cidade || '').toUpperCase())}
     </div>
 
-    <div style="position:absolute;left:240px;top:120px;">
-      <img src="${assets.logo || ''}" alt="" style="height:220px;width:auto;object-fit:contain;" />
+    <div style="position:absolute;left:250px;top:108px;">
+      <img src="${assets.logo07 || assets.logoHorizontal || assets.logo || ''}" alt="" style="height:210px;width:auto;object-fit:contain;opacity:0.98;" />
     </div>
 
-    <div style="position:absolute;left:560px;bottom:130px;width:560px;border-left:2px solid rgba(255,255,255,0.62);border-bottom:2px solid rgba(255,255,255,0.62);height:360px;"></div>
-    <div style="position:absolute;right:90px;top:200px;text-align:left;">
+    <div style="position:absolute;left:560px;bottom:138px;width:560px;border-left:2px solid rgba(255,255,255,0.58);border-bottom:2px solid rgba(255,255,255,0.58);height:344px;"></div>
+    <div style="position:absolute;right:90px;top:198px;text-align:left;">
       ${lines.map((line) => `<div style="font-family:Poppins, system-ui, sans-serif;font-size:96px;line-height:0.9;font-weight:700;color:#fff;letter-spacing:-0.04em;">${escapeHtml(line)}</div>`).join('')}
+    </div>
+
+    <div style="position:absolute;right:104px;bottom:42px;">
+      <img src="${assets.logoHorizontal || assets.logo07 || assets.logo || ''}" alt="" style="height:42px;width:auto;object-fit:contain;opacity:0.9;" />
     </div>
 
     <div style="position:absolute;right:190px;bottom:170px;text-align:right;color:#fff;">
@@ -438,7 +468,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
     </div>
 
     <div style="position:absolute;left:58px;top:140px;right:710px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;">
-      <div style="font-family:Poppins, system-ui, sans-serif;font-size:60px;line-height:0.95;font-weight:700;color:#000;">${escapeHtml((ponto.nome || '').toUpperCase())}</div>
+      <div style="font-family:Poppins, system-ui, sans-serif;font-size:56px;line-height:0.95;font-weight:700;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME')}</div>
       <div style="font-size:26px;font-weight:700;color:#000;">${index}/${total}</div>
     </div>
 
@@ -447,12 +477,12 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
     <div style="position:absolute;left:58px;top:300px;right:710px;border:2px solid rgba(17,17,17,0.4);background:rgba(255,255,255,0.5);padding:22px 24px;border-radius:16px;"></div>
     <div style="position:absolute;left:82px;top:324px;right:734px;display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;">
       ${details.slice(0, 6).map((item) => `
-        <div style="display:grid;grid-template-columns:24px 1fr;align-items:flex-start;column-gap:10px;">
-          <div style="display:flex;align-items:center;justify-content:center;margin-top:2px;">${metricIconSvg(item.key)}</div>
-          <div>
-            <div style="font-size:18px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;">${escapeHtml(item.label)}</div>
-            <div style="margin-top:4px;font-family:Poppins, system-ui, sans-serif;font-size:30px;line-height:1.2;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
+        <div style="display:flex;flex-direction:column;gap:6px;min-height:96px;">
+          <div style="display:flex;align-items:center;gap:8px;min-height:22px;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;flex:0 0 20px;">${metricIconSvg(item.key)}</div>
+            <div style="font-size:18px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;line-height:1;">${escapeHtml(item.label)}</div>
           </div>
+          <div style="padding-left:28px;font-family:Poppins, system-ui, sans-serif;font-size:30px;line-height:1.18;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
         </div>
       `).join('')}
     </div>
@@ -474,7 +504,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
     </div>
 
     <div style="position:absolute;right:20px;bottom:22px;padding:8px 12px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.22);">
-      <img src="${assets.logo || ''}" alt="" style="height:20px;width:auto;object-fit:contain;" />
+      <img src="${assets.logoHorizontal || assets.logo07 || assets.logo || ''}" alt="" style="height:20px;width:auto;object-fit:contain;" />
     </div>
   `, '#ECE7E0');
 }
@@ -607,6 +637,7 @@ async function loadPdfAssets() {
   const [
     logo,
     logoHorizontal,
+    logo07,
     heroBg,
     cityBg,
     about1,
@@ -618,6 +649,7 @@ async function loadPdfAssets() {
   ] = await Promise.all([
     imageToDataUrl(assetUrl('/logo.png')),
     imageToDataUrl(assetUrl('/logo-deitado.png')),
+    imageToDataUrl(assetUrl('/logo-07.png')),
     imageToDataUrl(assetUrl('/hero-bg.jpg')),
     imageToDataUrl(assetUrl('/city-bg.jpg')),
     imageToDataUrl(assetUrl('/about-1.jpg')),
@@ -631,6 +663,7 @@ async function loadPdfAssets() {
   return {
     logo,
     logoHorizontal,
+    logo07,
     heroBg,
     cityBg,
     about1,
