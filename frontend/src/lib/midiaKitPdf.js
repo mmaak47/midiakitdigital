@@ -845,6 +845,26 @@ function buildEntornoEvidenceMapSvg(rows) {
     })
     .filter(Boolean);
 
+  const realPlaceCoords = [];
+
+  points.forEach((entry) => {
+    const rawPlaces = Array.isArray(entry.row.rawPlaces) ? entry.row.rawPlaces.slice(0, 8) : [];
+    rawPlaces.forEach((place, placeIndex) => {
+      const lat = Number(place?.lat);
+      const lng = Number(place?.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) > 0.0001 && Math.abs(lng) > 0.0001) {
+        realPlaceCoords.push({
+          lat,
+          lng,
+          label: place?.name || `Local ${placeIndex + 1}`,
+          category: place?.category || '',
+          distance: Number(place?.distance) || 0,
+          pointEntry: entry
+        });
+      }
+    });
+  });
+
   if (!points.length) {
     return `
       <div style="height:100%;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.62);font-size:15px;">
@@ -853,10 +873,15 @@ function buildEntornoEvidenceMapSvg(rows) {
     `;
   }
 
-  const minLat = Math.min(...points.map((item) => item.lat));
-  const maxLat = Math.max(...points.map((item) => item.lat));
-  const minLng = Math.min(...points.map((item) => item.lng));
-  const maxLng = Math.max(...points.map((item) => item.lng));
+  const mapSamples = [
+    ...points.map((item) => ({ lat: item.lat, lng: item.lng })),
+    ...realPlaceCoords.map((item) => ({ lat: item.lat, lng: item.lng }))
+  ];
+
+  const minLat = Math.min(...mapSamples.map((item) => item.lat));
+  const maxLat = Math.max(...mapSamples.map((item) => item.lat));
+  const minLng = Math.min(...mapSamples.map((item) => item.lng));
+  const maxLng = Math.max(...mapSamples.map((item) => item.lng));
 
   const latSpan = Math.max(maxLat - minLat, 0.01);
   const lngSpan = Math.max(maxLng - minLng, 0.01);
@@ -867,28 +892,41 @@ function buildEntornoEvidenceMapSvg(rows) {
     return { x, y };
   };
 
-  const nearbyMarkers = [];
+  const nearbyMarkers = realPlaceCoords.map((place) => {
+    const projected = project(place.lat, place.lng);
+    return {
+      x: projected.x,
+      y: projected.y,
+      label: place.label,
+      category: place.category,
+      distance: place.distance
+    };
+  });
 
-  points.forEach((entry) => {
-    const base = project(entry.lat, entry.lng);
-    const rawPlaces = Array.isArray(entry.row.rawPlaces) ? entry.row.rawPlaces.slice(0, 5) : [];
+  const hasRealNearbyCoords = nearbyMarkers.length > 0;
 
-    rawPlaces.forEach((place, placeIndex) => {
-      const distance = Math.max(70, Math.min(1000, Number(place?.distance) || 220));
-      const angle = hashToAngle(`${entry.row.point?.id || entry.index}-${place?.name || placeIndex}`);
-      const radiusPx = 14 + (distance / 1000) * 62;
-      const x = Math.max(padding, Math.min(width - padding, base.x + Math.cos(angle) * radiusPx));
-      const y = Math.max(padding, Math.min(height - padding, base.y + Math.sin(angle) * radiusPx));
+  if (!hasRealNearbyCoords) {
+    points.forEach((entry) => {
+      const base = project(entry.lat, entry.lng);
+      const rawPlaces = Array.isArray(entry.row.rawPlaces) ? entry.row.rawPlaces.slice(0, 5) : [];
 
-      nearbyMarkers.push({
-        x,
-        y,
-        label: place?.name || `Local ${placeIndex + 1}`,
-        category: place?.category || '',
-        distance
+      rawPlaces.forEach((place, placeIndex) => {
+        const distance = Math.max(70, Math.min(1000, Number(place?.distance) || 220));
+        const angle = hashToAngle(`${entry.row.point?.id || entry.index}-${place?.name || placeIndex}`);
+        const radiusPx = 14 + (distance / 1000) * 62;
+        const x = Math.max(padding, Math.min(width - padding, base.x + Math.cos(angle) * radiusPx));
+        const y = Math.max(padding, Math.min(height - padding, base.y + Math.sin(angle) * radiusPx));
+
+        nearbyMarkers.push({
+          x,
+          y,
+          label: place?.name || `Local ${placeIndex + 1}`,
+          category: place?.category || '',
+          distance
+        });
       });
     });
-  });
+  }
 
   const pointMarkersSvg = points.map((entry) => {
     const { x, y } = project(entry.lat, entry.lng);

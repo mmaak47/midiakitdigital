@@ -238,7 +238,9 @@ async function fetchNearbyFromOsm({ lat, lng, radius, segment }) {
       osmId: `${element.type || 'x'}-${element.id}`,
       category: categoryHit,
       distance,
-      name: tags.name || null
+      name: tags.name || null,
+      lat: placeLat,
+      lng: placeLng
     });
   }
 
@@ -291,7 +293,9 @@ async function fetchNearbyFromGoogle({ lat, lng, radius, segment }) {
         osmId: osmLikeId,
         category,
         distance,
-        name: result.name || null
+        name: result.name || null,
+        lat: placeLat,
+        lng: placeLng
       });
     }
   }
@@ -341,11 +345,17 @@ async function fetchNearbyFromFoursquare({ lat, lng, radius, segment }) {
       const distance = parseFoursquareDistance(result.distance);
       if (distance === null || distance > radius) continue;
 
+      const placeLat = Number(result?.geocodes?.main?.latitude);
+      const placeLng = Number(result?.geocodes?.main?.longitude);
+      const hasCoords = Number.isFinite(placeLat) && Number.isFinite(placeLng);
+
       matchedPlaces.push({
         osmId: fsqId,
         category,
         distance,
-        name: result.name || null
+        name: result.name || null,
+        lat: hasCoords ? placeLat : null,
+        lng: hasCoords ? placeLng : null
       });
     }
   }
