@@ -11,6 +11,25 @@ const BRAND_ORANGE = '#FE5C2B';
 const BRAND_DARK = '#0A0A0A';
 const BRAND_PANEL = '#171717';
 const BRAND_BORDER = 'rgba(255,255,255,0.08)';
+
+const CITY_STATE_MAP = {
+  'londrina': 'Paraná',
+  'maringá': 'Paraná',
+  'maringa': 'Paraná',
+  'balneário camboriú': 'Santa Catarina',
+  'balneario camboriu': 'Santa Catarina',
+  'itajaí': 'Santa Catarina',
+  'itajai': 'Santa Catarina',
+  'curitiba': 'Paraná',
+  'florianópolis': 'Santa Catarina',
+  'florianopolis': 'Santa Catarina',
+};
+function getCityState(cidade) {
+  const key = String(cidade || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const keyRaw = String(cidade || '').toLowerCase();
+  return CITY_STATE_MAP[keyRaw] || CITY_STATE_MAP[key] || '';
+}
+
 const imageCache = new Map();
 const IMAGE_FETCH_TIMEOUT_MS = 15000;
 const IMAGE_RENDER_WAIT_TIMEOUT_MS = 8000;
@@ -417,9 +436,7 @@ function metricIconSvg(kind, color = '#111111', size = 20) {
 
 function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
   const layout = getActivePdfLayoutConfig().midiaKit.cover;
-  const cityLine = cidade === 'Consolidado' && layout.showAllCitiesOnConsolidated
-    ? 'Londrina, Maringá e Balneário Camboriú'
-    : cidade;
+  const estado = getCityState(cidade);
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
@@ -435,12 +452,12 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
     <div style="position:absolute;left:72px;bottom:120px;width:420px;">
       <div style="font-family:Poppins, system-ui, sans-serif;color:#fff;font-size:58px;line-height:0.95;font-weight:700;letter-spacing:-0.04em;">Elevando o branding</div>
       <div style="margin-top:20px;color:rgba(255,255,255,0.8);font-size:34px;line-height:1.22;">Invista no futuro da publicidade OOH e DOOH</div>
-      <div data-calibration-id="midiaKit.cover.outOfHomeBadge" style="margin-top:26px;display:inline-flex;align-items:center;justify-content:center;min-height:${layout.outOfHomeMinHeight}px;padding:0 ${layout.outOfHomePaddingX}px;background:#fff;color:#000;font-size:18px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;line-height:1;">Out of Home</div>
+      <div style="margin-top:26px;display:flex;align-items:center;justify-content:center;min-height:${layout.outOfHomeMinHeight}px;padding:0 ${layout.outOfHomePaddingX}px;background:#fff;color:#000;font-size:18px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;line-height:1;width:fit-content;">Out of Home</div>
     </div>
 
-    <div data-calibration-id="midiaKit.cover.cityBlock" style="position:absolute;right:70px;bottom:90px;text-align:left;">
+    <div style="position:absolute;right:70px;bottom:90px;text-align:left;">
       <div style="font-family:Poppins, system-ui, sans-serif;color:#fff;font-size:64px;line-height:0.95;font-weight:700;text-transform:uppercase;">${escapeHtml(cidade)}</div>
-      <div style="margin-top:10px;color:#fff;font-size:16px;letter-spacing:0.06em;text-transform:uppercase;opacity:0.82;">${escapeHtml(cityLine)}</div>
+      ${estado ? `<div style="margin-top:10px;color:#fff;font-size:16px;letter-spacing:0.06em;text-transform:uppercase;opacity:0.82;">${escapeHtml(estado)}</div>` : ''}
       <div style="margin-top:20px;color:${BRAND_ORANGE};font-size:30px;font-weight:700;letter-spacing:0.03em;">MIDIAKIT 2026</div>
       <div style="margin-top:10px;color:rgba(255,255,255,0.86);font-size:20px;">${formatInt(pontos.length)} pontos • ${formatInt(resumo.telas)} telas • fluxo ${formatInt(resumo.fluxo)}/mês</div>
     </div>
@@ -451,11 +468,9 @@ function buildMidiaKitManifestoPage({ assets }) {
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
     <div style="position:absolute;left:0;top:0;bottom:0;width:44%;overflow:hidden;">
-      <img src="${assets.about1 || assets.about2 || ''}" alt="" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.05);" />
-      <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,0.45) 0%,rgba(0,0,0,0.15) 55%,rgba(0,0,0,0.0) 100%);"></div>
+      <img src="${assets.about1 || assets.about2 || ''}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:center top;filter:grayscale(1) contrast(1.05);" />
+      <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,0.15) 0%,rgba(0,0,0,0.0) 40%,rgba(0,0,0,0.0) 70%,rgba(0,0,0,0.95) 100%);"></div>
     </div>
-    <div style="position:absolute;left:44%;top:0;bottom:0;width:76px;background:linear-gradient(90deg,rgba(0,0,0,0.9),rgba(0,0,0,0));"></div>
-    <div style="position:absolute;right:0;top:0;bottom:0;width:56%;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.08;"></div>
 
     <div style="position:absolute;left:740px;right:82px;top:82px;">
       <img src="${assets.logo || ''}" alt="" style="height:70px;width:auto;object-fit:contain;" />
@@ -504,30 +519,35 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
     { label: 'pontos de impacto', value: formatInt(totalPontos) }
   ];
 
-  return createPage(`
-    <div style="position:absolute;inset:0;background:url('${assets.heroBg || assets.showcase || ''}') center/cover no-repeat;"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:41%;background:#000;"></div>
-    <div style="position:absolute;left:41%;top:0;width:0;height:0;border-top:${PAGE_HEIGHT}px solid rgba(0,0,0,0.98);border-left:180px solid transparent;"></div>
+  const estado = getCityState(cidade);
 
-    <div style="position:absolute;left:82px;top:86px;padding:24px 34px;background:#000;border-radius:20px;min-width:310px;">
+  return createPage(`
+    <div style="position:absolute;inset:0;background:#000;"></div>
+    <div style="position:absolute;right:0;top:0;bottom:0;width:55%;overflow:hidden;">
+      <img src="${assets.heroBg || assets.showcase || ''}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:center;" />
+      <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,1) 0%,rgba(0,0,0,0.6) 30%,rgba(0,0,0,0.2) 100%);"></div>
+    </div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:50%;background:#000;"></div>
+
+    <div style="position:absolute;left:82px;top:86px;min-width:310px;">
       <div style="font-family:Poppins, system-ui, sans-serif;font-size:64px;line-height:0.93;color:#fff;font-weight:700;text-transform:uppercase;">${escapeHtml(cidade)}</div>
-      <div style="margin-top:8px;color:#fff;font-size:18px;letter-spacing:0.07em;text-transform:uppercase;opacity:0.78;">Paraná</div>
+      ${estado ? `<div style="margin-top:8px;color:#fff;font-size:18px;letter-spacing:0.07em;text-transform:uppercase;opacity:0.78;">${escapeHtml(estado)}</div>` : ''}
     </div>
 
-    <div style="position:absolute;left:88px;top:340px;right:980px;border-left:2px solid rgba(255,255,255,0.5);padding-left:36px;">
+    <div style="position:absolute;left:88px;top:280px;right:980px;border-left:2px solid rgba(255,255,255,0.5);padding-left:36px;">
       ${cards.map((card) => `
         <div style="margin-bottom:20px;">
           <span style="font-family:Poppins, system-ui, sans-serif;font-size:56px;font-weight:700;color:#fff;line-height:1;">${escapeHtml(card.value)}</span>
           <span style="margin-left:12px;font-size:42px;color:#fff;line-height:1.2;">${escapeHtml(card.label)}</span>
         </div>
       `).join('')}
-      <div style="margin-top:26px;font-size:45px;line-height:1.4;color:#fff;max-width:460px;">
+      <div style="margin-top:26px;font-size:40px;line-height:1.4;color:#fff;max-width:460px;">
         em <strong>${escapeHtml(lines || 'formatos estratégicos')}</strong> com cobertura urbana premium.
       </div>
     </div>
 
-    <div style="position:absolute;right:84px;top:86px;padding:20px;background:rgba(0,0,0,0.75);">
-      <img src="${assets.logo || ''}" alt="" style="height:180px;width:auto;object-fit:contain;" />
+    <div style="position:absolute;right:84px;top:58px;padding:18px;background:rgba(0,0,0,0.65);border-radius:16px;">
+      <img src="${assets.logo || ''}" alt="" style="height:120px;width:auto;object-fit:contain;" />
     </div>
   `, '#050505');
 }
@@ -546,35 +566,33 @@ function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
   const lines = splitFormatTitle(tipo);
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
-    <img src="${assets.wallpaper || assets.heroBg || ''}" alt="" style="position:absolute;inset:-80px;width:calc(100% + 160px);height:calc(100% + 160px);object-fit:cover;filter:blur(16px) saturate(1.12);opacity:${layout.backgroundImageOpacity};" />
-    <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 46%, rgba(254,92,43,0.16) 0%, rgba(254,92,43,0.03) 38%, rgba(0,0,0,0.92) 78%);"></div>
+    <img src="${assets.wallpaper || assets.heroBg || ''}" alt="" style="position:absolute;inset:-80px;width:calc(100% + 160px);height:calc(100% + 160px);object-fit:cover;filter:blur(16px) saturate(1.12);opacity:0.10;" />
+    <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 46%, rgba(254,92,43,0.10) 0%, rgba(254,92,43,0.02) 38%, rgba(0,0,0,0.92) 78%);"></div>
 
-    <div data-calibration-id="midiaKit.formatDivider.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:linear-gradient(180deg,#0a0a0a,#050505);border-right:1px solid rgba(255,255,255,0.12);"></div>
-    <div data-calibration-id="midiaKit.formatDivider.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
-    <div data-calibration-id="midiaKit.formatDivider.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:linear-gradient(180deg,rgba(254,92,43,0.28),rgba(254,92,43,0.08));mix-blend-mode:screen;"></div>
-    <div style="position:absolute;left:22px;top:30px;">
-      <img src="${assets.logo07 || assets.logoHorizontal || assets.logo || ''}" alt="" style="height:150px;width:auto;object-fit:contain;" />
-    </div>
-    <div data-calibration-id="midiaKit.formatDivider.cityLabel" style="position:absolute;left:84px;top:${layout.cityVerticalTop}px;bottom:${layout.cityVerticalBottom}px;writing-mode:vertical-rl;text-orientation:mixed;font-family:Poppins, system-ui, sans-serif;font-size:${layout.cityVerticalFontSize}px;line-height:1.2;font-weight:700;color:rgba(255,255,255,0.92);letter-spacing:${layout.cityVerticalLetterSpacing}em;text-transform:uppercase;white-space:nowrap;display:flex;align-items:center;justify-content:center;">
-      ${escapeHtml((cityStats.cidade || '').toUpperCase())}
-    </div>
-
-    <div style="position:absolute;left:560px;bottom:138px;width:560px;border-left:2px solid rgba(255,255,255,0.58);border-bottom:2px solid rgba(255,255,255,0.58);height:344px;"></div>
-    <div data-calibration-id="midiaKit.formatDivider.titleBlock" style="position:absolute;right:98px;top:198px;text-align:left;max-width:630px;">
+    <div style="position:absolute;right:98px;top:198px;text-align:left;max-width:630px;">
       ${lines.map((line) => `<div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.titleFontSize}px;line-height:0.9;font-weight:700;color:#fff;letter-spacing:-0.04em;">${escapeHtml(line)}</div>`).join('')}
     </div>
 
-    <div data-calibration-id="midiaKit.formatDivider.statsBlock" style="position:absolute;right:190px;bottom:170px;text-align:right;color:#fff;">
+    <div style="position:absolute;left:560px;bottom:138px;width:560px;border-left:2px solid rgba(255,255,255,0.58);border-bottom:2px solid rgba(255,255,255,0.58);height:344px;"></div>
+
+    <div style="position:absolute;right:190px;bottom:170px;text-align:right;color:#fff;">
       <div style="font-family:Poppins, system-ui, sans-serif;font-size:58px;font-weight:700;line-height:1;">${escapeHtml(formatInt(cityStats.totalTelas || 0))}</div>
       <div style="font-size:34px;line-height:1.15;opacity:0.92;">telas</div>
       <div style="margin-top:16px;font-family:Poppins, system-ui, sans-serif;font-size:58px;font-weight:700;line-height:1;">${escapeHtml(formatInt(cityStats.totalEnderecos || 0))}</div>
       <div style="font-size:34px;line-height:1.15;opacity:0.92;">endereços</div>
+    </div>
+
+    <div style="position:absolute;left:82px;bottom:58px;font-family:Poppins, system-ui, sans-serif;font-size:22px;font-weight:700;color:rgba(255,255,255,0.7);letter-spacing:0.06em;text-transform:uppercase;">${escapeHtml((cityStats.cidade || '').toUpperCase())}</div>
+
+    <div style="position:absolute;right:60px;bottom:50px;">
+      <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:36px;width:auto;object-fit:contain;opacity:0.8;" />
     </div>
   `, '#000');
 }
 
 function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   const layout = getActivePdfLayoutConfig().midiaKit.pointPage;
+  const estado = getCityState(ponto.cidade);
   const details = [
     { key: 'publico', label: 'Público', value: ponto.publico || '-' },
     { key: 'fluxo', label: 'Fluxo / mês', value: formatInt(ponto.fluxo) },
@@ -588,50 +606,53 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#d9d9d9;"></div>
-    <div data-calibration-id="midiaKit.pointPage.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:#0c0c0c;"></div>
-    <div data-calibration-id="midiaKit.pointPage.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
-    <div data-calibration-id="midiaKit.pointPage.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:linear-gradient(180deg,rgba(254,92,43,0.26),rgba(254,92,43,0.08));mix-blend-mode:screen;"></div>
-    <div data-calibration-id="midiaKit.pointPage.leftRail" style="position:absolute;left:0;top:14px;bottom:14px;width:${layout.leftRailWidth}px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;">
-      <img src="${assets.logoHorizontal || assets.logo07 || assets.logo || ''}" alt="" style="width:38px;height:auto;transform:rotate(-90deg);transform-origin:center;object-fit:contain;" />
-      <div style="writing-mode:vertical-rl;text-orientation:mixed;font-size:11px;font-weight:700;letter-spacing:0.08em;color:rgba(255,255,255,0.82);text-transform:uppercase;line-height:1.15;">${escapeHtml(ponto.cidade || '')}</div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:#0c0c0c;"></div>
+    <div style="position:absolute;left:0;top:14px;bottom:14px;width:${layout.leftRailWidth}px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;">
+      <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="width:38px;height:auto;object-fit:contain;" />
+      <div style="display:flex;align-items:center;gap:6px;writing-mode:vertical-rl;text-orientation:mixed;">
+        <span style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:rgba(255,255,255,0.82);text-transform:uppercase;line-height:1.15;">${escapeHtml(ponto.cidade || '')}</span>
+        ${estado ? `<span style="font-size:9px;font-weight:600;letter-spacing:0.06em;color:rgba(255,255,255,0.5);text-transform:uppercase;line-height:1.15;">${escapeHtml(estado)}</span>` : ''}
+      </div>
     </div>
 
     <div style="position:absolute;left:${layout.leftRailWidth}px;top:0;bottom:0;right:${layout.imagePanelWidth}px;background:#e7e7e7;"></div>
     <div style="position:absolute;right:0;top:0;bottom:0;width:${layout.imagePanelWidth}px;background:#1a1a1a;"></div>
     <div style="position:absolute;right:0;top:0;bottom:0;width:${layout.imagePanelWidth}px;background:url('${image || assets.showcase || ''}') center/cover no-repeat;"></div>
 
-    <div data-calibration-id="midiaKit.pointPage.typeHeader" style="position:absolute;left:${layout.contentLeft}px;top:52px;right:${layout.contentRight}px;display:flex;align-items:flex-end;justify-content:flex-start;gap:14px;border-bottom:2px solid #161616;padding-bottom:12px;">
+    <div style="position:absolute;left:${layout.contentLeft}px;top:52px;right:${layout.contentRight}px;display:flex;align-items:center;justify-content:center;gap:14px;border-bottom:2px solid #161616;padding-bottom:12px;">
       <div style="display:flex;align-items:center;gap:16px;">
         <div style="width:46px;height:46px;border:2px solid #222;display:flex;align-items:center;justify-content:center;font-size:21px;">▥</div>
         <div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.typeFontSize}px;line-height:0.9;font-weight:700;letter-spacing:-0.03em;color:#000;">${escapeHtml((ponto.tipo || 'FORMATO').toUpperCase())}</div>
       </div>
     </div>
 
-    <div data-calibration-id="midiaKit.pointPage.nameBlock" style="position:absolute;left:${layout.contentLeft}px;top:${layout.nameTop}px;right:${layout.contentRight}px;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
+    <div style="position:absolute;left:${layout.contentLeft}px;top:${layout.nameTop}px;right:${layout.contentRight}px;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
       <div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.nameFontSize}px;line-height:1.02;font-weight:700;color:#000;max-width:calc(100% - ${layout.nameMaxWidthOffset}px);word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME')}</div>
       <div style="font-size:44px;line-height:0.95;font-weight:700;color:#000;white-space:nowrap;padding-top:8px;">${index}/${total}</div>
     </div>
 
-    <div data-calibration-id="midiaKit.pointPage.addressBlock" style="position:absolute;left:${layout.contentLeft}px;top:${layout.addressTop}px;right:${layout.contentRight}px;font-size:28px;line-height:1.4;color:#111;">${escapeHtml(ponto.endereco || 'Endereço não informado')} ${escapeHtml(ponto.cidade ? `· ${ponto.cidade}` : '')}</div>
+    <div style="position:absolute;left:${layout.contentLeft}px;top:${layout.nameTop + 68}px;right:${layout.contentRight}px;font-size:20px;line-height:1.3;color:#333;">${escapeHtml(ponto.endereco || 'Endereço não informado')}${escapeHtml(ponto.cidade ? ` · ${ponto.cidade}` : '')}</div>
 
-    <div data-calibration-id="midiaKit.pointPage.metricsBox" style="position:absolute;left:${layout.contentLeft}px;top:${layout.metricsBoxTop}px;right:${layout.contentRight}px;border:2px solid rgba(17,17,17,0.32);background:rgba(255,255,255,0.5);padding:22px 24px;border-radius:16px;"></div>
-    <div data-calibration-id="midiaKit.pointPage.metricsBox" style="position:absolute;left:${layout.contentLeft + 26}px;top:${layout.metricsGridTop}px;right:${layout.contentRight + 24}px;display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;">
+    <div style="position:absolute;left:${layout.contentLeft}px;top:${layout.metricsBoxTop}px;right:${layout.contentRight}px;border:2px solid rgba(17,17,17,0.32);background:rgba(255,255,255,0.5);padding:22px 24px;border-radius:16px;"></div>
+    <div style="position:absolute;left:${layout.contentLeft + 26}px;top:${layout.metricsGridTop}px;right:${layout.contentRight + 24}px;display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;">
       ${details.slice(0, 6).map((item) => `
-        <div style="display:grid;grid-template-columns:${layout.metricIconSize + 8}px 1fr;grid-template-areas:'icon label' '. value';column-gap:10px;row-gap:7px;min-height:96px;">
-          <div style="grid-area:icon;display:flex;align-items:center;justify-content:center;width:${layout.metricIconSize + 2}px;height:${layout.metricIconSize + 2}px;transform:translate(${layout.metricIconOffsetX || 0}px,${layout.metricIconOffsetY || 0}px);">${metricIconSvg(item.key, '#111111', layout.metricIconSize)}</div>
-          <div style="grid-area:label;font-size:${layout.metricLabelFontSize}px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;line-height:1.05;">${escapeHtml(item.label)}</div>
-          <div style="grid-area:value;font-family:Poppins, system-ui, sans-serif;font-size:${layout.metricValueFontSize}px;line-height:1.18;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
+        <div style="min-height:96px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:${layout.metricIconSize}px;height:${layout.metricIconSize}px;">${metricIconSvg(item.key, '#111111', layout.metricIconSize)}</div>
+            <div style="font-size:${layout.metricLabelFontSize}px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;line-height:1.05;">${escapeHtml(item.label)}</div>
+          </div>
+          <div style="margin-top:7px;font-family:Poppins, system-ui, sans-serif;font-size:${layout.metricValueFontSize}px;line-height:1.18;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
         </div>
       `).join('')}
     </div>
 
-    <div data-calibration-id="midiaKit.pointPage.footerBlock" style="position:absolute;left:${layout.contentLeft}px;bottom:${layout.footerLineBottom}px;right:${layout.contentRight}px;border-top:2px solid #1a1a1a;"></div>
-    <div data-calibration-id="midiaKit.pointPage.footerBlock" style="position:absolute;left:${layout.contentLeft}px;bottom:${layout.footerBottom}px;right:${layout.contentRight}px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
+    <div style="position:absolute;left:${layout.contentLeft}px;bottom:${layout.footerLineBottom}px;right:${layout.contentRight}px;border-top:2px solid #1a1a1a;"></div>
+    <div style="position:absolute;left:${layout.contentLeft}px;bottom:${layout.footerBottom}px;right:${layout.contentRight}px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
       <div>
         <div style="font-size:20px;line-height:1.35;color:#111;">mínimo de ${escapeHtml(formatInt(ponto.insercoes || 0))} inserções/mês</div>
         <div style="font-size:20px;line-height:1.35;color:#111;">veiculação: ${escapeHtml((ponto.veiculacao || 'vídeo sem áudio').toLowerCase())}</div>
       </div>
-      <div data-calibration-id="midiaKit.pointPage.priceBlock" style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-end;min-width:320px;">
+      <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-end;min-width:320px;">
         <div style="font-size:26px;line-height:1;color:#111;margin-bottom:${layout.priceLabelMarginBottom}px;">Valor mensal:</div>
         <div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.priceValueFontSize}px;line-height:0.96;font-weight:700;color:#000;white-space:nowrap;">${escapeHtml(formatMoney(ponto.preco))}</div>
       </div>
@@ -1118,13 +1139,6 @@ async function loadPdfAssets() {
   })();
 
   return pdfAssetsPromise;
-}
-
-export async function buildPdfCalibrationPreview({ previewKey, layoutConfig, focusKey = '', isolateFocus = false }) {
-  activePdfLayoutConfig = layoutConfig || await loadPdfLayoutConfig();
-  const assets = await loadPdfAssets();
-  const page = buildCalibrationPreviewPage(previewKey, assets);
-  return highlightCalibrationTargets(page, focusKey, isolateFocus);
 }
 
 export async function generateMidiaKitPdf({ praca, pontos }) {

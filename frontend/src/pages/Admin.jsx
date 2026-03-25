@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
-  Building2, Save, Copy, Check, Loader2, RefreshCcw, Users, LayoutPanelTop, MapPinned, PanelsTopLeft, UserPlus
+  Building2, Save, Copy, Check, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import {
@@ -20,7 +20,6 @@ import {
   deleteAdminUser
 } from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
-import PdfCalibrationPanel from '../components/admin/PdfCalibrationPanel';
 import { parseScreen, serializeSimulationConfig } from '../lib/simulation';
 
 const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
@@ -35,7 +34,6 @@ const ENTORNO_SEGMENTOS = [
 const ADMIN_TABS = [
   { key: 'pontos', label: 'Pontos', icon: PanelsTopLeft },
   { key: 'entorno', label: 'Análise de entorno', icon: MapPinned },
-  { key: 'pdf', label: 'Calibração de PDF', icon: LayoutPanelTop },
   { key: 'usuarios', label: 'Usuários', icon: Users }
 ];
 
@@ -612,8 +610,6 @@ export default function Admin() {
             jobs={entornoJobs}
           />
         ) : null}
-
-        {activeTab === 'pdf' ? <PdfCalibrationPanel /> : null}
 
         {activeTab === 'usuarios' ? (
           <UsersAdminPanel
