@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { PDF_LAYOUT } from './pdfLayoutConfig';
 
 const PAGE_WIDTH = 1600;
 const PAGE_HEIGHT = 1131;
@@ -302,7 +303,8 @@ function metricIconSvg(kind, color = '#111111') {
 }
 
 function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
-  const cityLine = cidade === 'Consolidado'
+  const layout = PDF_LAYOUT.midiaKit.cover;
+  const cityLine = cidade === 'Consolidado' && layout.showAllCitiesOnConsolidated
     ? 'Londrina, Maringá e Balneário Camboriú'
     : cidade;
 
@@ -320,7 +322,7 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
     <div style="position:absolute;left:72px;bottom:120px;width:420px;">
       <div style="font-family:Poppins, system-ui, sans-serif;color:#fff;font-size:58px;line-height:0.95;font-weight:700;letter-spacing:-0.04em;">Elevando o branding</div>
       <div style="margin-top:20px;color:rgba(255,255,255,0.8);font-size:34px;line-height:1.22;">Invista no futuro da publicidade OOH e DOOH</div>
-      <div style="margin-top:26px;display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 18px;background:#fff;color:#000;font-size:18px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;line-height:1;">Out of Home</div>
+      <div style="margin-top:26px;display:inline-flex;align-items:center;justify-content:center;min-height:${layout.outOfHomeMinHeight}px;padding:0 ${layout.outOfHomePaddingX}px;background:#fff;color:#000;font-size:18px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;line-height:1;">Out of Home</div>
     </div>
 
     <div style="position:absolute;right:70px;bottom:90px;text-align:left;">
@@ -427,24 +429,25 @@ function splitFormatTitle(tipo) {
 }
 
 function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
+  const layout = PDF_LAYOUT.midiaKit.formatDivider;
   const lines = splitFormatTitle(tipo);
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
     <img src="${assets.wallpaper || assets.heroBg || ''}" alt="" style="position:absolute;inset:-80px;width:calc(100% + 160px);height:calc(100% + 160px);object-fit:cover;filter:blur(16px) saturate(1.12);opacity:0.18;" />
     <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 46%, rgba(254,92,43,0.16) 0%, rgba(254,92,43,0.03) 38%, rgba(0,0,0,0.92) 78%);"></div>
 
-    <div style="position:absolute;left:0;top:0;bottom:0;width:170px;background:linear-gradient(180deg,#0a0a0a,#050505);border-right:1px solid rgba(255,255,255,0.12);"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:170px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:linear-gradient(180deg,#0a0a0a,#050505);border-right:1px solid rgba(255,255,255,0.12);"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
     <div style="position:absolute;left:22px;top:30px;">
       <img src="${assets.logo07 || assets.logoHorizontal || assets.logo || ''}" alt="" style="height:150px;width:auto;object-fit:contain;" />
     </div>
-    <div style="position:absolute;left:84px;top:240px;bottom:40px;writing-mode:vertical-rl;text-orientation:mixed;font-family:Poppins, system-ui, sans-serif;font-size:26px;line-height:1.2;font-weight:700;color:rgba(255,255,255,0.92);letter-spacing:0.08em;text-transform:uppercase;white-space:nowrap;display:flex;align-items:center;justify-content:center;">
+    <div style="position:absolute;left:84px;top:${layout.cityVerticalTop}px;bottom:${layout.cityVerticalBottom}px;writing-mode:vertical-rl;text-orientation:mixed;font-family:Poppins, system-ui, sans-serif;font-size:${layout.cityVerticalFontSize}px;line-height:1.2;font-weight:700;color:rgba(255,255,255,0.92);letter-spacing:${layout.cityVerticalLetterSpacing}em;text-transform:uppercase;white-space:nowrap;display:flex;align-items:center;justify-content:center;">
       ${escapeHtml((cityStats.cidade || '').toUpperCase())}
     </div>
 
     <div style="position:absolute;left:560px;bottom:138px;width:560px;border-left:2px solid rgba(255,255,255,0.58);border-bottom:2px solid rgba(255,255,255,0.58);height:344px;"></div>
     <div style="position:absolute;right:98px;top:198px;text-align:left;max-width:630px;">
-      ${lines.map((line) => `<div style="font-family:Poppins, system-ui, sans-serif;font-size:96px;line-height:0.9;font-weight:700;color:#fff;letter-spacing:-0.04em;">${escapeHtml(line)}</div>`).join('')}
+      ${lines.map((line) => `<div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.titleFontSize}px;line-height:0.9;font-weight:700;color:#fff;letter-spacing:-0.04em;">${escapeHtml(line)}</div>`).join('')}
     </div>
 
     <div style="position:absolute;right:190px;bottom:170px;text-align:right;color:#fff;">
@@ -457,6 +460,7 @@ function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
 }
 
 function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
+  const layout = PDF_LAYOUT.midiaKit.pointPage;
   const details = [
     { key: 'publico', label: 'Público', value: ponto.publico || '-' },
     { key: 'fluxo', label: 'Fluxo / mês', value: formatInt(ponto.fluxo) },
@@ -470,51 +474,51 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#d9d9d9;"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:56px;background:#0c0c0c;"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:56px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
-    <div style="position:absolute;left:0;top:14px;bottom:14px;width:56px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;">
+    <div style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:#0c0c0c;"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
+    <div style="position:absolute;left:0;top:14px;bottom:14px;width:${layout.leftRailWidth}px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;">
       <img src="${assets.logoHorizontal || assets.logo07 || assets.logo || ''}" alt="" style="width:38px;height:auto;transform:rotate(-90deg);transform-origin:center;object-fit:contain;" />
       <div style="writing-mode:vertical-rl;text-orientation:mixed;font-size:11px;font-weight:700;letter-spacing:0.08em;color:rgba(255,255,255,0.82);text-transform:uppercase;line-height:1.15;">${escapeHtml(ponto.cidade || '')}</div>
     </div>
 
-    <div style="position:absolute;left:56px;top:0;bottom:0;right:670px;background:#e7e7e7;"></div>
-    <div style="position:absolute;right:0;top:0;bottom:0;width:670px;background:#1a1a1a;"></div>
-    <div style="position:absolute;right:0;top:0;bottom:0;width:670px;background:url('${image || assets.showcase || ''}') center/cover no-repeat;"></div>
+    <div style="position:absolute;left:${layout.leftRailWidth}px;top:0;bottom:0;right:${layout.imagePanelWidth}px;background:#e7e7e7;"></div>
+    <div style="position:absolute;right:0;top:0;bottom:0;width:${layout.imagePanelWidth}px;background:#1a1a1a;"></div>
+    <div style="position:absolute;right:0;top:0;bottom:0;width:${layout.imagePanelWidth}px;background:url('${image || assets.showcase || ''}') center/cover no-repeat;"></div>
 
-    <div style="position:absolute;left:76px;top:52px;right:710px;display:flex;align-items:flex-end;justify-content:flex-start;gap:14px;border-bottom:2px solid #161616;padding-bottom:12px;">
+    <div style="position:absolute;left:${layout.contentLeft}px;top:52px;right:${layout.contentRight}px;display:flex;align-items:flex-end;justify-content:flex-start;gap:14px;border-bottom:2px solid #161616;padding-bottom:12px;">
       <div style="display:flex;align-items:center;gap:16px;">
         <div style="width:46px;height:46px;border:2px solid #222;display:flex;align-items:center;justify-content:center;font-size:21px;">▥</div>
-        <div style="font-family:Poppins, system-ui, sans-serif;font-size:62px;line-height:0.9;font-weight:700;letter-spacing:-0.03em;color:#000;">${escapeHtml((ponto.tipo || 'FORMATO').toUpperCase())}</div>
+        <div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.typeFontSize}px;line-height:0.9;font-weight:700;letter-spacing:-0.03em;color:#000;">${escapeHtml((ponto.tipo || 'FORMATO').toUpperCase())}</div>
       </div>
     </div>
 
-    <div style="position:absolute;left:76px;top:156px;right:710px;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
-      <div style="font-family:Poppins, system-ui, sans-serif;font-size:52px;line-height:1.02;font-weight:700;color:#000;max-width:calc(100% - 110px);word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME')}</div>
+    <div style="position:absolute;left:${layout.contentLeft}px;top:${layout.nameTop}px;right:${layout.contentRight}px;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
+      <div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.nameFontSize}px;line-height:1.02;font-weight:700;color:#000;max-width:calc(100% - ${layout.nameMaxWidthOffset}px);word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME')}</div>
       <div style="font-size:44px;line-height:0.95;font-weight:700;color:#000;white-space:nowrap;padding-top:8px;">${index}/${total}</div>
     </div>
 
-    <div style="position:absolute;left:76px;top:286px;right:710px;font-size:28px;line-height:1.4;color:#111;">${escapeHtml(ponto.endereco || 'Endereço não informado')} ${escapeHtml(ponto.cidade ? `· ${ponto.cidade}` : '')}</div>
+    <div style="position:absolute;left:${layout.contentLeft}px;top:${layout.addressTop}px;right:${layout.contentRight}px;font-size:28px;line-height:1.4;color:#111;">${escapeHtml(ponto.endereco || 'Endereço não informado')} ${escapeHtml(ponto.cidade ? `· ${ponto.cidade}` : '')}</div>
 
-    <div style="position:absolute;left:76px;top:352px;right:710px;border:2px solid rgba(17,17,17,0.32);background:rgba(255,255,255,0.5);padding:22px 24px;border-radius:16px;"></div>
-    <div style="position:absolute;left:102px;top:378px;right:734px;display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;">
+    <div style="position:absolute;left:${layout.contentLeft}px;top:${layout.metricsBoxTop}px;right:${layout.contentRight}px;border:2px solid rgba(17,17,17,0.32);background:rgba(255,255,255,0.5);padding:22px 24px;border-radius:16px;"></div>
+    <div style="position:absolute;left:${layout.contentLeft + 26}px;top:${layout.metricsGridTop}px;right:${layout.contentRight + 24}px;display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;">
       ${details.slice(0, 6).map((item) => `
         <div style="display:grid;grid-template-columns:22px 1fr;grid-template-areas:'icon label' '. value';column-gap:10px;row-gap:7px;min-height:96px;">
           <div style="grid-area:icon;display:flex;align-items:center;justify-content:center;width:22px;height:22px;">${metricIconSvg(item.key)}</div>
-          <div style="grid-area:label;font-size:18px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;line-height:1.05;">${escapeHtml(item.label)}</div>
-          <div style="grid-area:value;font-family:Poppins, system-ui, sans-serif;font-size:30px;line-height:1.18;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
+          <div style="grid-area:label;font-size:${layout.metricLabelFontSize}px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;line-height:1.05;">${escapeHtml(item.label)}</div>
+          <div style="grid-area:value;font-family:Poppins, system-ui, sans-serif;font-size:${layout.metricValueFontSize}px;line-height:1.18;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
         </div>
       `).join('')}
     </div>
 
-    <div style="position:absolute;left:76px;bottom:168px;right:710px;border-top:2px solid #1a1a1a;"></div>
-    <div style="position:absolute;left:76px;bottom:54px;right:710px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
+    <div style="position:absolute;left:${layout.contentLeft}px;bottom:${layout.footerLineBottom}px;right:${layout.contentRight}px;border-top:2px solid #1a1a1a;"></div>
+    <div style="position:absolute;left:${layout.contentLeft}px;bottom:${layout.footerBottom}px;right:${layout.contentRight}px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
       <div>
         <div style="font-size:20px;line-height:1.35;color:#111;">mínimo de ${escapeHtml(formatInt(ponto.insercoes || 0))} inserções/mês</div>
         <div style="font-size:20px;line-height:1.35;color:#111;">veiculação: ${escapeHtml((ponto.veiculacao || 'vídeo sem áudio').toLowerCase())}</div>
       </div>
       <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-end;min-width:320px;">
-        <div style="font-size:26px;line-height:1;color:#111;margin-bottom:10px;">Valor mensal:</div>
-        <div style="font-family:Poppins, system-ui, sans-serif;font-size:68px;line-height:0.96;font-weight:700;color:#000;white-space:nowrap;">${escapeHtml(formatMoney(ponto.preco))}</div>
+        <div style="font-size:26px;line-height:1;color:#111;margin-bottom:${layout.priceLabelMarginBottom}px;">Valor mensal:</div>
+        <div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.priceValueFontSize}px;line-height:0.96;font-weight:700;color:#000;white-space:nowrap;">${escapeHtml(formatMoney(ponto.preco))}</div>
       </div>
     </div>
 
@@ -525,6 +529,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
 }
 
 function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, highlights, simulationSummary, assets }) {
+  const layout = PDF_LAYOUT.proposal.cover;
   const cards = [
     { iconHtml: proposalIcon('target'), label: 'Pontos', value: formatInt(proposalPoints.length) },
     { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
@@ -541,7 +546,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
       <div style="display:flex;flex-direction:column;min-width:0;">
         <div style="display:flex;align-items:center;gap:18px;">
           <img src="${assets.logo || ''}" alt="" style="height:48px;width:auto;object-fit:contain;" />
-          <div style="display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 20px;border-radius:999px;background:rgba(254,92,43,0.14);border:1px solid rgba(254,92,43,0.24);font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};line-height:1;text-align:center;">
+          <div style="display:inline-flex;align-items:center;justify-content:center;min-height:${layout.badgeMinHeight}px;padding:0 ${layout.badgePaddingX}px;border-radius:999px;background:rgba(254,92,43,0.14);border:1px solid rgba(254,92,43,0.24);font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};line-height:1;text-align:center;">
             <span style="display:block;transform:translateY(1px);">Proposta comercial</span>
           </div>
         </div>
@@ -555,7 +560,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
             formatPointCountLabel(proposalPoints.length || 0),
             `Gerado em ${new Date().toLocaleDateString('pt-BR')}`
           ].map((chip) => `
-            <div style="display:inline-flex;align-items:center;justify-content:center;min-height:58px;padding:0 24px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:600;color:rgba(255,255,255,0.78);line-height:1;text-align:center;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;min-height:${layout.chipMinHeight}px;padding:0 ${layout.chipPaddingX}px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:600;color:rgba(255,255,255,0.78);line-height:1;text-align:center;">
               <span style="display:block;transform:translateY(1px);">${escapeHtml(chip)}</span>
             </div>
           `).join('')}
@@ -563,11 +568,11 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
 
         <div style="margin-top:auto;">
           ${buildMetricCards(cards, {
-            valueSize: 22,
-            labelSize: 14,
+            valueSize: layout.metricValueSize,
+            labelSize: layout.metricLabelSize,
             minHeight: 146,
-            gap: 14,
-            padding: '22px 18px',
+            gap: layout.metricGap,
+            padding: layout.metricPadding,
             valueWhiteSpace: 'nowrap',
             valueWordBreak: 'normal'
           })}
@@ -576,12 +581,12 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
 
       <div style="display:grid;grid-template-rows:1fr;gap:20px;min-width:0;">
         <div style="padding:28px 30px;border-radius:34px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.09);backdrop-filter:blur(14px);display:flex;flex-direction:column;">
-          <div style="display:flex;align-items:center;gap:12px;font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};"><span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;background:rgba(254,92,43,0.16);">${proposalIcon('target')}</span>Direcionamento estratégico</div>
+          <div style="display:flex;align-items:center;gap:12px;font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};"><span style="display:inline-flex;align-items:center;justify-content:center;width:${layout.strategicHeaderIconSize}px;height:${layout.strategicHeaderIconSize}px;border-radius:999px;background:rgba(254,92,43,0.16);">${proposalIcon('target')}</span>Direcionamento estratégico</div>
           <div style="margin-top:22px;display:grid;gap:14px;">
             ${strategicItems.map((item) => `
               <div style="display:grid;grid-template-columns:36px 1fr;gap:14px;align-items:flex-start;padding:16px 18px;border-radius:22px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);">
                 <div style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;background:rgba(254,92,43,0.16);">
-                  <span style="display:block;width:8px;height:8px;border-radius:999px;background:${BRAND_ORANGE};"></span>
+                  <span style="display:block;width:${layout.strategicDotSize}px;height:${layout.strategicDotSize}px;border-radius:999px;background:${BRAND_ORANGE};"></span>
                 </div>
                 <div style="font-size:22px;line-height:1.5;color:#fff;word-break:break-word;">${escapeHtml(item)}</div>
               </div>
@@ -594,6 +599,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
 }
 
 function buildProposalPointPage({ point, index, total, image, assets }) {
+  const layout = PDF_LAYOUT.proposal.point;
   const stats = [
     { label: 'Público', value: point.publico || '-' },
     { label: 'Fluxo', value: formatInt(point.fluxo) },
@@ -614,7 +620,7 @@ function buildProposalPointPage({ point, index, total, image, assets }) {
             <div style="margin-top:6px;font-size:18px;line-height:1.4;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} · ${escapeHtml(point.tipo || '-')}</div>
           </div>
         </div>
-        <div style="display:inline-grid;grid-template-columns:auto auto auto;align-items:center;justify-content:center;column-gap:8px;min-width:102px;min-height:56px;padding:0 16px;border-radius:20px;background:#111;border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;color:#fff;line-height:1;font-family:Poppins, system-ui, sans-serif;">
+        <div style="display:inline-grid;grid-template-columns:auto auto auto;align-items:center;justify-content:center;column-gap:${layout.counterGap}px;min-width:${layout.counterMinWidth}px;min-height:${layout.counterMinHeight}px;padding:0 ${layout.counterPaddingX}px;border-radius:20px;background:#111;border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;color:#fff;line-height:1;font-family:Poppins, system-ui, sans-serif;">
           <span style="display:block;color:${BRAND_ORANGE};transform:translateY(1px);">${index}</span>
           <span style="display:block;color:rgba(255,255,255,0.56);transform:translateY(1px);">/</span>
           <span style="display:block;color:rgba(255,255,255,0.86);transform:translateY(1px);">${total}</span>

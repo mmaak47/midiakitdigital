@@ -195,6 +195,24 @@ transition-all duration-300
 
 ## 🗺️ Componentes do Sistema
 
+## ✍️ Ajuste Manual de PDF
+
+- Arquivo central de ajuste: `frontend/src/lib/pdfLayoutConfig.js`
+- Midia Kit: seção `PDF_LAYOUT.midiaKit`
+- Proposta Comercial: seção `PDF_LAYOUT.proposal`
+- Fluxo recomendado:
+  - Ajuste um valor numérico no config
+  - Gere o PDF para validar visualmente
+  - Repita microajustes até ficar no ponto
+
+Exemplos de campos úteis para ajuste fino:
+
+- `midiaKit.pointPage.nameFontSize` e `midiaKit.pointPage.nameTop`
+- `midiaKit.pointPage.metricLabelFontSize` e `midiaKit.pointPage.metricValueFontSize`
+- `midiaKit.pointPage.priceValueFontSize` e `midiaKit.pointPage.footerBottom`
+- `proposal.cover.chipMinHeight` e `proposal.cover.badgeMinHeight`
+- `proposal.point.counterMinWidth` e `proposal.point.counterMinHeight`
+
 ### Explorer (`/explorar`)
 - Sidebar de filtros: cidade, tipo (9 tipos), público, busca por nome
 - Grid de cards (`PointCard`) com cores por tipo
