@@ -398,7 +398,7 @@ function buildMetricCards(cards, options = {}) {
             <span style="display:inline-flex;align-items:center;justify-content:center;width:${options.iconSize || 36}px;height:${options.iconSize || 36}px;border-radius:999px;background:rgba(254,92,43,0.18);color:${BRAND_ORANGE};font-weight:700;line-height:1;flex:0 0 auto;">${card.iconHtml || escapeHtml(card.icon || '•')}</span>
             <span style="line-height:1.2;">${escapeHtml(card.label)}</span>
           </div>
-          <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:${options.valueSize || 36}px;line-height:1.05;font-weight:700;color:${options.valueColor || '#ffffff'};letter-spacing:-0.03em;word-break:${options.valueWordBreak || 'break-word'};white-space:${options.valueWhiteSpace || 'normal'};">${escapeHtml(card.value)}</div>
+          <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:${options.valueSize || 36}px;line-height:1.05;font-weight:700;color:${options.valueColor || '#ffffff'};letter-spacing:-0.03em;word-break:${options.valueWordBreak || 'break-word'};overflow-wrap:anywhere;white-space:${options.valueWhiteSpace || 'normal'};max-width:100%;">${escapeHtml(card.value)}</div>
         </div>
       `).join('')}
     </div>
@@ -721,7 +721,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
         <div style="display:flex;align-items:center;gap:18px;">
           <img src="${assets.logo || ''}" alt="" style="height:48px;width:auto;object-fit:contain;" />
           <div data-calibration-id="proposal.cover.badge" style="display:inline-flex;align-items:center;justify-content:center;min-height:${layout.badgeMinHeight}px;padding:0 ${layout.badgePaddingX}px;border-radius:999px;background:rgba(254,92,43,0.14);border:1px solid rgba(254,92,43,0.24);font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};line-height:1;text-align:center;">
-            <span style="display:block;transform:translateY(1px);">Proposta comercial</span>
+            <span style="display:block;">Proposta comercial</span>
           </div>
         </div>
 
@@ -736,7 +736,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
             `Gerado em ${new Date().toLocaleDateString('pt-BR')}`
           ].map((chip) => `
             <div style="display:inline-flex;align-items:center;justify-content:center;min-height:${layout.chipMinHeight}px;padding:0 ${layout.chipPaddingX}px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:600;color:rgba(255,255,255,0.78);line-height:1;text-align:center;">
-              <span style="display:block;transform:translateY(1px);">${escapeHtml(chip)}</span>
+              <span style="display:block;">${escapeHtml(chip)}</span>
             </div>
           `).join('')}
         </div>
@@ -749,8 +749,8 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
             minHeight: 146,
             gap: layout.metricGap,
             padding: layout.metricPadding,
-            valueWhiteSpace: 'nowrap',
-            valueWordBreak: 'normal'
+            valueWhiteSpace: 'normal',
+            valueWordBreak: 'break-word'
           })}
         </div>
       </div>
@@ -916,6 +916,8 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
 
 function buildProposalPointPage({ point, index, total, image, image2, segmento, assets }) {
   const layout = getActivePdfLayoutConfig().proposal.point;
+  const counterMinWidth = Math.max(Number(layout.counterMinWidth) || 0, 110);
+  const counterPaddingX = Math.max(Number(layout.counterPaddingX) || 0, 14);
   const audience = buildAudienceQualification(point);
   const environment = buildEntornoSummary(point?.entornoMetrics, segmento);
   const relevantPlacesCount = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
@@ -952,10 +954,11 @@ function buildProposalPointPage({ point, index, total, image, image2, segmento, 
           <img src="${assets.logo || ''}" alt="" style="height:34px;width:auto;object-fit:contain;" />
           <div style="min-width:0;">
             <div style="font-family:Poppins, system-ui, sans-serif;font-size:34px;line-height:1.03;font-weight:700;letter-spacing:-0.03em;color:#fff;white-space:normal;word-break:break-word;">${formatPointNameHtml(point.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.66em;font-weight:600;letter-spacing:-0.01em;' })}</div>
-            <div style="margin-top:6px;font-size:18px;line-height:1.4;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} · ${escapeHtml(point.tipo || '-')}${coords ? ` <span style="font-size:14px;color:rgba(255,255,255,0.4);">· ${escapeHtml(coords)}</span>` : ''}</div>
+            <div style="margin-top:6px;font-size:18px;line-height:1.4;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} · ${escapeHtml(point.tipo || '-')}</div>
+            ${coords ? `<div style="margin-top:6px;display:inline-flex;align-items:center;justify-content:center;min-height:26px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);font-size:13px;line-height:1;color:rgba(255,255,255,0.58);">${escapeHtml(coords)}</div>` : ''}
           </div>
         </div>
-        <div data-calibration-id="proposal.point.counter" style="display:inline-flex;align-items:center;justify-content:center;gap:${layout.counterGap}px;min-width:${layout.counterMinWidth}px;min-height:${layout.counterMinHeight}px;padding:0 ${layout.counterPaddingX}px;border-radius:20px;background:#111;border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;color:#fff;line-height:1;font-family:Poppins, system-ui, sans-serif;white-space:nowrap;text-align:center;">
+        <div data-calibration-id="proposal.point.counter" style="display:inline-flex;align-items:center;justify-content:center;gap:${layout.counterGap}px;min-width:${counterMinWidth}px;min-height:${layout.counterMinHeight}px;padding:0 ${counterPaddingX}px;border-radius:20px;background:#111;border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;color:#fff;line-height:1;font-family:Poppins, system-ui, sans-serif;white-space:nowrap;text-align:center;letter-spacing:0;box-sizing:border-box;">
           <span style="display:block;color:${BRAND_ORANGE};">${index}</span>
           <span style="display:block;color:rgba(255,255,255,0.56);">/</span>
           <span style="display:block;color:rgba(255,255,255,0.86);">${total}</span>
@@ -1420,13 +1423,13 @@ function buildCampaignScorePage({ proposalPoints, segmento, assets }) {
           const bar = Math.max(2, Math.round((row.score / maxScore) * 100));
           const color = row.score >= 7 ? BRAND_ORANGE : row.score >= 4 ? '#fff' : 'rgba(255,255,255,0.45)';
           return `
-            <div style="display:grid;grid-template-columns:2fr 0.4fr 1.4fr;gap:14px;align-items:center;padding:16px 20px;border-radius:18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);">
+            <div style="display:grid;grid-template-columns:minmax(0,2fr) 112px minmax(0,1.4fr);gap:14px;align-items:center;padding:16px 20px;border-radius:18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);">
               <div>
                 <div style="font-size:18px;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${escapeHtml(row.nome)}</div>
                 <div style="margin-top:3px;font-size:13px;color:rgba(255,255,255,0.55);">${escapeHtml(row.cidade)} · ${row.total} locais relevantes</div>
               </div>
-              <div style="text-align:right;font-size:28px;font-weight:700;color:${color};font-family:Poppins, system-ui, sans-serif;">${row.score.toFixed(1).replace('.', ',')}</div>
-              <div style="height:10px;border-radius:999px;background:rgba(255,255,255,0.1);overflow:hidden;">
+              <div style="text-align:center;font-size:28px;font-weight:700;line-height:1;color:${color};font-family:Poppins, system-ui, sans-serif;">${row.score.toFixed(1).replace('.', ',')}</div>
+              <div style="display:flex;align-items:center;height:10px;border-radius:999px;background:rgba(255,255,255,0.1);overflow:hidden;">
                 <div style="height:100%;width:${bar}%;border-radius:999px;background:${color};"></div>
               </div>
             </div>
@@ -1440,6 +1443,7 @@ function buildCampaignScorePage({ proposalPoints, segmento, assets }) {
 function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, assets }) {
   const segmentLabel = getSegmentDisplayName(segmento);
   const withEntorno = proposalPoints.filter((p) => Number(p?.entornoMetrics?.total_estabelecimentos_relacionados) > 0);
+  const maxEntornoScore = Math.max(1, ...proposalPoints.map((p) => Number(p?.entornoMetrics?.score_relevancia) || 0));
   const coveragePct = proposalPoints.length ? Math.round((withEntorno.length / proposalPoints.length) * 100) : 0;
   const totalLocais = proposalPoints.reduce((s, p) => s + (Number(p?.entornoMetrics?.total_estabelecimentos_relacionados) || 0), 0);
 
@@ -1475,16 +1479,17 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
           const locais = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
           const score = Number(point?.entornoMetrics?.score_relevancia) || 0;
           const hasData = locais > 0;
+          const barPct = hasData ? Math.max(2, Math.round((score / maxEntornoScore) * 100)) : 0;
           return `
-            <div style="display:grid;grid-template-columns:1.8fr 0.5fr 0.5fr 1.2fr;gap:14px;align-items:center;padding:14px 18px;border-radius:16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);">
+            <div style="display:grid;grid-template-columns:minmax(0,1.8fr) 88px 92px minmax(0,1.2fr);gap:14px;align-items:center;padding:14px 18px;border-radius:16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);">
               <div>
                 <div style="font-size:16px;font-weight:700;color:#fff;">${escapeHtml(point.nome || 'Ponto')}</div>
                 <div style="margin-top:2px;font-size:12px;color:rgba(255,255,255,0.5);">${escapeHtml(point.cidade || '-')} · ${escapeHtml(point.tipo || '-')}</div>
               </div>
-              <div style="font-size:22px;font-weight:700;color:${hasData ? '#fff' : 'rgba(255,255,255,0.3)'};font-family:Poppins;">${formatInt(locais)}</div>
-              <div style="font-size:18px;font-weight:700;color:${score >= 6 ? BRAND_ORANGE : 'rgba(255,255,255,0.4)'};font-family:Poppins;">${score.toFixed(1).replace('.', ',')}</div>
-              <div style="height:8px;border-radius:999px;background:rgba(255,255,255,0.1);overflow:hidden;">
-                <div style="height:100%;width:${Math.min(100, score * 10)}%;border-radius:999px;background:${score >= 6 ? BRAND_ORANGE : 'rgba(255,255,255,0.4)'};"></div>
+              <div style="text-align:center;font-size:22px;font-weight:700;line-height:1;color:${hasData ? '#fff' : 'rgba(255,255,255,0.3)'};font-family:Poppins;">${formatInt(locais)}</div>
+              <div style="text-align:center;font-size:18px;font-weight:700;line-height:1;color:${score >= 6 ? BRAND_ORANGE : 'rgba(255,255,255,0.4)'};font-family:Poppins;">${score.toFixed(1).replace('.', ',')}</div>
+              <div style="display:flex;align-items:center;height:8px;border-radius:999px;background:rgba(255,255,255,0.1);overflow:hidden;">
+                <div style="height:100%;width:${barPct}%;border-radius:999px;background:${score >= 6 ? BRAND_ORANGE : 'rgba(255,255,255,0.4)'};"></div>
               </div>
             </div>
           `;

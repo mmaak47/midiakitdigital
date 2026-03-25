@@ -451,6 +451,22 @@ function upsertEntornoCache({ pointId, lat, lng, segment, radius, metrics }) {
   );
 }
 
+function hasFreshPointCache({ pointId, segment, radius }) {
+  const row = db.prepare(`
+    SELECT expires_at
+    FROM entorno_cache
+    WHERE ponto_id = ?
+      AND segmento_analisado = ?
+      AND raio_m = ?
+    LIMIT 1
+  `).get(pointId, segment, radius);
+
+  if (!row?.expires_at) return false;
+  const expiresAt = new Date(row.expires_at);
+  if (Number.isNaN(expiresAt.getTime())) return false;
+  return expiresAt.getTime() > Date.now();
+}
+
 function listScores({ segment, radius, city }) {
   const params = [segment, radius];
   let sql = `
@@ -637,6 +653,10 @@ async function processJob(jobId) {
 
   for (const point of points) {
     try {
+      if (hasFreshPointCache({ pointId: point.id, segment, radius })) {
+        continue;
+      }
+
       const coords = await ensurePointCoordinates(point);
       if (!coords) {
         errors += 1;
