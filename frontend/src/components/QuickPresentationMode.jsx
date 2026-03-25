@@ -16,10 +16,14 @@ function coverImage(points) {
 export default function QuickPresentationMode({ points = [], totals = {}, segmento = '', clientName = '', pricingSummary, onClose }) {
   const [index, setIndex] = useState(0);
   const [autoplay, setAutoplay] = useState(true);
+  const [extraMetricIndex, setExtraMetricIndex] = useState(0);
   const slides = useMemo(() => {
     const cpm = Number(totals?.cpmEstimado) || 0;
     const originalTotal = pricingSummary?.originalTotal ?? totals?.valorTotal ?? 0;
     const finalTotal = pricingSummary?.finalTotal ?? totals?.valorTotal ?? 0;
+    const ticketMedio = points.length ? finalTotal / points.length : 0;
+    const custoPorImpacto = (Number(totals?.fluxoTotal) || 0) > 0 ? finalTotal / Number(totals.fluxoTotal) : 0;
+    const pontosComEntorno = points.filter((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0).length;
 
     const intro = {
       key: 'intro',
@@ -31,21 +35,41 @@ export default function QuickPresentationMode({ points = [], totals = {}, segmen
         { label: 'Valor Negociado', value: formatCurrency(finalTotal) },
         { label: 'CPM', value: `R$ ${cpm.toFixed(2).replace('.', ',')}` }
       ],
+      extraMetrics: [
+        { label: 'Ticket médio', value: formatCurrency(ticketMedio) },
+        { label: 'Custo por impacto', value: `R$ ${custoPorImpacto.toFixed(4).replace('.', ',')}` },
+        { label: 'Pontos com entorno', value: `${formatNumber(pontosComEntorno)} de ${formatNumber(points.length)}` },
+        { label: 'Inserções totais', value: `Mínimo de ${formatNumber(totals?.insercoesTotal || 0)}` }
+      ],
       image: coverImage(points)
     };
 
-    const pointSlides = points.map((point) => ({
-      key: `point-${point.id}`,
-      title: point.nome || 'Ponto',
-      subtitle: `${point.cidade || '-'} • ${point.tipo || '-'}`,
-      metrics: [
-        { label: 'Fluxo', value: `${formatNumber(point.fluxo || 0)}/mês` },
-        { label: 'Inserções', value: `Mínimo de ${formatNumber(point.insercoes || 0)}` },
-        { label: 'Telas', value: formatNumber(point.telas || 0) },
-        { label: 'Valor Negociado', value: formatCurrency(point.preco || 0) }
-      ],
-      image: point.proposalSimulationPreview || point.simulacao_preview || point.imagem || coverImage(points)
-    }));
+    const pointSlides = points.map((point) => {
+      const scoreEntorno = Number(point?.entornoMetrics?.score_relevancia) || 0;
+      const totalLocais = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
+      const coords = Number.isFinite(Number(point?.lat)) && Number.isFinite(Number(point?.lng))
+        ? `${Number(point.lat).toFixed(4)}, ${Number(point.lng).toFixed(4)}`
+        : 'Não informado';
+
+      return {
+        key: `point-${point.id}`,
+        title: point.nome || 'Ponto',
+        subtitle: `${point.cidade || '-'} • ${point.tipo || '-'}`,
+        metrics: [
+          { label: 'Fluxo', value: `${formatNumber(point.fluxo || 0)}/mês` },
+          { label: 'Inserções', value: `Mínimo de ${formatNumber(point.insercoes || 0)}` },
+          { label: 'Telas', value: formatNumber(point.telas || 0) },
+          { label: 'Valor Negociado', value: formatCurrency(point.preco || 0) }
+        ],
+        extraMetrics: [
+          { label: 'Score do entorno', value: scoreEntorno ? scoreEntorno.toFixed(1).replace('.', ',') : '0,0' },
+          { label: 'Locais aderentes', value: formatNumber(totalLocais) },
+          { label: 'Público', value: point.publico || 'A/B' },
+          { label: 'Coordenadas', value: coords }
+        ],
+        image: point.proposalSimulationPreview || point.simulacao_preview || point.imagem || coverImage(points)
+      };
+    });
 
     return [intro, ...pointSlides];
   }, [points, totals, segmento, clientName, pricingSummary]);
@@ -73,8 +97,25 @@ export default function QuickPresentationMode({ points = [], totals = {}, segmen
     return () => window.clearInterval(timer);
   }, [autoplay, slides.length]);
 
+  useEffect(() => {
+    setExtraMetricIndex(0);
+  }, [index]);
+
+  useEffect(() => {
+    if (!slides.length) return undefined;
+    const activeSlide = slides[index];
+    if (!activeSlide?.extraMetrics?.length) return undefined;
+
+    const timer = window.setInterval(() => {
+      setExtraMetricIndex((current) => (current >= activeSlide.extraMetrics.length - 1 ? 0 : current + 1));
+    }, 1750);
+
+    return () => window.clearInterval(timer);
+  }, [slides, index]);
+
   if (!slides.length) return null;
   const active = slides[index];
+  const activeExtraMetric = active.extraMetrics?.[extraMetricIndex % Math.max(active.extraMetrics?.length || 1, 1)];
 
   return (
     <div className="fixed inset-0 z-[80] bg-black text-white">
@@ -107,6 +148,24 @@ export default function QuickPresentationMode({ points = [], totals = {}, segmen
             <div className="mt-12 max-w-5xl">
               <h2 className="text-4xl font-extrabold leading-[0.95] md:text-6xl">{active.title}</h2>
               <p className="mt-4 text-lg text-white/80 md:text-2xl">{active.subtitle}</p>
+
+              {activeExtraMetric ? (
+                <div className="mt-5 inline-flex min-h-[74px] min-w-[360px] items-center rounded-2xl border border-brand-orange/35 bg-black/35 px-5 py-3 backdrop-blur-sm">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={`${active.key}-${activeExtraMetric.label}-${extraMetricIndex}`}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                      className="w-full"
+                    >
+                      <div className="text-[11px] uppercase tracking-[0.14em] text-brand-orange/85">{activeExtraMetric.label}</div>
+                      <div className="mt-1 text-2xl font-bold md:text-3xl">{activeExtraMetric.value}</div>
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-auto grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
