@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, FileText, Download, Presentation, Upload, Image as ImageIcon } from 'lucide-react';
 import { useFavorites } from '../context/FavoritesContext';
-import { campaignTotals, generateCommercialArguments } from '../lib/strategy';
+import { campaignTotals, generateCommercialArguments, getSegmentDisplayName, SEGMENTOS } from '../lib/strategy';
 import { generateProposalPdf } from '../lib/midiaKitPdf';
 import {
   defaultDisplaySettings,
@@ -354,7 +354,15 @@ export default function ProposalModal({ onClose }) {
               <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-3">
                 <Input label="Nome do cliente" value={form.clientName} onChange={(value) => setForm((s) => ({ ...s, clientName: value }))} />
                 <Input label="Cidade" value={form.city} onChange={(value) => setForm((s) => ({ ...s, city: value }))} />
-                <Input label="Segmento" value={form.segmento} onChange={(value) => setForm((s) => ({ ...s, segmento: value }))} />
+                <SelectInput
+                  label="Segmento"
+                  value={form.segmento}
+                  onChange={(value) => setForm((s) => ({ ...s, segmento: value }))}
+                  options={SEGMENTOS.map((segmento) => ({
+                    value: segmento,
+                    label: getSegmentDisplayName(segmento)
+                  }))}
+                />
                 <Input label="Objetivo" value={form.objetivo} onChange={(value) => setForm((s) => ({ ...s, objetivo: value }))} />
                 <Input label="Público" value={form.publico} onChange={(value) => setForm((s) => ({ ...s, publico: value }))} />
               </div>
@@ -662,6 +670,25 @@ function Input({ label, value, onChange }) {
         onChange={(e) => onChange(e.target.value)}
         className="mt-1.5 w-full bg-white/[0.07] border border-white/15 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-brand-orange/45 focus:bg-white/[0.09] transition-colors"
       />
+    </div>
+  );
+}
+
+function SelectInput({ label, value, onChange, options = [] }) {
+  return (
+    <div>
+      <label className="text-[11px] uppercase tracking-[0.12em] text-brand-gray-500">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-1.5 w-full bg-white/[0.07] border border-white/15 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-brand-orange/45 focus:bg-white/[0.09] transition-colors"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value} className="bg-brand-dark text-white">
+            {option.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

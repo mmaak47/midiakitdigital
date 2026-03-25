@@ -800,6 +800,87 @@ function buildProposalPointPage({ point, index, total, image, segmento, assets }
   `, BRAND_DARK);
 }
 
+function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmento, assets }) {
+  const segmentLabel = getSegmentDisplayName(segmento);
+  const pointsWithEntorno = proposalPoints
+    .filter((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0)
+    .sort((a, b) => {
+      const scoreA = Number(a?.entornoMetrics?.score_relevancia) || 0;
+      const scoreB = Number(b?.entornoMetrics?.score_relevancia) || 0;
+      return scoreB - scoreA;
+    });
+
+  const rows = (pointsWithEntorno.length ? pointsWithEntorno : proposalPoints)
+    .slice(0, 5)
+    .map((point) => {
+      const summary = buildEntornoSummary(point?.entornoMetrics, segmento);
+      const metrics = point?.entornoMetrics || {};
+      const totalLocais = Number(metrics.total_estabelecimentos_relacionados) || 0;
+      const score = Number(metrics.score_relevancia) || 0;
+      const places = summary.places.slice(0, 2).map((place) => `${place.name} (${place.distanceLabel})`);
+      return {
+        point,
+        totalLocais,
+        score,
+        places,
+        summary
+      };
+    });
+
+  return createPage(`
+    <div style="position:absolute;inset:0;background:#050505;"></div>
+    <img src="${assets.wallpaper || assets.heroBg || ''}" alt="" style="position:absolute;inset:-80px;width:calc(100% + 160px);height:calc(100% + 160px);object-fit:cover;filter:blur(18px) saturate(1.1);opacity:0.12;" />
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.68),rgba(0,0,0,0.9));"></div>
+
+    <div style="position:relative;z-index:1;height:100%;padding:54px 66px;box-sizing:border-box;display:grid;grid-template-rows:auto auto 1fr;gap:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;" />
+          <div style="display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 16px;border-radius:999px;background:rgba(254,92,43,0.16);border:1px solid rgba(254,92,43,0.24);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Evidências de entorno</div>
+        </div>
+        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.62);">${escapeHtml(proposalCity || 'Múltiplas praças')} • ${escapeHtml(segmentLabel)}</div>
+      </div>
+
+      <div style="padding:18px 22px;border-radius:22px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;">
+        <div>
+          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Pontos com aderência</div>
+          <div style="margin-top:8px;font-size:34px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(pointsWithEntorno.length)}</div>
+        </div>
+        <div>
+          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Total de pontos da proposta</div>
+          <div style="margin-top:8px;font-size:34px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(proposalPoints.length)}</div>
+        </div>
+        <div>
+          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Foco do segmento</div>
+          <div style="margin-top:8px;font-size:26px;line-height:1.2;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(segmentLabel)}</div>
+        </div>
+      </div>
+
+      <div style="display:grid;gap:12px;align-content:start;">
+        ${rows.map(({ point, totalLocais, score, places, summary }) => `
+          <div style="padding:16px 18px;border-radius:20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);display:grid;grid-template-columns:2fr 0.8fr 2fr;gap:16px;align-items:start;">
+            <div>
+              <div style="font-size:20px;line-height:1.2;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
+              <div style="margin-top:4px;font-size:13px;color:rgba(255,255,255,0.65);">${escapeHtml(point.cidade || '-')} • ${escapeHtml(point.tipo || '-')}</div>
+              <div style="margin-top:10px;font-size:13px;line-height:1.45;color:rgba(255,255,255,0.78);">${escapeHtml(summary.summary)}</div>
+            </div>
+            <div>
+              <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Locais / score</div>
+              <div style="margin-top:8px;font-size:24px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(totalLocais)}</div>
+              <div style="margin-top:6px;font-size:13px;color:${BRAND_ORANGE};font-weight:700;">score ${score.toFixed(1).replace('.', ',')}</div>
+            </div>
+            <div style="display:grid;gap:6px;">
+              ${(places.length ? places : ['Sem locais próximos listados no cache atual.']).map((label) => `
+                <div style="padding:8px 10px;border-radius:12px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);font-size:12px;color:rgba(255,255,255,0.82);line-height:1.35;word-break:break-word;">${escapeHtml(label)}</div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `, BRAND_DARK);
+}
+
 async function loadPdfAssets() {
   if (pdfAssetsPromise) {
     return pdfAssetsPromise;
@@ -941,6 +1022,13 @@ export async function generateProposalPdf({
       assets
     }));
   });
+
+  pages.push(buildProposalEntornoEvidencePage({
+    proposalCity,
+    proposalPoints,
+    segmento,
+    assets
+  }));
 
   const fileName = `proposta-${slugify(proposalClient)}-${new Date().toISOString().slice(0, 10)}.pdf`;
   await renderPagesToPdf(pages, fileName);

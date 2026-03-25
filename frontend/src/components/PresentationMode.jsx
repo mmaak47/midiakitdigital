@@ -38,7 +38,8 @@ export default function PresentationMode({ points = [], totals, segmento, onClos
       mediaUrl: current.proposalSimulationPreview || current.simulacao_preview || current.imagem,
       audience: buildAudienceQualification(current),
       entorno: buildEntornoSummary(current.entornoMetrics, segmento),
-      segmentLabel: getSegmentDisplayName(segmento)
+      segmentLabel: getSegmentDisplayName(segmento),
+      radiusMeters: Number(current?.entornoMetrics?.raio_m) || 800
     };
   }, [current, segmento]);
 
@@ -171,6 +172,12 @@ export default function PresentationMode({ points = [], totals, segmento, onClos
                     items={currentView.entorno.places.map((place) => `${place.name} • ${place.category} • ${place.distanceLabel}`)}
                     emptyMessage="Os locais próximos aparecerão aqui assim que o cache de entorno desse segmento estiver disponível."
                   />
+
+                  <RadiusRadarCard
+                    title="Visual de raio e proximidade"
+                    radiusMeters={currentView.radiusMeters}
+                    places={currentView.entorno.places}
+                  />
                 </div>
               </div>
             </motion.section>
@@ -294,4 +301,68 @@ function MiniStat({ label, value }) {
       <div className="mt-1 text-lg font-semibold text-white">{value}</div>
     </div>
   );
+}
+
+function RadiusRadarCard({ title, radiusMeters, places = [] }) {
+  const baseRadius = Math.max(Number(radiusMeters) || 800, 1);
+  const dots = places.slice(0, 4).map((place, idx) => {
+    const distanceMeters = toMeters(place.distanceLabel);
+    const normalized = Math.min(distanceMeters / baseRadius, 1);
+    const ringRadius = 28 + normalized * 70;
+    const angle = (idx / Math.max(places.length, 1)) * Math.PI * 2 - Math.PI / 2;
+    return {
+      ...place,
+      x: 110 + Math.cos(angle) * ringRadius,
+      y: 110 + Math.sin(angle) * ringRadius
+    };
+  });
+
+  return (
+    <motion.div layout className="rounded-[24px] border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-4">
+      <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-brand-gray-500">
+        <Building2 size={14} className="text-brand-orange" />
+        {title}
+      </div>
+
+      <div className="mt-3 flex items-center gap-4">
+        <svg viewBox="0 0 220 220" className="h-[160px] w-[160px] shrink-0">
+          <circle cx="110" cy="110" r="84" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+          <circle cx="110" cy="110" r="58" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+          <circle cx="110" cy="110" r="32" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+          <circle cx="110" cy="110" r="9" fill="rgba(254,92,43,0.9)">
+            <animate attributeName="r" values="9;11;9" dur="2.2s" repeatCount="indefinite" />
+          </circle>
+          {dots.map((dot, idx) => (
+            <g key={`${dot.name}-${idx}`}>
+              <line x1="110" y1="110" x2={dot.x} y2={dot.y} stroke="rgba(254,92,43,0.28)" strokeWidth="1" />
+              <circle cx={dot.x} cy={dot.y} r="4" fill="#FE5C2B" />
+            </g>
+          ))}
+        </svg>
+
+        <div className="min-w-0">
+          <p className="text-sm text-brand-gray-300">Raio analisado: <span className="font-semibold text-white">{formatRadius(baseRadius)}</span></p>
+          <p className="mt-2 text-xs leading-relaxed text-brand-gray-500">
+            Representação visual dos locais aderentes ao segmento mais próximos deste ponto.
+          </p>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function toMeters(distanceLabel) {
+  if (!distanceLabel) return 0;
+  const source = String(distanceLabel).replace(',', '.').toLowerCase();
+  const numeric = Number.parseFloat(source);
+  if (!Number.isFinite(numeric)) return 0;
+  if (source.includes('km')) return numeric * 1000;
+  return numeric;
+}
+
+function formatRadius(radiusMeters) {
+  if (radiusMeters >= 1000) {
+    return `${(radiusMeters / 1000).toFixed(1).replace('.', ',')} km`;
+  }
+  return `${Math.round(radiusMeters)} m`;
 }
