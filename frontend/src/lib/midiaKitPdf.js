@@ -3,8 +3,10 @@ import { loadPdfLayoutConfig } from './pdfLayoutConfig';
 import { buildAudienceQualification, buildEntornoSummary, getSegmentDisplayName } from './strategy';
 
 const PAGE_WIDTH = 1600;
-const PAGE_HEIGHT = 1131;
+const PAGE_HEIGHT = 1260;
 export const PDF_PAGE_SIZE = { width: PAGE_WIDTH, height: PAGE_HEIGHT };
+const PDF_MM_WIDTH = 297;
+const PDF_MM_HEIGHT = Number((PDF_MM_WIDTH * (PAGE_HEIGHT / PAGE_WIDTH)).toFixed(2));
 const BRAND_ORANGE = '#FE5C2B';
 const BRAND_DARK = '#0A0A0A';
 const BRAND_PANEL = '#171717';
@@ -306,7 +308,7 @@ async function renderPagesToPdf(pages, fileName) {
   }
 
   const { default: html2canvas } = await import('html2canvas');
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [PDF_MM_WIDTH, PDF_MM_HEIGHT] });
   const stage = createStage();
 
   try {
@@ -327,11 +329,11 @@ async function renderPagesToPdf(pages, fileName) {
       });
 
       if (index > 0) {
-        doc.addPage('a4', 'landscape');
+        doc.addPage([PDF_MM_WIDTH, PDF_MM_HEIGHT], 'landscape');
       }
 
       const image = canvas.toDataURL('image/jpeg', 0.92);
-      doc.addImage(image, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
+      doc.addImage(image, 'JPEG', 0, 0, PDF_MM_WIDTH, PDF_MM_HEIGHT, undefined, 'FAST');
       stage.removeChild(page);
     }
   } finally {
@@ -729,6 +731,7 @@ function buildProposalPointPage({ point, index, total, image, segmento, assets }
   const layout = getActivePdfLayoutConfig().proposal.point;
   const audience = buildAudienceQualification(point);
   const environment = buildEntornoSummary(point?.entornoMetrics, segmento);
+  const relevantPlacesCount = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
   const stats = [
     { label: 'Fluxo', value: formatInt(point.fluxo) },
     { label: 'Telas', value: formatInt(point.telas) },
@@ -764,8 +767,9 @@ function buildProposalPointPage({ point, index, total, image, segmento, assets }
 
         <div style="display:flex;flex-direction:column;gap:18px;min-width:0;">
           <div data-calibration-id="proposal.point.addressBox" style="padding:26px 28px;border-radius:30px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);">
-            <div style="font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Endereço</div>
-            <div style="margin-top:12px;font-size:23px;line-height:1.5;color:#fff;word-break:break-word;">${escapeHtml(point.endereco || 'Endereço não informado')}</div>
+            <div style="font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Entorno relevante</div>
+            <div style="margin-top:10px;font-size:38px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(relevantPlacesCount)}</div>
+            <div style="margin-top:8px;font-size:14px;line-height:1.45;color:rgba(255,255,255,0.72);">${escapeHtml(relevantPlacesCount === 1 ? 'local relevante no raio analisado.' : 'locais relevantes no raio analisado.')}</div>
           </div>
 
           <div style="padding:22px 24px;border-radius:28px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
@@ -779,14 +783,6 @@ function buildProposalPointPage({ point, index, total, image, segmento, assets }
             <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Entorno relevante</div>
             <div style="margin-top:10px;font-size:20px;line-height:1.35;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(environment.headline)}</div>
             <div style="margin-top:8px;font-size:15px;line-height:1.45;color:rgba(255,255,255,0.68);word-break:break-word;">${escapeHtml(environment.summary)}</div>
-            <div style="margin-top:12px;display:grid;gap:8px;">
-              ${(environment.places.length ? environment.places : [{ name: 'Sem locais próximos destacados no cache atual.', category: '', distanceLabel: '' }]).slice(0, 3).map((place) => `
-                <div style="padding:10px 12px;border-radius:16px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);">
-                  <div style="font-size:15px;line-height:1.35;color:#fff;font-weight:600;word-break:break-word;">${escapeHtml(place.name)}</div>
-                  <div style="margin-top:4px;font-size:12px;line-height:1.4;color:rgba(255,255,255,0.54);text-transform:uppercase;letter-spacing:0.08em;">${escapeHtml([place.category, place.distanceLabel].filter(Boolean).join(' • '))}</div>
-                </div>
-              `).join('')}
-            </div>
           </div>
 
           <div data-calibration-id="proposal.point.statsList" style="display:grid;grid-template-columns:1fr;gap:14px;">
@@ -802,6 +798,129 @@ function buildProposalPointPage({ point, index, total, image, segmento, assets }
       </div>
     </div>
   `, BRAND_DARK);
+}
+
+function resolvePointCoordinates(point) {
+  const candidates = [
+    { lat: point?.lat, lng: point?.lng },
+    { lat: point?.latitude, lng: point?.longitude },
+    { lat: point?.entornoMetrics?.latitude, lng: point?.entornoMetrics?.longitude }
+  ];
+
+  for (const candidate of candidates) {
+    const lat = Number(candidate.lat);
+    const lng = Number(candidate.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) > 0.0001 && Math.abs(lng) > 0.0001) {
+      return { lat, lng };
+    }
+  }
+
+  return null;
+}
+
+function hashToAngle(value) {
+  const source = String(value || 'seed');
+  let hash = 0;
+  for (let i = 0; i < source.length; i += 1) {
+    hash = ((hash << 5) - hash) + source.charCodeAt(i);
+    hash |= 0;
+  }
+  const normalized = Math.abs(hash % 360);
+  return (normalized * Math.PI) / 180;
+}
+
+function buildEntornoEvidenceMapSvg(rows) {
+  const width = 980;
+  const height = 380;
+  const padding = 34;
+  const points = rows
+    .map((row, index) => {
+      const coord = resolvePointCoordinates(row.point);
+      if (!coord) return null;
+      return {
+        ...coord,
+        index: index + 1,
+        row
+      };
+    })
+    .filter(Boolean);
+
+  if (!points.length) {
+    return `
+      <div style="height:100%;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.62);font-size:15px;">
+        Sem coordenadas válidas para montar o mapa de evidências.
+      </div>
+    `;
+  }
+
+  const minLat = Math.min(...points.map((item) => item.lat));
+  const maxLat = Math.max(...points.map((item) => item.lat));
+  const minLng = Math.min(...points.map((item) => item.lng));
+  const maxLng = Math.max(...points.map((item) => item.lng));
+
+  const latSpan = Math.max(maxLat - minLat, 0.01);
+  const lngSpan = Math.max(maxLng - minLng, 0.01);
+
+  const project = (lat, lng) => {
+    const x = padding + ((lng - minLng) / lngSpan) * (width - padding * 2);
+    const y = padding + ((maxLat - lat) / latSpan) * (height - padding * 2);
+    return { x, y };
+  };
+
+  const nearbyMarkers = [];
+
+  points.forEach((entry) => {
+    const base = project(entry.lat, entry.lng);
+    const rawPlaces = Array.isArray(entry.row.rawPlaces) ? entry.row.rawPlaces.slice(0, 5) : [];
+
+    rawPlaces.forEach((place, placeIndex) => {
+      const distance = Math.max(70, Math.min(1000, Number(place?.distance) || 220));
+      const angle = hashToAngle(`${entry.row.point?.id || entry.index}-${place?.name || placeIndex}`);
+      const radiusPx = 14 + (distance / 1000) * 62;
+      const x = Math.max(padding, Math.min(width - padding, base.x + Math.cos(angle) * radiusPx));
+      const y = Math.max(padding, Math.min(height - padding, base.y + Math.sin(angle) * radiusPx));
+
+      nearbyMarkers.push({
+        x,
+        y,
+        label: place?.name || `Local ${placeIndex + 1}`,
+        category: place?.category || '',
+        distance
+      });
+    });
+  });
+
+  const pointMarkersSvg = points.map((entry) => {
+    const { x, y } = project(entry.lat, entry.lng);
+    return `
+      <g>
+        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="10" fill="rgba(254,92,43,0.28)" stroke="rgba(254,92,43,0.5)" stroke-width="1"></circle>
+        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6.2" fill="${BRAND_ORANGE}"></circle>
+        <text x="${x.toFixed(1)}" y="${(y + 3.2).toFixed(1)}" text-anchor="middle" font-size="8" font-weight="700" fill="#0a0a0a">${entry.index}</text>
+      </g>
+    `;
+  }).join('');
+
+  const nearbyMarkersSvg = nearbyMarkers.map((marker) => `
+    <g>
+      <circle cx="${marker.x.toFixed(1)}" cy="${marker.y.toFixed(1)}" r="4" fill="rgba(255,255,255,0.74)" stroke="rgba(255,255,255,0.32)" stroke-width="1"></circle>
+      <title>${escapeHtml(`${marker.label} • ${Math.round(marker.distance)} m`)}</title>
+    </g>
+  `).join('');
+
+  return `
+    <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mapa esquemático de pontos e entorno">
+      <defs>
+        <pattern id="gridPattern" width="38" height="38" patternUnits="userSpaceOnUse">
+          <path d="M 38 0 L 0 0 0 38" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1" />
+        </pattern>
+      </defs>
+      <rect x="0" y="0" width="${width}" height="${height}" rx="16" fill="rgba(8,8,8,0.78)" />
+      <rect x="0" y="0" width="${width}" height="${height}" rx="16" fill="url(#gridPattern)" />
+      ${nearbyMarkersSvg}
+      ${pointMarkersSvg}
+    </svg>
+  `;
 }
 
 function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmento, assets }) {
@@ -827,16 +946,19 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
         totalLocais,
         score,
         places,
-        summary
+        summary,
+        rawPlaces: Array.isArray(metrics.places) ? metrics.places : []
       };
     });
+
+  const evidenceMapSvg = buildEntornoEvidenceMapSvg(rows);
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#050505;"></div>
     <img src="${assets.wallpaper || assets.heroBg || ''}" alt="" style="position:absolute;inset:-80px;width:calc(100% + 160px);height:calc(100% + 160px);object-fit:cover;filter:blur(18px) saturate(1.1);opacity:0.12;" />
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.68),rgba(0,0,0,0.9));"></div>
 
-    <div style="position:relative;z-index:1;height:100%;padding:54px 66px;box-sizing:border-box;display:grid;grid-template-rows:auto auto 1fr;gap:20px;">
+    <div style="position:relative;z-index:1;height:100%;padding:48px 62px;box-sizing:border-box;display:grid;grid-template-rows:auto auto auto 1fr;gap:16px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
         <div style="display:flex;align-items:center;gap:14px;">
           <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;" />
@@ -860,22 +982,47 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
         </div>
       </div>
 
-      <div style="display:grid;gap:12px;align-content:start;">
+      <div style="display:grid;grid-template-columns:1.05fr 0.95fr;gap:14px;min-height:320px;">
+        <div style="border-radius:20px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);overflow:hidden;position:relative;">
+          <div style="position:absolute;top:10px;left:12px;z-index:2;padding:5px 10px;border-radius:999px;border:1px solid rgba(254,92,43,0.26);background:rgba(254,92,43,0.14);font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${BRAND_ORANGE};">Mapa esquemático de evidências</div>
+          <div style="position:absolute;right:12px;bottom:10px;z-index:2;display:flex;gap:10px;align-items:center;font-size:11px;color:rgba(255,255,255,0.68);">
+            <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:999px;background:${BRAND_ORANGE};display:inline-block;"></span>Pontos</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:999px;background:rgba(255,255,255,0.8);display:inline-block;"></span>Entorno</span>
+          </div>
+          <div style="position:absolute;inset:0;padding:10px;box-sizing:border-box;">${evidenceMapSvg}</div>
+        </div>
+
+        <div style="display:grid;gap:10px;align-content:start;">
+          ${rows.slice(0, 3).map(({ point, totalLocais, score }) => `
+            <div style="padding:14px 14px;border-radius:16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+              <div style="font-size:16px;line-height:1.2;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
+              <div style="margin-top:5px;font-size:12px;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} • ${escapeHtml(point.tipo || '-')}</div>
+              <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                <div style="font-size:12px;color:rgba(255,255,255,0.62);">Locais relevantes</div>
+                <div style="font-size:20px;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(totalLocais)}</div>
+              </div>
+              <div style="margin-top:4px;font-size:12px;color:${BRAND_ORANGE};font-weight:700;">score ${score.toFixed(1).replace('.', ',')}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div style="display:grid;gap:10px;align-content:start;">
         ${rows.map(({ point, totalLocais, score, places, summary }) => `
-          <div style="padding:16px 18px;border-radius:20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);display:grid;grid-template-columns:2fr 0.8fr 2fr;gap:16px;align-items:start;">
+          <div style="padding:14px 16px;border-radius:18px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);display:grid;grid-template-columns:2fr 0.8fr 1.5fr;gap:14px;align-items:start;">
             <div>
-              <div style="font-size:20px;line-height:1.2;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
-              <div style="margin-top:4px;font-size:13px;color:rgba(255,255,255,0.65);">${escapeHtml(point.cidade || '-')} • ${escapeHtml(point.tipo || '-')}</div>
-              <div style="margin-top:10px;font-size:13px;line-height:1.45;color:rgba(255,255,255,0.78);">${escapeHtml(summary.summary)}</div>
+              <div style="font-size:17px;line-height:1.2;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
+              <div style="margin-top:3px;font-size:12px;color:rgba(255,255,255,0.65);">${escapeHtml(point.cidade || '-')} • ${escapeHtml(point.tipo || '-')}</div>
+              <div style="margin-top:8px;font-size:12px;line-height:1.42;color:rgba(255,255,255,0.78);">${escapeHtml(summary.summary)}</div>
             </div>
             <div>
               <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Locais / score</div>
-              <div style="margin-top:8px;font-size:24px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(totalLocais)}</div>
-              <div style="margin-top:6px;font-size:13px;color:${BRAND_ORANGE};font-weight:700;">score ${score.toFixed(1).replace('.', ',')}</div>
+              <div style="margin-top:8px;font-size:20px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(totalLocais)}</div>
+              <div style="margin-top:4px;font-size:12px;color:${BRAND_ORANGE};font-weight:700;">score ${score.toFixed(1).replace('.', ',')}</div>
             </div>
             <div style="display:grid;gap:6px;">
               ${(places.length ? places : ['Sem locais próximos listados no cache atual.']).map((label) => `
-                <div style="padding:8px 10px;border-radius:12px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);font-size:12px;color:rgba(255,255,255,0.82);line-height:1.35;word-break:break-word;">${escapeHtml(label)}</div>
+                <div style="padding:8px 10px;border-radius:12px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);font-size:11px;color:rgba(255,255,255,0.82);line-height:1.35;word-break:break-word;">${escapeHtml(label)}</div>
               `).join('')}
             </div>
           </div>
