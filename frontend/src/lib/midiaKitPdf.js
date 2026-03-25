@@ -244,25 +244,29 @@ function buildHeroImageFrame(image, options = {}) {
   `;
 }
 
-function pointDetailIcon(label) {
-  const normalized = String(label || '').toLowerCase();
-  if (normalized.includes('público') || normalized.includes('publico')) return '👥';
-  if (normalized.includes('fluxo')) return '📈';
-  if (normalized.includes('telas')) return '🖥';
-  if (normalized.includes('inser')) return '🎯';
-  if (normalized.includes('tempo')) return '⏱';
-  if (normalized.includes('loop')) return '🔁';
-  if (normalized.includes('veic')) return '🎬';
-  if (normalized.includes('hor')) return '🕒';
-  return '•';
+function metricIconSvg(kind, color = '#111111') {
+  const common = `fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"`;
+  const icons = {
+    publico: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><circle cx="9" cy="8" r="3.2"></circle><circle cx="16.5" cy="9.5" r="2.5"></circle><path d="M3.5 18.5c0-3.1 2.5-5.5 5.5-5.5s5.5 2.4 5.5 5.5"></path><path d="M14.6 18.5c0-2.3 1.8-4.1 4.1-4.1"></path></svg>`,
+    fluxo: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><path d="M3.5 12h13"></path><path d="M12 6.5L16.5 12 12 17.5"></path><path d="M20.5 8.5v7"></path></svg>`,
+    telas: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><rect x="3" y="5" width="18" height="12" rx="2"></rect><path d="M9 20h6"></path><path d="M12 17v3"></path></svg>`,
+    insercoes: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><path d="M12 4v16"></path><path d="M5 12h14"></path><circle cx="12" cy="12" r="8"></circle></svg>`,
+    tempo: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l2.8 2.8"></path></svg>`,
+    loop: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><path d="M17 7h3V4"></path><path d="M7 17H4v3"></path><path d="M20 7a8 8 0 0 0-13.7-2.5"></path><path d="M4 17a8 8 0 0 0 13.7 2.5"></path></svg>`,
+    veiculacao: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M10 9.2l5 2.8-5 2.8z"></path></svg>`,
+    horario: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><circle cx="12" cy="12" r="8"></circle><path d="M12 7v5h4"></path></svg>`
+  };
+
+  return icons[kind] || icons.fluxo;
 }
 
 function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
     <div style="position:absolute;inset:0;background:url('${assets.heroBg || assets.cityBg || ''}') center/cover no-repeat;"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:46%;background:#000;"></div>
-    <div style="position:absolute;left:46%;top:0;bottom:0;width:140px;background:linear-gradient(90deg,rgba(0,0,0,0.98) 0%,rgba(0,0,0,0.82) 45%,rgba(0,0,0,0.0) 100%);"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:47%;background:linear-gradient(90deg,rgba(0,0,0,0.96) 0%,rgba(0,0,0,0.94) 76%,rgba(0,0,0,0.58) 100%);"></div>
+    <div style="position:absolute;left:47%;top:0;bottom:0;width:8px;background:${BRAND_ORANGE};opacity:0.86;"></div>
+    <div style="position:absolute;left:48%;top:0;bottom:0;width:90px;background:linear-gradient(90deg,rgba(0,0,0,0.55),rgba(0,0,0,0));"></div>
 
     <div style="position:absolute;left:72px;top:88px;width:360px;">
       <img src="${assets.logo || ''}" alt="" style="width:180px;height:auto;object-fit:contain;" />
@@ -290,26 +294,23 @@ function buildMidiaKitManifestoPage({ assets }) {
       <img src="${assets.about1 || assets.about2 || ''}" alt="" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.05);" />
       <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,0.45) 0%,rgba(0,0,0,0.15) 55%,rgba(0,0,0,0.0) 100%);"></div>
     </div>
-    <div style="position:absolute;left:44%;top:0;bottom:0;width:120px;background:linear-gradient(90deg,rgba(0,0,0,0.96) 0%,rgba(0,0,0,0.75) 48%,rgba(0,0,0,0) 100%);"></div>
+    <div style="position:absolute;left:44%;top:0;bottom:0;width:76px;background:linear-gradient(90deg,rgba(0,0,0,0.9),rgba(0,0,0,0));"></div>
+    <div style="position:absolute;right:0;top:0;bottom:0;width:56%;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.08;"></div>
 
-    <div style="position:absolute;left:740px;right:82px;top:88px;">
+    <div style="position:absolute;left:740px;right:82px;top:82px;">
       <img src="${assets.logo || ''}" alt="" style="height:70px;width:auto;object-fit:contain;" />
-      <div style="margin-top:24px;font-size:21px;line-height:1.45;color:#fff;max-width:760px;">
+      <div style="margin-top:24px;font-size:23px;line-height:1.42;color:#fff;max-width:760px;">
         Na Intermidia, não apenas defendemos a mídia OOH e DOOH. Nós vivemos a transformação que ela representa.
       </div>
-      <div style="margin-top:18px;width:230px;height:5px;background:${BRAND_ORANGE};"></div>
+      <div style="margin-top:22px;width:180px;height:4px;background:${BRAND_ORANGE};"></div>
     </div>
 
-    <div style="position:absolute;left:740px;right:82px;top:282px;bottom:80px;display:grid;grid-template-columns:1fr 1fr;gap:36px;">
-      <div style="display:flex;flex-direction:column;gap:18px;min-width:0;">
-        <div style="font-size:56px;line-height:1.03;color:#fff;font-family:Poppins, system-ui, sans-serif;font-weight:700;letter-spacing:-0.03em;">
-          A Intermidia é especialista em comunicação Out of Home e Digital Out of Home desde 2007.
-        </div>
-        <div style="font-size:23px;line-height:1.55;color:rgba(255,255,255,0.9);">
-          Somos apaixonados pelo impacto que a mídia OOH e DOOH pode gerar para marcas, varejo e serviços.
-        </div>
+    <div style="position:absolute;left:740px;right:82px;top:270px;display:grid;grid-template-columns:1fr 1fr;gap:34px;">
+      <div style="font-size:21px;line-height:1.45;color:#fff;">
+        <strong style="display:block;font-family:Poppins, system-ui, sans-serif;font-size:58px;line-height:1.08;font-weight:700;letter-spacing:-0.02em;margin-bottom:22px;">A Intermidia é especialista em comunicação Out of Home e Digital Out of Home desde 2007.</strong>
+        Somos apaixonados pelo impacto que a mídia OOH e DOOH pode gerar.
       </div>
-      <div style="font-size:23px;line-height:1.58;color:rgba(255,255,255,0.92);min-width:0;">
+      <div style="font-size:21px;line-height:1.45;color:#fff;">
         Valorizamos a força da publicidade no ambiente urbano e acreditamos que cada ponto de contato é uma oportunidade para transformar marcas em referência.
         <br/><br/>
         Entregamos soluções que levam sua mensagem além do óbvio, alcançando as pessoas onde elas vivem, trabalham e se movem.
@@ -384,11 +385,18 @@ function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
   const lines = splitFormatTitle(tipo);
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
-    <div style="position:absolute;left:120px;top:140px;">
+    <div style="position:absolute;left:0;top:0;bottom:0;width:170px;background:#050505;border-right:1px solid rgba(255,255,255,0.12);"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:170px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.1;"></div>
+    <div style="position:absolute;left:32px;top:82px;transform:rotate(-90deg);transform-origin:left top;display:flex;align-items:center;gap:24px;white-space:nowrap;">
+      <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:56px;width:auto;object-fit:contain;" />
+      <div style="font-family:Poppins, system-ui, sans-serif;font-size:58px;line-height:1;font-weight:700;color:#fff;letter-spacing:-0.02em;text-transform:uppercase;">${escapeHtml((cityStats.cidade || '').toUpperCase())}</div>
+    </div>
+
+    <div style="position:absolute;left:240px;top:120px;">
       <img src="${assets.logo || ''}" alt="" style="height:220px;width:auto;object-fit:contain;" />
     </div>
 
-    <div style="position:absolute;left:500px;bottom:130px;width:560px;border-left:2px solid rgba(255,255,255,0.62);border-bottom:2px solid rgba(255,255,255,0.62);height:360px;"></div>
+    <div style="position:absolute;left:560px;bottom:130px;width:560px;border-left:2px solid rgba(255,255,255,0.62);border-bottom:2px solid rgba(255,255,255,0.62);height:360px;"></div>
     <div style="position:absolute;right:90px;top:200px;text-align:left;">
       ${lines.map((line) => `<div style="font-family:Poppins, system-ui, sans-serif;font-size:96px;line-height:0.9;font-weight:700;color:#fff;letter-spacing:-0.04em;">${escapeHtml(line)}</div>`).join('')}
     </div>
@@ -404,53 +412,53 @@ function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
 
 function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   const details = [
-    { label: 'Público', value: ponto.publico || '-' },
-    { label: 'Fluxo / mês', value: formatInt(ponto.fluxo) },
-    { label: 'Telas', value: formatInt(ponto.telas) },
-    { label: 'Inserções', value: formatInt(ponto.insercoes) },
-    { label: 'Tempo', value: ponto.tempo || '-' },
-    { label: 'Loop', value: ponto.loop || '-' },
+    { key: 'publico', label: 'Público', value: ponto.publico || '-' },
+    { key: 'fluxo', label: 'Fluxo / mês', value: formatInt(ponto.fluxo) },
+    { key: 'telas', label: 'Telas', value: formatInt(ponto.telas) },
+    { key: 'insercoes', label: 'Inserções', value: formatInt(ponto.insercoes) },
+    { key: 'tempo', label: 'Tempo', value: ponto.tempo || '-' },
+    { key: 'loop', label: 'Loop', value: ponto.loop || '-' },
     { label: 'Veiculação', value: ponto.veiculacao || '-' },
     { label: 'Horário', value: ponto.horario || '-' }
   ];
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#d9d9d9;"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:76px;background:#0c0c0c;"></div>
-    <div style="position:absolute;left:76px;top:0;bottom:0;right:670px;background:#e7e7e7;"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:40px;background:#0c0c0c;"></div>
+    <div style="position:absolute;left:40px;top:0;bottom:0;right:670px;background:#e7e7e7;"></div>
     <div style="position:absolute;right:0;top:0;bottom:0;width:670px;background:#1a1a1a;"></div>
     <div style="position:absolute;right:0;top:0;bottom:0;width:670px;background:url('${image || assets.showcase || ''}') center/cover no-repeat;"></div>
 
-    <div style="position:absolute;left:98px;top:42px;right:710px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:2px solid #161616;padding-bottom:12px;">
+    <div style="position:absolute;left:58px;top:52px;right:710px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:2px solid #161616;padding-bottom:14px;">
       <div style="display:flex;align-items:center;gap:16px;">
         <div style="width:46px;height:46px;border:2px solid #222;display:flex;align-items:center;justify-content:center;font-size:21px;">▥</div>
         <div style="font-family:Poppins, system-ui, sans-serif;font-size:50px;line-height:0.95;font-weight:700;letter-spacing:-0.04em;color:#000;">${escapeHtml((ponto.tipo || 'FORMATO').toUpperCase())}</div>
       </div>
-      <div style="padding:8px 18px;border:2px solid #333;font-size:30px;line-height:1;color:#111;text-transform:uppercase;border-radius:8px;">${escapeHtml((ponto.publico || 'A/B').toUpperCase())}</div>
+      <div style="padding:8px 16px;border:2px solid #333;font-size:28px;line-height:1;color:#111;text-transform:uppercase;">${escapeHtml((ponto.publico || 'A/B').toUpperCase())}</div>
     </div>
 
-    <div style="position:absolute;left:98px;top:122px;right:710px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;">
-      <div style="font-family:Poppins, system-ui, sans-serif;font-size:62px;line-height:0.95;font-weight:700;color:#000;">${escapeHtml((ponto.nome || '').toUpperCase())}</div>
+    <div style="position:absolute;left:58px;top:140px;right:710px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;">
+      <div style="font-family:Poppins, system-ui, sans-serif;font-size:60px;line-height:0.95;font-weight:700;color:#000;">${escapeHtml((ponto.nome || '').toUpperCase())}</div>
       <div style="font-size:26px;font-weight:700;color:#000;">${index}/${total}</div>
     </div>
 
-    <div style="position:absolute;left:98px;top:206px;right:710px;font-size:28px;line-height:1.4;color:#111;">${escapeHtml(ponto.endereco || 'Endereço não informado')} ${escapeHtml(ponto.cidade ? `· ${ponto.cidade}` : '')}</div>
+    <div style="position:absolute;left:58px;top:232px;right:710px;font-size:28px;line-height:1.4;color:#111;">${escapeHtml(ponto.endereco || 'Endereço não informado')} ${escapeHtml(ponto.cidade ? `· ${ponto.cidade}` : '')}</div>
 
-    <div style="position:absolute;left:98px;top:282px;right:710px;border-top:2px solid #1a1a1a;"></div>
-    <div style="position:absolute;left:98px;top:302px;right:710px;padding:14px 16px 18px;border:1px solid #b8b8b8;background:rgba(255,255,255,0.46);border-radius:14px;display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;box-sizing:border-box;">
+    <div style="position:absolute;left:58px;top:300px;right:710px;border:2px solid rgba(17,17,17,0.4);background:rgba(255,255,255,0.5);padding:22px 24px;border-radius:16px;"></div>
+    <div style="position:absolute;left:82px;top:324px;right:734px;display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;">
       ${details.slice(0, 6).map((item) => `
-        <div style="display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:start;">
-          <div style="width:34px;height:34px;border-radius:999px;background:#111;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;color:#fff;">${pointDetailIcon(item.label)}</div>
+        <div style="display:grid;grid-template-columns:24px 1fr;align-items:flex-start;column-gap:10px;">
+          <div style="display:flex;align-items:center;justify-content:center;margin-top:2px;">${metricIconSvg(item.key)}</div>
           <div>
-            <div style="font-size:16px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;">${escapeHtml(item.label)}</div>
-            <div style="margin-top:4px;font-family:Poppins, system-ui, sans-serif;font-size:31px;line-height:1.15;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
+            <div style="font-size:18px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;">${escapeHtml(item.label)}</div>
+            <div style="margin-top:4px;font-family:Poppins, system-ui, sans-serif;font-size:30px;line-height:1.2;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
           </div>
         </div>
       `).join('')}
     </div>
 
-    <div style="position:absolute;left:98px;bottom:150px;right:710px;border-top:2px solid #1a1a1a;"></div>
-    <div style="position:absolute;left:98px;bottom:78px;right:710px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
+    <div style="position:absolute;left:58px;bottom:150px;right:710px;border-top:2px solid #1a1a1a;"></div>
+    <div style="position:absolute;left:58px;bottom:78px;right:710px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
       <div>
         <div style="font-size:20px;line-height:1.4;color:#111;">mínimo de ${escapeHtml(formatInt(ponto.insercoes || 0))} inserções/mês</div>
         <div style="font-size:20px;line-height:1.4;color:#111;">veiculação: ${escapeHtml((ponto.veiculacao || 'vídeo sem áudio').toLowerCase())}</div>
@@ -461,12 +469,8 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
       </div>
     </div>
 
-    <div style="position:absolute;left:0;top:0;bottom:0;width:76px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:18px 6px;box-sizing:border-box;">
-      <div style="width:64px;height:64px;display:flex;align-items:center;justify-content:center;overflow:hidden;transform:rotate(-90deg);transform-origin:center;">
-        <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="width:64px;height:auto;object-fit:contain;" />
-      </div>
-      <div style="writing-mode:vertical-rl;transform:rotate(180deg);font-family:Poppins, system-ui, sans-serif;font-size:22px;line-height:1;font-weight:700;color:#fff;letter-spacing:0.02em;text-transform:capitalize;text-align:center;">${escapeHtml(ponto.cidade || 'Londrina')}</div>
-      <div style="writing-mode:vertical-rl;transform:rotate(180deg);font-family:Poppins, system-ui, sans-serif;font-size:20px;line-height:1;font-weight:600;color:#fff;letter-spacing:0.03em;text-transform:lowercase;">intermidia</div>
+    <div style="position:absolute;left:8px;top:16px;width:24px;height:24px;overflow:hidden;">
+      <img src="${assets.logo || ''}" alt="" style="width:100%;height:100%;object-fit:contain;" />
     </div>
 
     <div style="position:absolute;right:20px;bottom:22px;padding:8px 12px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.22);">
@@ -609,7 +613,8 @@ async function loadPdfAssets() {
     about2,
     audience,
     showcase,
-    wallpaper
+    wallpaper,
+    pattern
   ] = await Promise.all([
     imageToDataUrl(assetUrl('/logo.png')),
     imageToDataUrl(assetUrl('/logo-deitado.png')),
@@ -619,7 +624,8 @@ async function loadPdfAssets() {
     imageToDataUrl(assetUrl('/about-2.jpg')),
     imageToDataUrl(assetUrl('/audience.jpg')),
     imageToDataUrl(assetUrl('/showcase.png')),
-    imageToDataUrl(assetUrl('/wallpaper.jpg'))
+    imageToDataUrl(assetUrl('/wallpaper.jpg')),
+    imageToDataUrl(assetUrl('/patterns/INTERMIDIA_PATTERN_ID.VISUAL_2024_INTERMIDIA_PATTERN_ID.VISUAL-4.png'))
   ]);
 
   return {
@@ -631,7 +637,8 @@ async function loadPdfAssets() {
     about2,
     audience,
     showcase,
-    wallpaper
+    wallpaper,
+    pattern
   };
 }
 
@@ -641,6 +648,7 @@ export async function generateMidiaKitPdf({ praca, pontos }) {
   const resumo = buildResumo(kitPontos);
   const assets = await loadPdfAssets();
   const cityStats = {
+    cidade,
     totalTelas: resumo.telas,
     totalEnderecos: new Set(kitPontos.map((p) => `${p.cidade || ''}-${p.endereco || ''}`.trim())).size
   };
