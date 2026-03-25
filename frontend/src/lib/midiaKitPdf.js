@@ -393,13 +393,25 @@ function buildMetricCards(cards, options = {}) {
   return `
     <div style="display:grid;grid-template-columns:repeat(${columns},minmax(0,1fr));gap:${options.gap || 18}px;">
       ${cards.map((card) => `
+        ${(() => {
+          const rawValue = String(card.value ?? '');
+          const baseValueSize = Number(options.valueSize || 36);
+          let resolvedValueSize = baseValueSize;
+          if (rawValue.length >= 14) {
+            resolvedValueSize = Math.max(24, baseValueSize - 10);
+          } else if (rawValue.length >= 10) {
+            resolvedValueSize = Math.max(28, baseValueSize - 6);
+          }
+          return `
         <div style="border:1px solid ${options.borderColor || BRAND_BORDER};background:${options.background || 'rgba(255,255,255,0.06)'};border-radius:${options.radius || 26}px;padding:${options.padding || '24px 26px'};backdrop-filter:blur(10px);min-height:${options.minHeight || 0}px;box-sizing:border-box;">
           <div style="display:flex;align-items:center;gap:12px;color:${options.labelColor || 'rgba(255,255,255,0.72)'};font-size:${options.labelSize || 16}px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">
             <span style="display:inline-flex;align-items:center;justify-content:center;width:${options.iconSize || 36}px;height:${options.iconSize || 36}px;border-radius:999px;background:rgba(254,92,43,0.18);color:${BRAND_ORANGE};font-weight:700;line-height:1;flex:0 0 auto;">${card.iconHtml || escapeHtml(card.icon || '•')}</span>
             <span style="line-height:1.2;">${escapeHtml(card.label)}</span>
           </div>
-          <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:${options.valueSize || 36}px;line-height:1.05;font-weight:700;color:${options.valueColor || '#ffffff'};letter-spacing:-0.03em;word-break:${options.valueWordBreak || 'break-word'};overflow-wrap:anywhere;white-space:${options.valueWhiteSpace || 'normal'};max-width:100%;">${escapeHtml(card.value)}</div>
+          <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:${resolvedValueSize}px;line-height:1.05;font-weight:700;color:${options.valueColor || '#ffffff'};letter-spacing:-0.03em;word-break:${options.valueWordBreak || 'normal'};white-space:${options.valueWhiteSpace || 'nowrap'};max-width:100%;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(rawValue)}</div>
         </div>
+          `;
+        })()}
       `).join('')}
     </div>
   `;
@@ -749,8 +761,8 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
             minHeight: 146,
             gap: layout.metricGap,
             padding: layout.metricPadding,
-            valueWhiteSpace: 'normal',
-            valueWordBreak: 'break-word'
+            valueWhiteSpace: 'nowrap',
+            valueWordBreak: 'normal'
           })}
         </div>
       </div>
@@ -954,8 +966,10 @@ function buildProposalPointPage({ point, index, total, image, image2, segmento, 
           <img src="${assets.logo || ''}" alt="" style="height:34px;width:auto;object-fit:contain;" />
           <div style="min-width:0;">
             <div style="font-family:Poppins, system-ui, sans-serif;font-size:34px;line-height:1.03;font-weight:700;letter-spacing:-0.03em;color:#fff;white-space:normal;word-break:break-word;">${formatPointNameHtml(point.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.66em;font-weight:600;letter-spacing:-0.01em;' })}</div>
-            <div style="margin-top:6px;font-size:18px;line-height:1.4;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} · ${escapeHtml(point.tipo || '-')}</div>
-            ${coords ? `<div style="margin-top:6px;display:inline-flex;align-items:center;justify-content:center;min-height:26px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);font-size:13px;line-height:1;color:rgba(255,255,255,0.58);">${escapeHtml(coords)}</div>` : ''}
+            <div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:18px;line-height:1.3;color:rgba(255,255,255,0.68);">
+              <span>${escapeHtml(point.cidade || '-')} · ${escapeHtml(point.tipo || '-')}</span>
+              ${coords ? `<span style="display:inline-flex;align-items:center;justify-content:center;min-height:22px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);font-size:12px;line-height:1;color:rgba(255,255,255,0.58);">${escapeHtml(coords)}</span>` : ''}
+            </div>
           </div>
         </div>
         <div data-calibration-id="proposal.point.counter" style="display:inline-flex;align-items:center;justify-content:center;gap:${layout.counterGap}px;min-width:${counterMinWidth}px;min-height:${layout.counterMinHeight}px;padding:0 ${counterPaddingX}px;border-radius:20px;background:#111;border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;color:#fff;line-height:1;font-family:Poppins, system-ui, sans-serif;white-space:nowrap;text-align:center;letter-spacing:0;box-sizing:border-box;">
