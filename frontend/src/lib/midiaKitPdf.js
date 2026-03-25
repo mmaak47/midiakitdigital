@@ -446,11 +446,17 @@ function buildHeroImageFrame(image, options = {}) {
     `;
   }
 
+  const mainImageStyle = options.fit === 'cover'
+    ? 'display:block;width:100%;height:100%;object-fit:cover;object-position:center;'
+    : 'display:block;max-width:100%;max-height:100%;width:auto;height:auto;';
+
   return `
     <div style="position:relative;height:100%;border-radius:${options.radius || 30}px;overflow:hidden;border:1px solid ${BRAND_BORDER};background:#050505;">
       <img src="${image}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(26px) saturate(1.1);transform:scale(1.08);opacity:0.45;" />
       <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,7,7,0.12),rgba(7,7,7,0.62));"></div>
-      <img src="${image}" alt="" style="position:absolute;inset:28px;width:calc(100% - 56px);height:calc(100% - 56px);object-fit:${options.fit || 'contain'};object-position:center;filter:drop-shadow(0 24px 44px rgba(0,0,0,0.45));" />
+      <div style="position:absolute;left:28px;top:28px;right:28px;bottom:28px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+        <img src="${image}" alt="" style="${mainImageStyle}filter:drop-shadow(0 24px 44px rgba(0,0,0,0.45));" />
+      </div>
     </div>
   `;
 }
@@ -659,8 +665,9 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
     </div>
 
     <div style="position:absolute;left:${layout.leftRailWidth}px;top:0;bottom:0;right:${layout.imagePanelWidth}px;background:#e7e7e7;"></div>
-    <div style="position:absolute;right:0;top:0;bottom:0;width:${layout.imagePanelWidth}px;background:#1a1a1a;"></div>
-    <div style="position:absolute;right:0;top:0;bottom:0;width:${layout.imagePanelWidth}px;background:url('${image || assets.showcase || ''}') center/cover no-repeat;"></div>
+    <div style="position:absolute;right:0;top:0;bottom:0;width:${layout.imagePanelWidth}px;background:#1a1a1a;overflow:hidden;">
+      <img src="${image || assets.showcase || ''}" alt="" style="display:block;width:100%;height:100%;object-fit:cover;object-position:center;" />
+    </div>
 
     <div style="position:absolute;left:${layout.contentLeft}px;top:42px;right:${layout.contentRight}px;border-bottom:2px solid #161616;padding-bottom:12px;">
       <div style="display:flex;align-items:center;gap:16px;">
