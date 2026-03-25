@@ -11,8 +11,8 @@ import {
 const HANDLE_RADIUS = 0.55;
 const EDGE_HIT_STROKE = 1.8;
 const HANDLE_HIT_RADIUS = 2;
-const SELECTION_STROKE = 0.16;
-const GRID_STROKE = 0.08;
+const SELECTION_STROKE = 0.1;
+const GRID_STROKE = 0.05;
 const MIN_ZOOM = 100;
 const MAX_ZOOM = 300;
 const ZOOM_STEP = 10;
@@ -348,14 +348,14 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
 
               {hasSelection && (
                 <>
-                  <polygon points={polygonPoints} fill="rgba(254,92,43,0.12)" stroke="rgba(254,92,43,0.88)" strokeWidth={SELECTION_STROKE} />
+                  <polygon points={polygonPoints} fill="rgba(254,92,43,0.08)" stroke="rgba(254,92,43,0.58)" strokeWidth={SELECTION_STROKE} />
 
                   {Array.from({ length: 4 }).map((_, index) => (
-                    <polyline key={`grid-h-${index}`} points={polylineForInterpolation(activeCorners, 'v', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth={GRID_STROKE} />
+                    <polyline key={`grid-h-${index}`} points={polylineForInterpolation(activeCorners, 'v', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.11)" strokeWidth={GRID_STROKE} />
                   ))}
 
                   {Array.from({ length: 4 }).map((_, index) => (
-                    <polyline key={`grid-v-${index}`} points={polylineForInterpolation(activeCorners, 'u', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.13)" strokeWidth={GRID_STROKE} />
+                    <polyline key={`grid-v-${index}`} points={polylineForInterpolation(activeCorners, 'u', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={GRID_STROKE} />
                   ))}
 
                   <polygon points={polygonPoints} fill="transparent" onPointerDown={startQuadDrag} style={{ cursor: 'move' }} />
