@@ -8,7 +8,7 @@ import {
   normalizeCorners
 } from '../../lib/simulation';
 
-const HANDLE_RADIUS = 0.85;
+const HANDLE_RADIUS = 0.55;
 const EDGE_HIT_STROKE = 1.8;
 const HANDLE_HIT_RADIUS = 2;
 const SELECTION_STROKE = 0.16;
@@ -311,7 +311,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
                   {activeCorners.map((point, index) => (
                     <g key={`handle-${index}`}>
                       <circle cx={point.x} cy={point.y} r={HANDLE_HIT_RADIUS} fill="transparent" onPointerDown={(event) => startCornerDrag(event, index)} style={{ cursor: 'grab' }} />
-                      <circle cx={point.x} cy={point.y} r={HANDLE_RADIUS} fill="white" stroke="rgba(254,92,43,0.98)" strokeWidth="0.26" pointerEvents="none" />
+                      <circle cx={point.x} cy={point.y} r={HANDLE_RADIUS} fill="white" stroke="rgba(254,92,43,0.98)" strokeWidth="0.18" pointerEvents="none" />
                     </g>
                   ))}
                 </>
