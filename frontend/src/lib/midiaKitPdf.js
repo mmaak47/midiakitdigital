@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { getPdfLayoutConfig } from './pdfLayoutConfig';
+import { loadPdfLayoutConfig } from './pdfLayoutConfig';
 
 const PAGE_WIDTH = 1600;
 const PAGE_HEIGHT = 1131;
@@ -10,6 +10,11 @@ const BRAND_BORDER = 'rgba(255,255,255,0.08)';
 const imageCache = new Map();
 const IMAGE_FETCH_TIMEOUT_MS = 15000;
 const IMAGE_RENDER_WAIT_TIMEOUT_MS = 8000;
+let activePdfLayoutConfig = null;
+
+function getActivePdfLayoutConfig() {
+  return activePdfLayoutConfig;
+}
 
 function formatInt(value) {
   return new Intl.NumberFormat('pt-BR').format(Number(value) || 0);
@@ -303,7 +308,7 @@ function metricIconSvg(kind, color = '#111111') {
 }
 
 function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
-  const layout = getPdfLayoutConfig().midiaKit.cover;
+  const layout = getActivePdfLayoutConfig().midiaKit.cover;
   const cityLine = cidade === 'Consolidado' && layout.showAllCitiesOnConsolidated
     ? 'Londrina, Maringá e Balneário Camboriú'
     : cidade;
@@ -429,7 +434,7 @@ function splitFormatTitle(tipo) {
 }
 
 function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
-  const layout = getPdfLayoutConfig().midiaKit.formatDivider;
+  const layout = getActivePdfLayoutConfig().midiaKit.formatDivider;
   const lines = splitFormatTitle(tipo);
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
@@ -460,7 +465,7 @@ function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
 }
 
 function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
-  const layout = getPdfLayoutConfig().midiaKit.pointPage;
+  const layout = getActivePdfLayoutConfig().midiaKit.pointPage;
   const details = [
     { key: 'publico', label: 'Público', value: ponto.publico || '-' },
     { key: 'fluxo', label: 'Fluxo / mês', value: formatInt(ponto.fluxo) },
@@ -529,7 +534,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
 }
 
 function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, highlights, simulationSummary, assets }) {
-  const layout = getPdfLayoutConfig().proposal.cover;
+  const layout = getActivePdfLayoutConfig().proposal.cover;
   const cards = [
     { iconHtml: proposalIcon('target'), label: 'Pontos', value: formatInt(proposalPoints.length) },
     { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
@@ -599,7 +604,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
 }
 
 function buildProposalPointPage({ point, index, total, image, assets }) {
-  const layout = getPdfLayoutConfig().proposal.point;
+  const layout = getActivePdfLayoutConfig().proposal.point;
   const stats = [
     { label: 'Público', value: point.publico || '-' },
     { label: 'Fluxo', value: formatInt(point.fluxo) },
@@ -698,6 +703,7 @@ async function loadPdfAssets() {
 }
 
 export async function generateMidiaKitPdf({ praca, pontos }) {
+  activePdfLayoutConfig = await loadPdfLayoutConfig();
   const cidade = praca && praca !== 'Todas as praças' ? praca : 'Consolidado';
   const kitPontos = Array.isArray(pontos) ? pontos : [];
   const resumo = buildResumo(kitPontos);
@@ -747,6 +753,7 @@ export async function generateProposalPdf({
   strategicText,
   simulationSummary
 }) {
+  activePdfLayoutConfig = await loadPdfLayoutConfig();
   const proposalPoints = Array.isArray(points) ? points : [];
   const proposalTotals = totals || { valorTotal: 0, fluxoTotal: 0, cpmEstimado: 0, insercoesTotal: 0 };
   const proposalCity = city || 'Múltiplas praças';

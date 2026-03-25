@@ -154,6 +154,25 @@ export function getPdfLayoutConfig() {
   return deepMerge(PDF_LAYOUT, getStoredPdfLayoutOverrides());
 }
 
+export async function fetchPdfLayoutOverridesFromServer() {
+  const res = await fetch('/api/admin/pdf-layout');
+  if (!res.ok) {
+    throw new Error('Erro ao carregar layout PDF persistido');
+  }
+  return res.json();
+}
+
+export async function loadPdfLayoutConfig() {
+  try {
+    const response = await fetchPdfLayoutOverridesFromServer();
+    const overrides = response?.overrides || {};
+    savePdfLayoutOverrides(overrides);
+    return deepMerge(PDF_LAYOUT, overrides);
+  } catch {
+    return getPdfLayoutConfig();
+  }
+}
+
 export function savePdfLayoutOverrides(overrides) {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(PDF_LAYOUT_STORAGE_KEY, JSON.stringify(overrides));

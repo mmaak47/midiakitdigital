@@ -48,6 +48,30 @@ export async function fetchAdminPontos() {
   return res.json();
 }
 
+export async function fetchAdminPdfLayout() {
+  const res = await fetch(`${API_BASE}/admin/pdf-layout`);
+  if (!res.ok) throw new Error('Erro ao carregar layout PDF');
+  return res.json();
+}
+
+export async function saveAdminPdfLayout(overrides) {
+  const res = await fetch(`${API_BASE}/admin/pdf-layout`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ overrides })
+  });
+  if (!res.ok) throw new Error('Erro ao salvar layout PDF');
+  return res.json();
+}
+
+export async function resetAdminPdfLayout() {
+  const res = await fetch(`${API_BASE}/admin/pdf-layout`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) throw new Error('Erro ao resetar layout PDF');
+  return res.json();
+}
+
 export async function createPonto(formData) {
   const res = await fetch(`${API_BASE}/pontos`, {
     method: 'POST',

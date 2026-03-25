@@ -42,6 +42,14 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
 function ensureColumn(table, column, definition) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all();
   if (!cols.some((c) => c.name === column)) {

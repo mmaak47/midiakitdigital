@@ -75,6 +75,37 @@ function parseOptionalCity(value) {
   return normalized;
 }
 
+const PDF_LAYOUT_SETTINGS_KEY = 'pdf_layout_overrides';
+
+function readPdfLayoutOverrides() {
+  const row = db.prepare('SELECT value, updated_at FROM app_settings WHERE key = ?').get(PDF_LAYOUT_SETTINGS_KEY);
+  if (!row?.value) {
+    return { overrides: {}, updatedAt: null };
+  }
+
+  try {
+    return {
+      overrides: JSON.parse(row.value),
+      updatedAt: row.updated_at || null
+    };
+  } catch {
+    return { overrides: {}, updatedAt: row.updated_at || null };
+  }
+}
+
+function writePdfLayoutOverrides(overrides) {
+  const serialized = JSON.stringify(overrides || {});
+  db.prepare(`
+    INSERT INTO app_settings (key, value, updated_at)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(key) DO UPDATE SET
+      value = excluded.value,
+      updated_at = datetime('now')
+  `).run(PDF_LAYOUT_SETTINGS_KEY, serialized);
+
+  return readPdfLayoutOverrides();
+}
+
 // ==================== API ROUTES ====================
 
 // GET all pontos (with optional filters)
@@ -363,6 +394,35 @@ app.get('/api/admin/pontos', (req, res) => {
   try {
     const pontos = db.prepare('SELECT * FROM pontos ORDER BY cidade, nome').all();
     res.json(pontos);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/pdf-layout', (req, res) => {
+  try {
+    res.json(readPdfLayoutOverrides());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/pdf-layout', (req, res) => {
+  try {
+    const overrides = req.body?.overrides;
+    if (overrides && (typeof overrides !== 'object' || Array.isArray(overrides))) {
+      return res.status(400).json({ error: 'overrides deve ser um objeto JSON' });
+    }
+    res.json(writePdfLayoutOverrides(overrides || {}));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/pdf-layout', (req, res) => {
+  try {
+    db.prepare('DELETE FROM app_settings WHERE key = ?').run(PDF_LAYOUT_SETTINGS_KEY);
+    res.json({ success: true, overrides: {}, updatedAt: null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, RotateCcw, SlidersHorizontal, Upload } from 'lucide-react';
+import { Check, Copy, Loader2, RotateCcw, Server, SlidersHorizontal, Upload } from 'lucide-react';
 import {
   PDF_CALIBRATION_GROUPS,
   PDF_LAYOUT_STORAGE_KEY,
@@ -8,6 +8,11 @@ import {
   savePdfLayoutOverrides,
   resetPdfLayoutOverrides
 } from '../../lib/pdfLayoutConfig';
+import {
+  fetchAdminPdfLayout,
+  saveAdminPdfLayout,
+  resetAdminPdfLayout
+} from '../../lib/api';
 
 function getValueByPath(source, path) {
   return path.split('.').reduce((acc, key) => acc?.[key], source);
@@ -63,11 +68,42 @@ export default function PdfCalibrationPanel() {
   const [copied, setCopied] = useState(false);
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
 
   useEffect(() => {
     const overrides = buildOverrideObject(defaultConfig, config);
     savePdfLayoutOverrides(overrides);
   }, [config, defaultConfig]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const response = await fetchAdminPdfLayout();
+        if (cancelled) return;
+        const overrides = response?.overrides || {};
+        savePdfLayoutOverrides(overrides);
+        setConfig(mergeDefaults(defaultConfig, overrides));
+        setStatusMessage(response?.updatedAt ? `Carregado do servidor em ${new Date(response.updatedAt).toLocaleString('pt-BR')}` : 'Configuração padrão carregada do servidor');
+      } catch {
+        if (cancelled) return;
+        setStatusMessage('Falha ao carregar do servidor. Mantido cache local deste navegador.');
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [defaultConfig]);
 
   const overridePreview = useMemo(() => {
     return JSON.stringify(buildOverrideObject(defaultConfig, config), null, 2);
@@ -80,10 +116,21 @@ export default function PdfCalibrationPanel() {
   };
 
   const handleReset = () => {
-    resetPdfLayoutOverrides();
-    setConfig(getDefaultPdfLayoutConfig());
-    setImportText('');
-    setImportError('');
+    void (async () => {
+      setSaving(true);
+      try {
+        await resetAdminPdfLayout();
+        resetPdfLayoutOverrides();
+        setConfig(getDefaultPdfLayoutConfig());
+        setImportText('');
+        setImportError('');
+        setStatusMessage('Configuração resetada no servidor.');
+      } catch {
+        setStatusMessage('Não foi possível resetar no servidor.');
+      } finally {
+        setSaving(false);
+      }
+    })();
   };
 
   const handleCopy = async () => {
@@ -102,6 +149,20 @@ export default function PdfCalibrationPanel() {
     }
   };
 
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const overrides = buildOverrideObject(defaultConfig, config);
+      const response = await saveAdminPdfLayout(overrides);
+      savePdfLayoutOverrides(response?.overrides || overrides);
+      setStatusMessage(response?.updatedAt ? `Salvo no servidor em ${new Date(response.updatedAt).toLocaleString('pt-BR')}` : 'Salvo no servidor');
+    } catch {
+      setStatusMessage('Falha ao salvar no servidor.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <section className="mb-6 rounded-2xl border border-brand-orange/20 bg-gradient-to-br from-brand-orange/10 to-white/[0.02] p-4 sm:p-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -112,24 +173,36 @@ export default function PdfCalibrationPanel() {
           </div>
           <h3 className="mt-3 text-lg font-semibold text-white">Ajuste fino visual do Midia Kit e da Proposta</h3>
           <p className="mt-1 max-w-3xl text-sm text-brand-gray-400">
-            Altere posições, tamanhos e espaçamentos aqui. Os valores ficam salvos no navegador atual e o próximo PDF já sai com esse layout.
+            Altere posições, tamanhos e espaçamentos aqui. Salve no servidor para compartilhar a mesma calibração entre máquinas e admins.
           </p>
-          <p className="mt-2 text-xs text-brand-gray-500">Storage key: {PDF_LAYOUT_STORAGE_KEY}</p>
+          <p className="mt-2 text-xs text-brand-gray-500">Cache local de segurança: {PDF_LAYOUT_STORAGE_KEY}</p>
+          {statusMessage ? <p className="mt-2 text-xs text-brand-gray-400">{statusMessage}</p> : null}
         </div>
 
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={handleCopy}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10"
+            onClick={handleSave}
+            disabled={saving || loading}
+            className="inline-flex items-center gap-2 rounded-xl border border-brand-orange/30 bg-brand-orange/15 px-3 py-2 text-sm text-brand-orange hover:bg-brand-orange/20 disabled:opacity-50"
           >
-            <Copy size={14} />
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Server size={14} />}
+            Salvar no servidor
+          </button>
+          <button
+            type="button"
+            onClick={handleCopy}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10 disabled:opacity-50"
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />}
             {copied ? 'JSON copiado' : 'Copiar JSON'}
           </button>
           <button
             type="button"
             onClick={handleReset}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10"
+            disabled={saving || loading}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10 disabled:opacity-50"
           >
             <RotateCcw size={14} />
             Resetar

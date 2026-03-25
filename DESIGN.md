@@ -207,7 +207,8 @@ transition-all duration-300
 - Modo calibração no app:
   - Acesse `/admin`
   - Use o painel `Modo calibração PDF`
-  - Os valores são salvos no navegador e aplicados automaticamente na próxima geração do PDF
+  - Os valores podem ser salvos no servidor para compartilhamento entre máquinas/admins
+  - O navegador mantém cache local apenas como fallback de segurança
 
 Exemplos de campos úteis para ajuste fino:
 
