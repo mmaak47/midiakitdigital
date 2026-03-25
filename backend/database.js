@@ -68,8 +68,8 @@ ensureColumn('pontos', 'arte_largura', 'INTEGER DEFAULT 1920');
 ensureColumn('pontos', 'arte_altura', 'INTEGER DEFAULT 1080');
 ensureColumn('pontos', 'custo_operacional', 'REAL DEFAULT 0');
 ensureColumn('admin_users', 'role', 'TEXT DEFAULT "vendedor"');
-ensureColumn('admin_users', 'created_at', 'TEXT DEFAULT (datetime("now"))');
-ensureColumn('admin_users', 'updated_at', 'TEXT DEFAULT (datetime("now"))');
+ensureColumn('admin_users', 'created_at', 'TEXT DEFAULT (datetime(\'now\'))');
+ensureColumn('admin_users', 'updated_at', 'TEXT DEFAULT (datetime(\'now\'))');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS entorno_cache (
