@@ -452,7 +452,7 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
     <div style="position:absolute;left:72px;bottom:120px;width:420px;">
       <div style="font-family:Poppins, system-ui, sans-serif;color:#fff;font-size:58px;line-height:0.95;font-weight:700;letter-spacing:-0.04em;">Elevando o branding</div>
       <div style="margin-top:20px;color:rgba(255,255,255,0.8);font-size:34px;line-height:1.22;">Invista no futuro da publicidade OOH e DOOH</div>
-      <div style="margin-top:26px;display:flex;align-items:center;justify-content:center;min-height:${layout.outOfHomeMinHeight}px;padding:0 ${layout.outOfHomePaddingX}px;background:#fff;color:#000;font-size:18px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;line-height:1;width:fit-content;">Out of Home</div>
+      <table cellpadding="0" cellspacing="0" border="0" style="margin-top:26px;"><tr><td style="min-height:${layout.outOfHomeMinHeight}px;padding:12px ${layout.outOfHomePaddingX}px;background:#fff;color:#000;font-size:18px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;line-height:1;text-align:center;white-space:nowrap;">Out of Home</td></tr></table>
     </div>
 
     <div style="position:absolute;right:70px;bottom:90px;text-align:left;">
@@ -523,11 +523,11 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
-    <div style="position:absolute;right:0;top:0;bottom:0;width:55%;overflow:hidden;">
+    <div style="position:absolute;right:0;top:0;bottom:0;width:52%;overflow:hidden;">
       <img src="${assets.heroBg || assets.showcase || ''}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:center;" />
-      <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,1) 0%,rgba(0,0,0,0.6) 30%,rgba(0,0,0,0.2) 100%);"></div>
+      <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,0.95) 0%,rgba(0,0,0,0.55) 35%,rgba(0,0,0,0.1) 100%);"></div>
     </div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:50%;background:#000;"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:48%;background:linear-gradient(90deg,#000 0%,#000 85%,rgba(0,0,0,0) 100%);"></div>
 
     <div style="position:absolute;left:82px;top:86px;min-width:310px;">
       <div style="font-family:Poppins, system-ui, sans-serif;font-size:64px;line-height:0.93;color:#fff;font-weight:700;text-transform:uppercase;">${escapeHtml(cidade)}</div>
@@ -561,9 +561,11 @@ function splitFormatTitle(tipo) {
   return [first, second];
 }
 
-function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
+function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }) {
   const layout = getActivePdfLayoutConfig().midiaKit.formatDivider;
   const lines = splitFormatTitle(tipo);
+  const telas = formatStats ? formatStats.telas : (cityStats.totalTelas || 0);
+  const enderecos = formatStats ? formatStats.enderecos : (cityStats.totalEnderecos || 0);
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
     <img src="${assets.wallpaper || assets.heroBg || ''}" alt="" style="position:absolute;inset:-80px;width:calc(100% + 160px);height:calc(100% + 160px);object-fit:cover;filter:blur(16px) saturate(1.12);opacity:0.10;" />
@@ -576,9 +578,9 @@ function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
     <div style="position:absolute;left:560px;bottom:138px;width:560px;border-left:2px solid rgba(255,255,255,0.58);border-bottom:2px solid rgba(255,255,255,0.58);height:344px;"></div>
 
     <div style="position:absolute;right:190px;bottom:170px;text-align:right;color:#fff;">
-      <div style="font-family:Poppins, system-ui, sans-serif;font-size:58px;font-weight:700;line-height:1;">${escapeHtml(formatInt(cityStats.totalTelas || 0))}</div>
+      <div style="font-family:Poppins, system-ui, sans-serif;font-size:58px;font-weight:700;line-height:1;">${escapeHtml(formatInt(telas))}</div>
       <div style="font-size:34px;line-height:1.15;opacity:0.92;">telas</div>
-      <div style="margin-top:16px;font-family:Poppins, system-ui, sans-serif;font-size:58px;font-weight:700;line-height:1;">${escapeHtml(formatInt(cityStats.totalEnderecos || 0))}</div>
+      <div style="margin-top:16px;font-family:Poppins, system-ui, sans-serif;font-size:58px;font-weight:700;line-height:1;">${escapeHtml(formatInt(enderecos))}</div>
       <div style="font-size:34px;line-height:1.15;opacity:0.92;">endereços</div>
     </div>
 
@@ -606,12 +608,14 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#d9d9d9;"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:#0c0c0c;"></div>
-    <div style="position:absolute;left:0;top:14px;bottom:14px;width:${layout.leftRailWidth}px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;">
-      <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="width:38px;height:auto;object-fit:contain;" />
-      <div style="display:flex;align-items:center;gap:6px;writing-mode:vertical-rl;text-orientation:mixed;">
-        <span style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:rgba(255,255,255,0.82);text-transform:uppercase;line-height:1.15;">${escapeHtml(ponto.cidade || '')}</span>
-        ${estado ? `<span style="font-size:9px;font-weight:600;letter-spacing:0.06em;color:rgba(255,255,255,0.5);text-transform:uppercase;line-height:1.15;">${escapeHtml(estado)}</span>` : ''}
+    <div style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:#0c0c0c;overflow:hidden;"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;">
+      <div style="transform:rotate(180deg);writing-mode:vertical-lr;white-space:nowrap;display:flex;align-items:center;gap:10px;padding-bottom:20px;padding-top:20px;">
+        <span style="font-size:14px;font-weight:700;letter-spacing:0.08em;color:rgba(255,255,255,0.85);text-transform:uppercase;">${escapeHtml(ponto.cidade || '')}</span>
+        ${estado ? `<span style="font-size:11px;font-weight:600;letter-spacing:0.06em;color:rgba(255,255,255,0.45);text-transform:uppercase;">${escapeHtml(estado)}</span>` : ''}
+      </div>
+      <div style="padding-bottom:18px;">
+        <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="width:38px;height:auto;object-fit:contain;" />
       </div>
     </div>
 
@@ -619,28 +623,29 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
     <div style="position:absolute;right:0;top:0;bottom:0;width:${layout.imagePanelWidth}px;background:#1a1a1a;"></div>
     <div style="position:absolute;right:0;top:0;bottom:0;width:${layout.imagePanelWidth}px;background:url('${image || assets.showcase || ''}') center/cover no-repeat;"></div>
 
-    <div style="position:absolute;left:${layout.contentLeft}px;top:52px;right:${layout.contentRight}px;display:flex;align-items:center;justify-content:center;gap:14px;border-bottom:2px solid #161616;padding-bottom:12px;">
+    <div style="position:absolute;left:${layout.contentLeft}px;top:42px;right:${layout.contentRight}px;border-bottom:2px solid #161616;padding-bottom:12px;">
       <div style="display:flex;align-items:center;gap:16px;">
         <div style="width:46px;height:46px;border:2px solid #222;display:flex;align-items:center;justify-content:center;font-size:21px;">▥</div>
         <div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.typeFontSize}px;line-height:0.9;font-weight:700;letter-spacing:-0.03em;color:#000;">${escapeHtml((ponto.tipo || 'FORMATO').toUpperCase())}</div>
       </div>
     </div>
 
-    <div style="position:absolute;left:${layout.contentLeft}px;top:${layout.nameTop}px;right:${layout.contentRight}px;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
-      <div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.nameFontSize}px;line-height:1.02;font-weight:700;color:#000;max-width:calc(100% - ${layout.nameMaxWidthOffset}px);word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME')}</div>
-      <div style="font-size:44px;line-height:0.95;font-weight:700;color:#000;white-space:nowrap;padding-top:8px;">${index}/${total}</div>
+    <div style="position:absolute;left:${layout.contentLeft}px;top:${layout.nameTop}px;right:${layout.contentRight}px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
+        <div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.nameFontSize}px;line-height:1.02;font-weight:700;color:#000;max-width:calc(100% - ${layout.nameMaxWidthOffset}px);word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME')}</div>
+        <div style="font-size:44px;line-height:0.95;font-weight:700;color:#000;white-space:nowrap;padding-top:8px;">${index}/${total}</div>
+      </div>
+      <div style="margin-top:8px;font-size:18px;line-height:1.3;color:#444;">${escapeHtml(ponto.endereco || 'Endereço não informado')}${escapeHtml(ponto.cidade ? ` · ${ponto.cidade}` : '')}</div>
     </div>
-
-    <div style="position:absolute;left:${layout.contentLeft}px;top:${layout.nameTop + 68}px;right:${layout.contentRight}px;font-size:20px;line-height:1.3;color:#333;">${escapeHtml(ponto.endereco || 'Endereço não informado')}${escapeHtml(ponto.cidade ? ` · ${ponto.cidade}` : '')}</div>
 
     <div style="position:absolute;left:${layout.contentLeft}px;top:${layout.metricsBoxTop}px;right:${layout.contentRight}px;border:2px solid rgba(17,17,17,0.32);background:rgba(255,255,255,0.5);padding:22px 24px;border-radius:16px;"></div>
     <div style="position:absolute;left:${layout.contentLeft + 26}px;top:${layout.metricsGridTop}px;right:${layout.contentRight + 24}px;display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;">
       ${details.slice(0, 6).map((item) => `
         <div style="min-height:96px;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:${layout.metricIconSize}px;height:${layout.metricIconSize}px;">${metricIconSvg(item.key, '#111111', layout.metricIconSize)}</div>
-            <div style="font-size:${layout.metricLabelFontSize}px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;line-height:1.05;">${escapeHtml(item.label)}</div>
-          </div>
+          <table cellpadding="0" cellspacing="0" border="0"><tr>
+            <td style="vertical-align:middle;padding-right:8px;line-height:0;">${metricIconSvg(item.key, '#111111', layout.metricIconSize)}</td>
+            <td style="vertical-align:middle;font-size:${layout.metricLabelFontSize}px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;line-height:1;">${escapeHtml(item.label)}</td>
+          </tr></table>
           <div style="margin-top:7px;font-family:Poppins, system-ui, sans-serif;font-size:${layout.metricValueFontSize}px;line-height:1.18;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
         </div>
       `).join('')}
@@ -658,9 +663,6 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
       </div>
     </div>
 
-    <div style="position:absolute;right:20px;bottom:22px;padding:8px 12px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.22);">
-      <img src="${assets.logoHorizontal || assets.logo07 || assets.logo || ''}" alt="" style="height:20px;width:auto;object-fit:contain;" />
-    </div>
   `, '#ECE7E0');
 }
 
@@ -1168,7 +1170,9 @@ export async function generateMidiaKitPdf({ praca, pontos }) {
   }, {});
 
   Object.entries(groupedByTipo).forEach(([tipo, items]) => {
-    pages.push(buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }));
+    const formatTelas = items.reduce((sum, { ponto }) => sum + (Number(ponto.telas) || 0), 0);
+    const formatEnderecos = new Set(items.map(({ ponto }) => `${ponto.cidade || ''}-${ponto.endereco || ''}`.trim())).size;
+    pages.push(buildMidiaKitFormatDividerPage({ tipo, formatStats: { telas: formatTelas, enderecos: formatEnderecos }, cityStats, assets }));
     items.forEach(({ ponto, index }) => {
       pages.push(buildMidiaKitPointPage({
         ponto,
