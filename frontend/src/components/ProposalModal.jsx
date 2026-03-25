@@ -42,6 +42,8 @@ export default function ProposalModal({ onClose }) {
   const [form, setForm] = useState({
     clientName: '',
     clientAddress: '',
+    proposalSubtitle: '',
+    strategicTopics: '',
     segmento: 'clinica',
     objetivo: 'reconhecimento de marca',
     publicos: [],
@@ -397,6 +399,11 @@ export default function ProposalModal({ onClose }) {
   const handleExportProposalPdf = async () => {
     try {
       setPdfBusy(true);
+      const strategicTopics = String(form.strategicTopics || '')
+        .split(/\n+/)
+        .map((line) => line.replace(/^[-•\d.)\s]+/, '').trim())
+        .filter(Boolean);
+
       await generateProposalPdf({
         clientName: form.clientName,
         clientAddress: form.clientAddress,
@@ -408,6 +415,8 @@ export default function ProposalModal({ onClose }) {
         pricingSummary,
         segmento: form.segmento,
         strategicText: argumentos,
+        strategicTopics,
+        strategicSubtitle: form.proposalSubtitle,
         simulationSummary,
         analysisMode,
         showCampaignScore: pdfSections.score,
@@ -521,10 +530,23 @@ export default function ProposalModal({ onClose }) {
               <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <Input label="Nome do cliente" value={form.clientName} onChange={(value) => setForm((s) => ({ ...s, clientName: value }))} />
                 <Input label="Endereço do cliente" value={form.clientAddress} onChange={(value) => setForm((s) => ({ ...s, clientAddress: value }))} />
+                <Input label="Subtítulo da capa (opcional)" value={form.proposalSubtitle} onChange={(value) => setForm((s) => ({ ...s, proposalSubtitle: value }))} />
                 <CustomSelect label="Praças" value={form.selectedCities} onChange={(value) => setForm((s) => ({ ...s, selectedCities: value }))} options={availableCities} multiple placeholder="Todas as praças dos pontos selecionados" />
                 <CustomSelect label="Segmento" value={form.segmento} onChange={(value) => setForm((s) => ({ ...s, segmento: value }))} options={SEGMENTOS.map((segmento) => ({ value: segmento, label: getSegmentDisplayName(segmento) }))} />
                 <CustomSelect label="Objetivo" value={form.objetivo} onChange={(value) => setForm((s) => ({ ...s, objetivo: value }))} options={OBJETIVOS} allowCustom customPlaceholder="Digite um objetivo personalizado" />
                 <CustomSelect label="Públicos" value={form.publicos} onChange={(value) => setForm((s) => ({ ...s, publicos: value }))} options={availablePublicos} multiple placeholder="Públicos estratégicos" />
+              </div>
+
+              <div>
+                <label className="text-[11px] uppercase tracking-[0.12em] text-brand-gray-500">Tópicos estratégicos (1 por linha)</label>
+                <textarea
+                  value={form.strategicTopics}
+                  onChange={(event) => setForm((state) => ({ ...state, strategicTopics: event.target.value }))}
+                  rows={4}
+                  placeholder={argumentos.join('\n')}
+                  className="mt-1.5 w-full rounded-xl border border-white/15 bg-white/[0.07] px-3 py-2.5 text-sm text-brand-gray-200 outline-none focus:border-brand-orange/45 focus:bg-white/[0.09] transition-colors"
+                />
+                <p className="mt-1 text-xs text-brand-gray-500">Se ficar vazio, usamos os argumentos estratégicos gerados automaticamente.</p>
               </div>
 
               <div className="grid lg:grid-cols-2 gap-3">

@@ -5,6 +5,12 @@ import { getSegmentDisplayName } from '../lib/strategy';
 
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 const formatNumber = (value) => new Intl.NumberFormat('pt-BR').format(Number(value) || 0);
+const formatCostPerImpact = (value) => {
+  const numeric = Number(value) || 0;
+  if (!Number.isFinite(numeric) || numeric <= 0) return '-';
+  if (numeric < 0.01) return `R$ ${numeric.toFixed(4).replace('.', ',')}`;
+  return `R$ ${numeric.toFixed(2).replace('.', ',')}`;
+};
 
 function coverImage(points) {
   return points.find((p) => p.proposalSimulationPreview || p.simulacao_preview || p.imagem)?.proposalSimulationPreview
@@ -37,7 +43,7 @@ export default function QuickPresentationMode({ points = [], totals = {}, segmen
       ],
       extraMetrics: [
         { label: 'Ticket médio', value: formatCurrency(ticketMedio) },
-        { label: 'Custo por impacto', value: `R$ ${custoPorImpacto.toFixed(4).replace('.', ',')}` },
+        { label: 'Custo por impacto', value: formatCostPerImpact(custoPorImpacto) },
         { label: 'Pontos com entorno', value: `${formatNumber(pontosComEntorno)} de ${formatNumber(points.length)}` },
         { label: 'Inserções totais', value: `Mínimo de ${formatNumber(totals?.insercoesTotal || 0)}` }
       ],
@@ -136,8 +142,8 @@ export default function QuickPresentationMode({ points = [], totals = {}, segmen
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <img src="/logo-deitado.png" alt="Intermidia" className="h-9 w-auto opacity-95" />
-                <span className="rounded-full border border-brand-orange/35 bg-brand-orange/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-orange">
-                  Pitch rápido
+                <span className="inline-flex min-h-[32px] items-center justify-center rounded-full border border-brand-orange/35 bg-brand-orange/15 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] leading-none text-brand-orange">
+                  <span className="block translate-y-[1px]">Pitch rápido</span>
                 </span>
               </div>
               <button onClick={onClose} className="rounded-full border border-white/20 bg-black/35 p-2 text-white/70 hover:text-white">

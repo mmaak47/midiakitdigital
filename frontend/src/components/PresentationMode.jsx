@@ -55,11 +55,14 @@ export default function PresentationMode({ points = [], totals, segmento, client
           distance: Number(place.distance) || 0
         }))
       : [];
+    const relevantPlacesCount = Number(current?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
+    const hasEntornoData = relevantPlacesCount > 0;
 
     return {
       mediaUrl: current.proposalSimulationPreview || current.simulacao_preview || current.imagem,
       audience: buildAudienceQualification(current),
       entorno: buildEntornoSummary(current.entornoMetrics, segmento),
+      hasEntornoData,
       segmentLabel: getSegmentDisplayName(segmento),
       radiusMeters: Number(current?.entornoMetrics?.raio_m) || 800,
       geo: {
@@ -206,29 +209,33 @@ export default function PresentationMode({ points = [], totals, segmento, client
                     }}
                   />
 
-                  <InsightCard
-                    icon={MapPinned}
-                    eyebrow={readText(`entorno-${current.id}-eyebrow`, 'Entorno aderente')}
-                    title={readText(`entorno-${current.id}-title`, currentView.entorno.headline)}
-                    description={readText(`entorno-${current.id}-description`, currentView.entorno.summary)}
-                    items={currentView.entorno.places.map((place, itemIndex) => readText(`entorno-${current.id}-item-${itemIndex}`, `${place.name} • ${place.category} • ${place.distanceLabel}`))}
-                    emptyMessage="Os locais próximos aparecerão aqui assim que o cache de entorno desse segmento estiver disponível."
-                    editMode={editMode}
-                    onEdit={(field, value, itemIndex) => {
-                      const key = field === 'item'
-                        ? `entorno-${current.id}-item-${itemIndex}`
-                        : `entorno-${current.id}-${field}`;
-                      writeText(key, value);
-                    }}
-                  />
+                  {currentView.hasEntornoData ? (
+                    <>
+                      <InsightCard
+                        icon={MapPinned}
+                        eyebrow={readText(`entorno-${current.id}-eyebrow`, 'Entorno aderente')}
+                        title={readText(`entorno-${current.id}-title`, currentView.entorno.headline)}
+                        description={readText(`entorno-${current.id}-description`, currentView.entorno.summary)}
+                        items={currentView.entorno.places.map((place, itemIndex) => readText(`entorno-${current.id}-item-${itemIndex}`, `${place.name} • ${place.category} • ${place.distanceLabel}`))}
+                        emptyMessage="Os locais próximos aparecerão aqui assim que o cache de entorno desse segmento estiver disponível."
+                        editMode={editMode}
+                        onEdit={(field, value, itemIndex) => {
+                          const key = field === 'item'
+                            ? `entorno-${current.id}-item-${itemIndex}`
+                            : `entorno-${current.id}-${field}`;
+                          writeText(key, value);
+                        }}
+                      />
 
-                  <GeoRadiusMapCard
-                    title="Mapa geográfico de evidências"
-                    radiusMeters={currentView.radiusMeters}
-                    point={currentView.geo.point}
-                    places={currentView.geo.nearby}
-                    fallbackPlaces={currentView.entorno.places}
-                  />
+                      <GeoRadiusMapCard
+                        title="Mapa geográfico de evidências"
+                        radiusMeters={currentView.radiusMeters}
+                        point={currentView.geo.point}
+                        places={currentView.geo.nearby}
+                        fallbackPlaces={currentView.entorno.places}
+                      />
+                    </>
+                  ) : null}
                 </div>
               </div>
             </motion.section>

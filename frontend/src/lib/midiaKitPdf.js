@@ -61,6 +61,19 @@ function formatDecimalMoney(value) {
   }).format(Number(value) || 0);
 }
 
+function formatCostPerImpact(value) {
+  const numeric = Number(value) || 0;
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return '-';
+  }
+
+  if (numeric < 0.01) {
+    return `R$ ${numeric.toFixed(4).replace('.', ',')}`;
+  }
+
+  return `R$ ${numeric.toFixed(2).replace('.', ',')}`;
+}
+
 function slugify(value) {
   return (value || 'praca')
     .toLowerCase()
@@ -400,10 +413,10 @@ function proposalIcon(kind) {
     return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7a8 8 0 0 0-13.7-2.5"></path><path d="M17 7h3V4"></path><path d="M4 17a8 8 0 0 0 13.7 2.5"></path><path d="M7 17H4v3"></path></svg>`;
   }
   if (kind === 'money') {
-    return `<span style="font-family:Poppins, system-ui, sans-serif;font-size:23px;font-weight:700;line-height:1;display:block;transform:translateY(0.5px);">R$</span>`;
+    return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"></circle><path d="M9.2 10.2c0-1.1 1-2 2.2-2h1.2c1.1 0 2 .8 2 1.9 0 .9-.6 1.6-1.5 1.9l-2.1.6c-.9.3-1.5 1-1.5 1.9 0 1.1.9 1.9 2 1.9h1.3c1.2 0 2.2-.9 2.2-2"></path></svg>`;
   }
   if (kind === 'cpm') {
-    return `<span style="font-family:Poppins, system-ui, sans-serif;font-size:20px;font-weight:700;line-height:1;display:block;transform:translateY(0.5px);">CP</span>`;
+    return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15a7 7 0 1 1 14 0"></path><path d="M12 11.5 15.8 9"></path><circle cx="12" cy="15" r="1.3" fill="${BRAND_ORANGE}" stroke="none"></circle><path d="M7.5 17h9"></path></svg>`;
   }
   return `<span style="display:block;width:8px;height:8px;border-radius:999px;background:${BRAND_ORANGE};"></span>`;
 }
@@ -680,10 +693,11 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   `, '#ECE7E0');
 }
 
-function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, pricingSummary, highlights, simulationSummary, segmento, assets }) {
+function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, pricingSummary, highlights, strategicTopics, strategicSubtitle, simulationSummary, segmento, assets }) {
   const layout = getActivePdfLayoutConfig().proposal.cover;
   const segmentLabel = getSegmentDisplayName(segmento);
   const pointsWithEntorno = proposalPoints.filter((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0).length;
+  const hasEntornoData = pointsWithEntorno > 0;
   const originalTotal = pricingSummary?.originalTotal ?? proposalTotals.valorTotal;
   const finalTotal = pricingSummary?.finalTotal ?? proposalTotals.valorTotal;
   const cards = [
@@ -693,7 +707,10 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
     { iconHtml: proposalIcon('money'), label: 'Valor Negociado', value: formatMoney(finalTotal) },
     { iconHtml: proposalIcon('cpm'), label: 'CPM estimado', value: formatDecimalMoney(proposalTotals.cpmEstimado) }
   ];
-  const strategicItems = highlights.length ? highlights : ['Argumentos estratégicos serão definidos na reunião comercial.'];
+  const strategicItems = strategicTopics.length
+    ? strategicTopics
+    : (highlights.length ? highlights : ['Argumentos estratégicos serão definidos na reunião comercial.']);
+  const subtitleText = String(strategicSubtitle || '').trim() || `Planejamento comercial para ${proposalCity} com foco em cobertura, frequência e presença de marca.`;
 
   return createPage(`
     <div style="position:absolute;inset:0;background:url('${assets.heroBg || assets.cityBg || ''}') center/cover no-repeat;"></div>
@@ -709,7 +726,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
         </div>
 
         <div style="margin-top:40px;font-family:Poppins, system-ui, sans-serif;font-size:84px;line-height:0.92;font-weight:700;letter-spacing:-0.05em;max-width:760px;">${escapeHtml(proposalClient)}</div>
-        <div style="margin-top:20px;font-size:28px;line-height:1.45;color:rgba(255,255,255,0.74);max-width:720px;">Planejamento comercial para ${escapeHtml(proposalCity)} com foco em cobertura, frequência e presença de marca.</div>
+        <div style="margin-top:20px;font-size:28px;line-height:1.45;color:rgba(255,255,255,0.74);max-width:720px;">${escapeHtml(subtitleText)}</div>
 
         <div data-calibration-id="proposal.cover.chips" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:24px;">
           ${[
@@ -756,10 +773,12 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
               <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.46);">Segmento priorizado</div>
               <div style="margin-top:8px;font-size:22px;line-height:1.25;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(segmentLabel)}</div>
             </div>
-            <div style="padding:14px 16px;border-radius:20px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);">
-              <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.46);">Entorno aderente</div>
-              <div style="margin-top:8px;font-size:22px;line-height:1.25;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(`${formatInt(pointsWithEntorno)} ponto${pointsWithEntorno === 1 ? '' : 's'}`)}</div>
-            </div>
+            ${hasEntornoData ? `
+              <div style="padding:14px 16px;border-radius:20px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);">
+                <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.46);">Entorno aderente</div>
+                <div style="margin-top:8px;font-size:22px;line-height:1.25;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(`${formatInt(pointsWithEntorno)} ponto${pointsWithEntorno === 1 ? '' : 's'}`)}</div>
+              </div>
+            ` : ''}
           </div>
         </div>
       </div>
@@ -778,6 +797,7 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
   const cpm = fluxoTotal > 0 ? valorNegociado / (fluxoTotal / 1000) : 0;
   const custoPorImpacto = fluxoTotal > 0 ? valorNegociado / fluxoTotal : 0;
   const pointsWithEntorno = proposalPoints.filter((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0).length;
+  const hasEntornoData = pointsWithEntorno > 0;
   const scoreEntornoMedio = pointCount > 0
     ? proposalPoints.reduce((sum, point) => sum + (Number(point?.entornoMetrics?.score_relevancia) || 0), 0) / pointCount
     : 0;
@@ -786,37 +806,37 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
     {
       name: 'Valor Tabela',
       meaning: 'Soma dos valores mensais dos pontos sem desconto.',
-      formula: 'valor_tabela = soma(preco_mensal_por_ponto)',
+      howToRead: 'Soma dos valores mensais de todos os pontos, antes de qualquer negociação.',
       value: formatMoney(valorTabela)
     },
     {
       name: 'Valor Negociado',
       meaning: 'Valor final da proposta após políticas comerciais.',
-      formula: 'valor_negociado = valor_tabela - descontos_aplicados',
+      howToRead: 'Valor final considerado para a campanha após condições comerciais aplicadas.',
       value: formatMoney(valorNegociado)
     },
     {
       name: 'Ticket Médio',
       meaning: 'Investimento médio por ponto selecionado.',
-      formula: 'ticket_medio = valor_negociado / quantidade_de_pontos',
+      howToRead: 'Média de investimento por ponto selecionado.',
       value: formatMoney(ticketMedio)
     },
     {
       name: 'CPM Estimado',
       meaning: 'Custo estimado para mil impactos (1.000).',
-      formula: 'cpm = valor_negociado / (fluxo_total / 1000)',
+      howToRead: 'Quanto custa, em média, gerar mil impactos dentro deste plano.',
       value: `R$ ${cpm.toFixed(2).replace('.', ',')}`
     },
     {
       name: 'Custo por Impacto',
       meaning: 'Custo unitário estimado por impacto mensal.',
-      formula: 'custo_por_impacto = valor_negociado / fluxo_total',
-      value: `R$ ${custoPorImpacto.toFixed(4).replace('.', ',')}`
+      howToRead: 'Custo estimado de cada impacto mensal, considerando todo o fluxo da campanha.',
+      value: formatCostPerImpact(custoPorImpacto)
     },
     {
       name: 'Inserções Mensais',
       meaning: 'Volume mínimo de inserções previstas no plano.',
-      formula: 'insercoes = soma(insercoes_mensais_por_ponto)',
+      howToRead: 'Quantidade mínima de inserções mensais planejadas para execução da campanha.',
       value: `Mínimo de ${formatInt(insercoesTotal)}`
     }
   ];
@@ -836,7 +856,7 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
       </div>
 
       <div style="padding:16px 20px;border-radius:18px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-size:14px;line-height:1.5;color:rgba(255,255,255,0.85);">
-        As métricas abaixo resumem eficiência comercial, escala e aderência de entorno. Os valores exibidos já refletem esta proposta.
+        As métricas abaixo resumem eficiência comercial e escala de entrega da campanha. Os valores exibidos já refletem esta proposta.
       </div>
 
       <div style="display:grid;grid-template-columns:1.06fr 0.94fr;gap:14px;min-height:0;">
@@ -846,7 +866,7 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
               <div>
                 <div style="font-size:15px;font-weight:700;color:#fff;">${escapeHtml(item.name)}</div>
                 <div style="margin-top:4px;font-size:12px;line-height:1.4;color:rgba(255,255,255,0.72);">${escapeHtml(item.meaning)}</div>
-                <div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;font-size:11px;line-height:1.35;color:rgba(255,255,255,0.85);word-break:break-word;">${escapeHtml(item.formula)}</div>
+                <div style="margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);font-size:11px;line-height:1.35;color:rgba(255,255,255,0.85);word-break:break-word;">${escapeHtml(item.howToRead)}</div>
               </div>
               <div style="text-align:right;">
                 <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Resultado</div>
@@ -862,27 +882,28 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
             <div style="margin-top:8px;font-size:12px;line-height:1.45;color:rgba(255,255,255,0.78);">
               Índice de 0 a 10 que combina diversidade de formatos, volume de fluxo, cobertura, presença e aderência ao público/objetivo.
             </div>
-            <div style="margin-top:10px;padding:10px;border-radius:10px;background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;font-size:11px;line-height:1.35;color:rgba(255,255,255,0.85);white-space:pre-line;">score_raw = min(2.2, formatos/3) + min(2.4, fluxo/700000) + min(2.0, coverage/25) + min(1.8, presence/28) + min(1.6, aderencia_publico) + min(1.4, aderencia_objetivo)
-score_final = min(10, round(score_raw, 1))</div>
+            <div style="margin-top:10px;padding:10px;border-radius:10px;background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);font-size:11px;line-height:1.4;color:rgba(255,255,255,0.85);">Leitura prática: quanto maior a diversidade, o fluxo e a presença, maior o score final da campanha.</div>
           </div>
 
-          <div style="padding:16px 18px;border-radius:16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
-            <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Score do entorno</div>
-            <div style="margin-top:8px;font-size:12px;line-height:1.45;color:rgba(255,255,255,0.78);">
-              Mede relevância comercial local por ponto para o segmento priorizado, considerando proximidade e categorias relacionadas.
-            </div>
-            <div style="margin-top:10px;padding:10px;border-radius:10px;background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;font-size:11px;line-height:1.35;color:rgba(255,255,255,0.85);">score_entorno = min(48, relevancia*0.62 + estabelecimentos*1.35 + categorias*2.8)</div>
-            <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <div style="padding:10px;border-radius:10px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.07);">
-                <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Score médio</div>
-                <div style="margin-top:6px;font-size:22px;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${scoreEntornoMedio.toFixed(1).replace('.', ',')}</div>
+          ${hasEntornoData ? `
+            <div style="padding:16px 18px;border-radius:16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+              <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Score do entorno</div>
+              <div style="margin-top:8px;font-size:12px;line-height:1.45;color:rgba(255,255,255,0.78);">
+                Mede relevância comercial local por ponto para o segmento priorizado, considerando proximidade e categorias relacionadas.
               </div>
-              <div style="padding:10px;border-radius:10px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.07);">
-                <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Pontos com dados</div>
-                <div style="margin-top:6px;font-size:22px;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(pointsWithEntorno)}</div>
+              <div style="margin-top:10px;padding:10px;border-radius:10px;background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);font-size:11px;line-height:1.35;color:rgba(255,255,255,0.85);">Leitura prática: mais locais aderentes e mais proximidade tendem a elevar o score de entorno.</div>
+              <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <div style="padding:10px;border-radius:10px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.07);">
+                  <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Score médio</div>
+                  <div style="margin-top:6px;font-size:22px;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${scoreEntornoMedio.toFixed(1).replace('.', ',')}</div>
+                </div>
+                <div style="padding:10px;border-radius:10px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.07);">
+                  <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Pontos com dados</div>
+                  <div style="margin-top:6px;font-size:22px;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(pointsWithEntorno)}</div>
+                </div>
               </div>
             </div>
-          </div>
+          ` : ''}
 
           <div style="padding:14px 16px;border-radius:14px;background:rgba(254,92,43,0.12);border:1px solid rgba(254,92,43,0.24);font-size:12px;line-height:1.45;color:rgba(255,255,255,0.9);">
             Observação: as métricas são estimativas com base no inventário e nos dados cadastrais da campanha. Valores podem variar conforme filtros, objetivo e seleção de pontos.
@@ -898,6 +919,7 @@ function buildProposalPointPage({ point, index, total, image, image2, segmento, 
   const audience = buildAudienceQualification(point);
   const environment = buildEntornoSummary(point?.entornoMetrics, segmento);
   const relevantPlacesCount = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
+  const hasEntornoData = relevantPlacesCount > 0;
   const fluxoLabel = isVehicleFlowPoint(point) ? 'veículos/mês' : 'pessoas/mês';
   const coords = (() => {
     const lat = Number(point.lat); const lng = Number(point.lng);
@@ -933,10 +955,10 @@ function buildProposalPointPage({ point, index, total, image, image2, segmento, 
             <div style="margin-top:6px;font-size:18px;line-height:1.4;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} · ${escapeHtml(point.tipo || '-')}${coords ? ` <span style="font-size:14px;color:rgba(255,255,255,0.4);">· ${escapeHtml(coords)}</span>` : ''}</div>
           </div>
         </div>
-        <div data-calibration-id="proposal.point.counter" style="display:inline-grid;grid-template-columns:auto auto auto;align-items:center;justify-content:center;column-gap:${layout.counterGap}px;min-width:${layout.counterMinWidth}px;min-height:${layout.counterMinHeight}px;padding:0 ${layout.counterPaddingX}px;border-radius:20px;background:#111;border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;color:#fff;line-height:1;font-family:Poppins, system-ui, sans-serif;">
-          <span style="display:block;color:${BRAND_ORANGE};transform:translateY(1px);">${index}</span>
-          <span style="display:block;color:rgba(255,255,255,0.56);transform:translateY(1px);">/</span>
-          <span style="display:block;color:rgba(255,255,255,0.86);transform:translateY(1px);">${total}</span>
+        <div data-calibration-id="proposal.point.counter" style="display:inline-flex;align-items:center;justify-content:center;gap:${layout.counterGap}px;min-width:${layout.counterMinWidth}px;min-height:${layout.counterMinHeight}px;padding:0 ${layout.counterPaddingX}px;border-radius:20px;background:#111;border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;color:#fff;line-height:1;font-family:Poppins, system-ui, sans-serif;white-space:nowrap;text-align:center;">
+          <span style="display:block;color:${BRAND_ORANGE};">${index}</span>
+          <span style="display:block;color:rgba(255,255,255,0.56);">/</span>
+          <span style="display:block;color:rgba(255,255,255,0.86);">${total}</span>
         </div>
       </div>
 
@@ -948,11 +970,13 @@ function buildProposalPointPage({ point, index, total, image, image2, segmento, 
         </div>
 
         <div style="display:flex;flex-direction:column;gap:18px;min-width:0;">
-          <div data-calibration-id="proposal.point.addressBox" style="padding:26px 28px;border-radius:30px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);">
-            <div style="font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Entorno relevante</div>
-            <div style="margin-top:10px;font-size:38px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(relevantPlacesCount)}</div>
-            <div style="margin-top:8px;font-size:14px;line-height:1.45;color:rgba(255,255,255,0.72);">${escapeHtml(relevantPlacesCount === 1 ? 'local relevante no raio analisado.' : 'locais relevantes no raio analisado.')}</div>
-          </div>
+          ${hasEntornoData ? `
+            <div data-calibration-id="proposal.point.addressBox" style="padding:26px 28px;border-radius:30px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);">
+              <div style="font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Entorno relevante</div>
+              <div style="margin-top:10px;font-size:38px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(relevantPlacesCount)}</div>
+              <div style="margin-top:8px;font-size:14px;line-height:1.45;color:rgba(255,255,255,0.72);">${escapeHtml(relevantPlacesCount === 1 ? 'local relevante no raio analisado.' : 'locais relevantes no raio analisado.')}</div>
+            </div>
+          ` : ''}
 
           <div style="padding:22px 24px;border-radius:28px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
             <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Qualificação do público</div>
@@ -961,11 +985,13 @@ function buildProposalPointPage({ point, index, total, image, image2, segmento, 
             <div style="margin-top:10px;font-size:16px;line-height:1.5;color:rgba(255,255,255,0.72);word-break:break-word;">${escapeHtml(audience.summary)}</div>
           </div>
 
-          <div style="padding:22px 24px;border-radius:28px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
-            <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Entorno relevante</div>
-            <div style="margin-top:10px;font-size:20px;line-height:1.35;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(environment.headline)}</div>
-            <div style="margin-top:8px;font-size:15px;line-height:1.45;color:rgba(255,255,255,0.68);word-break:break-word;">${escapeHtml(environment.summary)}</div>
-          </div>
+          ${hasEntornoData ? `
+            <div style="padding:22px 24px;border-radius:28px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+              <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Entorno relevante</div>
+              <div style="margin-top:10px;font-size:20px;line-height:1.35;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(environment.headline)}</div>
+              <div style="margin-top:8px;font-size:15px;line-height:1.45;color:rgba(255,255,255,0.68);word-break:break-word;">${escapeHtml(environment.summary)}</div>
+            </div>
+          ` : ''}
 
           <div data-calibration-id="proposal.point.statsList" style="display:grid;grid-template-columns:1fr;gap:14px;">
             ${stats.map((item) => `
@@ -1518,7 +1544,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
           ${[
             { label: 'Inserções/mês', value: `Mínimo de ${formatInt(insercoesTotal)}` },
             { label: 'Valor Negociado', value: formatMoney(finalTotal) },
-            { label: 'Custo por impacto', value: fluxoTotal > 0 ? `R$ ${(finalTotal / fluxoTotal).toFixed(2).replace('.', ',')}` : '-' }
+            { label: 'Custo por impacto', value: formatCostPerImpact(fluxoTotal > 0 ? (finalTotal / fluxoTotal) : 0) }
           ].map((row) => `
             <div>
               <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">${escapeHtml(row.label)}</div>
@@ -1583,6 +1609,8 @@ export async function generateProposalPdf({
   totals,
   segmento,
   strategicText,
+  strategicTopics,
+  strategicSubtitle,
   simulationSummary,
   pricingSummary,
   showCampaignScore = true,
@@ -1595,6 +1623,8 @@ export async function generateProposalPdf({
   const proposalCity = city || 'Múltiplas praças';
   const proposalClient = clientName || 'Cliente não informado';
   const highlights = normalizeLines(strategicText, 4);
+  const strategicTopicsList = normalizeLines(strategicTopics, 6);
+  const hasEntornoData = proposalPoints.some((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0);
   const assets = await loadPdfAssets();
   const proposalImages = await Promise.all(proposalPoints.map((point) => imageToDataUrl(pickProposalImageUrl(point))));
   const proposalImages2 = await Promise.all(proposalPoints.map((point) => {
@@ -1612,6 +1642,8 @@ export async function generateProposalPdf({
       proposalTotals,
       pricingSummary,
       highlights,
+      strategicTopics: strategicTopicsList,
+      strategicSubtitle,
       simulationSummary,
       segmento,
       assets
@@ -1637,18 +1669,20 @@ export async function generateProposalPdf({
     }));
   });
 
-  pages.push(buildProposalEntornoEvidencePage({
-    proposalCity,
-    proposalPoints,
-    segmento,
-    assets
-  }));
+  if (hasEntornoData) {
+    pages.push(buildProposalEntornoEvidencePage({
+      proposalCity,
+      proposalPoints,
+      segmento,
+      assets
+    }));
+  }
 
   if (showCampaignScore) {
     pages.push(buildCampaignScorePage({ proposalPoints, segmento, assets }));
   }
 
-  if (showCoverageLayer) {
+  if (showCoverageLayer && hasEntornoData) {
     pages.push(buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, assets }));
   }
 
