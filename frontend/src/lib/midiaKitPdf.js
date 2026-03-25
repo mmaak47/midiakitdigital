@@ -615,8 +615,8 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
     <div data-calibration-id="midiaKit.pointPage.metricsBox" style="position:absolute;left:${layout.contentLeft}px;top:${layout.metricsBoxTop}px;right:${layout.contentRight}px;border:2px solid rgba(17,17,17,0.32);background:rgba(255,255,255,0.5);padding:22px 24px;border-radius:16px;"></div>
     <div data-calibration-id="midiaKit.pointPage.metricsBox" style="position:absolute;left:${layout.contentLeft + 26}px;top:${layout.metricsGridTop}px;right:${layout.contentRight + 24}px;display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;">
       ${details.slice(0, 6).map((item) => `
-        <div style="display:grid;grid-template-columns:22px 1fr;grid-template-areas:'icon label' '. value';column-gap:10px;row-gap:7px;min-height:96px;">
-          <div style="grid-area:icon;display:flex;align-items:center;justify-content:center;width:${layout.metricIconSize + 2}px;height:${layout.metricIconSize + 2}px;">${metricIconSvg(item.key, '#111111', layout.metricIconSize)}</div>
+        <div style="display:grid;grid-template-columns:${layout.metricIconSize + 8}px 1fr;grid-template-areas:'icon label' '. value';column-gap:10px;row-gap:7px;min-height:96px;">
+          <div style="grid-area:icon;display:flex;align-items:center;justify-content:center;width:${layout.metricIconSize + 2}px;height:${layout.metricIconSize + 2}px;transform:translate(${layout.metricIconOffsetX || 0}px,${layout.metricIconOffsetY || 0}px);">${metricIconSvg(item.key, '#111111', layout.metricIconSize)}</div>
           <div style="grid-area:label;font-size:${layout.metricLabelFontSize}px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;line-height:1.05;">${escapeHtml(item.label)}</div>
           <div style="grid-area:value;font-family:Poppins, system-ui, sans-serif;font-size:${layout.metricValueFontSize}px;line-height:1.18;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
         </div>

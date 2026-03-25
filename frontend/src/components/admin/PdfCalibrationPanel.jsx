@@ -284,64 +284,57 @@ export default function PdfCalibrationPanel() {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-            <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-brand-gray-500">Página em preview</label>
-                <select
-                  value={selectedPreviewKey}
-                  onChange={(event) => setSelectedPreviewKey(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-                >
-                  {PDF_CALIBRATION_PREVIEWS.map((preview) => (
-                    <option key={preview.key} value={preview.key}>
-                      {preview.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-brand-gray-500">Box isolado</label>
-                <select
-                  value={selectedFocusKey}
-                  onChange={(event) => setSelectedFocusKey(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-                >
-                  {(selectedPreview?.focusTargets || []).map((target) => (
-                    <option key={target.key} value={target.key}>
-                      {target.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <label className="flex items-end">
-                <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white">
-                  <input
-                    type="checkbox"
-                    checked={isolateFocus}
-                    onChange={(event) => setIsolateFocus(event.target.checked)}
-                    className="accent-brand-orange"
-                  />
-                  Escurecer resto
-                </span>
-              </label>
-            </div>
+      {/* Selectors — always on top, full width */}
+      <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-brand-gray-500">Página em preview</label>
+            <select
+              value={selectedPreviewKey}
+              onChange={(event) => setSelectedPreviewKey(event.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+            >
+              {PDF_CALIBRATION_PREVIEWS.map((preview) => (
+                <option key={preview.key} value={preview.key}>
+                  {preview.label}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <PdfCalibrationPreview
-            config={config}
-            previewKey={selectedPreviewKey}
-            focusKey={selectedFocusKey}
-            focusLabel={selectedFocus?.label || ''}
-            isolateFocus={isolateFocus}
-            canDrag={Boolean(dragBinding)}
-            onDragFocus={applyDragDelta}
-          />
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-brand-gray-500">Box isolado</label>
+            <select
+              value={selectedFocusKey}
+              onChange={(event) => setSelectedFocusKey(event.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+            >
+              {(selectedPreview?.focusTargets || []).map((target) => (
+                <option key={target.key} value={target.key}>
+                  {target.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
+          <label className="flex items-end">
+            <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white">
+              <input
+                type="checkbox"
+                checked={isolateFocus}
+                onChange={(event) => setIsolateFocus(event.target.checked)}
+                className="accent-brand-orange"
+              />
+              Escurecer resto
+            </span>
+          </label>
+        </div>
+      </div>
+
+      {/* Main two-column: sliders left, sticky preview right */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        {/* LEFT: slider groups */}
+        <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             {visibleGroups.map((group) => (
             <div key={group.key} className="rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -382,33 +375,68 @@ export default function PdfCalibrationPanel() {
             </div>
             ))}
           </div>
+
+          {/* Import/export below sliders on mobile; hidden on lg (shown on right) */}
+          <div className="space-y-4 lg:hidden">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <h4 className="text-sm font-semibold text-white">Importar overrides</h4>
+              <p className="mt-1 text-xs text-brand-gray-500">Cole um JSON parcial com apenas os campos que deseja sobrescrever.</p>
+              <textarea
+                value={importText}
+                onChange={(event) => setImportText(event.target.value)}
+                rows={8}
+                placeholder='{"proposal":{"point":{"counterMinWidth":120}}}'
+                className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white placeholder:text-brand-gray-600"
+              />
+              {importError ? <p className="mt-2 text-xs text-red-300">{importError}</p> : null}
+              <button type="button" onClick={handleImport} className="mt-3 inline-flex items-center gap-2 rounded-xl border border-brand-orange/30 bg-brand-orange/15 px-3 py-2 text-sm font-medium text-brand-orange hover:bg-brand-orange/20">
+                <Upload size={14} />
+                Aplicar JSON
+              </button>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <h4 className="text-sm font-semibold text-white">Overrides ativos</h4>
+              <pre className="mt-3 max-h-[320px] overflow-auto rounded-xl border border-white/10 bg-black/30 p-3 text-[11px] leading-5 text-brand-gray-300">{overridePreview || '{}'}</pre>
+            </div>
+          </div>
         </div>
 
+        {/* RIGHT: sticky preview + import/export (desktop only) */}
         <div className="space-y-4">
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-            <h4 className="text-sm font-semibold text-white">Importar overrides</h4>
-            <p className="mt-1 text-xs text-brand-gray-500">Cole um JSON parcial com apenas os campos que deseja sobrescrever.</p>
-            <textarea
-              value={importText}
-              onChange={(event) => setImportText(event.target.value)}
-              rows={12}
-              placeholder='{"proposal":{"point":{"counterMinWidth":120}}}'
-              className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white placeholder:text-brand-gray-600"
+          <div className="sticky top-20 space-y-4">
+            <PdfCalibrationPreview
+              config={config}
+              previewKey={selectedPreviewKey}
+              focusKey={selectedFocusKey}
+              focusLabel={selectedFocus?.label || ''}
+              isolateFocus={isolateFocus}
+              canDrag={Boolean(dragBinding)}
+              onDragFocus={applyDragDelta}
             />
-            {importError ? <p className="mt-2 text-xs text-red-300">{importError}</p> : null}
-            <button
-              type="button"
-              onClick={handleImport}
-              className="mt-3 inline-flex items-center gap-2 rounded-xl border border-brand-orange/30 bg-brand-orange/15 px-3 py-2 text-sm font-medium text-brand-orange hover:bg-brand-orange/20"
-            >
-              <Upload size={14} />
-              Aplicar JSON
-            </button>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-            <h4 className="text-sm font-semibold text-white">Overrides ativos</h4>
-            <pre className="mt-3 max-h-[520px] overflow-auto rounded-xl border border-white/10 bg-black/30 p-3 text-[11px] leading-5 text-brand-gray-300">{overridePreview || '{}'}</pre>
+          {/* Import/export visible only on desktop */}
+          <div className="hidden lg:space-y-4 lg:block">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <h4 className="text-sm font-semibold text-white">Importar overrides</h4>
+              <p className="mt-1 text-xs text-brand-gray-500">Cole um JSON parcial com apenas os campos que deseja sobrescrever.</p>
+              <textarea
+                value={importText}
+                onChange={(event) => setImportText(event.target.value)}
+                rows={8}
+                placeholder='{"proposal":{"point":{"counterMinWidth":120}}}'
+                className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white placeholder:text-brand-gray-600"
+              />
+              {importError ? <p className="mt-2 text-xs text-red-300">{importError}</p> : null}
+              <button type="button" onClick={handleImport} className="mt-3 inline-flex items-center gap-2 rounded-xl border border-brand-orange/30 bg-brand-orange/15 px-3 py-2 text-sm font-medium text-brand-orange hover:bg-brand-orange/20">
+                <Upload size={14} />
+                Aplicar JSON
+              </button>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <h4 className="text-sm font-semibold text-white">Overrides ativos</h4>
+              <pre className="mt-3 max-h-[400px] overflow-auto rounded-xl border border-white/10 bg-black/30 p-3 text-[11px] leading-5 text-brand-gray-300">{overridePreview || '{}'}</pre>
+            </div>
           </div>
         </div>
       </div>
