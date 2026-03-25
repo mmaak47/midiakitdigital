@@ -54,7 +54,8 @@ const emptyForm = {
   publico: 'A/B', telas: '1', preco: '', descricao: '', imagem: '', imagem2: '',
   simulacao_tela: '', simulacao_arte: '', simulacao_preview: '',
   arte_largura: '1920', arte_altura: '1080',
-  custo_operacional: '', tipo_fluxo: 'pessoas'
+  custo_operacional: '', tipo_fluxo: 'pessoas',
+  imagem_foco_x: '50', imagem_foco_y: '50', imagem_foco_zoom: '100'
 };
 
 export default function Admin() {
@@ -290,7 +291,10 @@ export default function Admin() {
       arte_largura: ponto.arte_largura?.toString() || '1920',
       arte_altura: ponto.arte_altura?.toString() || '1080',
       custo_operacional: ponto.custo_operacional?.toString() || '',
-      tipo_fluxo: ponto.tipo_fluxo || 'pessoas'
+      tipo_fluxo: ponto.tipo_fluxo || 'pessoas',
+      imagem_foco_x: (Number.isFinite(Number(ponto.imagem_foco_x)) ? Number(ponto.imagem_foco_x) : 50).toString(),
+      imagem_foco_y: (Number.isFinite(Number(ponto.imagem_foco_y)) ? Number(ponto.imagem_foco_y) : 50).toString(),
+      imagem_foco_zoom: (Number.isFinite(Number(ponto.imagem_foco_zoom)) ? Number(ponto.imagem_foco_zoom) : 100).toString()
     });
     setImageFile(null);
     setImagem2File(null);
@@ -446,6 +450,10 @@ export default function Admin() {
   const artWidth = parseInt(form.arte_largura, 10) || 0;
   const artHeight = parseInt(form.arte_altura, 10) || 0;
   const artRatioText = formatRatio(artWidth, artHeight);
+  const previewFocoX = clampNumber(form.imagem_foco_x, 0, 100, 50);
+  const previewFocoY = clampNumber(form.imagem_foco_y, 0, 100, 50);
+  const previewFocoZoom = clampNumber(form.imagem_foco_zoom, 100, 220, 100);
+  const imagePreviewForFocus = baseImagePreviewUrl || form.imagem;
 
   const autoArtPrompt = useMemo(() => {
     if (!artWidth || !artHeight || !form.nome) return '';
@@ -926,6 +934,88 @@ export default function Admin() {
 
                   <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
                     <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Enquadramento padrão no Explorar</p>
+                      <span className="text-[11px] text-brand-gray-500">Salvo junto do ponto</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <FormField
+                        label="Foco horizontal (%)"
+                        value={form.imagem_foco_x}
+                        onChange={v => updateField('imagem_foco_x', v)}
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                      />
+                      <FormField
+                        label="Foco vertical (%)"
+                        value={form.imagem_foco_y}
+                        onChange={v => updateField('imagem_foco_y', v)}
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                      />
+                      <FormField
+                        label="Zoom (%)"
+                        value={form.imagem_foco_zoom}
+                        onChange={v => updateField('imagem_foco_zoom', v)}
+                        type="number"
+                        min="100"
+                        max="220"
+                        step="1"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <RangeField
+                        label={`Horizontal (${Math.round(previewFocoX)}%)`}
+                        value={previewFocoX}
+                        min={0}
+                        max={100}
+                        step={1}
+                        onChange={(next) => updateField('imagem_foco_x', String(next))}
+                      />
+                      <RangeField
+                        label={`Vertical (${Math.round(previewFocoY)}%)`}
+                        value={previewFocoY}
+                        min={0}
+                        max={100}
+                        step={1}
+                        onChange={(next) => updateField('imagem_foco_y', String(next))}
+                      />
+                      <RangeField
+                        label={`Zoom (${Math.round(previewFocoZoom)}%)`}
+                        value={previewFocoZoom}
+                        min={100}
+                        max={220}
+                        step={1}
+                        onChange={(next) => updateField('imagem_foco_zoom', String(next))}
+                      />
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-black/35 overflow-hidden h-52">
+                      {imagePreviewForFocus ? (
+                        <img
+                          src={imagePreviewForFocus}
+                          alt="Preview enquadramento"
+                          className="w-full h-full object-cover"
+                          style={{
+                            transform: `scale(${previewFocoZoom / 100})`,
+                            transformOrigin: `${previewFocoX}% ${previewFocoY}%`
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xs text-brand-gray-500">
+                          Envie a imagem base para pré-visualizar o enquadramento
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Proporção da arte para este ponto</p>
                       <span className="px-2.5 py-1 rounded-full bg-brand-orange/15 text-brand-orange text-xs font-semibold">
                         {artRatioText || 'Defina largura e altura'}
@@ -978,6 +1068,29 @@ export default function Admin() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function clampNumber(value, min, max, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(max, Math.max(min, numeric));
+}
+
+function RangeField({ label, value, min, max, step = 1, onChange }) {
+  return (
+    <label className="block">
+      <span className="block text-xs text-brand-gray-400 mb-1.5">{label}</span>
+      <input
+        type="range"
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="w-full"
+      />
+    </label>
   );
 }
 

@@ -69,6 +69,9 @@ ensureColumn('pontos', 'arte_altura', 'INTEGER DEFAULT 1080');
 ensureColumn('pontos', 'custo_operacional', 'REAL DEFAULT 0');
 ensureColumn('pontos', 'tipo_fluxo', "TEXT DEFAULT 'pessoas'");
 ensureColumn('pontos', 'imagem2', 'TEXT');
+ensureColumn('pontos', 'imagem_foco_x', 'REAL DEFAULT 50');
+ensureColumn('pontos', 'imagem_foco_y', 'REAL DEFAULT 50');
+ensureColumn('pontos', 'imagem_foco_zoom', 'REAL DEFAULT 100');
 ensureColumn('admin_users', 'role', 'TEXT DEFAULT "vendedor"');
 ensureColumn('admin_users', 'created_at', 'TEXT');
 ensureColumn('admin_users', 'updated_at', 'TEXT');
@@ -152,7 +155,10 @@ db.exec(`
   UPDATE pontos
   SET
     arte_largura = COALESCE(arte_largura, 1920),
-    arte_altura = COALESCE(arte_altura, 1080)
+    arte_altura = COALESCE(arte_altura, 1080),
+    imagem_foco_x = COALESCE(imagem_foco_x, 50),
+    imagem_foco_y = COALESCE(imagem_foco_y, 50),
+    imagem_foco_zoom = COALESCE(imagem_foco_zoom, 100)
 `);
 
 db.exec(`

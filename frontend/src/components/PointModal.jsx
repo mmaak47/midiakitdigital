@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, MapPin, Clock, Users, Monitor, Play, RotateCcw, Hash,
-  DollarSign, Heart, Building2, SlidersHorizontal, RefreshCw
+  DollarSign, Heart, Building2
 } from 'lucide-react';
 import { useFavorites } from '../context/FavoritesContext';
 
@@ -49,46 +49,22 @@ function deriveFocusFromSimulation(simulacaoTela) {
   };
 }
 
-function getFocusStorageKey(ponto) {
-  return `point-image-focus:${ponto?.id || 'unknown'}:${ponto?.imagem || 'sem-imagem'}`;
-}
-
 export default function PointModal({ ponto, onClose }) {
   if (!ponto) return null;
 
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const fav = isFavorite(ponto.id);
-  const [showFramingControls, setShowFramingControls] = useState(false);
-  const simulationFocus = useMemo(() => deriveFocusFromSimulation(ponto.simulacao_tela), [ponto.simulacao_tela]);
-  const [imageFocus, setImageFocus] = useState(simulationFocus);
-
-  useEffect(() => {
-    const key = getFocusStorageKey(ponto);
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setImageFocus({
-          x: clamp(Number(parsed?.x) || simulationFocus.x, 0, 100),
-          y: clamp(Number(parsed?.y) || simulationFocus.y, 0, 100),
-          zoom: clamp(Number(parsed?.zoom) || simulationFocus.zoom, 100, 220)
-        });
-        return;
-      }
-    } catch {
-      // Ignore malformed local settings and use automatic focus.
-    }
-    setImageFocus(simulationFocus);
-  }, [ponto, simulationFocus]);
-
-  useEffect(() => {
-    const key = getFocusStorageKey(ponto);
-    try {
-      localStorage.setItem(key, JSON.stringify(imageFocus));
-    } catch {
-      // Ignore persistence errors in restricted browsing modes.
-    }
-  }, [ponto, imageFocus]);
+  const imageFocus = useMemo(() => {
+    const simulationFocus = deriveFocusFromSimulation(ponto.simulacao_tela);
+    const hasX = Number.isFinite(Number(ponto.imagem_foco_x));
+    const hasY = Number.isFinite(Number(ponto.imagem_foco_y));
+    const hasZoom = Number.isFinite(Number(ponto.imagem_foco_zoom));
+    return {
+      x: hasX ? clamp(Number(ponto.imagem_foco_x), 0, 100) : simulationFocus.x,
+      y: hasY ? clamp(Number(ponto.imagem_foco_y), 0, 100) : simulationFocus.y,
+      zoom: hasZoom ? clamp(Number(ponto.imagem_foco_zoom), 100, 220) : simulationFocus.zoom
+    };
+  }, [ponto.imagem_foco_x, ponto.imagem_foco_y, ponto.imagem_foco_zoom, ponto.simulacao_tela]);
 
   const formatCurrency = (n) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
@@ -153,86 +129,17 @@ export default function PointModal({ ponto, onClose }) {
             {/* Image */}
             <div className="lg:w-1/2 relative h-64 lg:h-auto lg:min-h-[500px] bg-brand-gray-900">
               {ponto.imagem ? (
-                <>
-                  <div className="absolute inset-0 overflow-hidden">
-                    <img
-                      src={ponto.imagem}
-                      alt={ponto.nome}
-                      className="w-full h-full object-cover"
-                      style={{
-                        transform: `scale(${imageFocus.zoom / 100})`,
-                        transformOrigin: `${imageFocus.x}% ${imageFocus.y}%`
-                      }}
-                    />
-                  </div>
-
-                  <div className="absolute top-3 left-3 z-10">
-                    <button
-                      type="button"
-                      onClick={() => setShowFramingControls((value) => !value)}
-                      className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-black/55 px-3 py-1.5 text-xs text-white hover:bg-black/75 transition-colors"
-                    >
-                      <SlidersHorizontal size={14} />
-                      Ajustar enquadramento
-                    </button>
-                  </div>
-
-                  {showFramingControls && (
-                    <div className="absolute left-3 right-3 bottom-3 z-10 rounded-xl border border-white/15 bg-black/72 backdrop-blur-sm p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-[11px] uppercase tracking-wider text-brand-gray-300">Ajuste manual da área visível</span>
-                        <button
-                          type="button"
-                          onClick={() => setImageFocus(simulationFocus)}
-                          className="inline-flex items-center gap-1 text-[11px] text-brand-gray-200 hover:text-white"
-                        >
-                          <RefreshCw size={12} />
-                          Resetar
-                        </button>
-                      </div>
-
-                      <label className="block text-[11px] text-brand-gray-300">
-                        Zoom ({imageFocus.zoom}%)
-                        <input
-                          type="range"
-                          min="100"
-                          max="220"
-                          step="1"
-                          value={imageFocus.zoom}
-                          onChange={(event) => setImageFocus((current) => ({ ...current, zoom: clamp(Number(event.target.value), 100, 220) }))}
-                          className="mt-1 w-full"
-                        />
-                      </label>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="block text-[11px] text-brand-gray-300">
-                          Horizontal ({Math.round(imageFocus.x)}%)
-                          <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            step="1"
-                            value={imageFocus.x}
-                            onChange={(event) => setImageFocus((current) => ({ ...current, x: clamp(Number(event.target.value), 0, 100) }))}
-                            className="mt-1 w-full"
-                          />
-                        </label>
-                        <label className="block text-[11px] text-brand-gray-300">
-                          Vertical ({Math.round(imageFocus.y)}%)
-                          <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            step="1"
-                            value={imageFocus.y}
-                            onChange={(event) => setImageFocus((current) => ({ ...current, y: clamp(Number(event.target.value), 0, 100) }))}
-                            className="mt-1 w-full"
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  )}
-                </>
+                <div className="absolute inset-0 overflow-hidden">
+                  <img
+                    src={ponto.imagem}
+                    alt={ponto.nome}
+                    className="w-full h-full object-cover"
+                    style={{
+                      transform: `scale(${imageFocus.zoom / 100})`,
+                      transformOrigin: `${imageFocus.x}% ${imageFocus.y}%`
+                    }}
+                  />
+                </div>
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand-gray-900 to-brand-gray-800">
                   <Building2 size={64} className="text-brand-gray-700" />

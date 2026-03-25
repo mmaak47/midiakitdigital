@@ -117,6 +117,10 @@ function haversineDistanceMeters(lat1, lng1, lat2, lng2) {
   return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
 const PDF_LAYOUT_SETTINGS_KEY = 'pdf_layout_overrides';
 
 function readPdfLayoutOverrides() {
@@ -246,10 +250,13 @@ app.post('/api/pontos', upload.fields([
     const arteLargura = parseInt(data.arte_largura, 10) || 1920;
     const arteAltura = parseInt(data.arte_altura, 10) || 1080;
     const tipoFluxo = data.tipo_fluxo || 'pessoas';
+    const imagemFocoX = Number.isFinite(Number(data.imagem_foco_x)) ? clamp(Number(data.imagem_foco_x), 0, 100) : 50;
+    const imagemFocoY = Number.isFinite(Number(data.imagem_foco_y)) ? clamp(Number(data.imagem_foco_y), 0, 100) : 50;
+    const imagemFocoZoom = Number.isFinite(Number(data.imagem_foco_zoom)) ? clamp(Number(data.imagem_foco_zoom), 100, 220) : 100;
 
     const stmt = db.prepare(`
-      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, tipo_fluxo)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, tipo_fluxo, imagem_foco_x, imagem_foco_y, imagem_foco_zoom)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -258,7 +265,8 @@ app.post('/api/pontos', upload.fields([
       data.horario, parseInt(data.fluxo) || 0, parseInt(data.insercoes) || 0,
       data.tempo || '15s', data.loop || '3 min', data.veiculacao || 'Vídeo sem áudio',
       data.publico || 'A/B', parseInt(data.telas) || 1, parseFloat(data.preco) || 0,
-      data.descricao, imagem, imagem2, simulacaoTela, simulacaoArte, simulacaoPreview, arteLargura, arteAltura, tipoFluxo
+      data.descricao, imagem, imagem2, simulacaoTela, simulacaoArte, simulacaoPreview, arteLargura, arteAltura, tipoFluxo,
+      imagemFocoX, imagemFocoY, imagemFocoZoom
     );
 
     const ponto = db.prepare('SELECT * FROM pontos WHERE id = ?').get(result.lastInsertRowid);
@@ -289,6 +297,15 @@ app.put('/api/pontos/:id', upload.fields([
     const arteLargura = parseInt(data.arte_largura, 10) || existing.arte_largura || 1920;
     const arteAltura = parseInt(data.arte_altura, 10) || existing.arte_altura || 1080;
     const tipoFluxo = data.tipo_fluxo || existing.tipo_fluxo || 'pessoas';
+    const imagemFocoX = Number.isFinite(Number(data.imagem_foco_x))
+      ? clamp(Number(data.imagem_foco_x), 0, 100)
+      : clamp(Number(existing.imagem_foco_x) || 50, 0, 100);
+    const imagemFocoY = Number.isFinite(Number(data.imagem_foco_y))
+      ? clamp(Number(data.imagem_foco_y), 0, 100)
+      : clamp(Number(existing.imagem_foco_y) || 50, 0, 100);
+    const imagemFocoZoom = Number.isFinite(Number(data.imagem_foco_zoom))
+      ? clamp(Number(data.imagem_foco_zoom), 100, 220)
+      : clamp(Number(existing.imagem_foco_zoom) || 100, 100, 220);
 
     const stmt = db.prepare(`
       UPDATE pontos SET
@@ -297,6 +314,7 @@ app.put('/api/pontos/:id', upload.fields([
         veiculacao = ?, publico = ?, telas = ?, preco = ?, descricao = ?,
         imagem = ?, imagem2 = ?, simulacao_tela = ?, simulacao_arte = ?, simulacao_preview = ?,
         arte_largura = ?, arte_altura = ?, tipo_fluxo = ?,
+        imagem_foco_x = ?, imagem_foco_y = ?, imagem_foco_zoom = ?,
         updated_at = datetime('now')
       WHERE id = ?
     `);
@@ -313,6 +331,7 @@ app.put('/api/pontos/:id', upload.fields([
       data.descricao || existing.descricao, imagem, imagem2,
       simulacaoTela, simulacaoArte, simulacaoPreview,
       arteLargura, arteAltura, tipoFluxo,
+      imagemFocoX, imagemFocoY, imagemFocoZoom,
       req.params.id
     );
 
