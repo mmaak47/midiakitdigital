@@ -449,7 +449,20 @@ export default function Admin() {
   const handleCopyPrompt = async () => {
     if (!autoArtPrompt) return;
     try {
-      await navigator.clipboard.writeText(autoArtPrompt);
+      // Try modern API first
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(autoArtPrompt);
+      } else {
+        // Fallback for environments without clipboard API
+        const textArea = document.createElement('textarea');
+        textArea.value = autoArtPrompt;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
       setPromptCopied(true);
       setTimeout(() => setPromptCopied(false), 2000);
     } catch (err) {
