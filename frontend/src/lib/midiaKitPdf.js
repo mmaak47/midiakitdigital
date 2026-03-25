@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { loadPdfLayoutConfig } from './pdfLayoutConfig';
+import { buildAudienceQualification, buildEntornoSummary, getSegmentDisplayName } from './strategy';
 
 const PAGE_WIDTH = 1600;
 const PAGE_HEIGHT = 1131;
@@ -637,8 +638,10 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   `, '#ECE7E0');
 }
 
-function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, highlights, simulationSummary, assets }) {
+function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, highlights, simulationSummary, segmento, assets }) {
   const layout = getActivePdfLayoutConfig().proposal.cover;
+  const segmentLabel = getSegmentDisplayName(segmento);
+  const pointsWithEntorno = proposalPoints.filter((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0).length;
   const cards = [
     { iconHtml: proposalIcon('target'), label: 'Pontos', value: formatInt(proposalPoints.length) },
     { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
@@ -667,6 +670,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
           ${[
             proposalCity,
             formatPointCountLabel(proposalPoints.length || 0),
+            segmentLabel,
             `Gerado em ${new Date().toLocaleDateString('pt-BR')}`
           ].map((chip) => `
             <div style="display:inline-flex;align-items:center;justify-content:center;min-height:${layout.chipMinHeight}px;padding:0 ${layout.chipPaddingX}px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:600;color:rgba(255,255,255,0.78);line-height:1;text-align:center;">
@@ -701,16 +705,27 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
               </div>
             `).join('')}
           </div>
+          <div style="margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div style="padding:14px 16px;border-radius:20px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);">
+              <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.46);">Segmento priorizado</div>
+              <div style="margin-top:8px;font-size:22px;line-height:1.25;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(segmentLabel)}</div>
+            </div>
+            <div style="padding:14px 16px;border-radius:20px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);">
+              <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.46);">Entorno aderente</div>
+              <div style="margin-top:8px;font-size:22px;line-height:1.25;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(`${formatInt(pointsWithEntorno)} ponto${pointsWithEntorno === 1 ? '' : 's'}`)}</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   `, BRAND_DARK);
 }
 
-function buildProposalPointPage({ point, index, total, image, assets }) {
+function buildProposalPointPage({ point, index, total, image, segmento, assets }) {
   const layout = getActivePdfLayoutConfig().proposal.point;
+  const audience = buildAudienceQualification(point);
+  const environment = buildEntornoSummary(point?.entornoMetrics, segmento);
   const stats = [
-    { label: 'Público', value: point.publico || '-' },
     { label: 'Fluxo', value: formatInt(point.fluxo) },
     { label: 'Telas', value: formatInt(point.telas) },
     { label: 'Inserções', value: formatInt(point.insercoes) },
@@ -747,6 +762,27 @@ function buildProposalPointPage({ point, index, total, image, assets }) {
           <div data-calibration-id="proposal.point.addressBox" style="padding:26px 28px;border-radius:30px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);">
             <div style="font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Endereço</div>
             <div style="margin-top:12px;font-size:23px;line-height:1.5;color:#fff;word-break:break-word;">${escapeHtml(point.endereco || 'Endereço não informado')}</div>
+          </div>
+
+          <div style="padding:22px 24px;border-radius:28px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Qualificação do público</div>
+            <div style="margin-top:10px;display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:0 14px;border-radius:999px;background:rgba(254,92,43,0.16);border:1px solid rgba(254,92,43,0.24);font-size:15px;font-weight:700;color:${BRAND_ORANGE};">${escapeHtml(audience.badge)}</div>
+            <div style="margin-top:12px;font-size:22px;line-height:1.35;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(audience.headline)}</div>
+            <div style="margin-top:10px;font-size:16px;line-height:1.5;color:rgba(255,255,255,0.72);word-break:break-word;">${escapeHtml(audience.summary)}</div>
+          </div>
+
+          <div style="padding:22px 24px;border-radius:28px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Entorno relevante</div>
+            <div style="margin-top:10px;font-size:20px;line-height:1.35;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(environment.headline)}</div>
+            <div style="margin-top:8px;font-size:15px;line-height:1.45;color:rgba(255,255,255,0.68);word-break:break-word;">${escapeHtml(environment.summary)}</div>
+            <div style="margin-top:12px;display:grid;gap:8px;">
+              ${(environment.places.length ? environment.places : [{ name: 'Sem locais próximos destacados no cache atual.', category: '', distanceLabel: '' }]).slice(0, 3).map((place) => `
+                <div style="padding:10px 12px;border-radius:16px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);">
+                  <div style="font-size:15px;line-height:1.35;color:#fff;font-weight:600;word-break:break-word;">${escapeHtml(place.name)}</div>
+                  <div style="margin-top:4px;font-size:12px;line-height:1.4;color:rgba(255,255,255,0.54);text-transform:uppercase;letter-spacing:0.08em;">${escapeHtml([place.category, place.distanceLabel].filter(Boolean).join(' • '))}</div>
+                </div>
+              `).join('')}
+            </div>
           </div>
 
           <div data-calibration-id="proposal.point.statsList" style="display:grid;grid-template-columns:1fr;gap:14px;">
@@ -869,6 +905,7 @@ export async function generateProposalPdf({
   city,
   points,
   totals,
+  segmento,
   strategicText,
   simulationSummary
 }) {
@@ -889,6 +926,7 @@ export async function generateProposalPdf({
       proposalTotals,
       highlights,
       simulationSummary,
+      segmento,
       assets
     })
   ];
@@ -899,6 +937,7 @@ export async function generateProposalPdf({
       index: index + 1,
       total: proposalPoints.length,
       image: proposalImages[index],
+      segmento,
       assets
     }));
   });

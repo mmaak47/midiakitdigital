@@ -435,6 +435,7 @@ function listScores({ segment, radius, city }) {
       ec.categorias_encontradas,
       ec.distancia_media,
       ec.score_relevancia,
+      ec.raw_result,
       ec.updated_at,
       ec.expires_at
     FROM entorno_cache ec
@@ -452,19 +453,30 @@ function listScores({ segment, radius, city }) {
   sql += ' ORDER BY ec.score_relevancia DESC, ec.total_estabelecimentos_relacionados DESC';
 
   const rows = db.prepare(sql).all(...params);
-  return rows.map((row) => ({
-    ponto_id: row.ponto_id,
-    latitude: row.latitude,
-    longitude: row.longitude,
-    segmento_analisado: row.segmento_analisado,
-    raio_m: row.raio_m,
-    total_estabelecimentos_relacionados: row.total_estabelecimentos_relacionados,
-    categorias_encontradas: JSON.parse(row.categorias_encontradas || '[]'),
-    distancia_media: row.distancia_media,
-    score_relevancia: row.score_relevancia,
-    updated_at: row.updated_at,
-    expires_at: row.expires_at
-  }));
+  return rows.map((row) => {
+    let raw = {};
+    try {
+      raw = row.raw_result ? JSON.parse(row.raw_result) : {};
+    } catch {
+      raw = {};
+    }
+
+    return {
+      ponto_id: row.ponto_id,
+      latitude: row.latitude,
+      longitude: row.longitude,
+      segmento_analisado: row.segmento_analisado,
+      raio_m: row.raio_m,
+      total_estabelecimentos_relacionados: row.total_estabelecimentos_relacionados,
+      categorias_encontradas: JSON.parse(row.categorias_encontradas || '[]'),
+      distancia_media: row.distancia_media,
+      score_relevancia: row.score_relevancia,
+      provider: raw.provider || 'osm',
+      places: Array.isArray(raw.places) ? raw.places.slice(0, 12) : [],
+      updated_at: row.updated_at,
+      expires_at: row.expires_at
+    };
+  });
 }
 
 function invalidatePointCache(pointId) {

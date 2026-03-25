@@ -13,6 +13,21 @@ export const SEGMENTOS = [
   'outro'
 ];
 
+const SEGMENTO_LABELS = {
+  clinica: 'Clínicas',
+  hospital: 'Hospitais',
+  escola: 'Escolas',
+  faculdade: 'Faculdades',
+  construtora: 'Construtoras',
+  imobiliaria: 'Imobiliárias',
+  varejo: 'Varejo',
+  restaurante: 'Restaurantes',
+  contabilidade: 'Contabilidade',
+  advocacia: 'Advocacia',
+  industria: 'Indústria',
+  outro: 'Segmento personalizado'
+};
+
 export const OBJETIVOS = [
   'reconhecimento de marca',
   'presenca premium',
@@ -60,6 +75,96 @@ function toNumber(v) {
   return Number(v) || 0;
 }
 
+function formatNumber(value) {
+  return new Intl.NumberFormat('pt-BR').format(toNumber(value));
+}
+
+function formatDistance(distance) {
+  const numeric = Number(distance);
+  if (!Number.isFinite(numeric) || numeric <= 0) return 'próximo ao ponto';
+  if (numeric >= 1000) return `${(numeric / 1000).toFixed(1).replace('.', ',')} km`;
+  return `${Math.round(numeric)} m`;
+}
+
+export function getSegmentDisplayName(segmento) {
+  return SEGMENTO_LABELS[String(segmento || '').toLowerCase()] || 'Segmento comercial';
+}
+
+export function buildAudienceQualification(point = {}) {
+  const publico = String(point.publico || 'A/B').toUpperCase();
+  const fluxo = toNumber(point.fluxo);
+  const tipo = String(point.tipo || 'formato').toLowerCase();
+
+  let headline = 'Público com boa mistura entre alcance e tomada de decisão.';
+  if (publico === 'A') {
+    headline = 'Perfil premium, com maior aderência a marcas de valor agregado.';
+  } else if (publico === 'B') {
+    headline = 'Perfil massivo com boa resposta para campanhas de volume e frequência.';
+  } else if (publico.includes('A/B')) {
+    headline = 'Recorte equilibrado entre prestígio, recorrência e escala urbana.';
+  }
+
+  let formatContext = 'Formato útil para presença recorrente ao longo da jornada.';
+  if (tipo.includes('elevador')) {
+    formatContext = 'Ambiente de permanência e leitura próxima, com atenção mais qualificada.';
+  } else if (tipo.includes('indoor')) {
+    formatContext = 'Formato indoor com exposição próxima ao consumidor em contexto de decisão.';
+  } else if (tipo.includes('painel') || tipo.includes('frontlight') || tipo.includes('backlight')) {
+    formatContext = 'Formato de impacto visual forte, adequado para reforço de lembrança e cobertura.';
+  }
+
+  const fluxoContext = fluxo >= 120000
+    ? 'Alta circulação mensal para sustentar frequência de marca.'
+    : fluxo >= 45000
+      ? 'Boa base de circulação para equilíbrio entre alcance e repetição.'
+      : 'Fluxo seletivo, útil para mensagens de precisão e presença contextual.';
+
+  return {
+    badge: `Público ${publico}`,
+    headline,
+    summary: `${formatContext} ${fluxoContext}`,
+    bullets: [
+      `${formatNumber(fluxo)} impactos mensais estimados`,
+      `Recorte predominante ${publico}`,
+      formatContext
+    ]
+  };
+}
+
+export function buildEntornoSummary(metrics = null, segmento = '') {
+  const total = Number(metrics?.total_estabelecimentos_relacionados) || 0;
+  const score = Number(metrics?.score_relevancia) || 0;
+  const categories = Array.isArray(metrics?.categorias_encontradas) ? metrics.categorias_encontradas : [];
+  const places = Array.isArray(metrics?.places) ? metrics.places : [];
+  const segmentLabel = getSegmentDisplayName(segmento);
+
+  const nearestPlaces = [...places]
+    .sort((a, b) => (Number(a?.distance) || Infinity) - (Number(b?.distance) || Infinity))
+    .filter((place) => place?.name)
+    .slice(0, 4)
+    .map((place) => ({
+      name: place.name,
+      category: place.category,
+      distanceLabel: formatDistance(place.distance)
+    }));
+
+  if (!total) {
+    return {
+      headline: `Entorno do segmento ${segmentLabel} ainda sem evidências suficientes.`,
+      summary: 'Não há locais aderentes em cache para destacar neste ponto agora.',
+      places: [],
+      categories: []
+    };
+  }
+
+  return {
+    headline: `${total} locais aderentes ao segmento ${segmentLabel} no raio analisado.`,
+    summary: `Score de relevância ${score.toFixed(1).replace('.', ',')} com ${categories.length} categoria${categories.length === 1 ? '' : 's'} relacionada${categories.length === 1 ? '' : 's'} ao redor do ponto.`,
+    places: nearestPlaces,
+    categories
+  };
+}
+
 export function campaignTotals(points = []) {
   const totals = points.reduce((acc, p) => {
     acc.valorTotal += toNumber(p.preco);
@@ -101,14 +206,14 @@ export function calculateCoverageLevel(selected = [], cityInventory = []) {
     : 0;
 
   let nivel = 'Essencial';
-  let mensagem = 'Base inicial montada. Inclua mais pontos para elevar cobertura e frequencia.';
+  let mensagem = 'Base inicial montada. Inclua mais pontos para elevar cobertura e frequência.';
 
   if (coveragePct >= 50 || presencePct >= 55) {
-    nivel = 'Dominio regional';
-    mensagem = 'Plano forte com alta cobertura e presenca recorrente na praca.';
+    nivel = 'Domínio regional';
+    mensagem = 'Plano forte com alta cobertura e presença recorrente na praça.';
   } else if (coveragePct >= 25 || presencePct >= 30) {
-    nivel = 'Estrategico';
-    mensagem = 'Boa cobertura em areas-chave. Com poucos pontos adicionais, chega ao dominio regional.';
+    nivel = 'Estratégico';
+    mensagem = 'Boa cobertura em áreas-chave. Com poucos pontos adicionais, chega ao domínio regional.';
   }
 
   return {
@@ -436,25 +541,25 @@ export function suggestIdealPlan({
   const orcamentoUsoPct = budget > 0 ? Math.round((totals.valorTotal / budget) * 100) : null;
   const withEntorno = selected.filter((point) => point._entornoScore > 0).length;
 
-  let foco = 'equilibrio entre frequencia, eficiencia de custo e cobertura.';
+  let foco = 'equilíbrio entre frequência, eficiência de custo e cobertura.';
   if (objetivo === 'presenca premium') {
-    foco = 'ambientes premium com alta recorrencia para elevar percepcao de marca.';
+    foco = 'ambientes premium com alta recorrência para elevar percepção de marca.';
   } else if (objetivo === 'reconhecimento de marca') {
-    foco = 'volume de impacto e repeticao para acelerar lembranca.';
+    foco = 'volume de impacto e repetição para acelerar lembrança.';
   } else if (objetivo === 'cobertura regional') {
-    foco = 'capilaridade de formatos e distribuicao por praca.';
+    foco = 'capilaridade de formatos e distribuição por praça.';
   } else if (objetivo === 'proximidade da decisao de compra') {
-    foco = 'pontos proximos de decisao com maior propensao de conversao.';
+    foco = 'pontos próximos de decisão com maior propensão de conversão.';
   } else if (objetivo === 'lembranca continua') {
-    foco = 'continuidade de exposicao com bom ritmo de insercoes.';
+    foco = 'continuidade de exposição com bom ritmo de inserções.';
   }
 
   const justificativa = [
     `Plano recomendado com ${totals.quantidade} ponto${totals.quantidade > 1 ? 's' : ''} e ${formatos} formato${formatos > 1 ? 's' : ''}, priorizando ${foco}`,
     `Fluxo potencial de ${new Intl.NumberFormat('pt-BR').format(totals.fluxoTotal)} impactos/mensais e CPM estimado em R$ ${totals.cpmEstimado.toFixed(2)}.`,
     withEntorno > 0
-      ? `${withEntorno} ponto${withEntorno > 1 ? 's' : ''} recebeu ganho de aderencia por entorno relevante ao segmento selecionado.`
-      : 'Sem dados de entorno suficientes no momento, o plano foi calculado apenas com comportamento, publico e eficiencia.',
+      ? `${withEntorno} ponto${withEntorno > 1 ? 's' : ''} recebeu ganho de aderência por entorno relevante ao segmento selecionado.`
+      : 'Sem dados de entorno suficientes no momento, o plano foi calculado apenas com comportamento, público e eficiência.',
     budget > 0
       ? `Uso de orçamento em ${orcamentoUsoPct}% (R$ ${new Intl.NumberFormat('pt-BR').format(totals.valorTotal)} de R$ ${new Intl.NumberFormat('pt-BR').format(budget)}), com seleção por ganho marginal para evitar pontos redundantes.`
       : 'Sem limite de orçamento informado, o motor priorizou eficiência e diversidade para um plano-base robusto.'
@@ -471,7 +576,7 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
   if (selected.length === 0) {
     return {
       score: 0,
-      explanation: 'Score 0,0: selecione pontos para iniciar a avaliacao da campanha.'
+      explanation: 'Score 0,0: selecione pontos para iniciar a avaliação da campanha.'
     };
   }
 
@@ -492,13 +597,13 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
 
   const score = Math.min(10, Number(scoreRaw.toFixed(1)));
 
-  let explanation = `Score ${score.toFixed(1)}: campanha com boa base de frequencia e cobertura.`;
+  let explanation = `Score ${score.toFixed(1)}: campanha com boa base de frequência e cobertura.`;
   if (score >= 8.5) {
-    explanation = `Score ${score.toFixed(1)}: campanha forte em impacto e presenca premium, com perfil comercial robusto.`;
+    explanation = `Score ${score.toFixed(1)}: campanha forte em impacto e presença premium, com perfil comercial robusto.`;
   } else if (score >= 7) {
-    explanation = `Score ${score.toFixed(1)}: plano consistente, com oportunidade de ampliar cobertura para dominio regional.`;
+    explanation = `Score ${score.toFixed(1)}: plano consistente, com oportunidade de ampliar cobertura para domínio regional.`;
   } else if (score >= 5) {
-    explanation = `Score ${score.toFixed(1)}: campanha funcional, mas ainda com espaco para reforcar formatos e capilaridade.`;
+    explanation = `Score ${score.toFixed(1)}: campanha funcional, mas ainda com espaço para reforçar formatos e capilaridade.`;
   }
 
   return { score, explanation };
@@ -506,17 +611,18 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
 
 export function generateCommercialArguments({ selected = [], city, publico, objetivo, segmento }) {
   if (!selected.length) {
-    return ['Selecione pontos para gerar argumentacao comercial automatica.'];
+    return ['Selecione pontos para gerar argumentação comercial automática.'];
   }
 
   const totals = campaignTotals(selected);
   const formatos = Array.from(new Set(selected.map((p) => p.tipo).filter(Boolean))).slice(0, 3);
-  const focoPublico = publico || 'publicos estrategicos da praca';
+  const focoPublico = publico || 'públicos estratégicos da praça';
+  const segmentLabel = getSegmentDisplayName(segmento);
 
   return [
-    `A combinacao selecionada em ${city || 'multiplas pracas'} reforca presenca em ambientes de alta recorrencia e atencao qualificada.`,
-    `Com ${totals.quantidade} pontos e fluxo estimado de ${new Intl.NumberFormat('pt-BR').format(totals.fluxoTotal)} impactos/mensais, o plano equilibra alcance e frequencia.`,
-    `A estrategia privilegia ${formatos.join(', ') || 'formatos complementares'}, favorecendo ${objetivo || 'lembranca continua'} para o segmento ${segmento || 'anunciante'}.`,
-    `O recorte de publico (${focoPublico}) aumenta aderencia comercial e potencial de conversao no territorio de interesse.`
+    `A combinação selecionada em ${city || 'múltiplas praças'} reforça presença em ambientes de alta recorrência e atenção qualificada.`,
+    `Com ${totals.quantidade} pontos e fluxo estimado de ${new Intl.NumberFormat('pt-BR').format(totals.fluxoTotal)} impactos mensais, o plano equilibra alcance e frequência.`,
+    `A estratégia privilegia ${formatos.join(', ') || 'formatos complementares'}, favorecendo ${objetivo || 'lembrança contínua'} para o segmento ${segmentLabel || 'anunciante'}.`,
+    `O recorte de público (${focoPublico}) aumenta aderência comercial e potencial de conversão no território de interesse.`
   ];
 }

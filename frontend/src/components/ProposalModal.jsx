@@ -10,8 +10,11 @@ import {
   normalizeDisplaySettings,
   parseSimulationConfig
 } from '../lib/simulation';
+import { fetchEntornoJobStatus, fetchEntornoScores } from '../lib/api';
 import ProposalBuilder from './ProposalBuilder';
 import PresentationMode from './PresentationMode';
+
+const DEFAULT_ENTORNO_RADIUS = 800;
 
 export default function ProposalModal({ onClose }) {
   const { favorites } = useFavorites();
@@ -33,6 +36,14 @@ export default function ProposalModal({ onClose }) {
   const [activePreviewPointId, setActivePreviewPointId] = useState(null);
   const [showPreviewLightbox, setShowPreviewLightbox] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [entorno, setEntorno] = useState({
+    loading: false,
+    jobId: null,
+    coverage: 0,
+    scoresByPoint: {},
+    updatedAt: null,
+    error: ''
+  });
 
   const clearSimulationResults = () => {
     setSimulationResults((current) => {
@@ -73,6 +84,87 @@ export default function ProposalModal({ onClose }) {
     }
   }, [simulationSettings]);
 
+  useEffect(() => {
+    let active = true;
+    let pollTimer = null;
+
+    const loadScores = async (force = false) => {
+      if (!favorites.length) {
+        setEntorno({
+          loading: false,
+          jobId: null,
+          coverage: 0,
+          scoresByPoint: {},
+          updatedAt: null,
+          error: ''
+        });
+        return;
+      }
+
+      try {
+        setEntorno((prev) => ({ ...prev, loading: true, error: '' }));
+        const response = await fetchEntornoScores({
+          segmento: form.segmento,
+          cidade: form.city,
+          raio: DEFAULT_ENTORNO_RADIUS,
+          force
+        });
+
+        if (!active) return;
+
+        const latest = response.metrics?.[0]?.updated_at || null;
+        setEntorno((prev) => ({
+          ...prev,
+          loading: false,
+          coverage: Number(response.coberturaCache || 0),
+          scoresByPoint: response.byPoint || {},
+          updatedAt: latest,
+          jobId: response.job?.jobId || null,
+          error: ''
+        }));
+
+        if (response.job?.jobId) {
+          pollJob(response.job.jobId);
+        }
+      } catch (err) {
+        if (!active) return;
+        setEntorno((prev) => ({
+          ...prev,
+          loading: false,
+          error: err.message || 'Erro ao consultar análise de entorno.'
+        }));
+      }
+    };
+
+    const pollJob = (jobId) => {
+      const poll = async () => {
+        try {
+          const job = await fetchEntornoJobStatus(jobId);
+          if (!active) return;
+
+          if (job.status === 'completed' || job.status === 'failed') {
+            await loadScores(false);
+            return;
+          }
+
+          pollTimer = window.setTimeout(poll, 3500);
+        } catch {
+          if (!active) return;
+          pollTimer = window.setTimeout(poll, 5000);
+        }
+      };
+
+      poll();
+    };
+
+    loadScores(false);
+
+    return () => {
+      active = false;
+      if (pollTimer) window.clearTimeout(pollTimer);
+    };
+  }, [favorites, form.segmento, form.city]);
+
   const totals = useMemo(() => campaignTotals(favorites), [favorites]);
 
   const argumentos = useMemo(() => generateCommercialArguments({
@@ -86,31 +178,33 @@ export default function ProposalModal({ onClose }) {
   const proposalPoints = useMemo(() => {
     return favorites.map((point) => {
       const result = simulationResults[point.id];
+      const entornoMetrics = entorno.scoresByPoint[point.id] || entorno.scoresByPoint[String(point.id)] || null;
       return {
         ...point,
+        entornoMetrics,
         proposalSimulationPreview: result?.previewUrl || '',
-        proposalSimulationStatus: result?.status || (!simulationArtFile ? 'Envie a arte para gerar' : 'Gerar simulacao pendente')
+        proposalSimulationStatus: result?.status || (!simulationArtFile ? 'Envie a arte para gerar' : 'Gerar simulação pendente')
       };
     });
-  }, [favorites, simulationArtFile, simulationResults]);
+  }, [entorno.scoresByPoint, favorites, simulationArtFile, simulationResults]);
 
   const simulationSummary = useMemo(() => {
     const items = Object.values(simulationResults);
     if (!simulationArtFile) {
-      return 'A area da tela vem do admin. Envie a arte da campanha neste modal para gerar os previews que entram na proposta.';
+      return 'A área da tela vem do admin. Envie a arte da campanha neste modal para gerar os previews que entram na proposta.';
     }
     if (!items.length) {
       return 'Arte carregada. Ajuste brilho, reflexo, spill de luz e pixel LED para aproximar o look do simulador antes de gerar.';
     }
 
     const geradas = items.filter((item) => item.status === 'Gerada').length;
-    const semArea = items.filter((item) => item.status === 'Area da tela nao cadastrada no admin').length;
-    const semImagem = items.filter((item) => item.status === 'Imagem base do ponto nao cadastrada').length;
+    const semArea = items.filter((item) => item.status === 'Área da tela não cadastrada no admin').length;
+    const semImagem = items.filter((item) => item.status === 'Imagem base do ponto não cadastrada').length;
     const falhas = items.filter((item) => item.status === 'Falha ao gerar').length;
 
     return [
-      `${geradas} simulacao${geradas === 1 ? '' : 'oes'} gerada${geradas === 1 ? '' : 's'}`,
-      semArea ? `${semArea} ponto${semArea === 1 ? '' : 's'} sem area cadastrada` : null,
+      `${geradas} simulação${geradas === 1 ? '' : 'ões'} gerada${geradas === 1 ? '' : 's'}`,
+      semArea ? `${semArea} ponto${semArea === 1 ? '' : 's'} sem área cadastrada` : null,
       semImagem ? `${semImagem} ponto${semImagem === 1 ? '' : 's'} sem imagem base` : null,
       falhas ? `${falhas} falha${falhas === 1 ? '' : 's'} de processamento` : null,
       `brilho ${simulationSettings.brightness.toFixed(2)}`,
@@ -150,6 +244,7 @@ export default function ProposalModal({ onClose }) {
         city: form.city,
         points: proposalPoints,
         totals,
+        segmento: form.segmento,
         strategicText: argumentos,
         simulationSummary
       });
@@ -162,7 +257,7 @@ export default function ProposalModal({ onClose }) {
 
   const handleGenerateSimulations = async () => {
     if (!simulationArtUrl) {
-      setSimulationError('Selecione a arte da campanha para gerar as simulacoes.');
+      setSimulationError('Selecione a arte da campanha para gerar as simulações.');
       return;
     }
 
@@ -171,16 +266,16 @@ export default function ProposalModal({ onClose }) {
 
     const nextEntries = await Promise.all(favorites.map(async (point) => {
       if (!point.simulacao_tela) {
-        return [point.id, { status: 'Area da tela nao cadastrada no admin', previewUrl: '' }];
+        return [point.id, { status: 'Área da tela não cadastrada no admin', previewUrl: '' }];
       }
       if (!point.imagem) {
-        return [point.id, { status: 'Imagem base do ponto nao cadastrada', previewUrl: '' }];
+        return [point.id, { status: 'Imagem base do ponto não cadastrada', previewUrl: '' }];
       }
 
       try {
         const config = parseSimulationConfig(point.simulacao_tela);
         if (!config?.corners) {
-          return [point.id, { status: 'Area da tela nao cadastrada no admin', previewUrl: '' }];
+          return [point.id, { status: 'Área da tela não cadastrada no admin', previewUrl: '' }];
         }
         const result = await generateSimulationPreview({
           baseImageUrl: point.imagem,
@@ -201,7 +296,7 @@ export default function ProposalModal({ onClose }) {
 
     const failed = nextEntries.find(([, value]) => value.status === 'Falha ao gerar');
     if (failed) {
-      setSimulationError(failed[1].detail || 'Uma ou mais simulacoes falharam.');
+      setSimulationError(failed[1].detail || 'Uma ou mais simulações falharam.');
     }
 
     clearSimulationResults();
@@ -244,8 +339,8 @@ export default function ProposalModal({ onClose }) {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-brand-gray-500 mb-1">Proposta Comercial</p>
-                  <h2 className="text-2xl md:text-[30px] leading-tight font-bold text-white">Modo gerar proposta automatica</h2>
-                  <p className="text-sm text-brand-gray-400 mt-2">Estrutura pronta para exportacao em PDF e apresentacao comercial, com simulacao da criacao aplicada por ponto.</p>
+                  <h2 className="text-2xl md:text-[30px] leading-tight font-bold text-white">Modo gerar proposta automática</h2>
+                  <p className="text-sm text-brand-gray-400 mt-2">Estrutura pronta para exportação em PDF e apresentação comercial, com simulação da criação aplicada por ponto.</p>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-right">
                   <div className="text-[10px] uppercase tracking-wide text-brand-gray-500">Pontos no carrinho</div>
@@ -261,7 +356,19 @@ export default function ProposalModal({ onClose }) {
                 <Input label="Cidade" value={form.city} onChange={(value) => setForm((s) => ({ ...s, city: value }))} />
                 <Input label="Segmento" value={form.segmento} onChange={(value) => setForm((s) => ({ ...s, segmento: value }))} />
                 <Input label="Objetivo" value={form.objetivo} onChange={(value) => setForm((s) => ({ ...s, objetivo: value }))} />
-                <Input label="Publico" value={form.publico} onChange={(value) => setForm((s) => ({ ...s, publico: value }))} />
+                <Input label="Público" value={form.publico} onChange={(value) => setForm((s) => ({ ...s, publico: value }))} />
+              </div>
+              <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-brand-gray-400">
+                <div className="flex flex-wrap items-center gap-2 text-brand-gray-300">
+                  <span className="font-semibold uppercase tracking-[0.12em]">Análise de entorno</span>
+                  {entorno.loading ? <span className="text-brand-orange">Atualizando cache...</span> : null}
+                  {entorno.jobId ? <span className="rounded-full border border-brand-orange/25 bg-brand-orange/10 px-2 py-0.5 text-brand-orange">Job #{entorno.jobId}</span> : null}
+                </div>
+                <p className="mt-1">
+                  Cobertura do cache: {(entorno.coverage * 100).toFixed(0)}%
+                  {entorno.updatedAt ? ` • atualizado em ${new Date(entorno.updatedAt).toLocaleString('pt-BR')}` : ''}
+                </p>
+                {entorno.error ? <p className="mt-1 text-red-300">{entorno.error}</p> : null}
               </div>
             </section>
 
@@ -269,7 +376,7 @@ export default function ProposalModal({ onClose }) {
               <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
                 <div>
                   <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Arte da campanha</h3>
-                  <p className="text-sm text-brand-gray-400">A arte enviada aqui sera aplicada sobre a area de tela cadastrada no admin para cada ponto da proposta.</p>
+                  <p className="text-sm text-brand-gray-400">A arte enviada aqui será aplicada sobre a área de tela cadastrada no admin para cada ponto da proposta.</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
@@ -294,7 +401,7 @@ export default function ProposalModal({ onClose }) {
                     disabled={simulationBusy || !favorites.length}
                     className="px-5 py-2.5 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover disabled:opacity-50 shadow-[0_10px_24px_rgba(254,92,43,0.28)]"
                   >
-                    {simulationBusy ? 'Gerando simulacoes...' : 'Gerar simulacoes'}
+                    {simulationBusy ? 'Gerando simulações...' : 'Gerar simulações'}
                   </button>
                 </div>
               </div>
@@ -322,13 +429,13 @@ export default function ProposalModal({ onClose }) {
                     tone="default"
                   />
                   <StatusCard
-                    label="Simulacoes geradas"
+                    label="Simulações geradas"
                     value={Object.values(simulationResults).filter((item) => item.status === 'Gerada').length}
                     tone="success"
                   />
                   <StatusCard
-                    label="Pendencias de cadastro"
-                    value={Object.values(simulationResults).filter((item) => item.status === 'Area da tela nao cadastrada no admin' || item.status === 'Imagem base do ponto nao cadastrada').length}
+                    label="Pendências de cadastro"
+                    value={Object.values(simulationResults).filter((item) => item.status === 'Área da tela não cadastrada no admin' || item.status === 'Imagem base do ponto não cadastrada').length}
                     tone="warning"
                   />
                 </div>
@@ -365,6 +472,7 @@ export default function ProposalModal({ onClose }) {
                 <ProposalBuilder
                   clientName={form.clientName}
                   city={form.city}
+                  segmento={form.segmento}
                   points={proposalPoints}
                   totals={totals}
                   strategicText={argumentos}
@@ -380,12 +488,13 @@ export default function ProposalModal({ onClose }) {
               <section className="space-y-4">
                 <div className="rounded-2xl border border-brand-orange/30 bg-gradient-to-r from-brand-orange/20 to-brand-orange/5 p-4">
                   <h3 className="text-lg font-semibold text-white mb-1">Proposta gerada com sucesso</h3>
-                  <p className="text-sm text-brand-gray-300">Apresentacao pronta para reuniao comercial, com narrativa estrategica e indicadores executivos.</p>
+                  <p className="text-sm text-brand-gray-300">Apresentação pronta para reunião comercial, com narrativa estratégica e indicadores executivos.</p>
                 </div>
 
                 <ProposalBuilder
                   clientName={form.clientName}
                   city={form.city}
+                  segmento={form.segmento}
                   points={proposalPoints}
                   totals={totals}
                   strategicText={argumentos}
@@ -410,14 +519,14 @@ export default function ProposalModal({ onClose }) {
                     className="h-11 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] font-medium inline-flex items-center justify-center gap-2"
                   >
                     <Presentation size={16} />
-                    Modo apresentacao
+                    Modo apresentação
                   </button>
 
                   <button
                     onClick={() => setStep('review')}
                     className="h-11 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] font-medium"
                   >
-                    Voltar para revisao
+                    Voltar para revisão
                   </button>
                 </div>
               </section>
@@ -430,6 +539,7 @@ export default function ProposalModal({ onClose }) {
         <PresentationMode
           points={proposalPoints}
           totals={totals}
+          segmento={form.segmento}
           onClose={() => setShowPresentation(false)}
         />
       )}
