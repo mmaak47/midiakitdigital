@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, FileText, Download, Presentation, Upload } from 'lucide-react';
+import { X, FileText, Download, Presentation, Upload, Image as ImageIcon } from 'lucide-react';
 import { useFavorites } from '../context/FavoritesContext';
 import { campaignTotals, generateCommercialArguments } from '../lib/strategy';
+import { generateProposalPdf } from '../lib/midiaKitPdf';
 import {
   defaultDisplaySettings,
   generateSimulationPreview,
@@ -29,6 +30,9 @@ export default function ProposalModal({ onClose }) {
   const [simulationError, setSimulationError] = useState('');
   const [simulationResults, setSimulationResults] = useState({});
   const [simulationSettings, setSimulationSettings] = useState(defaultDisplaySettings);
+  const [activePreviewPointId, setActivePreviewPointId] = useState(null);
+  const [showPreviewLightbox, setShowPreviewLightbox] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const clearSimulationResults = () => {
     setSimulationResults((current) => {
@@ -115,9 +119,46 @@ export default function ProposalModal({ onClose }) {
     ].filter(Boolean).join(' · ');
   }, [simulationArtFile, simulationResults, simulationSettings]);
 
+  const previewablePoints = useMemo(() => {
+    return proposalPoints.filter((point) => point.proposalSimulationPreview || point.simulacao_preview);
+  }, [proposalPoints]);
+
+  useEffect(() => {
+    if (!previewablePoints.length) {
+      setActivePreviewPointId(null);
+      return;
+    }
+
+    const stillExists = previewablePoints.some((point) => point.id === activePreviewPointId);
+    if (!stillExists) {
+      setActivePreviewPointId(previewablePoints[0].id);
+    }
+  }, [previewablePoints, activePreviewPointId]);
+
+  const activePreviewPoint = useMemo(() => {
+    if (!previewablePoints.length) return null;
+    return previewablePoints.find((point) => point.id === activePreviewPointId) || previewablePoints[0];
+  }, [previewablePoints, activePreviewPointId]);
+
   const handleGenerate = () => setStep('generated');
 
-  const handlePrint = () => window.print();
+  const handleExportProposalPdf = async () => {
+    try {
+      setPdfBusy(true);
+      await generateProposalPdf({
+        clientName: form.clientName,
+        city: form.city,
+        points: proposalPoints,
+        totals,
+        strategicText: argumentos,
+        simulationSummary
+      });
+    } catch (error) {
+      setSimulationError(error?.message || 'Falha ao gerar o PDF da proposta.');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
 
   const handleGenerateSimulations = async () => {
     if (!simulationArtUrl) {
@@ -310,16 +351,29 @@ export default function ProposalModal({ onClose }) {
               </div>
             </section>
 
-            {step === 'review' && (
-              <ProposalBuilder
-                clientName={form.clientName}
-                city={form.city}
-                points={proposalPoints}
-                totals={totals}
-                strategicText={argumentos}
-                simulationSummary={simulationSummary}
-                onGenerate={handleGenerate}
+            {(step === 'review' || step === 'generated') && (
+              <PreviewPanel
+                proposalPoints={proposalPoints}
+                activePreviewPoint={activePreviewPoint}
+                onSelect={setActivePreviewPointId}
+                onExpand={() => setShowPreviewLightbox(true)}
               />
+            )}
+
+            {step === 'review' && (
+              <section className="space-y-5">
+                <ProposalBuilder
+                  clientName={form.clientName}
+                  city={form.city}
+                  points={proposalPoints}
+                  totals={totals}
+                  strategicText={argumentos}
+                  simulationSummary={simulationSummary}
+                  activePreviewPointId={activePreviewPoint?.id}
+                  onSelectPreview={setActivePreviewPointId}
+                  onGenerate={handleGenerate}
+                />
+              </section>
             )}
 
             {step === 'generated' && (
@@ -336,16 +390,19 @@ export default function ProposalModal({ onClose }) {
                   totals={totals}
                   strategicText={argumentos}
                   simulationSummary={simulationSummary}
+                  activePreviewPointId={activePreviewPoint?.id}
+                  onSelectPreview={setActivePreviewPointId}
                   onGenerate={() => {}}
                 />
 
                 <div className="grid sm:grid-cols-3 gap-3">
                   <button
-                    onClick={handlePrint}
+                    onClick={handleExportProposalPdf}
+                    disabled={pdfBusy}
                     className="h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(254,92,43,0.28)]"
                   >
                     <Download size={16} />
-                    Exportar / Imprimir
+                    {pdfBusy ? 'Gerando PDF...' : 'Exportar PDF da proposta'}
                   </button>
 
                   <button
@@ -376,7 +433,113 @@ export default function ProposalModal({ onClose }) {
           onClose={() => setShowPresentation(false)}
         />
       )}
+
+      {showPreviewLightbox && activePreviewPoint && (
+        <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-sm p-4 md:p-8" onClick={() => setShowPreviewLightbox(false)}>
+          <div className="max-w-6xl mx-auto h-full flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.14em] text-brand-gray-400">Preview ampliado</p>
+                <p className="text-sm text-white font-semibold">{activePreviewPoint.nome} · {activePreviewPoint.cidade}</p>
+              </div>
+              <button
+                onClick={() => setShowPreviewLightbox(false)}
+                className="px-3 py-1.5 rounded-lg border border-white/20 text-sm text-white/80 hover:text-white"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-white/15 bg-black/45 flex-1 p-2 md:p-4 min-h-0">
+              <img
+                src={activePreviewPoint.proposalSimulationPreview || activePreviewPoint.simulacao_preview}
+                alt={`Preview ${activePreviewPoint.nome}`}
+                className="w-full h-full object-contain rounded-xl"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </>
+  );
+}
+
+function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand }) {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <ImageIcon size={16} className="text-brand-orange" />
+          <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400">Preview ampliado da simulação</h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-brand-gray-500">Clique nos thumbs para trocar</p>
+          <button
+            type="button"
+            onClick={onExpand}
+            disabled={!activePreviewPoint}
+            className="px-3 py-1.5 text-xs rounded-lg border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] disabled:opacity-40"
+          >
+            Ver em tela cheia
+          </button>
+        </div>
+      </div>
+
+      {activePreviewPoint ? (
+        <div className="grid xl:grid-cols-[1fr_260px] gap-4">
+          <div className="rounded-xl border border-white/10 bg-black/25 p-2">
+            <img
+              src={activePreviewPoint.proposalSimulationPreview || activePreviewPoint.simulacao_preview}
+              alt={`Preview ${activePreviewPoint.nome}`}
+              className="w-full h-[260px] md:h-[360px] object-contain rounded-lg bg-black/35"
+            />
+            <div className="px-2 pt-3">
+              <p className="text-sm font-semibold text-white">{activePreviewPoint.nome}</p>
+              <p className="text-xs text-brand-gray-400 mt-1">{activePreviewPoint.cidade} · {activePreviewPoint.tipo}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+            {proposalPoints.map((point) => {
+              const previewUrl = point.proposalSimulationPreview || point.simulacao_preview;
+              const selected = point.id === activePreviewPoint?.id;
+
+              return (
+                <button
+                  key={point.id}
+                  type="button"
+                  disabled={!previewUrl}
+                  onClick={() => onSelect(point.id)}
+                  className={`w-full text-left rounded-xl border p-2 transition-all ${
+                    selected
+                      ? 'border-brand-orange bg-brand-orange/10'
+                      : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]'
+                  } ${!previewUrl ? 'opacity-55 cursor-not-allowed' : ''}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-20 h-12 rounded-md border border-white/10 bg-black/35 overflow-hidden shrink-0">
+                      {previewUrl ? (
+                        <img src={previewUrl} alt="thumb" className="w-full h-full object-cover" />
+                      ) : null}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-white truncate">{point.nome}</p>
+                      <p className="text-[11px] text-brand-gray-400 mt-1">
+                        {previewUrl ? 'Simulação pronta para proposta' : (point.proposalSimulationStatus || 'Sem simulação')}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="h-44 rounded-xl border border-dashed border-white/15 flex items-center justify-center text-sm text-brand-gray-500 bg-black/25">
+          Gere as simulações para visualizar o preview ampliado.
+        </div>
+      )}
+    </section>
   );
 }
 

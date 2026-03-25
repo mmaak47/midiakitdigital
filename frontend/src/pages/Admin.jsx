@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
-  Building2, Save
+  Building2, Save, Copy, Check
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { login, fetchAdminPontos, createPonto, updatePonto, deletePonto } from '../lib/api';
@@ -18,7 +18,8 @@ const emptyForm = {
   lat: '', lng: '', horario: '06:00 às 22:00', fluxo: '',
   insercoes: '', tempo: '15s', loop: '3 min', veiculacao: 'Vídeo sem áudio',
   publico: 'A/B', telas: '1', preco: '', descricao: '', imagem: '',
-  simulacao_tela: '', simulacao_arte: '', simulacao_preview: ''
+  simulacao_tela: '', simulacao_arte: '', simulacao_preview: '',
+  arte_largura: '1920', arte_altura: '1080'
 };
 
 export default function Admin() {
@@ -37,6 +38,7 @@ export default function Admin() {
   const [screenSelection, setScreenSelection] = useState(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [promptCopied, setPromptCopied] = useState(false);
 
   const [cidades, setCidades] = useState([]);
   const [tipos, setTipos] = useState([]);
@@ -98,6 +100,7 @@ export default function Admin() {
     setForm(emptyForm);
     setImageFile(null);
     setScreenSelection(null);
+    setPromptCopied(false);
     setEditing('new');
   };
 
@@ -122,10 +125,13 @@ export default function Admin() {
       imagem: ponto.imagem || '',
       simulacao_tela: ponto.simulacao_tela || '',
       simulacao_arte: ponto.simulacao_arte || '',
-      simulacao_preview: ponto.simulacao_preview || ''
+      simulacao_preview: ponto.simulacao_preview || '',
+      arte_largura: ponto.arte_largura?.toString() || '1920',
+      arte_altura: ponto.arte_altura?.toString() || '1080'
     });
     setImageFile(null);
     setScreenSelection(parseScreen(ponto.simulacao_tela));
+    setPromptCopied(false);
     setEditing(ponto);
   };
 
@@ -172,6 +178,39 @@ export default function Admin() {
     !search || p.nome.toLowerCase().includes(search.toLowerCase()) ||
     p.cidade.toLowerCase().includes(search.toLowerCase())
   );
+
+  const artWidth = parseInt(form.arte_largura, 10) || 0;
+  const artHeight = parseInt(form.arte_altura, 10) || 0;
+  const artRatioText = formatRatio(artWidth, artHeight);
+
+  const autoArtPrompt = useMemo(() => {
+    if (!form.nome) return '';
+
+    const resolution = artWidth > 0 && artHeight > 0 ? `${artWidth}x${artHeight}px` : '1920x1080px';
+    const ratio = artRatioText || '16:9';
+
+    return [
+      `Crie uma arte publicitária para mídia OOH digital do ponto \"${form.nome}\".`,
+      `Formato do ponto: ${form.tipo || 'Tela Indoor'} em ${form.cidade || 'Londrina'}.`,
+      `Resolução obrigatória: ${resolution}.`,
+      `Proporção obrigatória: ${ratio}.`,
+      `Objetivo: alta legibilidade a distância, contraste forte e mensagem principal em até 7 palavras.`,
+      `Direção visual: moderna, premium, limpa, com foco em impacto imediato.`,
+      `Regras: não adicionar marcas d'água, não distorcer, manter margens de segurança de 5% em todos os lados.`,
+      `Entrega final: 1 variação estática em PNG na resolução exata solicitada.`
+    ].join(' ');
+  }, [form.nome, form.tipo, form.cidade, artWidth, artHeight, artRatioText]);
+
+  const handleCopyPrompt = async () => {
+    if (!autoArtPrompt) return;
+    try {
+      await navigator.clipboard.writeText(autoArtPrompt);
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 1800);
+    } catch {
+      alert('Não foi possível copiar automaticamente.');
+    }
+  };
 
   // Login screen
   if (!auth) {
@@ -285,6 +324,7 @@ export default function Admin() {
                   <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden md:table-cell">Cidade</th>
                   <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden md:table-cell">Tipo</th>
                   <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Telas</th>
+                  <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Proporção</th>
                   <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs">Preço</th>
                   <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Status</th>
                   <th className="text-right px-4 py-3 text-brand-gray-400 font-medium text-xs">Ações</th>
@@ -292,9 +332,9 @@ export default function Admin() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-brand-gray-500">Carregando...</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-12 text-center text-brand-gray-500">Carregando...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-brand-gray-500">Nenhum ponto encontrado</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-12 text-center text-brand-gray-500">Nenhum ponto encontrado</td></tr>
                 ) : filtered.map((p, i) => (
                   <tr key={p.id} className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors ${!p.ativo ? 'opacity-40' : ''}`}>
                     <td className="px-4 py-3">
@@ -314,6 +354,7 @@ export default function Admin() {
                     <td className="px-4 py-3 text-brand-gray-400 hidden md:table-cell">{p.cidade}</td>
                     <td className="px-4 py-3 text-brand-gray-400 hidden md:table-cell">{p.tipo}</td>
                     <td className="px-4 py-3 text-brand-gray-400 hidden lg:table-cell">{p.telas}</td>
+                    <td className="px-4 py-3 text-brand-gray-400 hidden lg:table-cell">{formatRatio(p.arte_largura, p.arte_altura) || '-'}</td>
                     <td className="px-4 py-3 text-brand-orange font-medium">
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.preco)}
                     </td>
@@ -398,6 +439,8 @@ export default function Admin() {
                   <FormField label="Veiculação" value={form.veiculacao} onChange={v => updateField('veiculacao', v)} />
                   <FormField label="Telas" value={form.telas} onChange={v => updateField('telas', v)} type="number" />
                   <FormField label="Preço (R$)" value={form.preco} onChange={v => updateField('preco', v)} type="number" step="0.01" />
+                  <FormField label="Arte largura (px)" value={form.arte_largura} onChange={v => updateField('arte_largura', v)} type="number" min="1" />
+                  <FormField label="Arte altura (px)" value={form.arte_altura} onChange={v => updateField('arte_altura', v)} type="number" min="1" />
                 </div>
 
                 <div>
@@ -455,6 +498,36 @@ export default function Admin() {
                   <p className="text-[11px] text-brand-gray-500">
                     O preview final será gerado no modal de proposta com a arte da campanha selecionada.
                   </p>
+
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Proporção da arte para este ponto</p>
+                      <span className="px-2.5 py-1 rounded-full bg-brand-orange/15 text-brand-orange text-xs font-semibold">
+                        {artRatioText || 'Defina largura e altura'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-brand-gray-400 mb-1.5">Prompt automático para IA generativa</label>
+                      <textarea
+                        value={autoArtPrompt}
+                        readOnly
+                        rows={5}
+                        className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-brand-gray-200 focus:outline-none resize-none"
+                      />
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={handleCopyPrompt}
+                          disabled={!autoArtPrompt}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-xs text-white transition-colors disabled:opacity-40"
+                        >
+                          {promptCopied ? <Check size={14} /> : <Copy size={14} />}
+                          {promptCopied ? 'Prompt copiado' : 'Copiar prompt'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </section>
 
                 <div className="flex gap-3 pt-4">
@@ -511,4 +584,24 @@ function FormSelect({ label, value, onChange, options }) {
       </select>
     </div>
   );
+}
+
+function formatRatio(width, height) {
+  const w = Number(width) || 0;
+  const h = Number(height) || 0;
+  if (w <= 0 || h <= 0) return '';
+
+  const gcd = (a, b) => {
+    let x = Math.abs(a);
+    let y = Math.abs(b);
+    while (y) {
+      const t = y;
+      y = x % y;
+      x = t;
+    }
+    return x || 1;
+  };
+
+  const div = gcd(w, h);
+  return `${Math.round(w / div)}:${Math.round(h / div)}`;
 }

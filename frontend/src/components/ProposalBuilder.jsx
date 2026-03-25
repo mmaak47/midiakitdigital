@@ -7,6 +7,8 @@ export default function ProposalBuilder({
   totals,
   strategicText,
   simulationSummary,
+  activePreviewPointId,
+  onSelectPreview,
   onGenerate
 }) {
   const formatCurrency = (n) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
@@ -40,11 +42,21 @@ export default function ProposalBuilder({
                 <td className="px-3 py-2.5 font-medium text-white">{p.nome}</td>
                 <td className="px-3 py-2.5 hidden lg:table-cell">
                   {p.proposalSimulationPreview || p.simulacao_preview ? (
-                    <img
-                      src={p.proposalSimulationPreview || p.simulacao_preview}
-                      alt={`Simulação ${p.nome}`}
-                      className="w-24 h-14 rounded-lg object-cover border border-white/10"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => onSelectPreview?.(p.id)}
+                      className={`rounded-lg border transition-all ${
+                        activePreviewPointId === p.id
+                          ? 'border-brand-orange shadow-[0_0_0_1px_rgba(254,92,43,0.45)]'
+                          : 'border-white/10 hover:border-white/30'
+                      }`}
+                    >
+                      <img
+                        src={p.proposalSimulationPreview || p.simulacao_preview}
+                        alt={`Simulação ${p.nome}`}
+                        className="w-24 h-14 rounded-lg object-cover"
+                      />
+                    </button>
                   ) : (
                     <span className="text-xs text-brand-gray-500">{p.proposalSimulationStatus || 'Sem simulação'}</span>
                   )}

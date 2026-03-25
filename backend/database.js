@@ -26,6 +26,8 @@ db.exec(`
     preco REAL DEFAULT 0,
     descricao TEXT,
     imagem TEXT,
+    arte_largura INTEGER DEFAULT 1920,
+    arte_altura INTEGER DEFAULT 1080,
     ativo INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
@@ -50,6 +52,15 @@ function ensureColumn(table, column, definition) {
 ensureColumn('pontos', 'simulacao_tela', 'TEXT');
 ensureColumn('pontos', 'simulacao_arte', 'TEXT');
 ensureColumn('pontos', 'simulacao_preview', 'TEXT');
+ensureColumn('pontos', 'arte_largura', 'INTEGER DEFAULT 1920');
+ensureColumn('pontos', 'arte_altura', 'INTEGER DEFAULT 1080');
+
+db.exec(`
+  UPDATE pontos
+  SET
+    arte_largura = COALESCE(arte_largura, 1920),
+    arte_altura = COALESCE(arte_altura, 1080)
+`);
 
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_pontos_ativo_cidade_nome

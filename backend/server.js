@@ -148,10 +148,12 @@ app.post('/api/pontos', upload.fields([
     const simulacaoArte = pickUploadedPath(req, 'simulacao_arte') || data.simulacao_arte || null;
     const simulacaoPreview = pickUploadedPath(req, 'simulacao_preview') || data.simulacao_preview || null;
     const simulacaoTela = data.simulacao_tela || null;
+    const arteLargura = parseInt(data.arte_largura, 10) || 1920;
+    const arteAltura = parseInt(data.arte_altura, 10) || 1080;
 
     const stmt = db.prepare(`
-      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, simulacao_tela, simulacao_arte, simulacao_preview)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -160,7 +162,7 @@ app.post('/api/pontos', upload.fields([
       data.horario, parseInt(data.fluxo) || 0, parseInt(data.insercoes) || 0,
       data.tempo || '15s', data.loop || '3 min', data.veiculacao || 'Vídeo sem áudio',
       data.publico || 'A/B', parseInt(data.telas) || 1, parseFloat(data.preco) || 0,
-      data.descricao, imagem, simulacaoTela, simulacaoArte, simulacaoPreview
+      data.descricao, imagem, simulacaoTela, simulacaoArte, simulacaoPreview, arteLargura, arteAltura
     );
 
     const ponto = db.prepare('SELECT * FROM pontos WHERE id = ?').get(result.lastInsertRowid);
@@ -185,6 +187,8 @@ app.put('/api/pontos/:id', upload.fields([
     const simulacaoArte = pickUploadedPath(req, 'simulacao_arte') || data.simulacao_arte || existing.simulacao_arte;
     const simulacaoPreview = pickUploadedPath(req, 'simulacao_preview') || data.simulacao_preview || existing.simulacao_preview;
     const simulacaoTela = data.simulacao_tela || existing.simulacao_tela;
+    const arteLargura = parseInt(data.arte_largura, 10) || existing.arte_largura || 1920;
+    const arteAltura = parseInt(data.arte_altura, 10) || existing.arte_altura || 1080;
 
     const stmt = db.prepare(`
       UPDATE pontos SET
@@ -192,6 +196,7 @@ app.put('/api/pontos/:id', upload.fields([
         horario = ?, fluxo = ?, insercoes = ?, tempo = ?, loop = ?,
         veiculacao = ?, publico = ?, telas = ?, preco = ?, descricao = ?,
         imagem = ?, simulacao_tela = ?, simulacao_arte = ?, simulacao_preview = ?,
+        arte_largura = ?, arte_altura = ?,
         updated_at = datetime('now')
       WHERE id = ?
     `);
@@ -207,6 +212,7 @@ app.put('/api/pontos/:id', upload.fields([
       parseInt(data.telas) || existing.telas, parseFloat(data.preco) || existing.preco,
       data.descricao || existing.descricao, imagem,
       simulacaoTela, simulacaoArte, simulacaoPreview,
+      arteLargura, arteAltura,
       req.params.id
     );
 

@@ -342,3 +342,176 @@ export async function generateMidiaKitPdf({ praca, pontos }) {
   const fileName = `midia-kit-${slugify(cidade)}-${new Date().toISOString().slice(0, 10)}.pdf`;
   doc.save(fileName);
 }
+
+function normalizeLines(values = []) {
+  return values
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
+export async function generateProposalPdf({
+  clientName,
+  city,
+  points,
+  totals,
+  strategicText,
+  simulationSummary
+}) {
+  const proposalPoints = Array.isArray(points) ? points : [];
+  const proposalTotals = totals || { valorTotal: 0, fluxoTotal: 0, cpmEstimado: 0, insercoesTotal: 0 };
+  const proposalCity = city || 'Multiplas pracas';
+  const proposalClient = clientName || 'Cliente nao informado';
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const w = doc.internal.pageSize.getWidth();
+  const h = doc.internal.pageSize.getHeight();
+
+  doc.setFillColor(7, 9, 12);
+  doc.rect(0, 0, w, h, 'F');
+
+  doc.setFillColor(254, 92, 43);
+  doc.roundedRect(16, 16, 98, 14, 3, 3, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text('PROPOSTA COMERCIAL', 21, 25);
+
+  doc.setFontSize(27);
+  doc.text('INTERMIDIA', 16, 47);
+
+  doc.setFontSize(11);
+  doc.setTextColor(190, 190, 190);
+  doc.text(`Cliente: ${proposalClient}`, 16, 60);
+  doc.text(`Praca: ${proposalCity}`, 16, 67);
+  doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 16, 74);
+
+  const cards = [
+    { label: 'Pontos', value: formatInt(proposalPoints.length) },
+    { label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
+    { label: 'Valor total', value: formatMoney(proposalTotals.valorTotal) },
+    { label: 'CPM', value: `R$ ${(Number(proposalTotals.cpmEstimado) || 0).toFixed(2)}` }
+  ];
+
+  let cx = 16;
+  cards.forEach((card) => {
+    doc.setFillColor(20, 22, 26);
+    doc.setDrawColor(56, 58, 62);
+    doc.roundedRect(cx, 84, 64, 30, 3, 3, 'FD');
+
+    doc.setTextColor(150, 150, 150);
+    doc.setFontSize(8);
+    doc.text(card.label.toUpperCase(), cx + 4, 91);
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text(String(card.value), cx + 4, 104);
+    cx += 68;
+  });
+
+  const highlights = normalizeLines(strategicText?.slice?.(0, 4) || []);
+  doc.setFillColor(14, 15, 19);
+  doc.setDrawColor(60, 62, 68);
+  doc.roundedRect(16, 124, w - 32, 72, 3, 3, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(255, 255, 255);
+  doc.text('DIRECIONAMENTO ESTRATEGICO', 22, 133);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(200, 200, 200);
+  if (highlights.length) {
+    let hy = 143;
+    highlights.forEach((line) => {
+      doc.text(`- ${line}`, 22, hy);
+      hy += 10;
+    });
+  } else {
+    doc.text('- Argumentos estrategicos serao definidos na reuniao comercial.', 22, 143);
+  }
+
+  if (simulationSummary) {
+    const summary = String(simulationSummary).slice(0, 180);
+    doc.setTextColor(170, 170, 170);
+    doc.text(`Simulacao: ${summary}`, 22, 188);
+  }
+
+  for (let i = 0; i < proposalPoints.length; i += 1) {
+    const point = proposalPoints[i];
+    doc.addPage('a4', 'landscape');
+
+    doc.setFillColor(248, 248, 248);
+    doc.rect(0, 0, w, h, 'F');
+
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(10, 10, w - 20, h - 20, 4, 4, 'F');
+
+    doc.setFillColor(8, 8, 8);
+    doc.roundedRect(14, 14, w - 28, 14, 2, 2, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(`${i + 1}/${proposalPoints.length}  ${String(point.nome || 'Ponto').slice(0, 65)}`, 18, 23);
+
+    const imageUrl = point.proposalSimulationPreview || point.simulacao_preview || pickImageUrl(point);
+    const imageData = await imageToDataUrl(imageUrl);
+    if (imageData) {
+      try {
+        doc.addImage(imageData, 'JPEG', 14, 34, 188, 106, undefined, 'FAST');
+      } catch {
+        try {
+          doc.addImage(imageData, 'PNG', 14, 34, 188, 106, undefined, 'FAST');
+        } catch {
+          doc.setFillColor(35, 35, 35);
+          doc.rect(14, 34, 188, 106, 'F');
+        }
+      }
+    } else {
+      doc.setFillColor(35, 35, 35);
+      doc.rect(14, 34, 188, 106, 'F');
+      doc.setTextColor(180, 180, 180);
+      doc.setFontSize(10);
+      doc.text('Simulacao/imagem indisponivel', 22, 88);
+    }
+
+    doc.setTextColor(30, 30, 30);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text(String(point.nome || 'Ponto sem nome').slice(0, 45), 210, 44);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`${point.cidade || '-'} | ${point.tipo || '-'}`, 210, 52);
+    doc.text(String(point.endereco || 'Endereco nao informado').slice(0, 70), 210, 60);
+
+    const info = [
+      ['Publico', point.publico || '-'],
+      ['Fluxo', formatInt(point.fluxo)],
+      ['Telas', formatInt(point.telas)],
+      ['Insercoes', formatInt(point.insercoes)],
+      ['Investimento', formatMoney(point.preco)]
+    ];
+
+    let iy = 74;
+    info.forEach(([label, value]) => {
+      doc.setTextColor(120, 120, 120);
+      doc.setFontSize(8);
+      doc.text(String(label).toUpperCase(), 210, iy);
+
+      doc.setTextColor(20, 20, 20);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text(String(value).slice(0, 40), 210, iy + 6);
+
+      doc.setFont('helvetica', 'normal');
+      iy += 16;
+    });
+  }
+
+  const fileName = `proposta-${slugify(proposalClient)}-${new Date().toISOString().slice(0, 10)}.pdf`;
+  doc.save(fileName);
+}
