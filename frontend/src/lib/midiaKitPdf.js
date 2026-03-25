@@ -1056,7 +1056,7 @@ function buildEntornoEvidenceMapHtml(rows) {
       const left = ((tileX * tileSize) - viewMinX) * scale;
       const top = ((tileY * tileSize) - viewMinY) * scale;
       tilesHtml.push(`
-        <img crossorigin="anonymous" src="https://tile.openstreetmap.org/${zoom}/${wrappedTileX}/${tileY}.png" alt="" style="position:absolute;left:${left.toFixed(2)}px;top:${top.toFixed(2)}px;width:${(tilePx + 0.5).toFixed(2)}px;height:${(tilePx + 0.5).toFixed(2)}px;object-fit:cover;" />
+        <img crossorigin="anonymous" src="https://a.basemaps.cartocdn.com/dark_all/${zoom}/${wrappedTileX}/${tileY}.png" alt="" style="position:absolute;left:${left.toFixed(2)}px;top:${top.toFixed(2)}px;width:${(tilePx + 0.5).toFixed(2)}px;height:${(tilePx + 0.5).toFixed(2)}px;object-fit:cover;" />
       `);
     }
   }

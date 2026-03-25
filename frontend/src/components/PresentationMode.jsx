@@ -399,7 +399,10 @@ function GeoRadiusMapCard({ title, radiusMeters, point, places = [], fallbackPla
           attributionControl={false}
           style={{ background: '#0a0a0a' }}
         >
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <TileLayer
+            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            subdomains={['a', 'b', 'c', 'd']}
+          />
           <FitGeoBounds point={point} places={places} radiusMeters={radiusMeters} />
 
           <Circle
