@@ -244,12 +244,25 @@ function buildHeroImageFrame(image, options = {}) {
   `;
 }
 
+function pointDetailIcon(label) {
+  const normalized = String(label || '').toLowerCase();
+  if (normalized.includes('público') || normalized.includes('publico')) return '👥';
+  if (normalized.includes('fluxo')) return '📈';
+  if (normalized.includes('telas')) return '🖥';
+  if (normalized.includes('inser')) return '🎯';
+  if (normalized.includes('tempo')) return '⏱';
+  if (normalized.includes('loop')) return '🔁';
+  if (normalized.includes('veic')) return '🎬';
+  if (normalized.includes('hor')) return '🕒';
+  return '•';
+}
+
 function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
     <div style="position:absolute;inset:0;background:url('${assets.heroBg || assets.cityBg || ''}') center/cover no-repeat;"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:47%;background:#000;"></div>
-    <div style="position:absolute;left:47%;top:0;width:0;height:0;border-top:${PAGE_HEIGHT}px solid rgba(0,0,0,0.98);border-left:220px solid transparent;"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:46%;background:#000;"></div>
+    <div style="position:absolute;left:46%;top:0;bottom:0;width:140px;background:linear-gradient(90deg,rgba(0,0,0,0.98) 0%,rgba(0,0,0,0.82) 45%,rgba(0,0,0,0.0) 100%);"></div>
 
     <div style="position:absolute;left:72px;top:88px;width:360px;">
       <img src="${assets.logo || ''}" alt="" style="width:180px;height:auto;object-fit:contain;" />
@@ -277,23 +290,26 @@ function buildMidiaKitManifestoPage({ assets }) {
       <img src="${assets.about1 || assets.about2 || ''}" alt="" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.05);" />
       <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,0.45) 0%,rgba(0,0,0,0.15) 55%,rgba(0,0,0,0.0) 100%);"></div>
     </div>
-    <div style="position:absolute;left:44%;top:0;width:0;height:0;border-top:${PAGE_HEIGHT}px solid rgba(0,0,0,0.94);border-left:120px solid transparent;"></div>
+    <div style="position:absolute;left:44%;top:0;bottom:0;width:120px;background:linear-gradient(90deg,rgba(0,0,0,0.96) 0%,rgba(0,0,0,0.75) 48%,rgba(0,0,0,0) 100%);"></div>
 
-    <div style="position:absolute;left:760px;right:82px;top:88px;">
+    <div style="position:absolute;left:740px;right:82px;top:88px;">
       <img src="${assets.logo || ''}" alt="" style="height:70px;width:auto;object-fit:contain;" />
-      <div style="margin-top:26px;font-size:34px;line-height:1.34;color:#fff;max-width:760px;">
+      <div style="margin-top:24px;font-size:21px;line-height:1.45;color:#fff;max-width:760px;">
         Na Intermidia, não apenas defendemos a mídia OOH e DOOH. Nós vivemos a transformação que ela representa.
       </div>
-      <div style="margin-top:24px;width:230px;height:6px;background:${BRAND_ORANGE};"></div>
+      <div style="margin-top:18px;width:230px;height:5px;background:${BRAND_ORANGE};"></div>
     </div>
 
-    <div style="position:absolute;left:760px;right:82px;top:290px;display:grid;grid-template-columns:1fr 1fr;gap:54px;">
-      <div style="font-size:45px;line-height:1.35;color:#fff;">
-        <strong style="font-weight:700;">A Intermidia é especialista em comunicação Out of Home e Digital Out of Home desde 2007.</strong>
-        <br/><br/>
-        Somos apaixonados pelo impacto que a mídia OOH e DOOH pode gerar.
+    <div style="position:absolute;left:740px;right:82px;top:282px;bottom:80px;display:grid;grid-template-columns:1fr 1fr;gap:36px;">
+      <div style="display:flex;flex-direction:column;gap:18px;min-width:0;">
+        <div style="font-size:56px;line-height:1.03;color:#fff;font-family:Poppins, system-ui, sans-serif;font-weight:700;letter-spacing:-0.03em;">
+          A Intermidia é especialista em comunicação Out of Home e Digital Out of Home desde 2007.
+        </div>
+        <div style="font-size:23px;line-height:1.55;color:rgba(255,255,255,0.9);">
+          Somos apaixonados pelo impacto que a mídia OOH e DOOH pode gerar para marcas, varejo e serviços.
+        </div>
       </div>
-      <div style="font-size:45px;line-height:1.35;color:#fff;">
+      <div style="font-size:23px;line-height:1.58;color:rgba(255,255,255,0.92);min-width:0;">
         Valorizamos a força da publicidade no ambiente urbano e acreditamos que cada ponto de contato é uma oportunidade para transformar marcas em referência.
         <br/><br/>
         Entregamos soluções que levam sua mensagem além do óbvio, alcançando as pessoas onde elas vivem, trabalham e se movem.
@@ -400,38 +416,41 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#d9d9d9;"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:40px;background:#0c0c0c;"></div>
-    <div style="position:absolute;left:40px;top:0;bottom:0;right:670px;background:#e7e7e7;"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:76px;background:#0c0c0c;"></div>
+    <div style="position:absolute;left:76px;top:0;bottom:0;right:670px;background:#e7e7e7;"></div>
     <div style="position:absolute;right:0;top:0;bottom:0;width:670px;background:#1a1a1a;"></div>
     <div style="position:absolute;right:0;top:0;bottom:0;width:670px;background:url('${image || assets.showcase || ''}') center/cover no-repeat;"></div>
 
-    <div style="position:absolute;left:58px;top:42px;right:710px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:2px solid #161616;padding-bottom:12px;">
+    <div style="position:absolute;left:98px;top:42px;right:710px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:2px solid #161616;padding-bottom:12px;">
       <div style="display:flex;align-items:center;gap:16px;">
         <div style="width:46px;height:46px;border:2px solid #222;display:flex;align-items:center;justify-content:center;font-size:21px;">▥</div>
-        <div style="font-family:Poppins, system-ui, sans-serif;font-size:56px;line-height:0.95;font-weight:700;letter-spacing:-0.04em;color:#000;">${escapeHtml((ponto.tipo || 'FORMATO').toUpperCase())}</div>
+        <div style="font-family:Poppins, system-ui, sans-serif;font-size:50px;line-height:0.95;font-weight:700;letter-spacing:-0.04em;color:#000;">${escapeHtml((ponto.tipo || 'FORMATO').toUpperCase())}</div>
       </div>
-      <div style="padding:8px 18px;border:2px solid #333;font-size:34px;line-height:1;color:#111;text-transform:uppercase;">${escapeHtml((ponto.publico || 'A/B').toUpperCase())}</div>
+      <div style="padding:8px 18px;border:2px solid #333;font-size:30px;line-height:1;color:#111;text-transform:uppercase;border-radius:8px;">${escapeHtml((ponto.publico || 'A/B').toUpperCase())}</div>
     </div>
 
-    <div style="position:absolute;left:58px;top:122px;right:710px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;">
-      <div style="font-family:Poppins, system-ui, sans-serif;font-size:68px;line-height:0.93;font-weight:700;color:#000;">${escapeHtml((ponto.nome || '').toUpperCase())}</div>
+    <div style="position:absolute;left:98px;top:122px;right:710px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;">
+      <div style="font-family:Poppins, system-ui, sans-serif;font-size:62px;line-height:0.95;font-weight:700;color:#000;">${escapeHtml((ponto.nome || '').toUpperCase())}</div>
       <div style="font-size:26px;font-weight:700;color:#000;">${index}/${total}</div>
     </div>
 
-    <div style="position:absolute;left:58px;top:206px;right:710px;font-size:28px;line-height:1.4;color:#111;">${escapeHtml(ponto.endereco || 'Endereço não informado')} ${escapeHtml(ponto.cidade ? `· ${ponto.cidade}` : '')}</div>
+    <div style="position:absolute;left:98px;top:206px;right:710px;font-size:28px;line-height:1.4;color:#111;">${escapeHtml(ponto.endereco || 'Endereço não informado')} ${escapeHtml(ponto.cidade ? `· ${ponto.cidade}` : '')}</div>
 
-    <div style="position:absolute;left:58px;top:282px;right:710px;border-top:2px solid #1a1a1a;"></div>
-    <div style="position:absolute;left:58px;top:300px;right:710px;display:grid;grid-template-columns:1fr 1fr;gap:20px 34px;">
+    <div style="position:absolute;left:98px;top:282px;right:710px;border-top:2px solid #1a1a1a;"></div>
+    <div style="position:absolute;left:98px;top:302px;right:710px;padding:14px 16px 18px;border:1px solid #b8b8b8;background:rgba(255,255,255,0.46);border-radius:14px;display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;box-sizing:border-box;">
       ${details.slice(0, 6).map((item) => `
-        <div>
-          <div style="font-size:19px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;">${escapeHtml(item.label)}</div>
-          <div style="margin-top:6px;font-family:Poppins, system-ui, sans-serif;font-size:34px;line-height:1.2;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
+        <div style="display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:start;">
+          <div style="width:34px;height:34px;border-radius:999px;background:#111;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;color:#fff;">${pointDetailIcon(item.label)}</div>
+          <div>
+            <div style="font-size:16px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;">${escapeHtml(item.label)}</div>
+            <div style="margin-top:4px;font-family:Poppins, system-ui, sans-serif;font-size:31px;line-height:1.15;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
+          </div>
         </div>
       `).join('')}
     </div>
 
-    <div style="position:absolute;left:58px;bottom:150px;right:710px;border-top:2px solid #1a1a1a;"></div>
-    <div style="position:absolute;left:58px;bottom:78px;right:710px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
+    <div style="position:absolute;left:98px;bottom:150px;right:710px;border-top:2px solid #1a1a1a;"></div>
+    <div style="position:absolute;left:98px;bottom:78px;right:710px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
       <div>
         <div style="font-size:20px;line-height:1.4;color:#111;">mínimo de ${escapeHtml(formatInt(ponto.insercoes || 0))} inserções/mês</div>
         <div style="font-size:20px;line-height:1.4;color:#111;">veiculação: ${escapeHtml((ponto.veiculacao || 'vídeo sem áudio').toLowerCase())}</div>
@@ -442,8 +461,12 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
       </div>
     </div>
 
-    <div style="position:absolute;left:8px;top:16px;width:24px;height:24px;overflow:hidden;">
-      <img src="${assets.logo || ''}" alt="" style="width:100%;height:100%;object-fit:contain;" />
+    <div style="position:absolute;left:0;top:0;bottom:0;width:76px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:18px 6px;box-sizing:border-box;">
+      <div style="width:64px;height:64px;display:flex;align-items:center;justify-content:center;overflow:hidden;transform:rotate(-90deg);transform-origin:center;">
+        <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="width:64px;height:auto;object-fit:contain;" />
+      </div>
+      <div style="writing-mode:vertical-rl;transform:rotate(180deg);font-family:Poppins, system-ui, sans-serif;font-size:22px;line-height:1;font-weight:700;color:#fff;letter-spacing:0.02em;text-transform:capitalize;text-align:center;">${escapeHtml(ponto.cidade || 'Londrina')}</div>
+      <div style="writing-mode:vertical-rl;transform:rotate(180deg);font-family:Poppins, system-ui, sans-serif;font-size:20px;line-height:1;font-weight:600;color:#fff;letter-spacing:0.03em;text-transform:lowercase;">intermidia</div>
     </div>
 
     <div style="position:absolute;right:20px;bottom:22px;padding:8px 12px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.22);">
@@ -579,6 +602,7 @@ function buildProposalPointPage({ point, index, total, image, assets }) {
 async function loadPdfAssets() {
   const [
     logo,
+    logoHorizontal,
     heroBg,
     cityBg,
     about1,
@@ -588,6 +612,7 @@ async function loadPdfAssets() {
     wallpaper
   ] = await Promise.all([
     imageToDataUrl(assetUrl('/logo.png')),
+    imageToDataUrl(assetUrl('/logo-deitado.png')),
     imageToDataUrl(assetUrl('/hero-bg.jpg')),
     imageToDataUrl(assetUrl('/city-bg.jpg')),
     imageToDataUrl(assetUrl('/about-1.jpg')),
@@ -599,6 +624,7 @@ async function loadPdfAssets() {
 
   return {
     logo,
+    logoHorizontal,
     heroBg,
     cityBg,
     about1,
