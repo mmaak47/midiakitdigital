@@ -12,3 +12,6 @@ midiakit_key.pem
 src/
 !frontend/src/
 !frontend/src/**
+backend/*.db-wal
+backend/*.db-shm
+backend/backups/

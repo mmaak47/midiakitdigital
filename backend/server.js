@@ -4,6 +4,7 @@ const compression = require('compression');
 const path = require('path');
 const multer = require('multer');
 const db = require('./database');
+const { createBackupScheduler } = require('./backupService');
 const {
   DEFAULT_RADIUS,
   getSegmentCategories,
@@ -375,4 +376,9 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Intermidia Mídia Kit API running on port ${PORT}`);
+  if (String(process.env.SQLITE_BACKUP_ENABLED || 'true').toLowerCase() !== 'false') {
+    createBackupScheduler(db);
+  } else {
+    console.log('[backup] Automatic SQLite backup disabled by SQLITE_BACKUP_ENABLED=false');
+  }
 });
