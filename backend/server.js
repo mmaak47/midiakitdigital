@@ -10,6 +10,7 @@ const {
   getSegmentCategories,
   normalizeSegment,
   normalizeRadius,
+  geocodeAddress,
   enqueueJob,
   getJob,
   listJobs,
@@ -69,10 +70,47 @@ function pickUploadedPath(req, fieldName) {
 }
 
 function parseOptionalCity(value) {
+  if (Array.isArray(value)) {
+    return parseOptionalCity(value[0]);
+  }
   if (!value) return '';
   const normalized = String(value).trim();
   if (!normalized || normalized.toLowerCase() === 'todas') return '';
   return normalized;
+}
+
+function parseOptionalValues(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+
+  if (!value) return [];
+
+  return String(value)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function appendMultiFilter(sqlParts, params, column, values) {
+  if (!values.length) return;
+
+  const placeholders = values.map(() => '?').join(', ');
+  sqlParts.push(` AND ${column} IN (${placeholders})`);
+  params.push(...values);
+}
+
+function haversineDistanceMeters(lat1, lng1, lat2, lng2) {
+  const toRad = (degrees) => (degrees * Math.PI) / 180;
+  const earthRadiusMeters = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 const PDF_LAYOUT_SETTINGS_KEY = 'pdf_layout_overrides';
@@ -110,32 +148,28 @@ function writePdfLayoutOverrides(overrides) {
 
 // GET all pontos (with optional filters)
 app.get('/api/pontos', (req, res) => {
-  const { cidade, tipo, publico, search } = req.query;
-  let sql = 'SELECT * FROM pontos WHERE ativo = 1';
+  const { tipo, search } = req.query;
+  const cidades = parseOptionalValues(req.query.cidade);
+  const publicos = parseOptionalValues(req.query.publico);
+  const sqlParts = ['SELECT * FROM pontos WHERE ativo = 1'];
   const params = [];
 
-  if (cidade) {
-    sql += ' AND cidade = ?';
-    params.push(cidade);
-  }
+  appendMultiFilter(sqlParts, params, 'cidade', cidades);
   if (tipo) {
-    sql += ' AND tipo = ?';
+    sqlParts.push(' AND tipo = ?');
     params.push(tipo);
   }
-  if (publico) {
-    sql += ' AND publico = ?';
-    params.push(publico);
-  }
+  appendMultiFilter(sqlParts, params, 'publico', publicos);
   if (search) {
-    sql += ' AND (nome LIKE ? OR endereco LIKE ? OR descricao LIKE ?)';
+    sqlParts.push(' AND (nome LIKE ? OR endereco LIKE ? OR descricao LIKE ?)');
     const term = `%${search}%`;
     params.push(term, term, term);
   }
 
-  sql += ' ORDER BY cidade, nome';
+  sqlParts.push(' ORDER BY cidade, nome');
 
   try {
-    const pontos = db.prepare(sql).all(...params);
+    const pontos = db.prepare(sqlParts.join('')).all(...params);
     res.json(pontos);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -372,6 +406,77 @@ app.get('/api/entorno/scores', (req, res) => {
       metrics: scores.metrics,
       byPoint: scores.byPoint,
       job
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/entorno/client-address', async (req, res) => {
+  try {
+    const address = String(req.body?.address || '').trim();
+    const requestedCities = parseOptionalValues(req.body?.cidade);
+    const pointIds = Array.isArray(req.body?.pointIds)
+      ? req.body.pointIds.map((value) => Number(value)).filter((value) => Number.isFinite(value))
+      : [];
+
+    if (!address) {
+      return res.status(400).json({ error: 'Endereço do cliente é obrigatório' });
+    }
+
+    const location = await geocodeAddress(address);
+    if (!location) {
+      return res.status(404).json({ error: 'Não foi possível localizar o endereço informado' });
+    }
+
+    const sqlParts = ['SELECT * FROM pontos WHERE ativo = 1'];
+    const params = [];
+
+    if (pointIds.length) {
+      const placeholders = pointIds.map(() => '?').join(', ');
+      sqlParts.push(` AND id IN (${placeholders})`);
+      params.push(...pointIds);
+    }
+
+    appendMultiFilter(sqlParts, params, 'cidade', requestedCities);
+    sqlParts.push(' ORDER BY nome');
+
+    const points = db.prepare(sqlParts.join('')).all(...params);
+    const byPoint = {};
+    const rankedPoints = [];
+
+    points.forEach((point) => {
+      if (!Number.isFinite(Number(point.lat)) || !Number.isFinite(Number(point.lng))) {
+        return;
+      }
+
+      const distanceMeters = haversineDistanceMeters(location.lat, location.lng, Number(point.lat), Number(point.lng));
+      const distanceKm = distanceMeters / 1000;
+      const proximityScore = Math.max(0, 10 - Math.min(10, distanceKm * 1.35));
+      const payload = {
+        pointId: point.id,
+        distanceMeters,
+        distanceKm,
+        proximityScore
+      };
+
+      byPoint[point.id] = payload;
+      rankedPoints.push({
+        id: point.id,
+        nome: point.nome,
+        cidade: point.cidade,
+        tipo: point.tipo,
+        ...payload
+      });
+    });
+
+    rankedPoints.sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+    res.json({
+      address,
+      location,
+      byPoint,
+      rankedPoints: rankedPoints.slice(0, 12)
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

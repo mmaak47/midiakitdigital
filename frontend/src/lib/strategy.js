@@ -75,6 +75,36 @@ function toNumber(v) {
   return Number(v) || 0;
 }
 
+function normalizeArrayInput(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+
+  const normalized = String(value || '').trim();
+  return normalized ? [normalized] : [];
+}
+
+function matchesAnySelection(value, selectedValues = []) {
+  if (!selectedValues.length) return true;
+  return selectedValues.includes(String(value || '').trim());
+}
+
+function normalizePublicoParts(value) {
+  return String(value || '')
+    .toUpperCase()
+    .split('/')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function formatList(values = [], fallback = '') {
+  const normalized = normalizeArrayInput(values);
+  if (!normalized.length) return fallback;
+  if (normalized.length === 1) return normalized[0];
+  if (normalized.length === 2) return `${normalized[0]} e ${normalized[1]}`;
+  return `${normalized.slice(0, -1).join(', ')} e ${normalized[normalized.length - 1]}`;
+}
+
 function formatNumber(value) {
   return new Intl.NumberFormat('pt-BR').format(toNumber(value));
 }
@@ -181,6 +211,7 @@ export function campaignTotals(points = []) {
 
   const quantidade = points.length;
   const cpmEstimado = totals.fluxoTotal > 0 ? totals.valorTotal / (totals.fluxoTotal / 1000) : 0;
+  const ticketMedio = quantidade > 0 ? totals.valorTotal / quantidade : 0;
   const custoPorPonto = quantidade > 0 ? totals.valorTotal / quantidade : 0;
   const mediaFluxoPorPonto = quantidade > 0 ? totals.fluxoTotal / quantidade : 0;
 
@@ -188,6 +219,7 @@ export function campaignTotals(points = []) {
     ...totals,
     quantidade,
     cpmEstimado,
+    ticketMedio,
     custoPorPonto,
     mediaFluxoPorPonto
   };
@@ -257,11 +289,8 @@ function scorePointByObjective(point, objective) {
 }
 
 function normalizeFilterValue(value, allLabel) {
-  if (!value) return '';
-  const v = String(value).trim();
-  if (!v) return '';
-  if (v.toLowerCase() === String(allLabel).toLowerCase()) return '';
-  return v;
+  return normalizeArrayInput(value)
+    .filter((item) => item.toLowerCase() !== String(allLabel).toLowerCase());
 }
 
 function scoreSegmentAffinity(point, segmento) {
@@ -289,20 +318,27 @@ function scoreSegmentAffinity(point, segmento) {
 }
 
 function scorePublicoAffinity(point, publicoDesejado) {
-  if (!publicoDesejado) return 0;
-  const target = String(publicoDesejado).toUpperCase();
   const pointPublico = String(point.publico || '').toUpperCase();
+  const desiredPublicos = normalizeArrayInput(publicoDesejado);
+
+  if (!desiredPublicos.length) return 0;
 
   if (!pointPublico) return -2;
-  if (pointPublico === target) return 16;
 
-  const targetParts = target.split('/').map((p) => p.trim()).filter(Boolean);
-  const pointParts = pointPublico.split('/').map((p) => p.trim()).filter(Boolean);
-  const overlap = targetParts.filter((part) => pointParts.includes(part)).length;
-  if (overlap > 0) return 8 + overlap * 3;
-  if (pointPublico.includes(target) || target.includes(pointPublico)) return 8;
+  const scores = desiredPublicos.map((value) => {
+    const target = String(value).toUpperCase();
+    if (pointPublico === target) return 16;
 
-  return -5;
+    const targetParts = normalizePublicoParts(target);
+    const pointParts = normalizePublicoParts(pointPublico);
+    const overlap = targetParts.filter((part) => pointParts.includes(part)).length;
+    if (overlap > 0) return 8 + overlap * 3;
+    if (pointPublico.includes(target) || target.includes(pointPublico)) return 8;
+
+    return -5;
+  });
+
+  return Math.max(...scores);
 }
 
 function scoreCostEfficiency(point) {
@@ -444,8 +480,16 @@ export function suggestIdealPlan({
   const publicoNormalizado = normalizeFilterValue(publico, 'Todos');
 
   const filtered = pontos
-    .filter((p) => !cidadeNormalizada || p.cidade === cidadeNormalizada)
-    .filter((p) => !publicoNormalizado || String(p.publico || '').toUpperCase().includes(publicoNormalizado.toUpperCase()));
+    .filter((p) => matchesAnySelection(p.cidade, cidadeNormalizada))
+    .filter((p) => {
+      if (!publicoNormalizado.length) return true;
+
+      const pointPublico = String(p.publico || '').toUpperCase();
+      return publicoNormalizado.some((target) => {
+        const normalizedTarget = String(target).toUpperCase();
+        return pointPublico.includes(normalizedTarget) || normalizedTarget.includes(pointPublico);
+      });
+    });
 
   if (!filtered.length) {
     return {
@@ -582,9 +626,14 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
 
   const totals = campaignTotals(selected);
   const coverage = calculateCoverageLevel(selected, cityInventory);
+  const desiredPublicos = normalizeArrayInput(desiredPublico).map((value) => String(value).toUpperCase());
 
   const formats = new Set(selected.map((p) => p.tipo).filter(Boolean)).size;
-  const publicoMatches = selected.filter((p) => !desiredPublico || p.publico === desiredPublico).length;
+  const publicoMatches = selected.filter((p) => {
+    if (!desiredPublicos.length) return true;
+    const pointPublico = String(p.publico || '').toUpperCase();
+    return desiredPublicos.some((target) => pointPublico.includes(target) || target.includes(pointPublico));
+  }).length;
   const objectiveBoost = selected.filter((p) => scorePointByObjective(p, objective) > 45).length;
 
   const scoreRaw =
@@ -616,11 +665,12 @@ export function generateCommercialArguments({ selected = [], city, publico, obje
 
   const totals = campaignTotals(selected);
   const formatos = Array.from(new Set(selected.map((p) => p.tipo).filter(Boolean))).slice(0, 3);
-  const focoPublico = publico || 'públicos estratégicos da praça';
+  const focoPublico = formatList(publico, 'públicos estratégicos da praça');
+  const focoCidade = formatList(city, 'múltiplas praças');
   const segmentLabel = getSegmentDisplayName(segmento);
 
   return [
-    `A combinação selecionada em ${city || 'múltiplas praças'} reforça presença em ambientes de alta recorrência e atenção qualificada.`,
+    `A combinação selecionada em ${focoCidade} reforça presença em ambientes de alta recorrência e atenção qualificada.`,
     `Com ${totals.quantidade} pontos e fluxo estimado de ${new Intl.NumberFormat('pt-BR').format(totals.fluxoTotal)} impactos mensais, o plano equilibra alcance e frequência.`,
     `A estratégia privilegia ${formatos.join(', ') || 'formatos complementares'}, favorecendo ${objetivo || 'lembrança contínua'} para o segmento ${segmentLabel || 'anunciante'}.`,
     `O recorte de público (${focoPublico}) aumenta aderência comercial e potencial de conversão no território de interesse.`

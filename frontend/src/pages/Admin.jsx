@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
-  Building2, Save, Copy, Check, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus
+  Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import {
@@ -62,7 +62,6 @@ export default function Admin() {
   const [screenSelection, setScreenSelection] = useState(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
-  const [promptCopied, setPromptCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('pontos');
 
   const [users, setUsers] = useState([]);
@@ -231,7 +230,6 @@ export default function Admin() {
     setForm(emptyForm);
     setImageFile(null);
     setScreenSelection(null);
-    setPromptCopied(false);
     setEditing('new');
   };
 
@@ -262,7 +260,6 @@ export default function Admin() {
     });
     setImageFile(null);
     setScreenSelection(parseScreen(ponto.simulacao_tela));
-    setPromptCopied(false);
     setEditing(ponto);
   };
 
@@ -366,75 +363,50 @@ export default function Admin() {
   const artHeight = parseInt(form.arte_altura, 10) || 0;
   const artRatioText = formatRatio(artWidth, artHeight);
 
-  const autoArtPrompt = useMemo(() => {
-    if (!form.nome) return '';
-
-    const resolution = artWidth > 0 && artHeight > 0 ? `${artWidth}x${artHeight}px` : '1920x1080px';
-    const ratio = artRatioText || '16:9';
-
-    return [
-      `Crie uma arte publicitária para mídia OOH digital do ponto \"${form.nome}\".`,
-      `Formato do ponto: ${form.tipo || 'Tela Indoor'} em ${form.cidade || 'Londrina'}.`,
-      `Resolução obrigatória: ${resolution}.`,
-      `Proporção obrigatória: ${ratio}.`,
-      `Objetivo: alta legibilidade a distância, contraste forte e mensagem principal em até 7 palavras.`,
-      `Direção visual: moderna, premium, limpa, com foco em impacto imediato.`,
-      `Regras: não adicionar marcas d'água, não distorcer, manter margens de segurança de 5% em todos os lados.`,
-      `Entrega final: 1 variação estática em PNG na resolução exata solicitada.`
-    ].join(' ');
-  }, [form.nome, form.tipo, form.cidade, artWidth, artHeight, artRatioText]);
-
-  const handleCopyPrompt = async () => {
-    if (!autoArtPrompt) return;
-    try {
-      await navigator.clipboard.writeText(autoArtPrompt);
-      setPromptCopied(true);
-      setTimeout(() => setPromptCopied(false), 1800);
-    } catch {
-      alert('Não foi possível copiar automaticamente.');
-    }
-  };
-
   // Login screen
   if (!auth) {
     return (
       <div className="min-h-screen bg-black text-white">
         <Navbar />
-        <div className="pt-16 flex items-center justify-center min-h-screen">
+        <div className="flex min-h-screen items-center justify-center px-6 pt-24 pb-10">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className="w-full max-w-sm p-8"
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            className="w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.03] p-8 shadow-2xl shadow-black/30 backdrop-blur"
           >
-            <div className="text-center mb-8">
-              <div className="w-12 h-12 rounded-xl bg-brand-orange/10 border border-brand-orange/20 flex items-center justify-center mx-auto mb-4">
-                <LogIn size={20} className="text-brand-orange" />
+            <div className="mb-8 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-orange/15 text-brand-orange">
+                <LogIn size={20} />
               </div>
-              <h1 className="text-2xl font-bold mb-2">Admin</h1>
-              <p className="text-sm text-brand-gray-500">Acesso restrito à equipe Intermidia</p>
+              <div>
+                <h1 className="text-xl font-semibold">Acesso administrativo</h1>
+                <p className="text-sm text-brand-gray-400">Entre para gerenciar pontos, análises e usuários.</p>
+              </div>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form className="space-y-5" onSubmit={handleLogin}>
               <div>
-                <label className="block text-xs text-brand-gray-400 mb-1.5">Usuário</label>
+                <label className="mb-1.5 block text-xs text-brand-gray-400">Usuário</label>
                 <input
                   type="text"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
                   placeholder="admin"
                   required
                   autoComplete="username"
                 />
               </div>
+
               <div>
-                <label className="block text-xs text-brand-gray-400 mb-1.5">Senha</label>
+                <label className="mb-1.5 block text-xs text-brand-gray-400">Senha</label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    className="w-full px-4 py-3 pr-10 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 pr-10 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
                     placeholder="••••••••"
                     required
                     autoComplete="current-password"
@@ -442,20 +414,18 @@ export default function Admin() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray-500 hover:text-white transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray-500 transition-colors hover:text-white"
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
               </div>
 
-              {loginError && (
-                <p className="text-red-400 text-xs">{loginError}</p>
-              )}
+              {loginError ? <p className="text-xs text-red-400">{loginError}</p> : null}
 
               <button
                 type="submit"
-                className="w-full py-3 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
+                className="w-full rounded-xl bg-brand-orange py-3 font-semibold text-white transition-all duration-200 hover:scale-[1.01] hover:bg-brand-orange-hover active:scale-[0.99]"
               >
                 Entrar
               </button>

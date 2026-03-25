@@ -25,17 +25,19 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
   useEffect(() => {
     fetchPublicos().then(setPublicos).catch(() => setPublicos([]));
   }, []);
-  const hasFilters = filters.cidade || filters.tipo || filters.publico || filters.search;
+  const hasFilters = filters.cidade.length || filters.tipo || filters.publico.length || filters.search;
 
   const updateFilter = (key, value) => {
     setFilters(prev => ({
       ...prev,
-      [key]: prev[key] === value ? '' : value
+      [key]: prev[key].includes(value)
+        ? prev[key].filter(item => item !== value)
+        : [...prev[key], value]
     }));
   };
 
   const clearAll = () => {
-    setFilters({ cidade: '', tipo: '', publico: '', search: '' });
+    setFilters({ cidade: [], tipo: '', publico: [], search: '' });
   };
 
   const content = (
@@ -78,7 +80,7 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
               key={cidade}
               onClick={() => updateFilter('cidade', cidade)}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
-                filters.cidade === cidade
+                filters.cidade.includes(cidade)
                   ? 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20'
                   : 'text-brand-gray-300 hover:bg-white/5 border border-transparent'
               }`}
@@ -125,7 +127,7 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
                 key={p}
                 onClick={() => updateFilter('publico', p)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
-                  filters.publico === p
+                  filters.publico.includes(p)
                     ? 'bg-brand-orange text-white'
                     : 'bg-white/5 text-brand-gray-400 hover:bg-white/10 border border-white/5'
                 }`}

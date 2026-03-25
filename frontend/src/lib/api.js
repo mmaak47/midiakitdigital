@@ -1,12 +1,24 @@
 const API_BASE = '/api';
 
+function appendParamValues(params, key, value) {
+  if (Array.isArray(value)) {
+    value.filter(Boolean).forEach((item) => params.append(key, item));
+    return;
+  }
+
+  if (value) {
+    params.set(key, value);
+  }
+}
+
 export async function fetchPontos(filters = {}) {
   const params = new URLSearchParams();
-  if (filters.cidade) params.set('cidade', filters.cidade);
+  appendParamValues(params, 'cidade', filters.cidade);
   if (filters.tipo) params.set('tipo', filters.tipo);
-  if (filters.publico) params.set('publico', filters.publico);
+  appendParamValues(params, 'publico', filters.publico);
   if (filters.search) params.set('search', filters.search);
-  const res = await fetch(`${API_BASE}/pontos?${params}`);
+  const query = params.toString();
+  const res = await fetch(`${API_BASE}/pontos${query ? `?${query}` : ''}`);
   if (!res.ok) throw new Error('Erro ao carregar pontos');
   return res.json();
 }
@@ -132,7 +144,7 @@ export async function fetchEntornoScores({ segmento, raio = 800, cidade, force =
   const params = new URLSearchParams();
   if (segmento) params.set('segmento', segmento);
   if (raio) params.set('raio', String(raio));
-  if (cidade && cidade !== 'Todas') params.set('cidade', cidade);
+  appendParamValues(params, 'cidade', cidade && cidade !== 'Todas' ? cidade : []);
   if (force) params.set('force', 'true');
 
   const res = await fetch(`${API_BASE}/entorno/scores?${params.toString()}`);
@@ -171,9 +183,24 @@ export async function fetchEntornoJobs({ limit = 20, status, segmento, cidade } 
   if (limit) params.set('limit', String(limit));
   if (status) params.set('status', status);
   if (segmento) params.set('segmento', segmento);
-  if (cidade && cidade !== 'Todas') params.set('cidade', cidade);
+  appendParamValues(params, 'cidade', cidade && cidade !== 'Todas' ? cidade : []);
 
   const res = await fetch(`${API_BASE}/entorno/jobs?${params.toString()}`);
   if (!res.ok) throw new Error('Erro ao carregar jobs de entorno');
+  return res.json();
+}
+
+export async function fetchClientAddressAnalysis({ address, pointIds = [], cidade = [] }) {
+  const res = await fetch(`${API_BASE}/entorno/client-address`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ address, pointIds, cidade })
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Erro ao analisar endereço do cliente');
+  }
+
   return res.json();
 }

@@ -195,6 +195,75 @@ transition-all duration-300
 
 ## 🗺️ Componentes do Sistema
 
+## 📊 Fórmulas Comerciais
+
+As métricas comerciais do app são centralizadas em [frontend/src/lib/strategy.js](/c:/midia%20kit/frontend/src/lib/strategy.js). A documentação abaixo descreve o cálculo real usado pelo sistema hoje.
+
+### Ticket médio
+
+- Fórmula: `valorTotal / quantidadeDePontos`
+- Origem: soma o preço mensal de todos os pontos selecionados e divide pela quantidade de pontos da campanha.
+- Uso: mostra o investimento médio por ponto dentro da proposta.
+
+### CPM estimado
+
+- Fórmula: `valorTotal / (fluxoTotal / 1000)`
+- Onde:
+  - `valorTotal` = soma dos preços dos pontos selecionados
+  - `fluxoTotal` = soma dos impactos mensais estimados dos pontos selecionados
+- Interpretação: quanto a campanha investe para gerar mil impactos estimados.
+- Regra de proteção: se `fluxoTotal` for `0`, o CPM retorna `0` para evitar divisão inválida.
+
+### Score da campanha
+
+O score final vai de `0` a `10` e é calculado a partir de seis blocos, com teto por bloco. Depois da soma, o valor é arredondado para uma casa decimal e limitado em `10`.
+
+Fórmula consolidada:
+
+```text
+scoreRaw =
+  min(2.2, formatos / 3) +
+  min(2.4, fluxoTotal / 700000) +
+  min(2.0, coveragePct / 25) +
+  min(1.8, presencePct / 28) +
+  min(1.6, aderenciaPublico) +
+  min(1.4, aderenciaObjetivo)
+
+scoreFinal = min(10, round(scoreRaw, 1))
+```
+
+Componentes do score:
+
+- Diversidade de formatos: `min(2.2, formatos / 3)`
+  - Campanhas com mais tipos de mídia ganham robustez mais rápido.
+- Volume de fluxo: `min(2.4, fluxoTotal / 700000)`
+  - Premia planos com maior potencial de impactos mensais.
+- Cobertura física: `min(2.0, coveragePct / 25)`
+  - `coveragePct` compara quantidade de pontos selecionados contra o inventário da praça.
+- Presença potencial: `min(1.8, presencePct / 28)`
+  - `presencePct` compara o fluxo dos pontos selecionados contra o fluxo total disponível na praça.
+- Aderência de público: `min(1.6, publicoMatches / selected.length * 1.6)`
+  - Mede quantos pontos combinam com o público desejado.
+- Aderência ao objetivo: `min(1.4, objectiveBoost / selected.length * 1.4)`
+  - Conta quantos pontos tiveram pontuação forte para o objetivo estratégico escolhido.
+
+### Como o sistema define cobertura
+
+- `coveragePct = (quantidadeSelecionada / quantidadeTotalDaPraça) * 100`
+- `presencePct = (fluxoSelecionado / fluxoTotalDaPraça) * 100`
+
+Os níveis usados na interface são:
+
+- Essencial: base inicial, abaixo dos cortes estratégicos.
+- Estratégico: quando `coveragePct >= 25` ou `presencePct >= 30`.
+- Domínio regional: quando `coveragePct >= 50` ou `presencePct >= 55`.
+
+### Observações de produto
+
+- O score não mede resultado de vendas; ele mede qualidade estrutural da composição da campanha.
+- O CPM é estimado a partir de fluxo mensal cadastrado, não de impressões auditadas por terceiros.
+- Ticket médio, CPM e score sempre mudam conforme a seleção de pontos, praça, público e objetivo.
+
 ## ✍️ Ajuste Manual de PDF
 
 - Arquivo central de ajuste: `frontend/src/lib/pdfLayoutConfig.js`

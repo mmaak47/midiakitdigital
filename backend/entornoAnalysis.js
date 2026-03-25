@@ -766,6 +766,7 @@ module.exports = {
   getSegmentCategories,
   normalizeSegment,
   normalizeRadius,
+  geocodeAddress,
   enqueueJob,
   getJob,
   listJobs,

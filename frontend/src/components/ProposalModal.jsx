@@ -1,8 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, FileText, Download, Presentation, Upload, Image as ImageIcon } from 'lucide-react';
+import {
+  Check,
+  Copy,
+  Download,
+  FileText,
+  Image as ImageIcon,
+  Presentation,
+  Upload,
+  X
+} from 'lucide-react';
 import { useFavorites } from '../context/FavoritesContext';
-import { campaignTotals, generateCommercialArguments, getSegmentDisplayName, SEGMENTOS } from '../lib/strategy';
+import {
+  campaignTotals,
+  generateCommercialArguments,
+  getSegmentDisplayName,
+  OBJETIVOS,
+  SEGMENTOS
+} from '../lib/strategy';
+import { buildProposalImagePrompt, buildProposalPricing } from '../lib/proposal';
 import { generateProposalPdf } from '../lib/midiaKitPdf';
 import {
   defaultDisplaySettings,
@@ -10,7 +26,8 @@ import {
   normalizeDisplaySettings,
   parseSimulationConfig
 } from '../lib/simulation';
-import { fetchEntornoJobStatus, fetchEntornoScores } from '../lib/api';
+import { fetchClientAddressAnalysis, fetchEntornoJobStatus, fetchEntornoScores } from '../lib/api';
+import CustomSelect from './CustomSelect';
 import ProposalBuilder from './ProposalBuilder';
 import PresentationMode from './PresentationMode';
 
@@ -22,11 +39,20 @@ export default function ProposalModal({ onClose }) {
   const [showPresentation, setShowPresentation] = useState(false);
   const [form, setForm] = useState({
     clientName: '',
-    city: '',
+    clientAddress: '',
     segmento: 'clinica',
     objetivo: 'reconhecimento de marca',
-    publico: ''
+    publicos: [],
+    selectedCities: []
   });
+  const [analysisMode, setAnalysisMode] = useState('segmento');
+  const [discountConfig, setDiscountConfig] = useState({
+    mode: 'none',
+    percentage: '',
+    targetPointIds: [],
+    perPoint: {}
+  });
+  const [promptCopied, setPromptCopied] = useState(false);
   const [simulationArtFile, setSimulationArtFile] = useState(null);
   const [simulationArtUrl, setSimulationArtUrl] = useState('');
   const [simulationBusy, setSimulationBusy] = useState(false);
@@ -44,6 +70,51 @@ export default function ProposalModal({ onClose }) {
     updatedAt: null,
     error: ''
   });
+  const [clientAnalysis, setClientAnalysis] = useState({
+    loading: false,
+    byPoint: {},
+    rankedPoints: [],
+    error: ''
+  });
+
+  const availableCities = useMemo(() => {
+    return Array.from(new Set(favorites.map((point) => point.cidade).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [favorites]);
+
+  const availablePublicos = useMemo(() => {
+    return Array.from(new Set(favorites.map((point) => point.publico).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [favorites]);
+
+  const activeCities = form.selectedCities.length ? form.selectedCities : availableCities;
+
+  useEffect(() => {
+    setForm((current) => ({
+      ...current,
+      selectedCities: current.selectedCities.filter((city) => availableCities.includes(city)),
+      publicos: current.publicos.filter((publico) => availablePublicos.includes(publico))
+    }));
+  }, [availableCities, availablePublicos]);
+
+  useEffect(() => {
+    setDiscountConfig((current) => ({
+      ...current,
+      targetPointIds: current.targetPointIds.filter((pointId) => favorites.some((point) => point.id === pointId)),
+      perPoint: Object.fromEntries(
+        Object.entries(current.perPoint || {}).filter(([pointId]) => favorites.some((point) => String(point.id) === String(pointId)))
+      )
+    }));
+  }, [favorites]);
+
+  const proposalSourcePoints = useMemo(() => {
+    if (!form.selectedCities.length) return favorites;
+    return favorites.filter((point) => form.selectedCities.includes(point.cidade));
+  }, [favorites, form.selectedCities]);
+
+  const pricing = useMemo(() => buildProposalPricing(proposalSourcePoints, discountConfig), [proposalSourcePoints, discountConfig]);
+  const pricingSummary = pricing.summary;
+  const totals = useMemo(() => campaignTotals(pricing.points), [pricing.points]);
 
   const clearSimulationResults = () => {
     setSimulationResults((current) => {
@@ -89,7 +160,7 @@ export default function ProposalModal({ onClose }) {
     let pollTimer = null;
 
     const loadScores = async (force = false) => {
-      if (!favorites.length) {
+      if (!proposalSourcePoints.length) {
         setEntorno({
           loading: false,
           jobId: null,
@@ -105,7 +176,7 @@ export default function ProposalModal({ onClose }) {
         setEntorno((prev) => ({ ...prev, loading: true, error: '' }));
         const response = await fetchEntornoScores({
           segmento: form.segmento,
-          cidade: form.city,
+          cidade: activeCities.length === 1 ? activeCities[0] : '',
           raio: DEFAULT_ENTORNO_RADIUS,
           force
         });
@@ -116,7 +187,7 @@ export default function ProposalModal({ onClose }) {
         setEntorno((prev) => ({
           ...prev,
           loading: false,
-          coverage: Number(response.coberturaCache || 0),
+          coverage: Number(response.coverage || response.coberturaCache || 0),
           scoresByPoint: response.byPoint || {},
           updatedAt: latest,
           jobId: response.job?.jobId || null,
@@ -163,35 +234,92 @@ export default function ProposalModal({ onClose }) {
       active = false;
       if (pollTimer) window.clearTimeout(pollTimer);
     };
-  }, [favorites, form.segmento, form.city]);
+  }, [proposalSourcePoints, form.segmento, activeCities]);
 
-  const totals = useMemo(() => campaignTotals(favorites), [favorites]);
+  useEffect(() => {
+    if (analysisMode !== 'client-address') {
+      setClientAnalysis({ loading: false, byPoint: {}, rankedPoints: [], error: '' });
+      return;
+    }
+
+    if (!form.clientAddress.trim() || !proposalSourcePoints.length) {
+      setClientAnalysis((current) => ({ ...current, loading: false, byPoint: {}, rankedPoints: [], error: '' }));
+      return;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      try {
+        setClientAnalysis((current) => ({ ...current, loading: true, error: '' }));
+        const response = await fetchClientAddressAnalysis({
+          address: form.clientAddress,
+          pointIds: proposalSourcePoints.map((point) => point.id),
+          cidade: activeCities
+        });
+
+        if (!active) return;
+
+        setClientAnalysis({
+          loading: false,
+          byPoint: response.byPoint || {},
+          rankedPoints: Array.isArray(response.rankedPoints) ? response.rankedPoints : [],
+          error: ''
+        });
+      } catch (error) {
+        if (!active) return;
+        setClientAnalysis({
+          loading: false,
+          byPoint: {},
+          rankedPoints: [],
+          error: error.message || 'Falha ao analisar o endereço do cliente.'
+        });
+      }
+    }, 500);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [analysisMode, form.clientAddress, proposalSourcePoints, activeCities]);
 
   const argumentos = useMemo(() => generateCommercialArguments({
-    selected: favorites,
-    city: form.city,
-    publico: form.publico,
+    selected: proposalSourcePoints,
+    city: activeCities,
+    publico: form.publicos,
     objetivo: form.objetivo,
     segmento: form.segmento
-  }), [favorites, form]);
+  }), [proposalSourcePoints, activeCities, form.publicos, form.objetivo, form.segmento]);
+
+  const imagePrompt = useMemo(() => buildProposalImagePrompt({
+    clientName: form.clientName,
+    selectedCities: activeCities,
+    selectedPublicos: form.publicos,
+    objetivo: form.objetivo,
+    segmento: getSegmentDisplayName(form.segmento),
+    points: proposalSourcePoints
+  }), [form.clientName, activeCities, form.publicos, form.objetivo, form.segmento, proposalSourcePoints]);
 
   const proposalPoints = useMemo(() => {
-    return favorites.map((point) => {
+    return pricing.points.map((point) => {
       const result = simulationResults[point.id];
       const entornoMetrics = entorno.scoresByPoint[point.id] || entorno.scoresByPoint[String(point.id)] || null;
+      const clientMetrics = clientAnalysis.byPoint[point.id] || clientAnalysis.byPoint[String(point.id)] || null;
       return {
         ...point,
         entornoMetrics,
+        clientDistanceMeters: clientMetrics?.distanceMeters || null,
+        clientDistanceKm: clientMetrics?.distanceKm || null,
+        clientProximityScore: clientMetrics?.proximityScore || null,
         proposalSimulationPreview: result?.previewUrl || '',
         proposalSimulationStatus: result?.status || (!simulationArtFile ? 'Envie a arte para gerar' : 'Gerar simulação pendente')
       };
     });
-  }, [entorno.scoresByPoint, favorites, simulationArtFile, simulationResults]);
+  }, [pricing.points, simulationResults, entorno.scoresByPoint, clientAnalysis.byPoint, simulationArtFile]);
 
   const simulationSummary = useMemo(() => {
     const items = Object.values(simulationResults);
     if (!simulationArtFile) {
-      return 'A área da tela vem do admin. Envie a arte da campanha neste modal para gerar os previews que entram na proposta.';
+      return 'A área da tela vem do admin. Gere o prompt desta proposta, produza a arte e envie aqui para montar os previews que entram na apresentação.';
     }
     if (!items.length) {
       return 'Arte carregada. Ajuste brilho, reflexo, spill de luz e pixel LED para aproximar o look do simulador antes de gerar.';
@@ -236,17 +364,33 @@ export default function ProposalModal({ onClose }) {
 
   const handleGenerate = () => setStep('generated');
 
+  const handleCopyPrompt = async () => {
+    if (!imagePrompt) return;
+    try {
+      await navigator.clipboard.writeText(imagePrompt);
+      setPromptCopied(true);
+      window.setTimeout(() => setPromptCopied(false), 1800);
+    } catch {
+      setSimulationError('Não foi possível copiar o prompt automaticamente.');
+    }
+  };
+
   const handleExportProposalPdf = async () => {
     try {
       setPdfBusy(true);
       await generateProposalPdf({
         clientName: form.clientName,
-        city: form.city,
+        clientAddress: form.clientAddress,
+        city: activeCities,
+        publico: form.publicos,
+        objective: form.objetivo,
         points: proposalPoints,
         totals,
+        pricingSummary,
         segmento: form.segmento,
         strategicText: argumentos,
-        simulationSummary
+        simulationSummary,
+        analysisMode
       });
     } catch (error) {
       setSimulationError(error?.message || 'Falha ao gerar o PDF da proposta.');
@@ -264,7 +408,7 @@ export default function ProposalModal({ onClose }) {
     setSimulationBusy(true);
     setSimulationError('');
 
-    const nextEntries = await Promise.all(favorites.map(async (point) => {
+    const nextEntries = await Promise.all(proposalSourcePoints.map(async (point) => {
       if (!point.simulacao_tela) {
         return [point.id, { status: 'Área da tela não cadastrada no admin', previewUrl: '' }];
       }
@@ -340,77 +484,200 @@ export default function ProposalModal({ onClose }) {
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-brand-gray-500 mb-1">Proposta Comercial</p>
                   <h2 className="text-2xl md:text-[30px] leading-tight font-bold text-white">Modo gerar proposta automática</h2>
-                  <p className="text-sm text-brand-gray-400 mt-2">Estrutura pronta para exportação em PDF e apresentação comercial, com simulação da criação aplicada por ponto.</p>
+                  <p className="text-sm text-brand-gray-400 mt-2">Estrutura pronta para exportação em PDF e apresentação comercial, com desconto configurável, prompt de arte no modal, simulação aplicada por ponto e análise opcional pelo endereço do cliente.</p>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-right">
-                  <div className="text-[10px] uppercase tracking-wide text-brand-gray-500">Pontos no carrinho</div>
-                  <div className="text-lg font-bold text-white">{favorites.length}</div>
+                  <div className="text-[10px] uppercase tracking-wide text-brand-gray-500">Pontos na proposta</div>
+                  <div className="text-lg font-bold text-white">{proposalSourcePoints.length}</div>
                 </div>
               </div>
             </div>
 
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-              <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-4">Dados da proposta</h3>
-              <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-3">
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400">Dados da proposta</h3>
+
+              <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <Input label="Nome do cliente" value={form.clientName} onChange={(value) => setForm((s) => ({ ...s, clientName: value }))} />
-                <Input label="Cidade" value={form.city} onChange={(value) => setForm((s) => ({ ...s, city: value }))} />
-                <SelectInput
-                  label="Segmento"
-                  value={form.segmento}
-                  onChange={(value) => setForm((s) => ({ ...s, segmento: value }))}
-                  options={SEGMENTOS.map((segmento) => ({
-                    value: segmento,
-                    label: getSegmentDisplayName(segmento)
-                  }))}
-                />
-                <Input label="Objetivo" value={form.objetivo} onChange={(value) => setForm((s) => ({ ...s, objetivo: value }))} />
-                <Input label="Público" value={form.publico} onChange={(value) => setForm((s) => ({ ...s, publico: value }))} />
+                <Input label="Endereço do cliente" value={form.clientAddress} onChange={(value) => setForm((s) => ({ ...s, clientAddress: value }))} />
+                <CustomSelect label="Praças" value={form.selectedCities} onChange={(value) => setForm((s) => ({ ...s, selectedCities: value }))} options={availableCities} multiple placeholder="Todas as praças dos pontos selecionados" />
+                <CustomSelect label="Segmento" value={form.segmento} onChange={(value) => setForm((s) => ({ ...s, segmento: value }))} options={SEGMENTOS.map((segmento) => ({ value: segmento, label: getSegmentDisplayName(segmento) }))} />
+                <CustomSelect label="Objetivo" value={form.objetivo} onChange={(value) => setForm((s) => ({ ...s, objetivo: value }))} options={OBJETIVOS} allowCustom customPlaceholder="Digite um objetivo personalizado" />
+                <CustomSelect label="Públicos" value={form.publicos} onChange={(value) => setForm((s) => ({ ...s, publicos: value }))} options={availablePublicos} multiple placeholder="Públicos estratégicos" />
               </div>
-              <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-brand-gray-400">
-                <div className="flex flex-wrap items-center gap-2 text-brand-gray-300">
-                  <span className="font-semibold uppercase tracking-[0.12em]">Análise de entorno</span>
-                  {entorno.loading ? <span className="text-brand-orange">Atualizando cache...</span> : null}
-                  {entorno.jobId ? <span className="rounded-full border border-brand-orange/25 bg-brand-orange/10 px-2 py-0.5 text-brand-orange">Job #{entorno.jobId}</span> : null}
+
+              <div className="grid lg:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-brand-gray-400">
+                  <div className="flex flex-wrap items-center gap-2 text-brand-gray-300">
+                    <span className="font-semibold uppercase tracking-[0.12em]">Análise de entorno da praça</span>
+                    {entorno.loading ? <span className="text-brand-orange">Atualizando cache...</span> : null}
+                    {entorno.jobId ? <span className="rounded-full border border-brand-orange/25 bg-brand-orange/10 px-2 py-0.5 text-brand-orange">Job #{entorno.jobId}</span> : null}
+                  </div>
+                  <p className="mt-1">
+                    Cobertura do cache: {(entorno.coverage * 100).toFixed(0)}%
+                    {entorno.updatedAt ? ` • atualizado em ${new Date(entorno.updatedAt).toLocaleString('pt-BR')}` : ''}
+                  </p>
+                  {entorno.error ? <p className="mt-1 text-red-300">{entorno.error}</p> : null}
                 </div>
-                <p className="mt-1">
-                  Cobertura do cache: {(entorno.coverage * 100).toFixed(0)}%
-                  {entorno.updatedAt ? ` • atualizado em ${new Date(entorno.updatedAt).toLocaleString('pt-BR')}` : ''}
-                </p>
-                {entorno.error ? <p className="mt-1 text-red-300">{entorno.error}</p> : null}
+
+                <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-brand-gray-400 space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <ScopeButton active={analysisMode === 'segmento'} onClick={() => setAnalysisMode('segmento')}>Entorno padrão</ScopeButton>
+                    <ScopeButton active={analysisMode === 'client-address'} onClick={() => setAnalysisMode('client-address')}>Entorno personalizado</ScopeButton>
+                  </div>
+
+                  {analysisMode === 'client-address' ? (
+                    <>
+                      {clientAnalysis.loading ? <p className="text-brand-orange">Analisando proximidade dos pontos em relação ao endereço do cliente...</p> : null}
+                      {clientAnalysis.error ? <p className="text-red-300">{clientAnalysis.error}</p> : null}
+                      {!clientAnalysis.loading && !clientAnalysis.error && form.clientAddress.trim() && clientAnalysis.rankedPoints.length > 0 ? (
+                        <div className="space-y-1.5 text-brand-gray-300">
+                          <p className="font-semibold uppercase tracking-[0.12em] text-brand-gray-400">Pontos mais próximos do cliente</p>
+                          {clientAnalysis.rankedPoints.slice(0, 3).map((point) => (
+                            <p key={point.id}>{point.nome} • {point.distanceKm.toFixed(1).replace('.', ',')} km</p>
+                          ))}
+                        </div>
+                      ) : null}
+                      {!form.clientAddress.trim() ? <p>Preencha o endereço do cliente para gerar a análise personalizada em tempo real.</p> : null}
+                    </>
+                  ) : (
+                    <p>Usa o score de entorno já calculado por segmento para os pontos filtrados desta proposta.</p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Desconto comercial</h3>
+                <p className="text-sm text-brand-gray-400">Defina se o desconto será no total, em pontos específicos ou individual por ponto.</p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ['none', 'Sem desconto'],
+                  ['total', 'No total da proposta'],
+                  ['specific', 'Em pontos específicos'],
+                  ['individual', 'Individual por ponto']
+                ].map(([mode, label]) => (
+                  <ScopeButton key={mode} active={discountConfig.mode === mode} onClick={() => setDiscountConfig((current) => ({ ...current, mode }))}>{label}</ScopeButton>
+                ))}
+              </div>
+
+              {(discountConfig.mode === 'total' || discountConfig.mode === 'specific') && (
+                <div className="grid md:grid-cols-[220px_1fr] gap-4 items-start">
+                  <Input label="Percentual de desconto" value={discountConfig.percentage} onChange={(value) => setDiscountConfig((current) => ({ ...current, percentage: value.replace(',', '.') }))} />
+
+                  {discountConfig.mode === 'specific' ? (
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
+                      <p className="text-[11px] uppercase tracking-[0.12em] text-brand-gray-500">Pontos com desconto</p>
+                      {proposalSourcePoints.map((point) => (
+                        <label key={point.id} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 px-3 py-2 text-sm text-brand-gray-300">
+                          <span>{point.nome}</span>
+                          <input
+                            type="checkbox"
+                            checked={discountConfig.targetPointIds.includes(point.id)}
+                            onChange={(event) => {
+                              setDiscountConfig((current) => ({
+                                ...current,
+                                targetPointIds: event.target.checked
+                                  ? [...current.targetPointIds, point.id]
+                                  : current.targetPointIds.filter((item) => item !== point.id)
+                              }));
+                            }}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              {discountConfig.mode === 'individual' && (
+                <div className="grid md:grid-cols-2 gap-3">
+                  {proposalSourcePoints.map((point) => (
+                    <div key={point.id} className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <div>
+                          <p className="text-sm font-semibold text-white">{point.nome}</p>
+                          <p className="text-xs text-brand-gray-500">Tabela: {formatCurrency(point.preco)}</p>
+                        </div>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.1}
+                          value={discountConfig.perPoint[point.id] || ''}
+                          onChange={(event) => setDiscountConfig((current) => ({
+                            ...current,
+                            perPoint: {
+                              ...current.perPoint,
+                              [point.id]: event.target.value
+                            }
+                          }))}
+                          className="w-24 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-brand-orange/40"
+                          placeholder="0%"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="grid sm:grid-cols-3 gap-3">
+                <StatusCard label="Tabela cheia" value={formatCurrency(pricingSummary.originalTotal)} tone="default" />
+                <StatusCard label="Desconto total" value={formatCurrency(pricingSummary.discountTotal)} tone="warning" />
+                <StatusCard label="Valor final" value={formatCurrency(pricingSummary.finalTotal)} tone="success" />
               </div>
             </section>
 
             <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-5">
-              <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
-                <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Arte da campanha</h3>
-                  <p className="text-sm text-brand-gray-400">A arte enviada aqui será aplicada sobre a área de tela cadastrada no admin para cada ponto da proposta.</p>
+              <div className="grid xl:grid-cols-[1.1fr_0.9fr] gap-4 items-start">
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Prompt da arte da campanha</h3>
+                      <p className="text-sm text-brand-gray-400">O prompt agora nasce neste modal e usa o nome do cliente para gerar a arte que entra na simulação.</p>
+                    </div>
+                    <button type="button" onClick={handleCopyPrompt} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.03] px-3 py-2 text-sm text-white hover:bg-white/[0.08]">
+                      {promptCopied ? <Check size={15} /> : <Copy size={15} />}
+                      {promptCopied ? 'Prompt copiado' : 'Copiar prompt'}
+                    </button>
+                  </div>
+
+                  <textarea value={imagePrompt} readOnly rows={6} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-brand-gray-200 outline-none" />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                  <label className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/15 rounded-xl text-sm text-brand-gray-300 hover:bg-white/10 cursor-pointer transition-colors">
-                    <Upload size={16} />
-                    {simulationArtFile ? simulationArtFile.name : 'Escolher arte da campanha'}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        setSimulationArtFile(e.target.files?.[0] || null);
-                        setSimulationError('');
-                        clearSimulationResults();
-                      }}
-                      className="hidden"
-                    />
-                  </label>
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Arte da campanha</h3>
+                    <p className="text-sm text-brand-gray-400">A arte enviada aqui será aplicada sobre a área de tela cadastrada no admin para cada ponto da proposta.</p>
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={handleGenerateSimulations}
-                    disabled={simulationBusy || !favorites.length}
-                    className="px-5 py-2.5 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover disabled:opacity-50 shadow-[0_10px_24px_rgba(254,92,43,0.28)]"
-                  >
-                    {simulationBusy ? 'Gerando simulações...' : 'Gerar simulações'}
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/15 rounded-xl text-sm text-brand-gray-300 hover:bg-white/10 cursor-pointer transition-colors">
+                      <Upload size={16} />
+                      {simulationArtFile ? simulationArtFile.name : 'Escolher arte da campanha'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          setSimulationArtFile(e.target.files?.[0] || null);
+                          setSimulationError('');
+                          clearSimulationResults();
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={handleGenerateSimulations}
+                      disabled={simulationBusy || !proposalSourcePoints.length}
+                      className="px-5 py-2.5 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover disabled:opacity-50 shadow-[0_10px_24px_rgba(254,92,43,0.28)]"
+                    >
+                      {simulationBusy ? 'Gerando simulações...' : 'Gerar simulações'}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -431,21 +698,9 @@ export default function ProposalModal({ onClose }) {
                 </div>
 
                 <div className="grid sm:grid-cols-3 gap-3">
-                  <StatusCard
-                    label="Pontos na proposta"
-                    value={favorites.length}
-                    tone="default"
-                  />
-                  <StatusCard
-                    label="Simulações geradas"
-                    value={Object.values(simulationResults).filter((item) => item.status === 'Gerada').length}
-                    tone="success"
-                  />
-                  <StatusCard
-                    label="Pendências de cadastro"
-                    value={Object.values(simulationResults).filter((item) => item.status === 'Área da tela não cadastrada no admin' || item.status === 'Imagem base do ponto não cadastrada').length}
-                    tone="warning"
-                  />
+                  <StatusCard label="Pontos na proposta" value={proposalSourcePoints.length} tone="default" />
+                  <StatusCard label="Simulações geradas" value={Object.values(simulationResults).filter((item) => item.status === 'Gerada').length} tone="success" />
+                  <StatusCard label="Pendências de cadastro" value={Object.values(simulationResults).filter((item) => item.status === 'Área da tela não cadastrada no admin' || item.status === 'Imagem base do ponto não cadastrada').length} tone="warning" />
                 </div>
               </div>
 
@@ -467,28 +722,12 @@ export default function ProposalModal({ onClose }) {
             </section>
 
             {(step === 'review' || step === 'generated') && (
-              <PreviewPanel
-                proposalPoints={proposalPoints}
-                activePreviewPoint={activePreviewPoint}
-                onSelect={setActivePreviewPointId}
-                onExpand={() => setShowPreviewLightbox(true)}
-              />
+              <PreviewPanel proposalPoints={proposalPoints} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} />
             )}
 
             {step === 'review' && (
               <section className="space-y-5">
-                <ProposalBuilder
-                  clientName={form.clientName}
-                  city={form.city}
-                  segmento={form.segmento}
-                  points={proposalPoints}
-                  totals={totals}
-                  strategicText={argumentos}
-                  simulationSummary={simulationSummary}
-                  activePreviewPointId={activePreviewPoint?.id}
-                  onSelectPreview={setActivePreviewPointId}
-                  onGenerate={handleGenerate}
-                />
+                <ProposalBuilder clientName={form.clientName} city={activeCities} publico={form.publicos} segmento={getSegmentDisplayName(form.segmento)} points={proposalPoints} totals={totals} pricingSummary={pricingSummary} strategicText={argumentos} simulationSummary={simulationSummary} activePreviewPointId={activePreviewPoint?.id} onSelectPreview={setActivePreviewPointId} onGenerate={handleGenerate} />
               </section>
             )}
 
@@ -496,44 +735,23 @@ export default function ProposalModal({ onClose }) {
               <section className="space-y-4">
                 <div className="rounded-2xl border border-brand-orange/30 bg-gradient-to-r from-brand-orange/20 to-brand-orange/5 p-4">
                   <h3 className="text-lg font-semibold text-white mb-1">Proposta gerada com sucesso</h3>
-                  <p className="text-sm text-brand-gray-300">Apresentação pronta para reunião comercial, com narrativa estratégica e indicadores executivos.</p>
+                  <p className="text-sm text-brand-gray-300">Apresentação pronta para reunião comercial, com narrativa estratégica, desconto aplicado e indicadores executivos.</p>
                 </div>
 
-                <ProposalBuilder
-                  clientName={form.clientName}
-                  city={form.city}
-                  segmento={form.segmento}
-                  points={proposalPoints}
-                  totals={totals}
-                  strategicText={argumentos}
-                  simulationSummary={simulationSummary}
-                  activePreviewPointId={activePreviewPoint?.id}
-                  onSelectPreview={setActivePreviewPointId}
-                  onGenerate={() => {}}
-                />
+                <ProposalBuilder clientName={form.clientName} city={activeCities} publico={form.publicos} segmento={getSegmentDisplayName(form.segmento)} points={proposalPoints} totals={totals} pricingSummary={pricingSummary} strategicText={argumentos} simulationSummary={simulationSummary} activePreviewPointId={activePreviewPoint?.id} onSelectPreview={setActivePreviewPointId} onGenerate={() => {}} />
 
                 <div className="grid sm:grid-cols-3 gap-3">
-                  <button
-                    onClick={handleExportProposalPdf}
-                    disabled={pdfBusy}
-                    className="h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(254,92,43,0.28)]"
-                  >
+                  <button onClick={handleExportProposalPdf} disabled={pdfBusy} className="h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(254,92,43,0.28)]">
                     <Download size={16} />
                     {pdfBusy ? 'Gerando PDF...' : 'Exportar PDF da proposta'}
                   </button>
 
-                  <button
-                    onClick={() => setShowPresentation(true)}
-                    className="h-11 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] font-medium inline-flex items-center justify-center gap-2"
-                  >
+                  <button onClick={() => setShowPresentation(true)} className="h-11 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] font-medium inline-flex items-center justify-center gap-2">
                     <Presentation size={16} />
                     Modo apresentação
                   </button>
 
-                  <button
-                    onClick={() => setStep('review')}
-                    className="h-11 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] font-medium"
-                  >
+                  <button onClick={() => setStep('review')} className="h-11 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] font-medium">
                     Voltar para revisão
                   </button>
                 </div>
@@ -544,12 +762,7 @@ export default function ProposalModal({ onClose }) {
       </motion.div>
 
       {showPresentation && (
-        <PresentationMode
-          points={proposalPoints}
-          totals={totals}
-          segmento={form.segmento}
-          onClose={() => setShowPresentation(false)}
-        />
+        <PresentationMode points={proposalPoints} totals={totals} segmento={form.segmento} clientName={form.clientName} pricingSummary={pricingSummary} onClose={() => setShowPresentation(false)} />
       )}
 
       {showPreviewLightbox && activePreviewPoint && (
@@ -560,20 +773,11 @@ export default function ProposalModal({ onClose }) {
                 <p className="text-xs uppercase tracking-[0.14em] text-brand-gray-400">Preview ampliado</p>
                 <p className="text-sm text-white font-semibold">{activePreviewPoint.nome} · {activePreviewPoint.cidade}</p>
               </div>
-              <button
-                onClick={() => setShowPreviewLightbox(false)}
-                className="px-3 py-1.5 rounded-lg border border-white/20 text-sm text-white/80 hover:text-white"
-              >
-                Fechar
-              </button>
+              <button onClick={() => setShowPreviewLightbox(false)} className="px-3 py-1.5 rounded-lg border border-white/20 text-sm text-white/80 hover:text-white">Fechar</button>
             </div>
 
             <div className="rounded-2xl border border-white/15 bg-black/45 flex-1 p-2 md:p-4 min-h-0">
-              <img
-                src={activePreviewPoint.proposalSimulationPreview || activePreviewPoint.simulacao_preview}
-                alt={`Preview ${activePreviewPoint.nome}`}
-                className="w-full h-full object-contain rounded-xl"
-              />
+              <img src={activePreviewPoint.proposalSimulationPreview || activePreviewPoint.simulacao_preview} alt={`Preview ${activePreviewPoint.nome}`} className="w-full h-full object-contain rounded-xl" />
             </div>
           </div>
         </div>
@@ -592,25 +796,14 @@ function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand }
         </div>
         <div className="flex items-center gap-2">
           <p className="text-xs text-brand-gray-500">Clique nos thumbs para trocar</p>
-          <button
-            type="button"
-            onClick={onExpand}
-            disabled={!activePreviewPoint}
-            className="px-3 py-1.5 text-xs rounded-lg border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] disabled:opacity-40"
-          >
-            Ver em tela cheia
-          </button>
+          <button type="button" onClick={onExpand} disabled={!activePreviewPoint} className="px-3 py-1.5 text-xs rounded-lg border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] disabled:opacity-40">Ver em tela cheia</button>
         </div>
       </div>
 
       {activePreviewPoint ? (
         <div className="grid xl:grid-cols-[1fr_260px] gap-4">
           <div className="rounded-xl border border-white/10 bg-black/25 p-2">
-            <img
-              src={activePreviewPoint.proposalSimulationPreview || activePreviewPoint.simulacao_preview}
-              alt={`Preview ${activePreviewPoint.nome}`}
-              className="w-full h-[260px] md:h-[360px] object-contain rounded-lg bg-black/35"
-            />
+            <img src={activePreviewPoint.proposalSimulationPreview || activePreviewPoint.simulacao_preview} alt={`Preview ${activePreviewPoint.nome}`} className="w-full h-[260px] md:h-[360px] object-contain rounded-lg bg-black/35" />
             <div className="px-2 pt-3">
               <p className="text-sm font-semibold text-white">{activePreviewPoint.nome}</p>
               <p className="text-xs text-brand-gray-400 mt-1">{activePreviewPoint.cidade} · {activePreviewPoint.tipo}</p>
@@ -628,23 +821,15 @@ function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand }
                   type="button"
                   disabled={!previewUrl}
                   onClick={() => onSelect(point.id)}
-                  className={`w-full text-left rounded-xl border p-2 transition-all ${
-                    selected
-                      ? 'border-brand-orange bg-brand-orange/10'
-                      : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]'
-                  } ${!previewUrl ? 'opacity-55 cursor-not-allowed' : ''}`}
+                  className={`w-full text-left rounded-xl border p-2 transition-all ${selected ? 'border-brand-orange bg-brand-orange/10' : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]'} ${!previewUrl ? 'opacity-55 cursor-not-allowed' : ''}`}
                 >
                   <div className="flex items-start gap-3">
                     <div className="w-20 h-12 rounded-md border border-white/10 bg-black/35 overflow-hidden shrink-0">
-                      {previewUrl ? (
-                        <img src={previewUrl} alt="thumb" className="w-full h-full object-cover" />
-                      ) : null}
+                      {previewUrl ? <img src={previewUrl} alt="thumb" className="w-full h-full object-cover" /> : null}
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-white truncate">{point.nome}</p>
-                      <p className="text-[11px] text-brand-gray-400 mt-1">
-                        {previewUrl ? 'Simulação pronta para proposta' : (point.proposalSimulationStatus || 'Sem simulação')}
-                      </p>
+                      <p className="text-[11px] text-brand-gray-400 mt-1">{previewUrl ? 'Simulação pronta para proposta' : (point.proposalSimulationStatus || 'Sem simulação')}</p>
                     </div>
                   </div>
                 </button>
@@ -653,9 +838,7 @@ function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand }
           </div>
         </div>
       ) : (
-        <div className="h-44 rounded-xl border border-dashed border-white/15 flex items-center justify-center text-sm text-brand-gray-500 bg-black/25">
-          Gere as simulações para visualizar o preview ampliado.
-        </div>
+        <div className="h-44 rounded-xl border border-dashed border-white/15 flex items-center justify-center text-sm text-brand-gray-500 bg-black/25">Gere as simulações para visualizar o preview ampliado.</div>
       )}
     </section>
   );
@@ -665,31 +848,20 @@ function Input({ label, value, onChange }) {
   return (
     <div>
       <label className="text-[11px] uppercase tracking-[0.12em] text-brand-gray-500">{label}</label>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1.5 w-full bg-white/[0.07] border border-white/15 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-brand-orange/45 focus:bg-white/[0.09] transition-colors"
-      />
+      <input value={value} onChange={(e) => onChange(e.target.value)} className="mt-1.5 w-full bg-white/[0.07] border border-white/15 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-brand-orange/45 focus:bg-white/[0.09] transition-colors" />
     </div>
   );
 }
 
-function SelectInput({ label, value, onChange, options = [] }) {
+function ScopeButton({ active, onClick, children }) {
   return (
-    <div>
-      <label className="text-[11px] uppercase tracking-[0.12em] text-brand-gray-500">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1.5 w-full bg-white/[0.07] border border-white/15 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-brand-orange/45 focus:bg-white/[0.09] transition-colors"
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value} className="bg-brand-dark text-white">
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-xl border px-3 py-2 text-sm transition-colors ${active ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : 'border-white/10 bg-white/[0.03] text-brand-gray-300 hover:bg-white/[0.08]'}`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -715,15 +887,11 @@ function SliderField({ label, value, min, max, step, onChange }) {
         <label className="text-[11px] uppercase tracking-wide text-brand-gray-500">{label}</label>
         <span className="text-xs text-brand-gray-300">{Number(value).toFixed(step >= 1 ? 0 : 2)}</span>
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="proposal-slider w-full"
-      />
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="proposal-slider w-full" />
     </div>
   );
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 }

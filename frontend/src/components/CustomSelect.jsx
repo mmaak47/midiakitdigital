@@ -1,10 +1,51 @@
-import { useState, useRef, useEffect } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 
-export default function CustomSelect({ value, onChange, options, label, placeholder = 'Selecione' }) {
+function normalizeOption(option) {
+  if (typeof option === 'string') {
+    return { value: option, label: option };
+  }
+
+  return {
+    value: option?.value ?? option?.label ?? '',
+    label: option?.label ?? option?.value ?? ''
+  };
+}
+
+export default function CustomSelect({
+  value,
+  onChange,
+  options,
+  label,
+  placeholder = 'Selecione',
+  multiple = false,
+  allowCustom = false,
+  customPlaceholder = 'Digite e pressione Enter'
+}) {
   const [isOpen, setIsOpen] = useState(false);
+  const [draftValue, setDraftValue] = useState('');
   const dropdownRef = useRef(null);
+
+  const normalizedOptions = useMemo(() => {
+    return (options || []).map(normalizeOption).filter((option) => option.value);
+  }, [options]);
+
+  const normalizedValue = useMemo(() => {
+    if (multiple) {
+      return Array.isArray(value) ? value.filter(Boolean) : [];
+    }
+    return value || '';
+  }, [multiple, value]);
+
+  const selectedValues = multiple ? normalizedValue : (normalizedValue ? [normalizedValue] : []);
+
+  const selectedLabels = useMemo(() => {
+    return selectedValues.map((selected) => {
+      const matched = normalizedOptions.find((option) => option.value === selected);
+      return matched?.label || selected;
+    });
+  }, [normalizedOptions, selectedValues]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -17,7 +58,50 @@ export default function CustomSelect({ value, onChange, options, label, placehol
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const selectedLabel = options.find(opt => opt === value) || placeholder;
+  const commitCustomValue = () => {
+    const nextValue = draftValue.trim();
+    if (!nextValue) return;
+
+    if (multiple) {
+      const next = selectedValues.includes(nextValue)
+        ? selectedValues
+        : [...selectedValues, nextValue];
+      onChange(next);
+    } else {
+      onChange(nextValue);
+      setIsOpen(false);
+    }
+
+    setDraftValue('');
+  };
+
+  const handleSelect = (optionValue) => {
+    if (multiple) {
+      const exists = selectedValues.includes(optionValue);
+      onChange(exists
+        ? selectedValues.filter((item) => item !== optionValue)
+        : [...selectedValues, optionValue]);
+      return;
+    }
+
+    onChange(optionValue);
+    setIsOpen(false);
+  };
+
+  const handleRemove = (optionValue) => {
+    if (!multiple) {
+      onChange('');
+      return;
+    }
+    onChange(selectedValues.filter((item) => item !== optionValue));
+  };
+
+  const triggerLabel = useMemo(() => {
+    if (!selectedValues.length) return placeholder;
+    if (!multiple) return selectedLabels[0] || placeholder;
+    if (selectedLabels.length <= 2) return selectedLabels.join(', ');
+    return `${selectedLabels.slice(0, 2).join(', ')} +${selectedLabels.length - 2}`;
+  }, [multiple, placeholder, selectedLabels, selectedValues.length]);
 
   return (
     <div ref={dropdownRef} className="relative">
@@ -28,17 +112,43 @@ export default function CustomSelect({ value, onChange, options, label, placehol
       )}
       
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-white/10 to-white/5 border border-white/15 text-white text-sm font-medium flex items-center justify-between hover:border-white/25 hover:bg-gradient-to-r hover:from-white/12 hover:to-white/7 transition-all duration-200 focus:outline-none focus:border-brand-orange/40"
       >
-        <span className={selectedLabel === placeholder ? 'text-brand-gray-400' : 'text-white'}>
-          {selectedLabel}
+        <span className={`${selectedValues.length === 0 ? 'text-brand-gray-400' : 'text-white'} truncate text-left`}>
+          {triggerLabel}
         </span>
         <ChevronDown 
           size={16} 
           className={`text-brand-gray-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
+
+      {multiple && selectedValues.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {selectedValues.map((selected) => {
+            const matched = normalizedOptions.find((option) => option.value === selected);
+            const chipLabel = matched?.label || selected;
+            return (
+              <span
+                key={selected}
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand-orange/25 bg-brand-orange/10 px-2.5 py-1 text-[11px] font-medium text-brand-orange"
+              >
+                {chipLabel}
+                <button
+                  type="button"
+                  onClick={() => handleRemove(selected)}
+                  className="text-brand-orange/70 transition-colors hover:text-brand-orange"
+                  aria-label={`Remover ${chipLabel}`}
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       <AnimatePresence>
         {isOpen && (
@@ -49,25 +159,50 @@ export default function CustomSelect({ value, onChange, options, label, placehol
             transition={{ duration: 0.15 }}
             className="absolute top-full left-0 right-0 mt-2 bg-gradient-to-b from-[#1a1a1a] to-[#121212] border border-white/15 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50 max-h-96"
           >
+            {allowCustom && (
+              <div className="border-b border-white/10 p-3">
+                <input
+                  type="text"
+                  value={draftValue}
+                  onChange={(e) => setDraftValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      commitCustomValue();
+                    }
+                  }}
+                  placeholder={customPlaceholder}
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-brand-orange/35"
+                />
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={commitCustomValue}
+                    disabled={!draftValue.trim()}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-brand-gray-300 transition-colors hover:bg-white/10 disabled:opacity-40"
+                  >
+                    Adicionar
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-              {options.map((option, i) => (
+              {normalizedOptions.map((option, i) => (
                 <motion.button
-                  key={option}
+                  key={option.value}
+                  type="button"
                   initial={{ opacity: 0, x: -4 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.02 }}
-                  onClick={() => {
-                    onChange(option);
-                    setIsOpen(false);
-                  }}
+                  onClick={() => handleSelect(option.value)}
                   className={`w-full px-4 py-3 text-sm font-medium text-left transition-all duration-150 flex items-center justify-between group ${
-                    value === option
+                    selectedValues.includes(option.value)
                       ? 'bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white'
                       : 'text-brand-gray-200 hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5 hover:border-l-2 hover:border-brand-orange'
                   }`}
                 >
-                  <span>{option}</span>
-                  {value === option && (
+                  <span>{option.label}</span>
+                  {selectedValues.includes(option.value) && (
                     <span className="text-lg">✓</span>
                   )}
                 </motion.button>

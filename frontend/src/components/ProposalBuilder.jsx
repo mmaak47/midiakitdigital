@@ -3,9 +3,11 @@ import AutoArgumentGenerator from './AutoArgumentGenerator';
 export default function ProposalBuilder({
   clientName,
   city,
+  publico,
   segmento,
   points,
   totals,
+  pricingSummary,
   strategicText,
   simulationSummary,
   activePreviewPointId,
@@ -15,6 +17,8 @@ export default function ProposalBuilder({
   const formatCurrency = (n) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
   const formatNumber = (n) => new Intl.NumberFormat('pt-BR').format(n || 0);
   const pontosComEntorno = points.filter((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0).length;
+  const cityLabel = Array.isArray(city) && city.length ? city.join(', ') : (city || 'Múltiplas praças');
+  const publicoLabel = Array.isArray(publico) && publico.length ? publico.join(', ') : (publico || 'Públicos estratégicos');
 
   return (
     <div className="space-y-5">
@@ -22,11 +26,11 @@ export default function ProposalBuilder({
         <h3 className="text-sm font-semibold uppercase tracking-[0.14em] mb-3 text-white">Revisão da proposta</h3>
         <div className="grid md:grid-cols-3 gap-2 text-sm text-brand-gray-300">
           <p>Cliente: <strong className="text-white">{clientName || 'Não informado'}</strong></p>
-          <p>Cidade/praça: <strong className="text-white">{city || 'Múltiplas praças'}</strong></p>
+          <p>Cidade/praça: <strong className="text-white">{cityLabel}</strong></p>
           <p>Pontos selecionados: <strong className="text-white">{points.length}</strong></p>
         </div>
         <div className="mt-3 text-sm text-brand-gray-400">
-          Segmento considerado: <strong className="text-white">{segmento || 'Não informado'}</strong> • Pontos com entorno aderente disponível: <strong className="text-white">{pontosComEntorno}</strong>
+          Segmento considerado: <strong className="text-white">{segmento || 'Não informado'}</strong> • Públicos priorizados: <strong className="text-white">{publicoLabel}</strong> • Pontos com entorno aderente disponível: <strong className="text-white">{pontosComEntorno}</strong>
         </div>
       </section>
 
@@ -68,12 +72,30 @@ export default function ProposalBuilder({
                 </td>
                 <td className="px-3 py-2.5 hidden md:table-cell text-brand-gray-400">{p.cidade}</td>
                 <td className="px-3 py-2.5 hidden md:table-cell text-brand-gray-400">{p.tipo}</td>
-                <td className="px-3 py-2.5 text-right text-brand-orange font-semibold">{formatCurrency(p.preco)}</td>
+                <td className="px-3 py-2.5 text-right">
+                  {p.discountPercent > 0 ? (
+                    <div className="space-y-0.5">
+                      <div className="text-xs text-brand-gray-500 line-through">{formatCurrency(p.precoOriginal)}</div>
+                      <div className="text-brand-orange font-semibold">{formatCurrency(p.precoFinal)}</div>
+                      <div className="text-[11px] text-green-300">-{p.discountPercent}%</div>
+                    </div>
+                  ) : (
+                    <span className="text-brand-orange font-semibold">{formatCurrency(p.precoFinal ?? p.preco)}</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </section>
+
+      {pricingSummary?.hasDiscount && (
+        <section className="grid sm:grid-cols-3 gap-3">
+          <Stat label="Tabela cheia" value={formatCurrency(pricingSummary.originalTotal)} />
+          <Stat label="Desconto aplicado" value={`- ${formatCurrency(pricingSummary.discountTotal)}`} />
+          <Stat label="Total final" value={formatCurrency(pricingSummary.finalTotal)} />
+        </section>
+      )}
 
       {simulationSummary && (
         <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -86,7 +108,7 @@ export default function ProposalBuilder({
         <Stat label="Valor total" value={formatCurrency(totals.valorTotal)} />
         <Stat label="Fluxo total" value={formatNumber(totals.fluxoTotal)} />
         <Stat label="CPM estimado" value={`R$ ${totals.cpmEstimado.toFixed(2)}`} />
-        <Stat label="Inserções totais" value={formatNumber(totals.insercoesTotal)} />
+        <Stat label="Ticket médio" value={formatCurrency(totals.ticketMedio)} />
       </section>
 
       <AutoArgumentGenerator argumentsList={strategicText} />

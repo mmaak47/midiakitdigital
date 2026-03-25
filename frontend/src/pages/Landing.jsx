@@ -22,6 +22,7 @@ import {
 import Navbar from '../components/Navbar';
 import CustomSelect from '../components/CustomSelect';
 import { fetchPontos } from '../lib/api';
+import { campaignTotals } from '../lib/strategy';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -56,7 +57,7 @@ function anchorIdFromTipo(tipo) {
 export default function Landing() {
   const navigate = useNavigate();
   const [allPontos, setAllPontos] = useState([]);
-  const [selectedPraca, setSelectedPraca] = useState('Todas as praças');
+  const [selectedPracas, setSelectedPracas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
@@ -83,35 +84,32 @@ export default function Landing() {
 
   const pracas = useMemo(() => {
     const unique = new Set(allPontos.map((p) => p.cidade).filter(Boolean));
-    return ['Todas as praças', ...Array.from(unique).sort((a, b) => a.localeCompare(b, 'pt-BR'))];
+    return Array.from(unique).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [allPontos]);
 
   const quickPracas = useMemo(() => pracas.slice(0, 5), [pracas]);
 
+  const selectedPracaLabel = useMemo(() => {
+    if (!selectedPracas.length) return 'Todas as praças';
+    if (selectedPracas.length === 1) return selectedPracas[0];
+    return `${selectedPracas.length} praças selecionadas`;
+  }, [selectedPracas]);
+
   const pontos = useMemo(() => {
-    if (selectedPraca === 'Todas as praças') return allPontos;
-    return allPontos.filter((p) => p.cidade === selectedPraca);
-  }, [allPontos, selectedPraca]);
+    if (!selectedPracas.length) return allPontos;
+    return allPontos.filter((p) => selectedPracas.includes(p.cidade));
+  }, [allPontos, selectedPracas]);
 
   const resumo = useMemo(() => {
-    const totals = pontos.reduce((acc, p) => {
-      acc.telas += Number(p.telas) || 0;
-      acc.fluxo += Number(p.fluxo) || 0;
-      acc.insercoes += Number(p.insercoes) || 0;
-      acc.preco += Number(p.preco) || 0;
-      return acc;
-    }, { telas: 0, fluxo: 0, insercoes: 0, preco: 0 });
-
-    const ticketMedio = pontos.length ? Math.round(totals.preco / pontos.length) : 0;
-    const cpm = totals.fluxo > 0 ? ((ticketMedio / totals.fluxo) * 1000).toFixed(2) : '0.00';
+    const totals = campaignTotals(pontos);
 
     return {
-      pontos: pontos.length,
-      telas: totals.telas,
-      fluxo: totals.fluxo,
-      insercoes: totals.insercoes,
-      ticketMedio,
-      cpm
+      pontos: totals.quantidade,
+      telas: totals.telasTotal,
+      fluxo: totals.fluxoTotal,
+      insercoes: totals.insercoesTotal,
+      ticketMedio: Math.round(totals.ticketMedio),
+      cpm: totals.cpmEstimado.toFixed(2)
     };
   }, [pontos]);
 
@@ -169,7 +167,12 @@ export default function Landing() {
     }));
   }, [pontos, tiposComAncora]);
 
-  const explorerPath = `/explorar${selectedPraca !== 'Todas as praças' ? `?cidade=${encodeURIComponent(selectedPraca)}` : ''}`;
+  const explorerPath = useMemo(() => {
+    const params = new URLSearchParams();
+    selectedPracas.forEach((praca) => params.append('cidade', praca));
+    const query = params.toString();
+    return `/explorar${query ? `?${query}` : ''}`;
+  }, [selectedPracas]);
 
   const handleExportPdf = async () => {
     if (!pontos.length || generatingPdf) return;
@@ -177,7 +180,8 @@ export default function Landing() {
     try {
       const { generateMidiaKitPdf } = await import('../lib/midiaKitPdf');
       await generateMidiaKitPdf({
-        praca: selectedPraca,
+        praca: selectedPracaLabel,
+        pracas: selectedPracas,
         pontos
       });
     } catch (err) {
@@ -237,16 +241,17 @@ export default function Landing() {
             <div className="grid sm:grid-cols-2 gap-4">
               <CustomSelect 
                 label="Praça"
-                value={selectedPraca}
-                onChange={setSelectedPraca}
+                value={selectedPracas}
+                onChange={setSelectedPracas}
                 options={pracas}
-                placeholder="Selecionar praça"
+                placeholder="Selecionar uma ou mais praças"
+                multiple
               />
 
               <div>
                 <label className="text-xs text-brand-gray-500 uppercase tracking-wide font-semibold block mb-2">Visualização</label>
                 <div className="h-[50px] rounded-xl bg-gradient-to-r from-white/10 to-white/5 border border-white/15 px-4 flex items-center text-sm font-medium text-white">
-                  {selectedPraca === 'Todas as praças' ? 'Consolidado multirregional' : `Foco em ${selectedPraca}`}
+                  {!selectedPracas.length ? 'Consolidado multirregional' : `Foco em ${selectedPracaLabel}`}
                 </div>
               </div>
             </div>
@@ -272,9 +277,11 @@ export default function Landing() {
             {quickPracas.map((praca) => (
               <button
                 key={praca}
-                onClick={() => setSelectedPraca(praca)}
+                onClick={() => setSelectedPracas((current) => current.includes(praca)
+                  ? current.filter((item) => item !== praca)
+                  : [...current, praca])}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                  selectedPraca === praca
+                  selectedPracas.includes(praca)
                     ? 'bg-brand-orange text-white border-brand-orange'
                     : 'bg-white/[0.03] text-brand-gray-400 border-white/10 hover:text-white'
                 }`}
@@ -282,6 +289,16 @@ export default function Landing() {
                 {praca}
               </button>
             ))}
+            <button
+              onClick={() => setSelectedPracas([])}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                selectedPracas.length === 0
+                  ? 'bg-brand-orange text-white border-brand-orange'
+                  : 'bg-white/[0.03] text-brand-gray-400 border-white/10 hover:text-white'
+              }`}
+            >
+              Todas as praças
+            </button>
           </div>
         </div>
       </section>
@@ -331,7 +348,7 @@ export default function Landing() {
                 <Layers3 size={18} className="text-brand-orange" />
                 Inventário por formato
               </h2>
-              <span className="text-xs text-brand-gray-500 uppercase tracking-wide">{selectedPraca}</span>
+              <span className="text-xs text-brand-gray-500 uppercase tracking-wide">{selectedPracaLabel}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -539,7 +556,7 @@ export default function Landing() {
             className="grid lg:grid-cols-[1fr_auto] gap-6 items-center"
           >
             <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-3">Quer fechar o plano desta praça?</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-3">Quer fechar o plano desta seleção?</h2>
               <p className="text-brand-gray-400 max-w-2xl">
                 Continue para o explorador com filtros aplicados e selecione os pontos para montar sua proposta comercial.
               </p>
@@ -563,9 +580,9 @@ export default function Landing() {
           </div>
           <div className="flex items-center gap-6 text-sm text-brand-gray-500">
             <Link to="/explorar" className="hover:text-white transition-colors">Pontos</Link>
-            <button onClick={() => setSelectedPraca('Todas as praças')} className="hover:text-white transition-colors">Todas as praças</button>
+            <button onClick={() => setSelectedPracas([])} className="hover:text-white transition-colors">Todas as praças</button>
             <span className="inline-flex items-center gap-2">
-              <Building2 size={14} /> {formatInt(Math.max(pracas.length - 1, 0))} praças
+              <Building2 size={14} /> {formatInt(pracas.length)} praças
             </span>
           </div>
         </div>

@@ -10,8 +10,8 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
   const [form, setForm] = useState({
     segmento: 'clinica',
     objetivo: 'reconhecimento de marca',
-    cidade: '',
-    publico: '',
+    cidade: [],
+    publico: [],
     investimentoMensal: 12000
   });
   const [entorno, setEntorno] = useState({
@@ -32,7 +32,7 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
         setEntorno((prev) => ({ ...prev, loading: true, error: '' }));
         const response = await fetchEntornoScores({
           segmento: form.segmento,
-          cidade: form.cidade,
+          cidade: form.cidade.length === 1 ? form.cidade[0] : '',
           raio: DEFAULT_ENTORNO_RADIUS,
           force
         });
@@ -113,9 +113,9 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
 
       <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-4 mb-5">
         <CustomSelect label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS} />
-        <CustomSelect label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} />
-        <CustomSelect label="Praça" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={['Todas', ...cidades]} />
-        <CustomSelect label="Público" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={['Todos', ...publicos]} />
+        <CustomSelect label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} allowCustom customPlaceholder="Digite um objetivo personalizado" />
+        <CustomSelect label="Praça" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={cidades} multiple placeholder="Selecionar uma ou mais praças" />
+        <CustomSelect label="Público" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={publicos} multiple placeholder="Selecionar um ou mais públicos" />
         <div>
           <label className="text-[11px] uppercase tracking-wide text-brand-gray-500 font-semibold">Investimento mensal</label>
           <input

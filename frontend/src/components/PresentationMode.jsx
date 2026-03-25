@@ -17,8 +17,10 @@ import { buildAudienceQualification, buildEntornoSummary, getSegmentDisplayName 
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 const formatNumber = (value) => new Intl.NumberFormat('pt-BR').format(value || 0);
 
-export default function PresentationMode({ points = [], totals, segmento, onClose }) {
+export default function PresentationMode({ points = [], totals, segmento, clientName = '', pricingSummary, onClose }) {
   const [index, setIndex] = useState(0);
+  const [editMode, setEditMode] = useState(false);
+  const [edits, setEdits] = useState({});
   const current = points[index];
 
   useEffect(() => {
@@ -46,6 +48,8 @@ export default function PresentationMode({ points = [], totals, segmento, onClos
   if (!points.length || !current || !currentView) return null;
 
   const completion = Math.round(((index + 1) / points.length) * 100);
+  const readText = (key, fallback) => edits[key] ?? fallback;
+  const writeText = (key, value) => setEdits((currentEdits) => ({ ...currentEdits, [key]: value }));
 
   return (
     <div className="fixed inset-0 z-[60] overflow-y-auto bg-[#050505] px-4 py-5 text-white md:px-8 md:py-7">
@@ -64,13 +68,23 @@ export default function PresentationMode({ points = [], totals, segmento, onClos
                   Apresentação comercial
                 </span>
               </div>
-              <p className="mt-1 text-xs text-brand-gray-400">Narrativa visual, qualificação de público e entorno aderente por ponto.</p>
+              <EditableText
+                editMode={editMode}
+                value={readText('header-subtitle', 'Narrativa visual, qualificação de público e entorno aderente por ponto.')}
+                onChange={(value) => writeText('header-subtitle', value)}
+                className="mt-1 text-xs text-brand-gray-400"
+              />
             </div>
           </div>
 
-          <button onClick={onClose} className="rounded-xl border border-white/15 px-3 py-2 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white">
-            Fechar
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setEditMode((currentValue) => !currentValue)} className={`rounded-xl border px-3 py-2 text-sm transition-colors ${editMode ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : 'border-white/15 text-white/80 hover:bg-white/10 hover:text-white'}`}>
+              {editMode ? 'Finalizar edição' : 'Editar textos'}
+            </button>
+            <button onClick={onClose} className="rounded-xl border border-white/15 px-3 py-2 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white">
+              Fechar
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -88,14 +102,8 @@ export default function PresentationMode({ points = [], totals, segmento, onClos
               <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="text-xs uppercase tracking-[0.16em] text-brand-gray-500">Ponto {index + 1} de {points.length}</p>
-                  <h3 className="mt-2 max-w-4xl text-3xl font-bold leading-[0.96] md:text-[42px]">{current.nome}</h3>
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-brand-gray-300">
-                    <span>{current.cidade}</span>
-                    <span className="text-brand-gray-600">•</span>
-                    <span>{current.tipo}</span>
-                    <span className="text-brand-gray-600">•</span>
-                    <span>{currentView.segmentLabel}</span>
-                  </div>
+                  <EditableText editMode={editMode} value={readText(`point-${current.id}-name`, current.nome)} onChange={(value) => writeText(`point-${current.id}-name`, value)} className="mt-2 max-w-4xl text-3xl font-bold leading-[0.96] md:text-[42px]" multiline />
+                  <EditableText editMode={editMode} value={readText(`point-${current.id}-meta`, `${current.cidade} • ${current.tipo} • ${currentView.segmentLabel}`)} onChange={(value) => writeText(`point-${current.id}-meta`, value)} className="mt-3 text-sm text-brand-gray-300" />
                 </div>
 
                 <div className="min-w-[220px] max-w-[280px] rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
@@ -111,7 +119,7 @@ export default function PresentationMode({ points = [], totals, segmento, onClos
                       transition={{ duration: 0.45, ease: 'easeOut' }}
                     />
                   </div>
-                  <p className="mt-2 text-xs text-brand-gray-400">Leitura comercial pensada para reunião com foco em impacto, contexto e aderência.</p>
+                  <EditableText editMode={editMode} value={readText('rhythm-copy', 'Leitura comercial pensada para reunião com foco em impacto, contexto e aderência.')} onChange={(value) => writeText('rhythm-copy', value)} className="mt-2 text-xs text-brand-gray-400" multiline />
                 </div>
               </div>
 
@@ -151,26 +159,43 @@ export default function PresentationMode({ points = [], totals, segmento, onClos
 
                   <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-brand-gray-300">
                     <div className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-500">Endereço</div>
-                    <p className="mt-2 text-white">{current.endereco || 'Endereço não informado'}</p>
+                    <EditableText editMode={editMode} value={readText(`point-${current.id}-address`, current.endereco || 'Endereço não informado')} onChange={(value) => writeText(`point-${current.id}-address`, value)} className="mt-2 text-white" multiline />
+                    {current.clientDistanceKm ? (
+                      <p className="mt-2 text-xs text-brand-orange">Cliente a {current.clientDistanceKm.toFixed(1).replace('.', ',')} km deste ponto</p>
+                    ) : null}
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   <InsightCard
                     icon={Users}
-                    eyebrow={currentView.audience.badge}
-                    title={currentView.audience.headline}
-                    description={currentView.audience.summary}
-                    items={currentView.audience.bullets}
+                    eyebrow={readText(`audience-${current.id}-eyebrow`, currentView.audience.badge)}
+                    title={readText(`audience-${current.id}-title`, currentView.audience.headline)}
+                    description={readText(`audience-${current.id}-description`, currentView.audience.summary)}
+                    items={currentView.audience.bullets.map((item, itemIndex) => readText(`audience-${current.id}-item-${itemIndex}`, item))}
+                    editMode={editMode}
+                    onEdit={(field, value, itemIndex) => {
+                      const key = field === 'item'
+                        ? `audience-${current.id}-item-${itemIndex}`
+                        : `audience-${current.id}-${field}`;
+                      writeText(key, value);
+                    }}
                   />
 
                   <InsightCard
                     icon={MapPinned}
-                    eyebrow="Entorno aderente"
-                    title={currentView.entorno.headline}
-                    description={currentView.entorno.summary}
-                    items={currentView.entorno.places.map((place) => `${place.name} • ${place.category} • ${place.distanceLabel}`)}
+                    eyebrow={readText(`entorno-${current.id}-eyebrow`, 'Entorno aderente')}
+                    title={readText(`entorno-${current.id}-title`, currentView.entorno.headline)}
+                    description={readText(`entorno-${current.id}-description`, currentView.entorno.summary)}
+                    items={currentView.entorno.places.map((place, itemIndex) => readText(`entorno-${current.id}-item-${itemIndex}`, `${place.name} • ${place.category} • ${place.distanceLabel}`))}
                     emptyMessage="Os locais próximos aparecerão aqui assim que o cache de entorno desse segmento estiver disponível."
+                    editMode={editMode}
+                    onEdit={(field, value, itemIndex) => {
+                      const key = field === 'item'
+                        ? `entorno-${current.id}-item-${itemIndex}`
+                        : `entorno-${current.id}-${field}`;
+                      writeText(key, value);
+                    }}
                   />
 
                   <RadiusRadarCard
@@ -188,7 +213,7 @@ export default function PresentationMode({ points = [], totals, segmento, onClos
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-xs uppercase tracking-[0.14em] text-brand-gray-500">Resumo geral da proposta</div>
-                  <p className="mt-1 text-sm text-brand-gray-400">Indicadores executivos para defesa comercial.</p>
+                  <EditableText editMode={editMode} value={readText('summary-copy', clientName ? `Indicadores executivos para a defesa comercial de ${clientName}.` : 'Indicadores executivos para defesa comercial.')} onChange={(value) => writeText('summary-copy', value)} className="mt-1 text-sm text-brand-gray-400" multiline />
                 </div>
                 <img src="/logo.png" alt="Intermidia" className="h-9 w-auto object-contain opacity-90" />
               </div>
@@ -198,6 +223,7 @@ export default function PresentationMode({ points = [], totals, segmento, onClos
                 <MiniStat label="Fluxo total" value={formatNumber(totals.fluxoTotal || 0)} />
                 <MiniStat label="CPM estimado" value={`R$ ${(totals.cpmEstimado || 0).toFixed(2).replace('.', ',')}`} />
                 <MiniStat label="Inserções" value={formatNumber(totals.insercoesTotal || 0)} />
+                {pricingSummary?.hasDiscount ? <MiniStat label="Desconto" value={formatCurrency(pricingSummary.discountTotal || 0)} /> : null}
               </div>
             </div>
 
@@ -206,7 +232,7 @@ export default function PresentationMode({ points = [], totals, segmento, onClos
                 <button onClick={() => setIndex((i) => Math.max(0, i - 1))} className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 transition-colors hover:bg-white/10 disabled:opacity-40" disabled={index === 0}>
                   <ChevronLeft size={16} />
                 </button>
-                <span className="text-xs uppercase tracking-[0.14em] text-brand-gray-400">Use ← → para navegar</span>
+                <EditableText editMode={editMode} value={readText('nav-copy', 'Use ← → para navegar')} onChange={(value) => writeText('nav-copy', value)} className="text-xs uppercase tracking-[0.14em] text-brand-gray-400 text-center" />
                 <button onClick={() => setIndex((i) => Math.min(points.length - 1, i + 1))} className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 transition-colors hover:bg-white/10 disabled:opacity-40" disabled={index === points.length - 1}>
                   <ChevronRight size={16} />
                 </button>
@@ -263,7 +289,7 @@ function MetricCard({ icon: Icon, label, value, accent = 'white' }) {
   );
 }
 
-function InsightCard({ icon: Icon, eyebrow, title, description, items = [], emptyMessage }) {
+function InsightCard({ icon: Icon, eyebrow, title, description, items = [], emptyMessage, editMode = false, onEdit }) {
   const hasItems = items.length > 0;
 
   return (
@@ -273,16 +299,16 @@ function InsightCard({ icon: Icon, eyebrow, title, description, items = [], empt
           <Icon size={17} />
         </div>
         <div className="min-w-0">
-          <div className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-500">{eyebrow}</div>
-          <h4 className="mt-1 text-base font-semibold text-white leading-snug">{title}</h4>
-          <p className="mt-2 text-sm leading-relaxed text-brand-gray-300">{description}</p>
+          <EditableText editMode={editMode} value={eyebrow} onChange={(value) => onEdit?.('eyebrow', value)} className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-500" />
+          <EditableText editMode={editMode} value={title} onChange={(value) => onEdit?.('title', value)} className="mt-1 text-base font-semibold text-white leading-snug" multiline />
+          <EditableText editMode={editMode} value={description} onChange={(value) => onEdit?.('description', value)} className="mt-2 text-sm leading-relaxed text-brand-gray-300" multiline />
         </div>
       </div>
 
       <div className="mt-3 space-y-2">
-        {hasItems ? items.map((item) => (
-          <div key={item} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-brand-gray-200">
-            {item}
+        {hasItems ? items.map((item, index) => (
+          <div key={`${item}-${index}`} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-brand-gray-200">
+            <EditableText editMode={editMode} value={item} onChange={(value) => onEdit?.('item', value, index)} className="text-sm text-brand-gray-200" multiline />
           </div>
         )) : (
           <div className="rounded-xl border border-dashed border-white/10 px-3 py-3 text-sm text-brand-gray-500">
@@ -365,4 +391,29 @@ function formatRadius(radiusMeters) {
     return `${(radiusMeters / 1000).toFixed(1).replace('.', ',')} km`;
   }
   return `${Math.round(radiusMeters)} m`;
+}
+
+function EditableText({ editMode, value, onChange, className, multiline = false }) {
+  if (!editMode) {
+    return <div className={className}>{value}</div>;
+  }
+
+  if (multiline) {
+    return (
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={3}
+        className={`${className} w-full rounded-lg border border-brand-orange/35 bg-black/35 px-2 py-2 outline-none`}
+      />
+    );
+  }
+
+  return (
+    <input
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className={`${className} w-full rounded-lg border border-brand-orange/35 bg-black/35 px-2 py-2 outline-none`}
+    />
+  );
 }

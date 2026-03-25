@@ -21,18 +21,18 @@ import { calculateCampaignScore, calculateCoverageLevel, campaignTotals } from '
 
 export default function Explorer() {
   const [searchParams] = useSearchParams();
-  const initialCidade = searchParams.get('cidade') || '';
+  const initialCidade = searchParams.getAll('cidade');
 
   const [pontos, setPontos] = useState([]);
   const [allPontos, setAllPontos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ cidade: initialCidade, tipo: '', publico: '', search: '' });
+  const [filters, setFilters] = useState({ cidade: initialCidade, tipo: '', publico: [], search: '' });
   const [view, setView] = useState('grid');
   const [selected, setSelected] = useState(null);
   const [mobileFilters, setMobileFilters] = useState(false);
   const { favorites, addFavorites, history, registerView } = useFavorites();
 
-  const cityInventory = allPontos.filter((p) => !filters.cidade || p.cidade === filters.cidade);
+  const cityInventory = allPontos.filter((p) => !filters.cidade.length || filters.cidade.includes(p.cidade));
   const coverage = calculateCoverageLevel(favorites, cityInventory);
   const totals = campaignTotals(favorites);
   const scoreInfo = calculateCampaignScore({
