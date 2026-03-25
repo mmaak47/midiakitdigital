@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Maximize2, Minimize2, Minus, Plus, RefreshCcw, Trash2 } from 'lucide-react';
 import {
   buildDefaultQuadAt,
@@ -50,6 +50,7 @@ function clamp(value, min, max) {
 }
 
 export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
+  const editorRootRef = useRef(null);
   const stageRef = useRef(null);
   const viewportRef = useRef(null);
   const [drag, setDrag] = useState(null);
@@ -57,6 +58,15 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
   const [helper, setHelper] = useState('Arraste no fundo para criar a área. Depois ajuste cantos, arestas ou a área inteira.');
   const [zoom, setZoom] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === editorRootRef.current);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   const normalizedCorners = useMemo(() => normalizeCorners(corners), [corners]);
   const hasSelection = !!normalizedCorners;
@@ -79,6 +89,20 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
 
   const updateZoom = (nextZoom) => {
     setZoom(clamp(nextZoom, MIN_ZOOM, MAX_ZOOM));
+  };
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement === editorRootRef.current) {
+        await document.exitFullscreen();
+        return;
+      }
+      if (!document.fullscreenElement && editorRootRef.current) {
+        await editorRootRef.current.requestFullscreen();
+      }
+    } catch (error) {
+      console.error('Falha ao alternar fullscreen:', error);
+    }
   };
 
   const handleWheelZoom = (event) => {
@@ -240,7 +264,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
   const polygonPoints = activeCorners.map((point) => `${point.x},${point.y}`).join(' ');
 
   return (
-    <div className={isFullscreen ? 'fixed inset-0 z-[90] overflow-auto bg-black/95 p-4 space-y-3' : 'space-y-3'}>
+    <div ref={editorRootRef} className={isFullscreen ? 'h-screen w-screen overflow-auto bg-black p-4 space-y-3' : 'space-y-3'}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-400">Editor de tela</p>
@@ -250,7 +274,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setIsFullscreen((prev) => !prev)}
+            onClick={toggleFullscreen}
             className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10"
           >
             {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
@@ -292,7 +316,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
       <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
         <div
           ref={viewportRef}
-          className="overflow-auto rounded-xl border border-white/10 bg-black max-h-[62vh]"
+          className={`overflow-auto rounded-xl border border-white/10 bg-black ${isFullscreen ? 'max-h-[calc(100vh-190px)]' : 'max-h-[62vh]'}`}
           onWheel={handleWheelZoom}
           onPointerDown={startPanDrag}
           onPointerMove={handlePanMove}
