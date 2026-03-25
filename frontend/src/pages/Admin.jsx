@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
-  Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings
+  Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings,
+  Copy, Check
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import {
@@ -104,6 +105,7 @@ export default function Admin() {
 
   const [cidades, setCidades] = useState([]);
   const [tipos, setTipos] = useState([]);
+  const [promptCopied, setPromptCopied] = useState(false);
 
   useEffect(() => {
     const savedCidades = localStorage.getItem('midia-kit-cidades');
@@ -437,6 +439,23 @@ export default function Admin() {
   const artWidth = parseInt(form.arte_largura, 10) || 0;
   const artHeight = parseInt(form.arte_altura, 10) || 0;
   const artRatioText = formatRatio(artWidth, artHeight);
+
+  const autoArtPrompt = useMemo(() => {
+    if (!artWidth || !artHeight || !form.nome) return '';
+    const ratio = artRatioText || `${artWidth}x${artHeight}`;
+    return `Crie uma arte visual atraente com dimensões ${artWidth}x${artHeight}px (proporção ${ratio}) para ${form.tipo} localizado em ${form.cidade}. Ponto: "${form.nome}". ${form.descricao ? `Contexto: ${form.descricao}` : ''}. A arte deve chamar atenção e ser compatível com mídia digital outdoor.`;
+  }, [artWidth, artHeight, artRatioText, form.nome, form.tipo, form.cidade, form.descricao]);
+
+  const handleCopyPrompt = async () => {
+    if (!autoArtPrompt) return;
+    try {
+      await navigator.clipboard.writeText(autoArtPrompt);
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 2000);
+    } catch (err) {
+      console.error('Falha ao copiar:', err);
+    }
+  };
 
   // Login screen
   if (!auth) {
