@@ -311,7 +311,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
                   {activeCorners.map((point, index) => (
                     <g key={`handle-${index}`}>
                       <circle cx={point.x} cy={point.y} r={HANDLE_HIT_RADIUS} fill="transparent" onPointerDown={(event) => startCornerDrag(event, index)} style={{ cursor: 'grab' }} />
-                      <circle cx={point.x} cy={point.y} r={HANDLE_RADIUS} fill="white" stroke="rgba(254,92,43,0.98)" strokeWidth="0.18" pointerEvents="none" />
+                      <circle cx={point.x} cy={point.y} r={HANDLE_RADIUS} fill="rgba(255,255,255,0.55)" stroke="rgba(254,92,43,0.6)" strokeWidth="0.18" pointerEvents="none" />
                     </g>
                   ))}
                 </>
