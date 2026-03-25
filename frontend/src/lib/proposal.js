@@ -66,19 +66,35 @@ export function buildProposalPricing(points = [], discountConfig = {}) {
   };
 }
 
+function calculateAspectRatio(width, height) {
+  if (!width || !height) return '';
+  const w = Number(width);
+  const h = Number(height);
+  if (!w || !h) return '';
+  
+  const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+  const divisor = gcd(w, h);
+  const simplifiedW = w / divisor;
+  const simplifiedH = h / divisor;
+  
+  return `${Math.round(simplifiedW)}:${Math.round(simplifiedH)}`;
+}
+
 export function buildProposalImagePrompt({
   clientName,
   selectedCities = [],
   selectedPublicos = [],
   objetivo,
   segmento,
+  arteWidth = '1920',
+  arteHeight = '1080',
   points = []
 }) {
   const advertiser = String(clientName || '').trim() || 'cliente';
   const cityText = formatList(selectedCities, 'múltiplas praças');
   const publicoText = formatList(selectedPublicos, 'públicos estratégicos');
-  const pointNames = points.slice(0, 3).map((point) => point.nome).filter(Boolean);
-  const supportText = pointNames.length ? `Referência visual de contexto: ${pointNames.join(', ')}.` : '';
+  const aspectRatio = calculateAspectRatio(arteWidth, arteHeight);
+  const dimensionText = aspectRatio ? `Proporção: ${aspectRatio} (${arteWidth}x${arteHeight}px).` : '';
 
   return [
     `Crie uma arte publicitária para OOH digital da marca ${advertiser}.`,
@@ -86,8 +102,8 @@ export function buildProposalImagePrompt({
     `Segmento do anunciante: ${segmento || 'segmento comercial'}.`,
     `Praças da campanha: ${cityText}.`,
     `Públicos prioritários: ${publicoText}.`,
+    `${dimensionText}`,
     `Direção visual: impacto imediato, alto contraste, composição premium e legibilidade em até 7 palavras.`,
-    `Regras: sem mockup, sem foto de ponto, sem marca d'água, sem texto pequeno, entregar arte estática pronta para simulação em mídia digital.`,
-    supportText
+    `Regras: sem mockup, sem foto de ponto, sem marca d'água, sem texto pequeno, entregar arte estática pronta para simulação em mídia digital.`
   ].filter(Boolean).join(' ');
 }

@@ -290,14 +290,21 @@ export default function ProposalModal({ onClose }) {
     segmento: form.segmento
   }), [proposalSourcePoints, activeCities, form.publicos, form.objetivo, form.segmento]);
 
-  const imagePrompt = useMemo(() => buildProposalImagePrompt({
-    clientName: form.clientName,
-    selectedCities: activeCities,
-    selectedPublicos: form.publicos,
-    objetivo: form.objetivo,
-    segmento: getSegmentDisplayName(form.segmento),
-    points: proposalSourcePoints
-  }), [form.clientName, activeCities, form.publicos, form.objetivo, form.segmento, proposalSourcePoints]);
+  const imagePrompt = useMemo(() => {
+    const arteWidth = proposalSourcePoints.length ? proposalSourcePoints[0].arte_largura || '1920' : '1920';
+    const arteHeight = proposalSourcePoints.length ? proposalSourcePoints[0].arte_altura || '1080' : '1080';
+    
+    return buildProposalImagePrompt({
+      clientName: form.clientName,
+      selectedCities: activeCities,
+      selectedPublicos: form.publicos,
+      objetivo: form.objetivo,
+      segmento: getSegmentDisplayName(form.segmento),
+      arteWidth,
+      arteHeight,
+      points: proposalSourcePoints
+    });
+  }, [form.clientName, activeCities, form.publicos, form.objetivo, form.segmento, proposalSourcePoints]);
 
   const proposalPoints = useMemo(() => {
     return pricing.points.map((point) => {
@@ -371,7 +378,16 @@ export default function ProposalModal({ onClose }) {
       setPromptCopied(true);
       window.setTimeout(() => setPromptCopied(false), 1800);
     } catch {
-      setSimulationError('Não foi possível copiar o prompt automaticamente.');
+      // Fallback: seleciona o texto no textarea
+      const textarea = document.querySelector('textarea[value="' + imagePrompt.replace(/"/g, '\\"') + '"]');
+      if (textarea) {
+        textarea.select();
+        document.execCommand('copy');
+        setPromptCopied(true);
+        window.setTimeout(() => setPromptCopied(false), 1800);
+      } else {
+        setSimulationError('Copie manualmente o prompt do campo de texto.');
+      }
     }
   };
 
