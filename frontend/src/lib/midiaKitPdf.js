@@ -7,6 +7,8 @@ const BRAND_DARK = '#0A0A0A';
 const BRAND_PANEL = '#171717';
 const BRAND_BORDER = 'rgba(255,255,255,0.08)';
 const imageCache = new Map();
+const IMAGE_FETCH_TIMEOUT_MS = 15000;
+const IMAGE_RENDER_WAIT_TIMEOUT_MS = 8000;
 
 function formatInt(value) {
   return new Intl.NumberFormat('pt-BR').format(Number(value) || 0);
@@ -94,8 +96,10 @@ async function imageToDataUrl(url) {
   if (imageCache.has(url)) return imageCache.get(url);
 
   const promise = (async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: controller.signal });
       if (!res.ok) return null;
       const blob = await res.blob();
       return await new Promise((resolve) => {
@@ -105,6 +109,8 @@ async function imageToDataUrl(url) {
       });
     } catch {
       return null;
+    } finally {
+      clearTimeout(timeout);
     }
   })();
 
@@ -147,8 +153,17 @@ async function waitForImages(node) {
   await Promise.all(images.map((img) => {
     if (img.complete) return Promise.resolve();
     return new Promise((resolve) => {
-      img.onload = () => resolve();
-      img.onerror = () => resolve();
+      let finished = false;
+      const done = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timeout);
+        resolve();
+      };
+      const timeout = setTimeout(done, IMAGE_RENDER_WAIT_TIMEOUT_MS);
+      img.onload = done;
+      img.onerror = done;
+      img.decode?.().then(done).catch(done);
     });
   }));
 }
