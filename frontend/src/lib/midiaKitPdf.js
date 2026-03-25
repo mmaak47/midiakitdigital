@@ -543,11 +543,12 @@ function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
   const lines = splitFormatTitle(tipo);
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
-    <img src="${assets.wallpaper || assets.heroBg || ''}" alt="" style="position:absolute;inset:-80px;width:calc(100% + 160px);height:calc(100% + 160px);object-fit:cover;filter:blur(16px) saturate(1.12);opacity:0.18;" />
+    <img src="${assets.wallpaper || assets.heroBg || ''}" alt="" style="position:absolute;inset:-80px;width:calc(100% + 160px);height:calc(100% + 160px);object-fit:cover;filter:blur(16px) saturate(1.12);opacity:${layout.backgroundImageOpacity};" />
     <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 46%, rgba(254,92,43,0.16) 0%, rgba(254,92,43,0.03) 38%, rgba(0,0,0,0.92) 78%);"></div>
 
     <div data-calibration-id="midiaKit.formatDivider.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:linear-gradient(180deg,#0a0a0a,#050505);border-right:1px solid rgba(255,255,255,0.12);"></div>
     <div data-calibration-id="midiaKit.formatDivider.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
+    <div data-calibration-id="midiaKit.formatDivider.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:linear-gradient(180deg,rgba(254,92,43,0.28),rgba(254,92,43,0.08));mix-blend-mode:screen;"></div>
     <div style="position:absolute;left:22px;top:30px;">
       <img src="${assets.logo07 || assets.logoHorizontal || assets.logo || ''}" alt="" style="height:150px;width:auto;object-fit:contain;" />
     </div>
@@ -586,6 +587,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
     <div style="position:absolute;inset:0;background:#d9d9d9;"></div>
     <div data-calibration-id="midiaKit.pointPage.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:#0c0c0c;"></div>
     <div data-calibration-id="midiaKit.pointPage.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
+    <div data-calibration-id="midiaKit.pointPage.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:linear-gradient(180deg,rgba(254,92,43,0.26),rgba(254,92,43,0.08));mix-blend-mode:screen;"></div>
     <div data-calibration-id="midiaKit.pointPage.leftRail" style="position:absolute;left:0;top:14px;bottom:14px;width:${layout.leftRailWidth}px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;">
       <img src="${assets.logoHorizontal || assets.logo07 || assets.logo || ''}" alt="" style="width:38px;height:auto;transform:rotate(-90deg);transform-origin:center;object-fit:contain;" />
       <div style="writing-mode:vertical-rl;text-orientation:mixed;font-size:11px;font-weight:700;letter-spacing:0.08em;color:rgba(255,255,255,0.82);text-transform:uppercase;line-height:1.15;">${escapeHtml(ponto.cidade || '')}</div>
@@ -734,7 +736,7 @@ function buildProposalPointPage({ point, index, total, image, segmento, assets }
 
   return createPage(`
     <div style="position:absolute;inset:0;background:linear-gradient(135deg,#050505 0%,#0B0B0B 38%,#111111 100%);"></div>
-    <div style="position:absolute;top:0;right:0;bottom:0;width:34%;background:url('${assets.wallpaper || assets.cityBg || ''}') center/cover no-repeat;opacity:0.08;"></div>
+    <div style="position:absolute;top:0;right:0;bottom:0;width:34%;background:url('${assets.wallpaper || assets.cityBg || ''}') center/cover no-repeat;opacity:${layout.rightWallpaperOpacity};"></div>
     <div style="position:relative;z-index:1;height:100%;padding:42px 46px;box-sizing:border-box;display:grid;grid-template-rows:auto 1fr;gap:24px;">
       <div data-calibration-id="proposal.point.header" style="display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px 22px;border-radius:26px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
         <div style="display:flex;align-items:center;gap:16px;min-width:0;">

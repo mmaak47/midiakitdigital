@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
-  Building2, Save, Copy, Check, Loader2, RefreshCcw
+  Building2, Save, Copy, Check, Loader2, RefreshCcw, Users, LayoutPanelTop, MapPinned, PanelsTopLeft, UserPlus
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import {
@@ -14,7 +14,10 @@ import {
   fetchEntornoCategories,
   fetchEntornoJobs,
   fetchEntornoJobStatus,
-  requestEntornoAnalysis
+  requestEntornoAnalysis,
+  fetchAdminUsers,
+  createAdminUser,
+  deleteAdminUser
 } from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
 import PdfCalibrationPanel from '../components/admin/PdfCalibrationPanel';
@@ -27,6 +30,13 @@ const ENTORNO_SEGMENTOS = [
   'clinica', 'hospital', 'educacao', 'escola', 'faculdade',
   'automotivo', 'varejo', 'restaurante', 'imobiliaria',
   'construtora', 'contabilidade', 'advocacia', 'industria', 'outro'
+];
+
+const ADMIN_TABS = [
+  { key: 'pontos', label: 'Pontos', icon: PanelsTopLeft },
+  { key: 'entorno', label: 'Análise de entorno', icon: MapPinned },
+  { key: 'pdf', label: 'Calibração de PDF', icon: LayoutPanelTop },
+  { key: 'usuarios', label: 'Usuários', icon: Users }
 ];
 
 const emptyForm = {
@@ -55,6 +65,13 @@ export default function Admin() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [promptCopied, setPromptCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState('pontos');
+
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState('');
+  const [newUser, setNewUser] = useState({ username: '', password: '' });
+  const [creatingUser, setCreatingUser] = useState(false);
 
   const [entornoForm, setEntornoForm] = useState({
     segmento: 'clinica',
@@ -192,8 +209,24 @@ export default function Admin() {
     }
   };
 
+  const loadUsers = async () => {
+    setUsersLoading(true);
+    setUsersError('');
+    try {
+      const data = await fetchAdminUsers();
+      setUsers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setUsersError(err.message || 'Falha ao carregar usuários');
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (auth) loadPontos();
+    if (auth) {
+      loadPontos();
+      loadUsers();
+    }
   }, [auth]);
 
   const openNew = () => {
@@ -269,6 +302,35 @@ export default function Admin() {
       loadPontos();
     } catch (err) {
       alert(err.message);
+    }
+  };
+
+  const handleCreateUser = async (event) => {
+    event.preventDefault();
+    setCreatingUser(true);
+    setUsersError('');
+    try {
+      await createAdminUser({
+        username: newUser.username.trim(),
+        password: newUser.password
+      });
+      setNewUser({ username: '', password: '' });
+      await loadUsers();
+    } catch (err) {
+      setUsersError(err.message || 'Falha ao criar usuário');
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
+  const handleDeleteUser = async (id, usernameValue) => {
+    if (!confirm(`Deseja remover o usuário ${usernameValue}?`)) return;
+    setUsersError('');
+    try {
+      await deleteAdminUser(id);
+      await loadUsers();
+    } catch (err) {
+      setUsersError(err.message || 'Falha ao remover usuário');
     }
   };
 
@@ -411,122 +473,161 @@ export default function Admin() {
     <div className="min-h-screen bg-black text-white">
       <Navbar />
       <div className="pt-20 max-w-7xl mx-auto px-6 pb-12">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold">Painel Administrativo</h1>
-            <p className="text-sm text-brand-gray-500 mt-1">Gerencie os pontos de mídia</p>
+            <p className="text-sm text-brand-gray-500 mt-1">Pontos, entorno, calibração de PDF e usuários em menus separados.</p>
           </div>
-          <button
-            onClick={openNew}
-            className="flex items-center gap-2 px-5 py-2.5 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
-          >
-            <Plus size={16} />
-            Novo ponto
-          </button>
+          {activeTab === 'pontos' ? (
+            <button
+              onClick={openNew}
+              className="flex items-center gap-2 px-5 py-2.5 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
+            >
+              <Plus size={16} />
+              Novo ponto
+            </button>
+          ) : null}
         </div>
 
-        <EntornoAdminPanel
-          form={entornoForm}
-          setForm={setEntornoForm}
-          cidades={cidades}
-          categories={entornoCategories}
-          providers={entornoProviders}
-          busy={entornoBusy}
-          error={entornoError}
-          onRun={handleRunEntorno}
-          currentJob={entornoCurrentJob}
-          jobs={entornoJobs}
-        />
-
-        <PdfCalibrationPanel />
-
-        {/* Search */}
-        <div className="mb-6">
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por nome ou cidade..."
-            className="w-full max-w-md px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-500 focus:outline-none focus:border-brand-orange/40 transition-colors"
-          />
+        <div className="mb-6 overflow-x-auto">
+          <div className="min-w-max inline-flex gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-2">
+            {ADMIN_TABS.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${active ? 'bg-brand-orange text-white' : 'text-brand-gray-300 hover:bg-white/10 hover:text-white'}`}
+                >
+                  <Icon size={15} />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Table */}
-        <div className="border border-white/5 rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-white/[0.03] border-b border-white/5">
-                  <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs">Nome</th>
-                  <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden md:table-cell">Cidade</th>
-                  <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden md:table-cell">Tipo</th>
-                  <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Telas</th>
-                  <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Proporção</th>
-                  <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs">Preço</th>
-                  <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Status</th>
-                  <th className="text-right px-4 py-3 text-brand-gray-400 font-medium text-xs">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-brand-gray-500">Carregando...</td></tr>
-                ) : filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-brand-gray-500">Nenhum ponto encontrado</td></tr>
-                ) : filtered.map((p, i) => (
-                  <tr key={p.id} className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors ${!p.ativo ? 'opacity-40' : ''}`}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-brand-gray-800 overflow-hidden shrink-0">
-                          {p.imagem ? (
-                            <img src={p.imagem} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Building2 size={14} className="text-brand-gray-600" />
+        {activeTab === 'pontos' ? (
+          <>
+            <div className="mb-6">
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar por nome ou cidade..."
+                className="w-full max-w-md px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-500 focus:outline-none focus:border-brand-orange/40 transition-colors"
+              />
+            </div>
+
+            <div className="border border-white/5 rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-white/[0.03] border-b border-white/5">
+                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs">Nome</th>
+                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden md:table-cell">Cidade</th>
+                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden md:table-cell">Tipo</th>
+                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Telas</th>
+                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Proporção</th>
+                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs">Preço</th>
+                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Status</th>
+                      <th className="text-right px-4 py-3 text-brand-gray-400 font-medium text-xs">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr><td colSpan={8} className="px-4 py-12 text-center text-brand-gray-500">Carregando...</td></tr>
+                    ) : filtered.length === 0 ? (
+                      <tr><td colSpan={8} className="px-4 py-12 text-center text-brand-gray-500">Nenhum ponto encontrado</td></tr>
+                    ) : filtered.map((p) => (
+                      <tr key={p.id} className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors ${!p.ativo ? 'opacity-40' : ''}`}>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-brand-gray-800 overflow-hidden shrink-0">
+                              {p.imagem ? (
+                                <img src={p.imagem} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <Building2 size={14} className="text-brand-gray-600" />
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        <span className="text-white font-medium">{p.nome}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-brand-gray-400 hidden md:table-cell">{p.cidade}</td>
-                    <td className="px-4 py-3 text-brand-gray-400 hidden md:table-cell">{p.tipo}</td>
-                    <td className="px-4 py-3 text-brand-gray-400 hidden lg:table-cell">{p.telas}</td>
-                    <td className="px-4 py-3 text-brand-gray-400 hidden lg:table-cell">{formatRatio(p.arte_largura, p.arte_altura) || '-'}</td>
-                    <td className="px-4 py-3 text-brand-orange font-medium">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.preco)}
-                    </td>
-                    <td className="px-4 py-3 hidden lg:table-cell">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                        p.ativo ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
-                      }`}>
-                        {p.ativo ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(p)}
-                          className="p-2 hover:bg-white/10 rounded-lg text-brand-gray-400 hover:text-white transition-colors"
-                          title="Editar"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(p.id)}
-                          className="p-2 hover:bg-white/10 rounded-lg text-brand-gray-400 hover:text-red-400 transition-colors"
-                          title="Excluir"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                            <span className="text-white font-medium">{p.nome}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-brand-gray-400 hidden md:table-cell">{p.cidade}</td>
+                        <td className="px-4 py-3 text-brand-gray-400 hidden md:table-cell">{p.tipo}</td>
+                        <td className="px-4 py-3 text-brand-gray-400 hidden lg:table-cell">{p.telas}</td>
+                        <td className="px-4 py-3 text-brand-gray-400 hidden lg:table-cell">{formatRatio(p.arte_largura, p.arte_altura) || '-'}</td>
+                        <td className="px-4 py-3 text-brand-orange font-medium">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.preco)}
+                        </td>
+                        <td className="px-4 py-3 hidden lg:table-cell">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                            p.ativo ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+                          }`}>
+                            {p.ativo ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => openEdit(p)}
+                              className="p-2 hover:bg-white/10 rounded-lg text-brand-gray-400 hover:text-white transition-colors"
+                              title="Editar"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(p.id)}
+                              className="p-2 hover:bg-white/10 rounded-lg text-brand-gray-400 hover:text-red-400 transition-colors"
+                              title="Excluir"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        ) : null}
+
+        {activeTab === 'entorno' ? (
+          <EntornoAdminPanel
+            form={entornoForm}
+            setForm={setEntornoForm}
+            cidades={cidades}
+            categories={entornoCategories}
+            providers={entornoProviders}
+            busy={entornoBusy}
+            error={entornoError}
+            onRun={handleRunEntorno}
+            currentJob={entornoCurrentJob}
+            jobs={entornoJobs}
+          />
+        ) : null}
+
+        {activeTab === 'pdf' ? <PdfCalibrationPanel /> : null}
+
+        {activeTab === 'usuarios' ? (
+          <UsersAdminPanel
+            users={users}
+            loading={usersLoading}
+            error={usersError}
+            newUser={newUser}
+            setNewUser={setNewUser}
+            creating={creatingUser}
+            onCreate={handleCreateUser}
+            onDelete={handleDeleteUser}
+            onReload={loadUsers}
+          />
+        ) : null}
       </div>
 
       {/* Edit / Create Modal */}
@@ -841,6 +942,104 @@ function EntornoAdminPanel({
                 <td className="px-3 py-2">{job.status}</td>
                 <td className="px-3 py-2">{job.processed_points || 0}/{job.total_points || 0}</td>
                 <td className="px-3 py-2">{job.updated_at ? new Date(job.updated_at).toLocaleString('pt-BR') : '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function UsersAdminPanel({
+  users,
+  loading,
+  error,
+  newUser,
+  setNewUser,
+  creating,
+  onCreate,
+  onDelete,
+  onReload
+}) {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Cadastro de usuários admin</h3>
+          <p className="text-xs text-brand-gray-500 mt-1">Gerencie quem pode acessar o painel administrativo.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onReload}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+        >
+          <RefreshCcw size={15} />
+          Atualizar lista
+        </button>
+      </div>
+
+      <form onSubmit={onCreate} className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+        <input
+          type="text"
+          value={newUser.username}
+          onChange={(event) => setNewUser((prev) => ({ ...prev, username: event.target.value }))}
+          placeholder="Novo usuário"
+          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
+          required
+          minLength={3}
+        />
+        <input
+          type="password"
+          value={newUser.password}
+          onChange={(event) => setNewUser((prev) => ({ ...prev, password: event.target.value }))}
+          placeholder="Senha (mínimo 6)"
+          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
+          required
+          minLength={6}
+        />
+        <button
+          type="submit"
+          disabled={creating}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
+        >
+          <UserPlus size={15} />
+          {creating ? 'Criando...' : 'Criar usuário'}
+        </button>
+      </form>
+
+      {error ? <p className="mt-3 text-xs text-red-300">{error}</p> : null}
+
+      <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-white/[0.03] text-left text-brand-gray-400">
+              <th className="px-3 py-2">Usuário</th>
+              <th className="px-3 py-2 text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={2} className="px-3 py-4 text-center text-brand-gray-500">Carregando usuários...</td>
+              </tr>
+            ) : users.length === 0 ? (
+              <tr>
+                <td colSpan={2} className="px-3 py-4 text-center text-brand-gray-500">Nenhum usuário cadastrado.</td>
+              </tr>
+            ) : users.map((user) => (
+              <tr key={user.id} className="border-t border-white/5 text-brand-gray-300">
+                <td className="px-3 py-2">{user.username}</td>
+                <td className="px-3 py-2 text-right">
+                  <button
+                    type="button"
+                    onClick={() => onDelete(user.id, user.username)}
+                    className="inline-flex items-center gap-2 rounded-lg px-2 py-1 text-red-300 hover:bg-red-400/10"
+                  >
+                    <Trash2 size={13} />
+                    Remover
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

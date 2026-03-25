@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Copy, Loader2, RotateCcw, Server, SlidersHorizontal, Upload } from 'lucide-react';
 import {
+  PDF_CALIBRATION_DRAG_BINDINGS,
   PDF_CALIBRATION_GROUPS,
   PDF_CALIBRATION_PREVIEWS,
   PDF_LAYOUT_STORAGE_KEY,
@@ -33,6 +34,13 @@ function setValueByPath(source, path, value) {
 
   current[keys[keys.length - 1]] = value;
   return clone;
+}
+
+function clamp(value, min, max) {
+  if (!Number.isFinite(value)) return value;
+  if (Number.isFinite(min) && value < min) return min;
+  if (Number.isFinite(max) && value > max) return max;
+  return value;
 }
 
 function buildOverrideObject(defaults, current) {
@@ -118,6 +126,14 @@ export default function PdfCalibrationPanel() {
     return PDF_CALIBRATION_PREVIEWS.find((item) => item.key === selectedPreviewKey) || PDF_CALIBRATION_PREVIEWS[0];
   }, [selectedPreviewKey]);
 
+  const fieldByPath = useMemo(() => {
+    const map = new Map();
+    PDF_CALIBRATION_GROUPS.forEach((group) => {
+      group.fields.forEach((field) => map.set(field.path, field));
+    });
+    return map;
+  }, []);
+
   const visibleGroups = useMemo(() => {
     if (!selectedPreview?.key) return PDF_CALIBRATION_GROUPS;
     return PDF_CALIBRATION_GROUPS.filter((group) => group.key === selectedPreview.key);
@@ -137,6 +153,32 @@ export default function PdfCalibrationPanel() {
   const selectedFocus = useMemo(() => {
     return selectedPreview?.focusTargets?.find((item) => item.key === selectedFocusKey) || null;
   }, [selectedPreview, selectedFocusKey]);
+
+  const dragBinding = selectedFocusKey ? PDF_CALIBRATION_DRAG_BINDINGS[selectedFocusKey] : null;
+
+  const applyDragDelta = ({ dx, dy }) => {
+    if (!dragBinding) return;
+
+    setConfig((current) => {
+      let next = JSON.parse(JSON.stringify(current));
+
+      const applyPathDelta = (path, delta) => {
+        if (!path || !Number.isFinite(delta)) return;
+        const currentValue = Number(getValueByPath(next, path));
+        if (!Number.isFinite(currentValue)) return;
+        const meta = fieldByPath.get(path);
+        const value = clamp(currentValue + delta, meta?.min, meta?.max);
+        next = setValueByPath(next, path, value);
+      };
+
+      applyPathDelta(dragBinding.xPath, dx);
+      applyPathDelta(dragBinding.yPath, dy);
+      (dragBinding.linkedXPaths || []).forEach((path) => applyPathDelta(path, dx));
+      (dragBinding.linkedYPaths || []).forEach((path) => applyPathDelta(path, dy));
+
+      return next;
+    });
+  };
 
   const updateNumberField = (path, rawValue) => {
     const numericValue = Number(rawValue);
@@ -203,6 +245,9 @@ export default function PdfCalibrationPanel() {
           <h3 className="mt-3 text-lg font-semibold text-white">Ajuste fino visual do Midia Kit e da Proposta</h3>
           <p className="mt-1 max-w-3xl text-sm text-brand-gray-400">
             Altere posições, tamanhos e espaçamentos aqui. Salve no servidor para compartilhar a mesma calibração entre máquinas e admins.
+          </p>
+          <p className="mt-1 max-w-3xl text-xs text-brand-gray-500">
+            Ícones da capa da proposta: ajuste em "Proposta · Capa" nos campos "Tamanho do ícone estratégico" e "Tamanho do ponto interno".
           </p>
           <p className="mt-2 text-xs text-brand-gray-500">Cache local de segurança: {PDF_LAYOUT_STORAGE_KEY}</p>
           {statusMessage ? <p className="mt-2 text-xs text-brand-gray-400">{statusMessage}</p> : null}
@@ -293,6 +338,8 @@ export default function PdfCalibrationPanel() {
             focusKey={selectedFocusKey}
             focusLabel={selectedFocus?.label || ''}
             isolateFocus={isolateFocus}
+            canDrag={Boolean(dragBinding)}
+            onDragFocus={applyDragDelta}
           />
 
           <div className="grid gap-4 md:grid-cols-2">

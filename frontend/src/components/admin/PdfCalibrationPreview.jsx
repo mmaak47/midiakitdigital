@@ -58,7 +58,9 @@ export default function PdfCalibrationPreview({
   previewKey,
   focusKey,
   focusLabel,
-  isolateFocus
+  isolateFocus,
+  canDrag = false,
+  onDragFocus
 }) {
   const deferredConfig = useDeferredValue(config);
   const pageViewportRef = useRef(null);
@@ -70,6 +72,8 @@ export default function PdfCalibrationPreview({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [focusedCount, setFocusedCount] = useState(0);
+  const [focusedBounds, setFocusedBounds] = useState(null);
+  const dragStateRef = useRef(null);
 
   useEffect(() => {
     if (!pageViewportRef.current) return undefined;
@@ -122,12 +126,14 @@ export default function PdfCalibrationPreview({
           setFocusedCount(focusedElements.length);
 
           if (!focusedElements.length || !focusHost || !focusViewport) {
+            setFocusedBounds(null);
             clearNode(focusHost);
             setLoading(false);
             return;
           }
 
           const bounds = getUnionBounds(focusedElements, page.getBoundingClientRect());
+          setFocusedBounds(bounds);
           mountFocusedClone({
             sourcePage: page,
             host: focusHost,
@@ -138,6 +144,7 @@ export default function PdfCalibrationPreview({
         });
       } catch (previewError) {
         if (cancelled) return;
+        setFocusedBounds(null);
         setError(previewError instanceof Error ? previewError.message : 'Falha ao montar preview do PDF.');
         setLoading(false);
       }
@@ -148,6 +155,46 @@ export default function PdfCalibrationPreview({
       cancelled = true;
     };
   }, [deferredConfig, previewKey, focusKey, isolateFocus, viewportVersion]);
+
+  const dragOverlay = focusedBounds
+    ? {
+      left: focusedBounds.left * pageScale,
+      top: focusedBounds.top * pageScale,
+      width: Math.max(focusedBounds.width * pageScale, 24),
+      height: Math.max(focusedBounds.height * pageScale, 24)
+    }
+    : null;
+
+  const handlePointerDown = (event) => {
+    if (!canDrag || !dragOverlay || !onDragFocus) return;
+    dragStateRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const handlePointerMove = (event) => {
+    const state = dragStateRef.current;
+    if (!state || !onDragFocus) return;
+    const dxScreen = event.clientX - state.x;
+    const dyScreen = event.clientY - state.y;
+    if (!dxScreen && !dyScreen) return;
+
+    state.x = event.clientX;
+    state.y = event.clientY;
+
+    const dxPage = dxScreen / (pageScale || 1);
+    const dyPage = dyScreen / (pageScale || 1);
+    onDragFocus({ dx: dxPage, dy: dyPage });
+    event.preventDefault();
+  };
+
+  const handlePointerUp = (event) => {
+    const state = dragStateRef.current;
+    if (state && event.currentTarget.hasPointerCapture?.(state.pointerId)) {
+      event.currentTarget.releasePointerCapture(state.pointerId);
+    }
+    dragStateRef.current = null;
+  };
 
   return (
     <div className="space-y-4 rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -177,6 +224,24 @@ export default function PdfCalibrationPreview({
               transformOrigin: 'top left'
             }}
           />
+          {canDrag && dragOverlay ? (
+            <div
+              role="presentation"
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+              className="absolute border-2 border-brand-orange bg-brand-orange/15"
+              style={{
+                left: `${dragOverlay.left}px`,
+                top: `${dragOverlay.top}px`,
+                width: `${dragOverlay.width}px`,
+                height: `${dragOverlay.height}px`,
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+            />
+          ) : null}
         </div>
       </div>
 
@@ -191,6 +256,7 @@ export default function PdfCalibrationPreview({
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-brand-gray-400">
             <Focus size={13} />
             {focusedCount > 0 ? `${focusedCount} elemento(s)` : 'Sem foco'}
+            {canDrag ? '· arrastável' : ''}
           </div>
         </div>
 

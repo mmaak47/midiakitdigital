@@ -11,7 +11,8 @@ export const PDF_LAYOUT = {
       cityVerticalBottom: 40,
       cityVerticalFontSize: 26,
       cityVerticalLetterSpacing: 0.08,
-      titleFontSize: 96
+      titleFontSize: 96,
+      backgroundImageOpacity: 0.18
     },
     pointPage: {
       leftRailWidth: 56,
@@ -50,7 +51,8 @@ export const PDF_LAYOUT = {
       counterMinWidth: 102,
       counterMinHeight: 56,
       counterPaddingX: 16,
-      counterGap: 8
+      counterGap: 8,
+      rightWallpaperOpacity: 0.08
     }
   }
 };
@@ -84,6 +86,19 @@ export const PDF_CALIBRATION_GROUPS = [
     ]
   },
   {
+    key: 'midiaKit.formatDivider',
+    title: 'Midia Kit · Divisória de formato',
+    fields: [
+      { path: 'midiaKit.formatDivider.backgroundImageOpacity', label: 'Opacidade da foto de fundo', min: 0.04, max: 0.4, step: 0.01 },
+      { path: 'midiaKit.formatDivider.leftRailWidth', label: 'Largura da faixa lateral', min: 120, max: 260, step: 1 },
+      { path: 'midiaKit.formatDivider.cityVerticalTop', label: 'Topo da cidade vertical', min: 120, max: 340, step: 1 },
+      { path: 'midiaKit.formatDivider.cityVerticalBottom', label: 'Base da cidade vertical', min: 20, max: 180, step: 1 },
+      { path: 'midiaKit.formatDivider.cityVerticalFontSize', label: 'Fonte da cidade vertical', min: 16, max: 44, step: 1 },
+      { path: 'midiaKit.formatDivider.cityVerticalLetterSpacing', label: 'Espaçamento da cidade vertical', min: 0.02, max: 0.2, step: 0.01 },
+      { path: 'midiaKit.formatDivider.titleFontSize', label: 'Fonte do título do formato', min: 60, max: 130, step: 1 }
+    ]
+  },
+  {
     key: 'proposal.cover',
     title: 'Proposta · Capa',
     fields: [
@@ -102,6 +117,7 @@ export const PDF_CALIBRATION_GROUPS = [
     key: 'proposal.point',
     title: 'Proposta · Página de ponto',
     fields: [
+      { path: 'proposal.point.rightWallpaperOpacity', label: 'Opacidade da foto direita', min: 0.02, max: 0.3, step: 0.01 },
       { path: 'proposal.point.counterMinWidth', label: 'Largura mínima do contador', min: 70, max: 180, step: 1 },
       { path: 'proposal.point.counterMinHeight', label: 'Altura mínima do contador', min: 36, max: 90, step: 1 },
       { path: 'proposal.point.counterPaddingX', label: 'Padding horizontal do contador', min: 4, max: 30, step: 1 },
@@ -109,6 +125,22 @@ export const PDF_CALIBRATION_GROUPS = [
     ]
   }
 ];
+
+export const PDF_CALIBRATION_DRAG_BINDINGS = {
+  'midiaKit.pointPage.nameBlock': {
+    xPath: 'midiaKit.pointPage.contentLeft',
+    yPath: 'midiaKit.pointPage.nameTop'
+  },
+  'midiaKit.pointPage.addressBlock': {
+    xPath: 'midiaKit.pointPage.contentLeft',
+    yPath: 'midiaKit.pointPage.addressTop'
+  },
+  'midiaKit.pointPage.metricsBox': {
+    xPath: 'midiaKit.pointPage.contentLeft',
+    yPath: 'midiaKit.pointPage.metricsBoxTop',
+    linkedYPaths: ['midiaKit.pointPage.metricsGridTop']
+  }
+};
 
 export const PDF_CALIBRATION_PREVIEWS = [
   {

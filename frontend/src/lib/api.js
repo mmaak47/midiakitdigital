@@ -48,6 +48,36 @@ export async function fetchAdminPontos() {
   return res.json();
 }
 
+export async function fetchAdminUsers() {
+  const res = await fetch(`${API_BASE}/admin/users`);
+  if (!res.ok) throw new Error('Erro ao carregar usuários');
+  return res.json();
+}
+
+export async function createAdminUser({ username, password }) {
+  const res = await fetch(`${API_BASE}/admin/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Erro ao criar usuário');
+  }
+  return res.json();
+}
+
+export async function deleteAdminUser(id) {
+  const res = await fetch(`${API_BASE}/admin/users/${id}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Erro ao remover usuário');
+  }
+  return res.json();
+}
+
 export async function fetchAdminPdfLayout() {
   const res = await fetch(`${API_BASE}/admin/pdf-layout`);
   if (!res.ok) throw new Error('Erro ao carregar layout PDF');

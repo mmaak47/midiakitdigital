@@ -399,6 +399,68 @@ app.get('/api/admin/pontos', (req, res) => {
   }
 });
 
+app.get('/api/admin/users', (req, res) => {
+  try {
+    const users = db.prepare('SELECT id, username FROM admin_users ORDER BY username ASC').all();
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/users', (req, res) => {
+  try {
+    const username = String(req.body?.username || '').trim();
+    const password = String(req.body?.password || '').trim();
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
+    }
+
+    if (username.length < 3) {
+      return res.status(400).json({ error: 'Usuário deve ter ao menos 3 caracteres' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Senha deve ter ao menos 6 caracteres' });
+    }
+
+    const existing = db.prepare('SELECT id FROM admin_users WHERE username = ?').get(username);
+    if (existing) {
+      return res.status(409).json({ error: 'Usuário já existe' });
+    }
+
+    const result = db.prepare('INSERT INTO admin_users (username, password) VALUES (?, ?)').run(username, password);
+    const created = db.prepare('SELECT id, username FROM admin_users WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/users/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+
+    const count = db.prepare('SELECT COUNT(*) as c FROM admin_users').get();
+    if (count.c <= 1) {
+      return res.status(400).json({ error: 'Não é possível remover o último usuário administrador' });
+    }
+
+    const result = db.prepare('DELETE FROM admin_users WHERE id = ?').run(id);
+    if (!result.changes) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/admin/pdf-layout', (req, res) => {
   try {
     res.json(readPdfLayoutOverrides());
