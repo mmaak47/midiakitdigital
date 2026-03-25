@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Minus, Plus, RefreshCcw, Trash2 } from 'lucide-react';
+import { Maximize2, Minimize2, Minus, Plus, RefreshCcw, Trash2 } from 'lucide-react';
 import {
   buildDefaultQuadAt,
   buildRectQuad,
@@ -51,9 +51,12 @@ function clamp(value, min, max) {
 
 export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
   const stageRef = useRef(null);
+  const viewportRef = useRef(null);
   const [drag, setDrag] = useState(null);
+  const [panDrag, setPanDrag] = useState(null);
   const [helper, setHelper] = useState('Arraste no fundo para criar a área. Depois ajuste cantos, arestas ou a área inteira.');
   const [zoom, setZoom] = useState(100);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const normalizedCorners = useMemo(() => normalizeCorners(corners), [corners]);
   const hasSelection = !!normalizedCorners;
@@ -79,10 +82,37 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
   };
 
   const handleWheelZoom = (event) => {
-    if (!event.ctrlKey) return;
     event.preventDefault();
     const delta = event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
     updateZoom(zoom + delta);
+  };
+
+  const startPanDrag = (event) => {
+    if (event.button !== 1 || zoom <= MIN_ZOOM || !viewportRef.current) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setPanDrag({
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startScrollLeft: viewportRef.current.scrollLeft,
+      startScrollTop: viewportRef.current.scrollTop
+    });
+    setHelper('Arraste com o botão do meio pressionado para navegar na imagem ampliada.');
+  };
+
+  const handlePanMove = (event) => {
+    if (!panDrag || event.pointerId !== panDrag.pointerId || !viewportRef.current) return;
+    event.preventDefault();
+    const dx = event.clientX - panDrag.startX;
+    const dy = event.clientY - panDrag.startY;
+    viewportRef.current.scrollLeft = panDrag.startScrollLeft - dx;
+    viewportRef.current.scrollTop = panDrag.startScrollTop - dy;
+  };
+
+  const stopPanDrag = (event) => {
+    if (!panDrag || event.pointerId !== panDrag.pointerId) return;
+    setPanDrag(null);
   };
 
   const startBackgroundSelection = (event) => {
@@ -204,20 +234,28 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
       }
     }
     setDrag(null);
-    setHelper('Arraste cantos, arestas ou a área interna. Para criar outra seleção, arraste no fundo novamente.');
+    setHelper('Arraste cantos, arestas ou a área interna. Scroll do mouse aplica zoom. Botão do meio move a área ampliada.');
   };
 
   const polygonPoints = activeCorners.map((point) => `${point.x},${point.y}`).join(' ');
 
   return (
-    <div className="space-y-3">
+    <div className={isFullscreen ? 'fixed inset-0 z-[90] overflow-auto bg-black/95 p-4 space-y-3' : 'space-y-3'}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-400">Editor de tela</p>
-          <p className="text-[11px] text-brand-gray-500">Marcação visual no estilo do simulador, com perspectiva por cantos e arestas. Use Ctrl + scroll para zoom.</p>
+          <p className="text-[11px] text-brand-gray-500">Marcação visual no estilo do simulador, com perspectiva por cantos e arestas. Scroll aplica zoom e botão do meio move a área com zoom.</p>
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsFullscreen((prev) => !prev)}
+            className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10"
+          >
+            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            {isFullscreen ? 'Sair tela cheia' : 'Tela cheia'}
+          </button>
           <div className="inline-flex items-center rounded-lg border border-white/10 bg-white/5">
             <button
               type="button"
@@ -253,8 +291,17 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
 
       <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
         <div
+          ref={viewportRef}
           className="overflow-auto rounded-xl border border-white/10 bg-black max-h-[62vh]"
           onWheel={handleWheelZoom}
+          onPointerDown={startPanDrag}
+          onPointerMove={handlePanMove}
+          onPointerUp={stopPanDrag}
+          onPointerCancel={stopPanDrag}
+          onMouseDown={(event) => {
+            if (event.button === 1) event.preventDefault();
+          }}
+          style={{ cursor: panDrag ? 'grabbing' : zoom > MIN_ZOOM ? 'grab' : 'default' }}
         >
           <div
             ref={stageRef}
@@ -311,7 +358,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
                   {activeCorners.map((point, index) => (
                     <g key={`handle-${index}`}>
                       <circle cx={point.x} cy={point.y} r={HANDLE_HIT_RADIUS} fill="transparent" onPointerDown={(event) => startCornerDrag(event, index)} style={{ cursor: 'grab' }} />
-                      <circle cx={point.x} cy={point.y} r={HANDLE_RADIUS} fill="rgba(255,255,255,0.55)" stroke="rgba(254,92,43,0.6)" strokeWidth="0.18" pointerEvents="none" />
+                      <circle cx={point.x} cy={point.y} r={HANDLE_RADIUS} fill="rgba(0,0,0,0.3)" stroke="rgba(254,92,43,0.35)" strokeWidth="0.16" pointerEvents="none" />
                     </g>
                   ))}
                 </>
