@@ -1,10 +1,15 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { FavoritesProvider } from './context/FavoritesContext';
 import Landing from './pages/Landing';
 
 const Explorer = lazy(() => import('./pages/Explorer'));
 const Admin = lazy(() => import('./pages/Admin'));
+
+function RequireCommercialAuth({ children }) {
+  const hasToken = typeof window !== 'undefined' && !!sessionStorage.getItem('admin_token');
+  return hasToken ? children : <Navigate to="/comercial" replace />;
+}
 
 export default function App() {
   return (
@@ -13,8 +18,12 @@ export default function App() {
         <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/explorar" element={<Explorer />} />
-            <Route path="/admin" element={<Admin />} />
+            <Route path="/comercial" element={<Admin />} />
+            <Route path="/comercial/admin" element={<Admin />} />
+            <Route path="/comercial/explorar" element={<RequireCommercialAuth><Explorer /></RequireCommercialAuth>} />
+            <Route path="/explorar" element={<Navigate to="/comercial/explorar" replace />} />
+            <Route path="/admin" element={<Navigate to="/comercial/admin" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </BrowserRouter>

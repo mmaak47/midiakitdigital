@@ -1,592 +1,798 @@
-import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion, useInView } from 'framer-motion';
 import {
   ArrowRight,
-  Building2,
+  ChevronLeft,
+  ChevronRight,
+  Expand,
   MapPinned,
-  MapPin,
-  Clock,
-  Monitor,
-  Users,
-  Hash,
-  Play,
-  RotateCcw,
-  BarChart3,
-  CircleDollarSign,
-  Layers3,
-  Activity,
-  Target,
-  DollarSign
+  ShieldCheck,
+  Sparkles,
+  X,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import CustomSelect from '../components/CustomSelect';
-import { fetchPontos } from '../lib/api';
-import { campaignTotals } from '../lib/strategy';
+import SmartMap from '../components/SmartMap';
+import ProposalModal from '../components/ProposalModal';
+import { fetchAdminSettings, fetchPontos } from '../lib/api';
+import { generateMidiaKitPdf } from '../lib/midiaKitPdf';
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
-  visible: (i = 0) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.08, duration: 0.5, ease: [0.22, 1, 0.36, 1] }
-  })
-};
+const DISPLAY_FORMAT_ORDER = [
+  'Elevador',
+  'Tela Indoor',
+  'Video Wall',
+  'Vídeo Wall',
+  'Painel LED',
+  'LED Posto',
+  'Totem Digital',
+  'Frontlight',
+  'Backlight',
+];
 
-function formatInt(value) {
-  return new Intl.NumberFormat('pt-BR').format(value || 0);
+function formatCompactNumber(value) {
+  return new Intl.NumberFormat('pt-BR').format(Number(value || 0));
 }
 
-function formatMoney(value) {
+function formatCurrency(value) {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-    maximumFractionDigits: 0
-  }).format(value || 0);
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
 }
 
-function anchorIdFromTipo(tipo) {
-  const base = (tipo || 'sem-tipo').toLowerCase().trim();
-  return `tipo-${base
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')}`;
+function getPointImages(point) {
+  return [point.imagem, point.imagem2].filter(Boolean);
 }
 
-export default function Landing() {
-  const navigate = useNavigate();
-  const [allPontos, setAllPontos] = useState([]);
-  const [selectedPracas, setSelectedPracas] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [generatingPdf, setGeneratingPdf] = useState(false);
+function sortFormats(entries) {
+  return [...entries].sort(([left], [right]) => {
+    const leftIndex = DISPLAY_FORMAT_ORDER.findIndex((item) => item.toLowerCase() === left.toLowerCase());
+    const rightIndex = DISPLAY_FORMAT_ORDER.findIndex((item) => item.toLowerCase() === right.toLowerCase());
+
+    if (leftIndex === -1 && rightIndex === -1) {
+      return left.localeCompare(right, 'pt-BR');
+    }
+
+    if (leftIndex === -1) {
+      return 1;
+    }
+
+    if (rightIndex === -1) {
+      return -1;
+    }
+
+    return leftIndex - rightIndex;
+  });
+}
+
+function AnimatedNumber({ value, formatter, className }) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, amount: 0.5 });
+  const [displayValue, setDisplayValue] = useState(0);
 
   useEffect(() => {
-    let active = true;
-
-    async function loadPontos() {
-      try {
-        const data = await fetchPontos();
-        if (active) setAllPontos(data);
-      } catch {
-        if (active) setAllPontos([]);
-      } finally {
-        if (active) setLoading(false);
-      }
+    if (!isInView) {
+      return undefined;
     }
 
-    loadPontos();
+    const finalValue = Number(value || 0);
+    const duration = 1400;
+    let frameId;
+    let startTime;
+
+    const tick = (timestamp) => {
+      if (!startTime) {
+        startTime = timestamp;
+      }
+
+      const progress = Math.min((timestamp - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(finalValue * eased);
+
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    frameId = window.requestAnimationFrame(tick);
 
     return () => {
-      active = false;
-    };
-  }, []);
-
-  const pracas = useMemo(() => {
-    const unique = new Set(allPontos.map((p) => p.cidade).filter(Boolean));
-    return Array.from(unique).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [allPontos]);
-
-  const quickPracas = useMemo(() => pracas.slice(0, 5), [pracas]);
-
-  const selectedPracaLabel = useMemo(() => {
-    if (!selectedPracas.length) return 'Todas as praças';
-    if (selectedPracas.length === 1) return selectedPracas[0];
-    return `${selectedPracas.length} praças selecionadas`;
-  }, [selectedPracas]);
-
-  const pontos = useMemo(() => {
-    if (!selectedPracas.length) return allPontos;
-    return allPontos.filter((p) => selectedPracas.includes(p.cidade));
-  }, [allPontos, selectedPracas]);
-
-  const resumo = useMemo(() => {
-    const totals = campaignTotals(pontos);
-
-    return {
-      pontos: totals.quantidade,
-      telas: totals.telasTotal,
-      fluxo: totals.fluxoTotal,
-      insercoes: totals.insercoesTotal,
-      ticketMedio: Math.round(totals.ticketMedio),
-      cpm: totals.cpmEstimado.toFixed(2)
-    };
-  }, [pontos]);
-
-  const formatos = useMemo(() => {
-    const map = new Map();
-
-    pontos.forEach((p) => {
-      const tipo = p.tipo || 'Sem tipo';
-      if (!map.has(tipo)) {
-        map.set(tipo, { tipo, quantidade: 0, telas: 0, fluxo: 0 });
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
       }
-      const current = map.get(tipo);
-      current.quantidade += 1;
-      current.telas += Number(p.telas) || 0;
-      current.fluxo += Number(p.fluxo) || 0;
-    });
-
-    return Array.from(map.values()).sort((a, b) => b.quantidade - a.quantidade);
-  }, [pontos]);
-
-  const publicos = useMemo(() => {
-    const map = new Map();
-
-    pontos.forEach((p) => {
-      const label = p.publico || 'Não informado';
-      map.set(label, (map.get(label) || 0) + 1);
-    });
-
-    return Array.from(map.entries())
-      .map(([label, total]) => ({ label, total }))
-      .sort((a, b) => b.total - a.total);
-  }, [pontos]);
-
-  const tiposComAncora = useMemo(() => {
-    return formatos.map((f) => ({
-      ...f,
-      anchorId: anchorIdFromTipo(f.tipo)
-    }));
-  }, [formatos]);
-
-  const pontosPorTipo = useMemo(() => {
-    const map = new Map();
-
-    pontos.forEach((p) => {
-      const tipo = p.tipo || 'Sem tipo';
-      if (!map.has(tipo)) {
-        map.set(tipo, []);
-      }
-      map.get(tipo).push(p);
-    });
-
-    return tiposComAncora.map((tipoInfo) => ({
-      ...tipoInfo,
-      pontos: (map.get(tipoInfo.tipo) || []).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-    }));
-  }, [pontos, tiposComAncora]);
-
-  const explorerPath = useMemo(() => {
-    const params = new URLSearchParams();
-    selectedPracas.forEach((praca) => params.append('cidade', praca));
-    const query = params.toString();
-    return `/explorar${query ? `?${query}` : ''}`;
-  }, [selectedPracas]);
-
-  const handleExportPdf = async () => {
-    if (!pontos.length || generatingPdf) return;
-    setGeneratingPdf(true);
-    try {
-      const { generateMidiaKitPdf } = await import('../lib/midiaKitPdf');
-      await generateMidiaKitPdf({
-        praca: selectedPracaLabel,
-        pracas: selectedPracas,
-        pontos
-      });
-    } catch (err) {
-      console.error(err);
-      window.alert('Nao foi possivel gerar o PDF agora. Tente novamente.');
-    } finally {
-      setGeneratingPdf(false);
-    }
-  };
+    };
+  }, [isInView, value]);
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white">
-      <Navbar />
+    <span ref={ref} className={className}>
+      {formatter(displayValue)}
+    </span>
+  );
+}
 
-      <section className="pt-20 pb-10 border-b border-white/5 relative overflow-visible">
-        <div
-          className="absolute inset-0 opacity-35 bg-cover bg-center"
-          style={{ backgroundImage: "url('/city-bg.jpg')" }}
+function AudienceBar({ label, value, delay }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-sm text-slate-200/80">
+        <span>{label}</span>
+        <span>{value}%</span>
+      </div>
+      <div className="h-3 overflow-hidden rounded-full bg-white/10">
+        <motion.div
+          className="h-full rounded-full bg-gradient-to-r from-amber-300 via-orange-400 to-orange-500 shadow-[0_0_24px_rgba(251,146,60,0.45)]"
+          initial={{ width: 0, opacity: 0.5 }}
+          whileInView={{ width: `${value}%`, opacity: 1 }}
+          viewport={{ once: true, amount: 0.6 }}
+          transition={{ duration: 1.1, delay, ease: 'easeOut' }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/90 via-black/80 to-[#050505]" />
-        <div className="absolute -top-16 left-10 w-64 h-64 bg-brand-orange/20 rounded-full blur-[90px]" />
-
-        <div className="relative max-w-7xl mx-auto px-6">
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0}>
-            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-brand-orange/30 bg-brand-orange/10 text-xs font-semibold tracking-wide text-brand-orange mb-6">
-              MIDIA KIT DIGITAL INTERMIDIA 2026
-            </span>
-          </motion.div>
-
-          <motion.h1
-            variants={fadeUp}
-            initial="hidden"
-            animate="visible"
-            custom={1}
-            className="text-3xl sm:text-4xl md:text-5xl font-bold leading-[1.05] tracking-tight mb-4 max-w-4xl"
-          >
-            Planejamento por praça com inventário real, audiência e oportunidades de mídia.
-          </motion.h1>
-
-          <motion.p
-            variants={fadeUp}
-            initial="hidden"
-            animate="visible"
-            custom={2}
-            className="text-base md:text-lg text-brand-gray-400 max-w-3xl mb-8"
-          >
-            Selecione uma praça para gerar um mídia kit focado na cidade ou visualize o consolidado de todas as praças.
-          </motion.p>
-
-          <motion.div
-            variants={fadeUp}
-            initial="hidden"
-            animate="visible"
-            custom={3}
-            className="grid lg:grid-cols-[1fr_auto_auto] gap-4 p-6 bg-gradient-to-br from-white/[0.05] to-white/[0.01] border border-white/10 rounded-2xl backdrop-blur-xl shadow-lg shadow-black/20"
-          >
-            <div className="grid sm:grid-cols-2 gap-4">
-              <CustomSelect 
-                label="Praça"
-                value={selectedPracas}
-                onChange={setSelectedPracas}
-                options={pracas}
-                placeholder="Selecionar uma ou mais praças"
-                multiple
-              />
-
-              <div>
-                <label className="text-xs text-brand-gray-500 uppercase tracking-wide font-semibold block mb-2">Visualização</label>
-                <div className="h-[50px] rounded-xl bg-gradient-to-r from-white/10 to-white/5 border border-white/15 px-4 flex items-center text-sm font-medium text-white">
-                  {!selectedPracas.length ? 'Consolidado multirregional' : `Foco em ${selectedPracaLabel}`}
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => navigate(explorerPath)}
-              className="group h-[50px] self-end px-7 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
-            >
-              Abrir mapa
-              <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-            </button>
-
-            <button
-              onClick={handleExportPdf}
-              disabled={generatingPdf || pontos.length === 0}
-              className="h-[50px] self-end px-6 bg-white/5 border border-white/15 text-white font-semibold rounded-xl hover:bg-white/10 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-            >
-              {generatingPdf ? 'Gerando PDF...' : 'Gerar PDF da praça'}
-            </button>
-          </motion.div>
-
-          <div className="flex flex-wrap gap-2 mt-4">
-            {quickPracas.map((praca) => (
-              <button
-                key={praca}
-                onClick={() => setSelectedPracas((current) => current.includes(praca)
-                  ? current.filter((item) => item !== praca)
-                  : [...current, praca])}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                  selectedPracas.includes(praca)
-                    ? 'bg-brand-orange text-white border-brand-orange'
-                    : 'bg-white/[0.03] text-brand-gray-400 border-white/10 hover:text-white'
-                }`}
-              >
-                {praca}
-              </button>
-            ))}
-            <button
-              onClick={() => setSelectedPracas([])}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                selectedPracas.length === 0
-                  ? 'bg-brand-orange text-white border-brand-orange'
-                  : 'bg-white/[0.03] text-brand-gray-400 border-white/10 hover:text-white'
-              }`}
-            >
-              Todas as praças
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="py-10 border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-6">
-          {loading ? (
-            <div className="text-sm text-brand-gray-500">Carregando inventário...</div>
-          ) : (
-            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-              {[
-                { label: 'Pontos', value: formatInt(resumo.pontos), icon: MapPinned },
-                { label: 'Telas', value: formatInt(resumo.telas), icon: Monitor },
-                { label: 'Fluxo estimado', value: formatInt(resumo.fluxo), icon: Users },
-                { label: 'Inserções', value: formatInt(resumo.insercoes), icon: Activity },
-                { label: 'Ticket médio', value: formatMoney(resumo.ticketMedio), icon: CircleDollarSign },
-                { label: 'CPM médio', value: `R$ ${resumo.cpm}`, icon: Target }
-              ].map((card, i) => (
-                <motion.div
-                  key={card.label}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.1, duration: 0.4 }}
-                  className="rounded-2xl border border-white/10 bg-white/[0.02] p-4"
-                >
-                  <card.icon className="text-brand-orange mb-3" size={18} />
-                  <div className="text-lg md:text-2xl font-bold mb-1">{card.value}</div>
-                  <div className="text-xs text-brand-gray-500 uppercase tracking-wide">{card.label}</div>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="py-12 border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-3 gap-6">
-          <motion.article
-            initial={{ opacity: 0, y: 18 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="lg:col-span-2 rounded-2xl border border-white/10 bg-[#090909] overflow-hidden"
-          >
-            <div className="p-5 border-b border-white/10 flex items-center justify-between">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <Layers3 size={18} className="text-brand-orange" />
-                Inventário por formato
-              </h2>
-              <span className="text-xs text-brand-gray-500 uppercase tracking-wide">{selectedPracaLabel}</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-brand-gray-500 border-b border-white/10 bg-white/[0.02]">
-                  <tr>
-                    <th className="text-left font-medium px-5 py-3">Formato</th>
-                    <th className="text-left font-medium px-5 py-3">Pontos</th>
-                    <th className="text-left font-medium px-5 py-3">Telas</th>
-                    <th className="text-left font-medium px-5 py-3">Fluxo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {formatos.map((f) => (
-                    <tr key={f.tipo} className="border-b border-white/5 hover:bg-white/[0.02]">
-                      <td className="px-5 py-3 text-white">{f.tipo}</td>
-                      <td className="px-5 py-3 text-brand-gray-300">{formatInt(f.quantidade)}</td>
-                      <td className="px-5 py-3 text-brand-gray-300">{formatInt(f.telas)}</td>
-                      <td className="px-5 py-3 text-brand-gray-300">{formatInt(f.fluxo)}</td>
-                    </tr>
-                  ))}
-                  {!loading && formatos.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="px-5 py-4 text-brand-gray-500">Nenhum formato encontrado para esta seleção.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </motion.article>
-
-          <motion.article
-            initial={{ opacity: 0, y: 18 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="rounded-2xl border border-white/10 bg-[#090909] p-5"
-          >
-            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-              <BarChart3 size={18} className="text-brand-orange" />
-              Perfil de público
-            </h3>
-            <div className="space-y-2">
-              {publicos.length === 0 && (
-                <div className="text-sm text-brand-gray-500">Sem dados de público para esta seleção.</div>
-              )}
-              {publicos.map((item) => {
-                const pct = resumo.pontos ? Math.round((item.total / resumo.pontos) * 100) : 0;
-                return (
-                  <div key={item.label} className="rounded-xl border border-white/10 p-3">
-                    <div className="flex items-center justify-between text-sm mb-2">
-                      <span>{item.label}</span>
-                      <span className="text-brand-gray-400">{item.total} pontos</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                      <div className="h-full bg-brand-orange" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </motion.article>
-        </div>
-      </section>
-
-      <section className="py-12 border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-2xl font-bold">Catálogo completo da seleção</h2>
-            <span className="text-xs uppercase tracking-wide text-brand-gray-500">{formatInt(pontos.length)} pontos</span>
-          </div>
-
-          {!loading && tiposComAncora.length > 0 && (
-            <div className="sticky top-16 z-20 mb-5 rounded-xl border border-white/10 bg-[#090909]/95 backdrop-blur-xl p-3">
-              <div className="text-[11px] uppercase tracking-wide text-brand-gray-500 mb-2">Ancoragem por formato</div>
-              <div className="flex flex-wrap gap-2">
-                {tiposComAncora.map((tipoInfo) => (
-                  <a
-                    key={tipoInfo.anchorId}
-                    href={`#${tipoInfo.anchorId}`}
-                    className="px-3 py-1.5 rounded-full text-xs font-medium border border-white/10 bg-white/[0.03] text-brand-gray-300 hover:text-white hover:border-brand-orange/40 transition-colors"
-                  >
-                    {tipoInfo.tipo} ({tipoInfo.quantidade})
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-8">
-            {pontosPorTipo.map((grupo, groupIndex) => (
-              <section key={grupo.anchorId} id={grupo.anchorId} className="scroll-mt-24">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-lg font-semibold text-white">{grupo.tipo}</h3>
-                  <span className="text-xs text-brand-gray-500 uppercase tracking-wide">{formatInt(grupo.quantidade)} pontos</span>
-                </div>
-
-                <div className="space-y-4">
-                  {grupo.pontos.map((ponto, itemIndex) => (
-                    <motion.article
-                      key={ponto.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: Math.min((groupIndex + itemIndex) * 0.02, 0.45), duration: 0.4 }}
-                      className="rounded-2xl border border-white/10 bg-[#090909] p-4 lg:p-5"
-                    >
-                      <div className="grid lg:grid-cols-[220px_1fr] gap-4">
-                        <div className="rounded-xl overflow-hidden bg-white/[0.03] min-h-[180px]">
-                          {ponto.imagem ? (
-                            <img src={ponto.imagem} alt={ponto.nome} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full min-h-[180px] flex items-center justify-center text-brand-gray-600 text-sm">
-                              Sem imagem
-                            </div>
-                          )}
-                        </div>
-
-                        <div>
-                          <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2 mb-2">
-                                <span className="text-[11px] uppercase tracking-wide rounded-md px-2 py-1 bg-brand-orange/15 text-brand-orange border border-brand-orange/30">
-                                  {ponto.tipo}
-                                </span>
-                                <span className="text-[11px] uppercase tracking-wide rounded-md px-2 py-1 bg-white/[0.04] text-brand-gray-300 border border-white/10">
-                                  Público {ponto.publico || 'N/I'}
-                                </span>
-                              </div>
-                              <h4 className="text-xl font-semibold leading-tight">{ponto.nome}</h4>
-                              <p className="text-sm text-brand-gray-500 mt-1">{ponto.cidade}</p>
-                            </div>
-                            <div className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-3 min-w-[160px]">
-                              <div className="flex items-center gap-1 text-[11px] text-brand-gray-500 uppercase tracking-wide mb-1">
-                                <DollarSign size={12} className="text-brand-orange" />
-                                Investimento mensal
-                              </div>
-                              <div className="text-xl font-bold">{formatMoney(Number(ponto.preco) || 0)}</div>
-                            </div>
-                          </div>
-
-                          {ponto.endereco && (
-                            <p className="text-sm text-brand-gray-300 mb-2 flex items-start gap-2">
-                              <MapPin size={14} className="text-brand-orange mt-0.5 shrink-0" />
-                              {ponto.endereco}
-                            </p>
-                          )}
-
-                          {ponto.descricao && (
-                            <p className="text-sm text-brand-gray-400 mb-3">
-                              {ponto.descricao}
-                            </p>
-                          )}
-
-                          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
-                            <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
-                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Users size={12} /> Fluxo</div>
-                              <div className="font-medium">{formatInt(Number(ponto.fluxo) || 0)} / mês</div>
-                            </div>
-                            <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
-                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Hash size={12} /> Inserções</div>
-                              <div className="font-medium">{formatInt(Number(ponto.insercoes) || 0)} / mês</div>
-                            </div>
-                            <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
-                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Monitor size={12} /> Telas</div>
-                              <div className="font-medium">{formatInt(Number(ponto.telas) || 0)}</div>
-                            </div>
-                            <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
-                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Clock size={12} /> Horário</div>
-                              <div className="font-medium">{ponto.horario || 'N/I'}</div>
-                            </div>
-                            <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
-                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Play size={12} /> Tempo</div>
-                              <div className="font-medium">{ponto.tempo || 'N/I'}</div>
-                            </div>
-                            <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
-                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><RotateCcw size={12} /> Loop</div>
-                              <div className="font-medium">{ponto.loop || 'N/I'}</div>
-                            </div>
-                          </div>
-
-                          <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs text-brand-gray-500">
-                            <span>Veiculação: {ponto.veiculacao || 'N/I'}</span>
-                            {(ponto.lat && ponto.lng) && <span>Coordenadas: {ponto.lat}, {ponto.lng}</span>}
-                          </div>
-                        </div>
-                      </div>
-                    </motion.article>
-                  ))}
-                </div>
-              </section>
-            ))}
-            {!loading && pontos.length === 0 && (
-              <div className="text-sm text-brand-gray-500">Nenhum ponto disponível para a seleção atual.</div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="py-16 border-b border-white/10 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-brand-orange/10 via-transparent to-transparent" />
-        <div className="relative max-w-7xl mx-auto px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="grid lg:grid-cols-[1fr_auto] gap-6 items-center"
-          >
-            <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-3">Quer fechar o plano desta seleção?</h2>
-              <p className="text-brand-gray-400 max-w-2xl">
-                Continue para o explorador com filtros aplicados e selecione os pontos para montar sua proposta comercial.
-              </p>
-            </div>
-            <button
-              onClick={() => navigate(explorerPath)}
-              className="group inline-flex items-center justify-center gap-2 px-8 h-[52px] bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200"
-            >
-              Explorar inventário completo
-              <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-            </button>
-          </motion.div>
-        </div>
-      </section>
-
-      <footer className="py-12 border-t border-white/10">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Intermidia" className="h-6" />
-            <span className="text-sm text-brand-gray-500">© {new Date().getFullYear()}</span>
-          </div>
-          <div className="flex items-center gap-6 text-sm text-brand-gray-500">
-            <Link to="/explorar" className="hover:text-white transition-colors">Pontos</Link>
-            <button onClick={() => setSelectedPracas([])} className="hover:text-white transition-colors">Todas as praças</button>
-            <span className="inline-flex items-center gap-2">
-              <Building2 size={14} /> {formatInt(pracas.length)} praças
-            </span>
-          </div>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 }
+
+function PointMediaPreview({ point, onExpand }) {
+  const images = getPointImages(point);
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    setIndex(0);
+  }, [point.id]);
+
+  if (!images.length) {
+    return (
+      <div className="flex h-64 items-center justify-center rounded-[2rem] border border-white/10 bg-slate-900/70 text-sm text-slate-400">
+        Imagem em atualização
+      </div>
+    );
+  }
+
+  const currentImage = images[index];
+
+  const goPrev = (event) => {
+    event.stopPropagation();
+    setIndex((current) => (current - 1 + images.length) % images.length);
+  };
+
+  const goNext = (event) => {
+    event.stopPropagation();
+    setIndex((current) => (current + 1) % images.length);
+  };
+
+  return (
+    <div className="group relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/80">
+      <button type="button" className="relative block h-64 w-full overflow-hidden" onClick={() => onExpand(point, index)}>
+        <img
+          src={currentImage}
+          alt={point.nome}
+          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+          style={{
+            objectPosition: `${point.imagem_foco_x ?? 50}% ${point.imagem_foco_y ?? 50}%`,
+            transform: `scale(${point.imagem_foco_zoom ?? 1})`,
+            transformOrigin: `${point.imagem_foco_x ?? 50}% ${point.imagem_foco_y ?? 50}%`,
+          }}
+        />
+        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-slate-950 via-slate-950/70 to-transparent px-5 pb-4 pt-10 text-xs uppercase tracking-[0.28em] text-white/70">
+          <span>{images.length > 1 ? `Galeria ${index + 1}/${images.length}` : 'Clique para ampliar'}</span>
+          <Expand size={14} />
+        </div>
+      </button>
+
+      {images.length > 1 ? (
+        <>
+          <button
+            type="button"
+            onClick={goPrev}
+            className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-slate-950/70 text-white backdrop-blur hover:bg-slate-900"
+            aria-label="Foto anterior"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={goNext}
+            className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-slate-950/70 text-white backdrop-blur hover:bg-slate-900"
+            aria-label="Próxima foto"
+          >
+            <ChevronRight size={18} />
+          </button>
+          <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2">
+            {images.map((image, imageIndex) => (
+              <button
+                key={`${point.id}-${image}`}
+                type="button"
+                className={`h-2.5 rounded-full transition-all ${imageIndex === index ? 'w-8 bg-orange-400' : 'w-2.5 bg-white/40'}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIndex(imageIndex);
+                }}
+                aria-label={`Abrir foto ${imageIndex + 1}`}
+              />
+            ))}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function LightboxModal({ point, index, onClose, onChangeIndex }) {
+  const images = point ? getPointImages(point) : [];
+
+  if (!point || !images.length) {
+    return null;
+  }
+
+  const currentImage = images[index] || images[0];
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="lightbox"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/85 px-4 py-8 backdrop-blur-md"
+      >
+        <button type="button" className="absolute inset-0" onClick={onClose} aria-label="Fechar visualização" />
+        <motion.div
+          initial={{ opacity: 0, y: 24, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 24, scale: 0.98 }}
+          transition={{ duration: 0.22 }}
+          className="relative z-10 w-full max-w-6xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/95 shadow-[0_30px_120px_rgba(15,23,42,0.8)]"
+        >
+          <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-orange-300">Visualização ampliada</p>
+              <h3 className="mt-1 text-xl font-semibold text-white">{point.nome}</h3>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white hover:bg-white/10"
+              aria-label="Fechar"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="grid gap-0 lg:grid-cols-[1.35fr,0.65fr]">
+            <div className="relative flex min-h-[340px] items-center justify-center bg-slate-900 p-4 sm:p-6">
+              <img
+                src={currentImage}
+                alt={point.nome}
+                className="max-h-[72vh] w-full rounded-[1.5rem] object-contain"
+              />
+              {images.length > 1 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onChangeIndex((index - 1 + images.length) % images.length)}
+                    className="absolute left-6 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-slate-950/70 text-white backdrop-blur hover:bg-slate-900"
+                    aria-label="Imagem anterior"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChangeIndex((index + 1) % images.length)}
+                    className="absolute right-6 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-slate-950/70 text-white backdrop-blur hover:bg-slate-900"
+                    aria-label="Próxima imagem"
+                  >
+                    <ChevronRight size={20} />
+                  </button>
+                </>
+              ) : null}
+            </div>
+
+            <div className="space-y-5 border-t border-white/10 px-6 py-6 lg:border-l lg:border-t-0">
+              <div className="grid grid-cols-2 gap-3 text-sm text-slate-300">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Cidade</p>
+                  <p className="mt-2 text-base font-semibold text-white">{point.cidade || 'Curitiba'}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Formato</p>
+                  <p className="mt-2 text-base font-semibold text-white">{point.tipo}</p>
+                </div>
+              </div>
+
+              {point.endereco ? (
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Endereço</p>
+                  <p className="mt-2 leading-relaxed text-white/90">{point.endereco}</p>
+                </div>
+              ) : null}
+
+              {point.descricao ? (
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Contexto comercial</p>
+                  <p className="mt-2 leading-relaxed text-white/90">{point.descricao}</p>
+                </div>
+              ) : null}
+
+              {images.length > 1 ? (
+                <div className="flex gap-3 overflow-x-auto pb-2">
+                  {images.map((image, imageIndex) => (
+                    <button
+                      key={`${point.id}-${image}`}
+                      type="button"
+                      onClick={() => onChangeIndex(imageIndex)}
+                      className={`overflow-hidden rounded-2xl border ${imageIndex === index ? 'border-orange-400' : 'border-white/10'} bg-slate-900`}
+                    >
+                      <img src={image} alt={`${point.nome} miniatura ${imageIndex + 1}`} className="h-20 w-24 object-cover" />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function Landing() {
+  const navigate = useNavigate();
+  const [config, setConfig] = useState(null);
+  const [points, setPoints] = useState([]);
+  const [selectedPracas, setSelectedPracas] = useState([]);
+  const [proposalModalOpen, setProposalModalOpen] = useState(false);
+  const [showMapModal, setShowMapModal] = useState(false);
+  const [selectedMapPoint, setSelectedMapPoint] = useState(null);
+  const [lightboxState, setLightboxState] = useState({ point: null, index: 0 });
+
+  useEffect(() => {
+    Promise.all([fetchAdminSettings(), fetchPontos()])
+      .then(([publicConfig, publicPoints]) => {
+        setConfig(publicConfig);
+        const visiblePoints = publicPoints.filter((point) => point.ativo);
+        setPoints(visiblePoints);
+        setSelectedMapPoint(visiblePoints[0] || null);
+      })
+      .catch((error) => {
+        console.error('Erro ao carregar landing page:', error);
+      });
+  }, []);
+
+  const availablePoints = useMemo(() => points.filter((point) => point.ativo !== false), [points]);
+
+  const groupedPoints = useMemo(() => {
+    const grouped = availablePoints.reduce((accumulator, point) => {
+      const key = point.tipo || 'Outros';
+      accumulator[key] = accumulator[key] || [];
+      accumulator[key].push(point);
+      return accumulator;
+    }, {});
+
+    return sortFormats(Object.entries(grouped));
+  }, [availablePoints]);
+
+  const campaignTotals = useMemo(() => {
+    if (!selectedPracas.length) {
+      return null;
+    }
+
+    return selectedPracas.reduce(
+      (accumulator, point) => ({
+        totalValue: accumulator.totalValue + Number(point.valor_unitario || point.preco || 0),
+        impacts: accumulator.impacts + Number(point.impactos_estimados || point.fluxo || 0),
+      }),
+      { totalValue: 0, impacts: 0 }
+    );
+  }, [selectedPracas]);
+
+  const landingStats = useMemo(() => {
+    const totalImpact = availablePoints.reduce((sum, point) => sum + Number(point.impactos_estimados || 0), 0);
+    const totalAudience = availablePoints.reduce((sum, point) => sum + Number(point.audience || 0), 0);
+    const totalFormats = groupedPoints.length;
+    const cityCount = new Set(availablePoints.map((point) => point.cidade).filter(Boolean)).size || 1;
+
+    return [
+      {
+        label: 'Impactos mensais estimados',
+        value: totalImpact,
+        formatter: (value) => `${formatCompactNumber(value)}+`,
+      },
+      {
+        label: 'Audiência combinada',
+        value: totalAudience,
+        formatter: (value) => `${formatCompactNumber(value)} pessoas`,
+      },
+      {
+        label: 'Formatos ativos',
+        value: totalFormats,
+        formatter: (value) => formatCompactNumber(value),
+      },
+      {
+        label: 'Cidades cobertas',
+        value: cityCount,
+        formatter: (value) => formatCompactNumber(value),
+      },
+    ];
+  }, [availablePoints, groupedPoints]);
+
+  const audienceBreakdown = useMemo(() => {
+    const rawValues = [
+      { label: 'Fluxo urbano e deslocamento diário', value: 92 },
+      { label: 'Decisão de compra próxima ao ponto', value: 78 },
+      { label: 'Atenção qualificada em ambientes indoor', value: 66 },
+    ];
+
+    return rawValues;
+  }, []);
+
+  const handleTogglePraca = (point) => {
+    setSelectedPracas((current) => {
+      if (current.some((item) => item.id === point.id)) {
+        return current.filter((item) => item.id !== point.id);
+      }
+
+      return [...current, point];
+    });
+  };
+
+  const handleExportPdf = async () => {
+    try {
+      await generateMidiaKitPdf(availablePoints, config || {});
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      window.alert('Nao foi possivel gerar o PDF agora.');
+    }
+  };
+
+  const openLightbox = (point, index = 0) => {
+    setLightboxState({ point, index });
+  };
+
+  const closeLightbox = () => {
+    setLightboxState({ point: null, index: 0 });
+  };
+
+  const highlightedPoint = selectedMapPoint || availablePoints[0] || null;
+
+  return (
+    <div className="min-h-screen bg-[#050816] text-white">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute left-[-12rem] top-[-10rem] h-[28rem] w-[28rem] rounded-full bg-orange-500/18 blur-3xl" />
+        <div className="absolute right-[-8rem] top-[8rem] h-[24rem] w-[24rem] rounded-full bg-amber-300/10 blur-3xl" />
+        <div className="absolute bottom-[-8rem] left-[20%] h-[22rem] w-[22rem] rounded-full bg-orange-600/12 blur-3xl" />
+      </div>
+
+      <Navbar showNav={false} />
+
+      <main className="relative z-10 pb-24">
+        <section className="px-4 pb-10 pt-8 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(251,146,60,0.22),transparent_38%),linear-gradient(135deg,rgba(15,23,42,0.97),rgba(10,14,28,0.96))] px-6 py-10 shadow-[0_25px_120px_rgba(15,23,42,0.55)] sm:px-8 lg:px-12 lg:py-14">
+              <div className="absolute right-0 top-0 h-44 w-44 rounded-full bg-orange-400/20 blur-3xl" />
+              <div className="absolute bottom-[-3rem] left-[-2rem] h-56 w-56 rounded-full bg-amber-200/10 blur-3xl" />
+
+              <div className="grid gap-12 lg:grid-cols-[1.1fr,0.9fr] lg:items-center">
+                <div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-orange-400/25 bg-orange-400/10 px-4 py-2 text-xs font-medium uppercase tracking-[0.28em] text-orange-200">
+                    <Sparkles size={14} />
+                    Midia kit publico
+                  </div>
+
+                  <h1 className="mt-6 max-w-3xl text-4xl font-semibold leading-tight text-white sm:text-5xl lg:text-6xl">
+                    Inventario DOOH com leitura comercial clara, visual premium e acesso separado da area interna.
+                  </h1>
+
+                  <p className="mt-6 max-w-2xl text-base leading-8 text-slate-200/80 sm:text-lg">
+                    Apresente cobertura, contexto e qualidade dos ativos em uma home publica enxuta. O mapa e a galeria ficam disponiveis aqui; a operacao comercial entra por um caminho separado em /comercial.
+                  </p>
+
+                  <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={() => setShowMapModal(true)}
+                      className="inline-flex items-center justify-center gap-3 rounded-full bg-gradient-to-r from-orange-400 to-orange-500 px-7 py-4 text-sm font-semibold text-slate-950 shadow-[0_18px_40px_rgba(249,115,22,0.35)] transition hover:scale-[1.01]"
+                    >
+                      <MapPinned size={18} />
+                      Abrir mapa da rede
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/comercial')}
+                      className="inline-flex items-center justify-center gap-3 rounded-full border border-white/15 bg-white/5 px-7 py-4 text-sm font-semibold text-white transition hover:bg-white/10"
+                    >
+                      <ShieldCheck size={18} />
+                      Entrar na area comercial
+                    </button>
+                  </div>
+
+                  <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {landingStats.map((stat, index) => (
+                      <motion.div
+                        key={stat.label}
+                        initial={{ opacity: 0, y: 24 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, amount: 0.5 }}
+                        transition={{ duration: 0.45, delay: index * 0.08 }}
+                        className="rounded-[1.7rem] border border-white/10 bg-white/5 p-5 backdrop-blur"
+                      >
+                        <p className="text-xs uppercase tracking-[0.24em] text-slate-300/75">{stat.label}</p>
+                        <AnimatedNumber value={stat.value} formatter={stat.formatter} className="mt-3 block text-2xl font-semibold text-white sm:text-3xl" />
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <div className="absolute -right-4 top-10 hidden h-44 w-44 rounded-full bg-orange-400/25 blur-3xl lg:block" />
+                  <div className="relative overflow-hidden rounded-[2.2rem] border border-white/10 bg-slate-950/70 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.45)] backdrop-blur-xl">
+                    <p className="text-xs uppercase tracking-[0.28em] text-orange-300">Leitura rapida da audiencia</p>
+                    <h2 className="mt-3 text-2xl font-semibold text-white">Presenca, contexto e decisao perto do inventario.</h2>
+                    <p className="mt-3 text-sm leading-7 text-slate-300/80">
+                      As barras abaixo ajudam a explicar o perfil de exposicao percebido no inventario publico sem abrir os modulos internos de exploracao.
+                    </p>
+
+                    <div className="mt-8 space-y-5">
+                      {audienceBreakdown.map((item, index) => (
+                        <AudienceBar key={item.label} label={item.label} value={item.value} delay={index * 0.12} />
+                      ))}
+                    </div>
+
+                    <div className="mt-8 rounded-[1.8rem] border border-orange-400/20 bg-orange-400/10 p-5 text-sm text-orange-50/90">
+                      <p className="text-xs uppercase tracking-[0.24em] text-orange-200/80">Acesso publico</p>
+                      <p className="mt-3 leading-7">
+                        Aqui o visitante entende a rede, abre o mapa e consulta imagens. Cotacao, planejamento e administracao permanecem protegidos em /comercial.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-4 py-8 sm:px-6 lg:px-8">
+          <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[0.95fr,1.05fr]">
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              className="rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur-xl"
+            >
+              <p className="text-xs uppercase tracking-[0.3em] text-orange-300">Mídia kit em PDF</p>
+              <h2 className="mt-3 text-3xl font-semibold text-white">Leve a versao editorial da rede em um clique.</h2>
+              <p className="mt-4 max-w-xl text-sm leading-7 text-slate-300/85">
+                Gere o material institucional com os pontos ativos e use a selecao abaixo para simular uma proposta comercial antes de entrar no ambiente protegido.
+              </p>
+              <div className="mt-6 flex flex-col gap-4 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={handleExportPdf}
+                  className="inline-flex items-center justify-center gap-3 rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-orange-50"
+                >
+                  Exportar mídia kit
+                  <ArrowRight size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProposalModalOpen(true)}
+                  className="inline-flex items-center justify-center gap-3 rounded-full border border-white/15 bg-transparent px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  Montar proposta com a selecao atual
+                </button>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ delay: 0.08 }}
+              className="rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,rgba(249,115,22,0.14),rgba(15,23,42,0.85))] p-6 shadow-[0_20px_80px_rgba(15,23,42,0.35)]"
+            >
+              <p className="text-xs uppercase tracking-[0.3em] text-orange-300">Selecao em andamento</p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                <div className="rounded-[1.4rem] border border-white/10 bg-slate-950/45 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Pontos marcados</p>
+                  <p className="mt-3 text-3xl font-semibold text-white">{selectedPracas.length}</p>
+                </div>
+                <div className="rounded-[1.4rem] border border-white/10 bg-slate-950/45 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Impactos estimados</p>
+                  <p className="mt-3 text-2xl font-semibold text-white">{campaignTotals ? `${formatCompactNumber(campaignTotals.impacts)}+` : '0'}</p>
+                </div>
+                <div className="rounded-[1.4rem] border border-white/10 bg-slate-950/45 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Investimento total</p>
+                  <p className="mt-3 text-2xl font-semibold text-white">{campaignTotals ? formatCurrency(campaignTotals.totalValue) : formatCurrency(0)}</p>
+                </div>
+              </div>
+              <p className="mt-5 text-sm leading-7 text-slate-300/80">
+                Selecione pontos nas secoes abaixo para abrir a proposta comercial com score, cobertura e impacto ja calculados.
+              </p>
+            </motion.div>
+          </div>
+        </section>
+
+        <section className="px-4 py-8 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl space-y-10">
+            {groupedPoints.map(([format, formatPoints], formatIndex) => (
+              <motion.section
+                key={format}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.15 }}
+                transition={{ duration: 0.45, delay: formatIndex * 0.04 }}
+                className="rounded-[2.25rem] border border-white/10 bg-white/5 p-6 backdrop-blur-xl sm:p-8"
+              >
+                <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.28em] text-orange-300">Formato</p>
+                    <h2 className="mt-2 text-3xl font-semibold text-white">{format}</h2>
+                  </div>
+                  <p className="max-w-2xl text-sm leading-7 text-slate-300/75">
+                    Visual publico com imagens ampliaveis, contexto resumido e selecao rapida para montagem de proposta.
+                  </p>
+                </div>
+
+                <div className="grid gap-6 xl:grid-cols-2">
+                  {formatPoints.map((point) => {
+                    const selected = selectedPracas.some((item) => item.id === point.id);
+                    return (
+                      <article key={point.id} className="overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/55 shadow-[0_12px_40px_rgba(15,23,42,0.28)]">
+                        <PointMediaPreview point={point} onExpand={openLightbox} />
+                        <div className="space-y-5 p-6">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.24em] text-orange-300">{point.cidade || 'Curitiba'}</p>
+                              <h3 className="mt-2 text-2xl font-semibold text-white">{point.nome}</h3>
+                              {point.endereco ? <p className="mt-2 text-sm text-slate-300/75">{point.endereco}</p> : null}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePraca(point)}
+                              className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition ${selected ? 'bg-orange-400 text-slate-950' : 'border border-white/15 bg-white/5 text-white hover:bg-white/10'}`}
+                            >
+                              {selected ? 'Selecionado' : 'Selecionar'}
+                            </button>
+                          </div>
+
+                          {point.descricao ? <p className="text-sm leading-7 text-slate-300/85">{point.descricao}</p> : null}
+
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <div className="rounded-[1.4rem] border border-white/10 bg-white/5 p-4">
+                              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Audiência</p>
+                              <p className="mt-3 text-xl font-semibold text-white">{formatCompactNumber(point.audience || 0)}</p>
+                            </div>
+                            <div className="rounded-[1.4rem] border border-white/10 bg-white/5 p-4">
+                              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Impactos</p>
+                              <p className="mt-3 text-xl font-semibold text-white">{formatCompactNumber(point.impactos_estimados || 0)}</p>
+                            </div>
+                            <div className="rounded-[1.4rem] border border-white/10 bg-white/5 p-4">
+                              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Valor tabela</p>
+                              <p className="mt-3 text-xl font-semibold text-white">{formatCurrency(point.valor_unitario || 0)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </motion.section>
+            ))}
+          </div>
+        </section>
+      </main>
+
+      <AnimatePresence>
+        {showMapModal ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-md"
+          >
+            <button type="button" className="absolute inset-0" onClick={() => setShowMapModal(false)} aria-label="Fechar mapa" />
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 24, scale: 0.98 }}
+              transition={{ duration: 0.24 }}
+              className="relative z-10 flex h-[min(86vh,860px)] w-full max-w-7xl flex-col overflow-hidden rounded-[2.3rem] border border-white/10 bg-[#081120] shadow-[0_30px_120px_rgba(15,23,42,0.8)] lg:flex-row"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 px-6 py-4 lg:hidden">
+                <p className="text-sm font-semibold text-white">Mapa da rede</p>
+                <button
+                  type="button"
+                  onClick={() => setShowMapModal(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="relative min-h-[340px] flex-1">
+                <SmartMap pontos={availablePoints} selectedId={highlightedPoint?.id} onSelect={setSelectedMapPoint} onOpenDetails={setSelectedMapPoint} />
+              </div>
+
+              <aside className="w-full border-t border-white/10 bg-slate-950/85 p-6 lg:w-[390px] lg:border-l lg:border-t-0">
+                <div className="hidden items-center justify-between lg:flex">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.28em] text-orange-300">Mapa interativo</p>
+                    <h3 className="mt-2 text-2xl font-semibold text-white">Rede publica</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowMapModal(false)}
+                    className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white hover:bg-white/10"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {highlightedPoint ? (
+                  <div className="mt-4 space-y-5 lg:mt-8">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.24em] text-orange-300">{highlightedPoint.tipo}</p>
+                      <h4 className="mt-2 text-2xl font-semibold text-white">{highlightedPoint.nome}</h4>
+                      {highlightedPoint.endereco ? <p className="mt-3 text-sm leading-6 text-slate-300/80">{highlightedPoint.endereco}</p> : null}
+                    </div>
+
+                    {getPointImages(highlightedPoint)[0] ? (
+                      <button type="button" className="block w-full overflow-hidden rounded-[1.6rem] border border-white/10" onClick={() => openLightbox(highlightedPoint, 0)}>
+                        <img src={getPointImages(highlightedPoint)[0]} alt={highlightedPoint.nome} className="h-48 w-full object-cover" />
+                      </button>
+                    ) : null}
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-[1.4rem] border border-white/10 bg-white/5 p-4">
+                        <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Audiência</p>
+                        <p className="mt-3 text-lg font-semibold text-white">{formatCompactNumber(highlightedPoint.audience || 0)}</p>
+                      </div>
+                      <div className="rounded-[1.4rem] border border-white/10 bg-white/5 p-4">
+                        <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Tabela</p>
+                        <p className="mt-3 text-lg font-semibold text-white">{formatCurrency(highlightedPoint.valor_unitario || 0)}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePraca(highlightedPoint)}
+                        className="rounded-full bg-gradient-to-r from-orange-400 to-orange-500 px-5 py-3 text-sm font-semibold text-slate-950"
+                      >
+                        {selectedPracas.some((item) => item.id === highlightedPoint.id) ? 'Remover da proposta' : 'Adicionar a proposta'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/comercial')}
+                        className="rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10"
+                      >
+                        Ir para a area comercial
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-8 rounded-[1.8rem] border border-dashed border-white/15 bg-white/5 p-6 text-sm leading-7 text-slate-300/80">
+                    Selecione um ponto no mapa para visualizar o resumo do ativo.
+                  </div>
+                )}
+              </aside>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <LightboxModal
+        point={lightboxState.point}
+        index={lightboxState.index}
+        onClose={closeLightbox}
+        onChangeIndex={(index) => setLightboxState((current) => ({ ...current, index }))}
+      />
+
+      <ProposalModal
+        open={proposalModalOpen}
+        onClose={() => setProposalModalOpen(false)}
+        selectedPoints={selectedPracas}
+      />
+    </div>
+  );
+}
+
+export default Landing;

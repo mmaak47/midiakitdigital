@@ -38,7 +38,11 @@ db.exec(`
 db.exec(`
   CREATE TABLE IF NOT EXISTS admin_users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    first_name TEXT,
+    last_name TEXT,
     username TEXT UNIQUE NOT NULL,
+    email TEXT,
+    whatsapp TEXT,
     password TEXT NOT NULL,
     role TEXT DEFAULT 'vendedor',
     created_at TEXT DEFAULT (datetime('now')),
@@ -73,6 +77,10 @@ ensureColumn('pontos', 'imagem_foco_x', 'REAL DEFAULT 50');
 ensureColumn('pontos', 'imagem_foco_y', 'REAL DEFAULT 50');
 ensureColumn('pontos', 'imagem_foco_zoom', 'REAL DEFAULT 100');
 ensureColumn('admin_users', 'role', 'TEXT DEFAULT "vendedor"');
+ensureColumn('admin_users', 'first_name', 'TEXT');
+ensureColumn('admin_users', 'last_name', 'TEXT');
+ensureColumn('admin_users', 'email', 'TEXT');
+ensureColumn('admin_users', 'whatsapp', 'TEXT');
 ensureColumn('admin_users', 'created_at', 'TEXT');
 ensureColumn('admin_users', 'updated_at', 'TEXT');
 
@@ -363,9 +371,26 @@ if (count.c === 0) {
 // Seed admin if empty
 const adminCount = db.prepare('SELECT COUNT(*) as c FROM admin_users').get();
 if (adminCount.c === 0) {
-  db.prepare('INSERT INTO admin_users (username, password, role) VALUES (?, ?, ?)').run('admin', 'intermidia2025', 'admin');
+  db.prepare('INSERT INTO admin_users (first_name, last_name, username, email, whatsapp, password, role) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+    'Admin',
+    'Intermidia',
+    'admin',
+    'admin@intermidia.local',
+    '',
+    'intermidia2025',
+    'admin'
+  );
   console.log('Admin user created: admin / intermidia2025 (role: admin)');
 }
+
+db.exec(`
+  UPDATE admin_users
+  SET
+    first_name = COALESCE(NULLIF(first_name, ''), 'Usuario'),
+    last_name = COALESCE(last_name, ''),
+    email = COALESCE(email, ''),
+    whatsapp = COALESCE(whatsapp, '')
+`);
 
 // Initialize app settings if empty
 const lucroMinimoSetting = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('lucro_minimo_percentual');

@@ -33,6 +33,17 @@ function getCityState(cidade) {
 const imageCache = new Map();
 const IMAGE_FETCH_TIMEOUT_MS = 15000;
 const IMAGE_RENDER_WAIT_TIMEOUT_MS = 8000;
+const MIDIA_KIT_TYPE_ORDER = [
+  'Elevador',
+  'Tela Indoor',
+  'Video Wall',
+  'Vídeo Wall',
+  'Painel LED',
+  'LED Posto',
+  'Totem Digital',
+  'Frontlight',
+  'Backlight'
+];
 let pdfAssetsPromise = null;
 let activePdfLayoutConfig = null;
 
@@ -397,7 +408,9 @@ function buildMetricCards(cards, options = {}) {
           const rawValue = String(card.value ?? '');
           const baseValueSize = Number(options.valueSize || 36);
           let resolvedValueSize = baseValueSize;
-          if (rawValue.length >= 14) {
+          if (rawValue.length >= 16) {
+            resolvedValueSize = Math.max(20, baseValueSize - 14);
+          } else if (rawValue.length >= 12) {
             resolvedValueSize = Math.max(24, baseValueSize - 10);
           } else if (rawValue.length >= 10) {
             resolvedValueSize = Math.max(28, baseValueSize - 6);
@@ -408,7 +421,7 @@ function buildMetricCards(cards, options = {}) {
             <span style="display:inline-flex;align-items:center;justify-content:center;width:${options.iconSize || 36}px;height:${options.iconSize || 36}px;border-radius:999px;background:rgba(254,92,43,0.18);color:${BRAND_ORANGE};font-weight:700;line-height:1;flex:0 0 auto;">${card.iconHtml || escapeHtml(card.icon || '•')}</span>
             <span style="line-height:1.2;">${escapeHtml(card.label)}</span>
           </div>
-          <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:${resolvedValueSize}px;line-height:1.05;font-weight:700;color:${options.valueColor || '#ffffff'};letter-spacing:-0.03em;word-break:${options.valueWordBreak || 'normal'};white-space:${options.valueWhiteSpace || 'nowrap'};max-width:100%;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(rawValue)}</div>
+          <div style="margin-top:18px;padding-bottom:4px;font-family:Poppins, system-ui, sans-serif;font-size:${resolvedValueSize}px;line-height:1.16;font-weight:700;color:${options.valueColor || '#ffffff'};letter-spacing:-0.03em;word-break:${options.valueWordBreak || 'break-word'};white-space:${options.valueWhiteSpace || 'normal'};max-width:100%;overflow:visible;">${escapeHtml(rawValue)}</div>
         </div>
           `;
         })()}
@@ -768,8 +781,8 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
             minHeight: 146,
             gap: layout.metricGap,
             padding: layout.metricPadding,
-            valueWhiteSpace: 'nowrap',
-            valueWordBreak: 'normal'
+            valueWhiteSpace: 'normal',
+            valueWordBreak: 'break-word'
           })}
         </div>
       </div>
@@ -1609,7 +1622,15 @@ export async function generateMidiaKitPdf({ praca, pontos }) {
     return acc;
   }, {});
 
-  Object.entries(groupedByTipo).forEach(([tipo, items]) => {
+  Object.entries(groupedByTipo)
+    .sort(([tipoA], [tipoB]) => {
+      const indexA = MIDIA_KIT_TYPE_ORDER.findIndex((item) => item.toLowerCase() === String(tipoA).toLowerCase());
+      const indexB = MIDIA_KIT_TYPE_ORDER.findIndex((item) => item.toLowerCase() === String(tipoB).toLowerCase());
+      const safeA = indexA === -1 ? Number.MAX_SAFE_INTEGER : indexA;
+      const safeB = indexB === -1 ? Number.MAX_SAFE_INTEGER : indexB;
+      return safeA - safeB || String(tipoA).localeCompare(String(tipoB), 'pt-BR');
+    })
+    .forEach(([tipo, items]) => {
     const formatTelas = items.reduce((sum, { ponto }) => sum + (Number(ponto.telas) || 0), 0);
     const formatEnderecos = new Set(items.map(({ ponto }) => `${ponto.cidade || ''}-${ponto.endereco || ''}`.trim())).size;
     pages.push(buildMidiaKitFormatDividerPage({ tipo, formatStats: { telas: formatTelas, enderecos: formatEnderecos }, cityStats, assets }));
@@ -1639,6 +1660,7 @@ export async function generateProposalPdf({
   strategicSubtitle,
   simulationSummary,
   pricingSummary,
+  showMetricsMethodology = true,
   showCampaignScore = true,
   showCoverageLayer = true,
   showImpactSection = true
@@ -1673,15 +1695,18 @@ export async function generateProposalPdf({
       simulationSummary,
       segmento,
       assets
-    }),
-    buildProposalMetricsMethodologyPage({
+    })
+  ];
+
+  if (showMetricsMethodology) {
+    pages.push(buildProposalMetricsMethodologyPage({
       proposalPoints,
       proposalTotals,
       pricingSummary,
       segmento,
       assets
-    })
-  ];
+    }));
+  }
 
   proposalPoints.forEach((point, index) => {
     pages.push(buildProposalPointPage({

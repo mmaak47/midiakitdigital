@@ -34,8 +34,9 @@ import QuickPresentationMode from './QuickPresentationMode';
 
 const DEFAULT_ENTORNO_RADIUS = 800;
 
-export default function ProposalModal({ onClose }) {
+export default function ProposalModal({ onClose, open = true, selectedPoints = null }) {
   const { favorites } = useFavorites();
+  const sourcePoints = selectedPoints ?? favorites;
   const [step, setStep] = useState('review');
   const [showPresentation, setShowPresentation] = useState(false);
   const [showQuickPresentation, setShowQuickPresentation] = useState(false);
@@ -66,7 +67,7 @@ export default function ProposalModal({ onClose }) {
   const [activePreviewPointId, setActivePreviewPointId] = useState(null);
   const [showPreviewLightbox, setShowPreviewLightbox] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
-  const [pdfSections, setPdfSections] = useState({ score: true, coverage: true, impact: true });
+  const [pdfSections, setPdfSections] = useState({ methodology: true, score: true, coverage: true, impact: true });
   const [entorno, setEntorno] = useState({
     loading: false,
     jobId: null,
@@ -83,14 +84,14 @@ export default function ProposalModal({ onClose }) {
   });
 
   const availableCities = useMemo(() => {
-    return Array.from(new Set(favorites.map((point) => point.cidade).filter(Boolean)))
+    return Array.from(new Set(sourcePoints.map((point) => point.cidade).filter(Boolean)))
       .sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [favorites]);
+  }, [sourcePoints]);
 
   const availablePublicos = useMemo(() => {
-    return Array.from(new Set(favorites.map((point) => point.publico).filter(Boolean)))
+    return Array.from(new Set(sourcePoints.map((point) => point.publico).filter(Boolean)))
       .sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [favorites]);
+  }, [sourcePoints]);
 
   const activeCities = form.selectedCities.length ? form.selectedCities : availableCities;
 
@@ -105,17 +106,21 @@ export default function ProposalModal({ onClose }) {
   useEffect(() => {
     setDiscountConfig((current) => ({
       ...current,
-      targetPointIds: current.targetPointIds.filter((pointId) => favorites.some((point) => point.id === pointId)),
+      targetPointIds: current.targetPointIds.filter((pointId) => sourcePoints.some((point) => point.id === pointId)),
       perPoint: Object.fromEntries(
-        Object.entries(current.perPoint || {}).filter(([pointId]) => favorites.some((point) => String(point.id) === String(pointId)))
+        Object.entries(current.perPoint || {}).filter(([pointId]) => sourcePoints.some((point) => String(point.id) === String(pointId)))
       )
     }));
-  }, [favorites]);
+  }, [sourcePoints]);
 
   const proposalSourcePoints = useMemo(() => {
-    if (!form.selectedCities.length) return favorites;
-    return favorites.filter((point) => form.selectedCities.includes(point.cidade));
-  }, [favorites, form.selectedCities]);
+    if (!form.selectedCities.length) return sourcePoints;
+    return sourcePoints.filter((point) => form.selectedCities.includes(point.cidade));
+  }, [sourcePoints, form.selectedCities]);
+
+  if (!open) {
+    return null;
+  }
 
   const pricing = useMemo(() => buildProposalPricing(proposalSourcePoints, discountConfig), [proposalSourcePoints, discountConfig]);
   const pricingSummary = pricing.summary;
@@ -419,6 +424,7 @@ export default function ProposalModal({ onClose }) {
         strategicSubtitle: form.proposalSubtitle,
         simulationSummary,
         analysisMode,
+        showMetricsMethodology: pdfSections.methodology,
         showCampaignScore: pdfSections.score,
         showCoverageLayer: pdfSections.coverage,
         showImpactSection: pdfSections.impact
@@ -788,6 +794,7 @@ export default function ProposalModal({ onClose }) {
                   <p className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-400">Seções opcionais do PDF</p>
                   <div className="flex flex-wrap gap-2">
                     {[
+                      { key: 'methodology', label: 'Como ler as métricas' },
                       { key: 'score', label: 'Score da campanha' },
                       { key: 'coverage', label: 'Cobertura e presença' },
                       { key: 'impact', label: 'Impacto da campanha' }

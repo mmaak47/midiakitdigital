@@ -73,7 +73,7 @@ export default function Explorer() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <Navbar />
+      <Navbar commercial />
 
       <div className="pt-16 flex h-screen">
         <FilterSidebar

@@ -83,7 +83,7 @@ export default function Admin() {
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState('');
-  const [newUser, setNewUser] = useState({ username: '', password: '', role: 'vendedor' });
+  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', whatsapp: '', email: '', password: '', role: 'vendedor' });
   const [creatingUser, setCreatingUser] = useState(false);
   const [editingRole, setEditingRole] = useState(null);
   const [selectedRole, setSelectedRole] = useState('vendedor');
@@ -347,11 +347,14 @@ export default function Admin() {
     setUsersError('');
     try {
       await createAdminUser({
-        username: newUser.username.trim(),
+        firstName: newUser.firstName.trim(),
+        lastName: newUser.lastName.trim(),
+        whatsapp: newUser.whatsapp.trim(),
+        email: newUser.email.trim(),
         password: newUser.password,
         role: newUser.role || 'vendedor'
       });
-      setNewUser({ username: '', password: '', role: 'vendedor' });
+      setNewUser({ firstName: '', lastName: '', whatsapp: '', email: '', password: '', role: 'vendedor' });
       await loadUsers();
     } catch (err) {
       setUsersError(err.message || 'Falha ao criar usuário');
@@ -500,7 +503,7 @@ export default function Admin() {
   if (!auth) {
     return (
       <div className="min-h-screen bg-black text-white">
-        <Navbar />
+        <Navbar commercial />
         <div className="flex min-h-screen items-center justify-center px-6 pt-24 pb-10">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -520,13 +523,13 @@ export default function Admin() {
 
             <form className="space-y-5" onSubmit={handleLogin}>
               <div>
-                <label className="mb-1.5 block text-xs text-brand-gray-400">Usuário</label>
+                <label className="mb-1.5 block text-xs text-brand-gray-400">Usuário ou e-mail</label>
                 <input
                   type="text"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
                   className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
-                  placeholder="admin"
+                  placeholder="admin ou email@empresa.com"
                   required
                   autoComplete="username"
                 />
@@ -572,7 +575,7 @@ export default function Admin() {
   // Admin panel
   return (
     <div className="min-h-screen bg-black text-white">
-      <Navbar />
+      <Navbar commercial />
       <div className="pt-20 max-w-7xl mx-auto px-6 pb-12">
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
           <div>
@@ -1387,15 +1390,37 @@ function UsersAdminPanel({
         </button>
       </div>
 
-      <form onSubmit={onCreate} className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+      <form onSubmit={onCreate} className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto]">
         <input
           type="text"
-          value={newUser.username}
-          onChange={(event) => setNewUser((prev) => ({ ...prev, username: event.target.value }))}
-          placeholder="Novo usuário"
+          value={newUser.firstName}
+          onChange={(event) => setNewUser((prev) => ({ ...prev, firstName: event.target.value }))}
+          placeholder="Nome"
           className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
           required
-          minLength={3}
+        />
+        <input
+          type="text"
+          value={newUser.lastName}
+          onChange={(event) => setNewUser((prev) => ({ ...prev, lastName: event.target.value }))}
+          placeholder="Sobrenome"
+          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
+          required
+        />
+        <input
+          type="text"
+          value={newUser.whatsapp}
+          onChange={(event) => setNewUser((prev) => ({ ...prev, whatsapp: event.target.value }))}
+          placeholder="WhatsApp"
+          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
+        />
+        <input
+          type="email"
+          value={newUser.email}
+          onChange={(event) => setNewUser((prev) => ({ ...prev, email: event.target.value }))}
+          placeholder="E-mail"
+          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
+          required
         />
         <input
           type="password"
@@ -1429,7 +1454,9 @@ function UsersAdminPanel({
         <table className="w-full text-xs">
           <thead>
             <tr className="bg-white/[0.03] text-left text-brand-gray-400">
+              <th className="px-3 py-2">Nome</th>
               <th className="px-3 py-2">Usuário</th>
+              <th className="px-3 py-2">Contato</th>
               <th className="px-3 py-2">Role</th>
               <th className="px-3 py-2 text-right">Ações</th>
             </tr>
@@ -1437,15 +1464,24 @@ function UsersAdminPanel({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={3} className="px-3 py-4 text-center text-brand-gray-500">Carregando usuários...</td>
+                <td colSpan={5} className="px-3 py-4 text-center text-brand-gray-500">Carregando usuários...</td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-3 py-4 text-center text-brand-gray-500">Nenhum usuário cadastrado.</td>
+                <td colSpan={5} className="px-3 py-4 text-center text-brand-gray-500">Nenhum usuário cadastrado.</td>
               </tr>
             ) : users.map((user) => (
               <tr key={user.id} className="border-t border-white/5 text-brand-gray-300">
-                <td className="px-3 py-2 font-medium">{user.username}</td>
+                <td className="px-3 py-2">
+                  <div className="font-medium text-white">{[user.first_name, user.last_name].filter(Boolean).join(' ') || 'Sem nome'}</div>
+                </td>
+                <td className="px-3 py-2">
+                  <div className="font-medium">{user.username}</div>
+                  {user.email ? <div className="text-[11px] text-brand-gray-500">{user.email}</div> : null}
+                </td>
+                <td className="px-3 py-2">
+                  <div>{user.whatsapp || '-'}</div>
+                </td>
                 <td className="px-3 py-2">
                   {editingRole === user.id ? (
                     <select

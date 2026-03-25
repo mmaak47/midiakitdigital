@@ -66,11 +66,11 @@ export async function fetchAdminUsers() {
   return res.json();
 }
 
-export async function createAdminUser({ username, password }) {
+export async function createAdminUser({ firstName, lastName, whatsapp, email, password, role }) {
   const res = await fetch(`${API_BASE}/admin/users`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
+    body: JSON.stringify({ firstName, lastName, whatsapp, email, password, role })
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

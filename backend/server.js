@@ -121,6 +121,31 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function slugifyUsernamePart(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '.')
+    .replace(/^\.+|\.+$/g, '');
+}
+
+function buildBaseUsername(firstName, lastName) {
+  const joined = [slugifyUsernamePart(firstName), slugifyUsernamePart(lastName)].filter(Boolean).join('.');
+  return joined || `usuario.${Date.now()}`;
+}
+
+function resolveUniqueUsername(firstName, lastName) {
+  const base = buildBaseUsername(firstName, lastName);
+  let candidate = base;
+  let suffix = 2;
+  while (db.prepare('SELECT id FROM admin_users WHERE lower(username) = lower(?)').get(candidate)) {
+    candidate = `${base}.${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}
+
 const PDF_LAYOUT_SETTINGS_KEY = 'pdf_layout_overrides';
 
 function readPdfLayoutOverrides() {
@@ -220,16 +245,21 @@ app.get('/api/stats', (req, res) => {
 
 // Admin auth
 app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Username e password obrigatórios' });
+  const credential = String(req.body?.username || req.body?.email || '').trim();
+  const password = String(req.body?.password || '');
+  if (!credential || !password) {
+    return res.status(400).json({ error: 'Usuário/e-mail e senha são obrigatórios' });
   }
-  const user = db.prepare('SELECT id, username, role FROM admin_users WHERE username = ? AND password = ?').get(username, password);
+  const user = db.prepare(`
+    SELECT id, first_name, last_name, username, email, whatsapp, role
+    FROM admin_users
+    WHERE (lower(username) = lower(?) OR lower(email) = lower(?)) AND password = ?
+  `).get(credential, credential, password);
   if (!user) return res.status(401).json({ error: 'Credenciais inválidas' });
   res.json({ 
     success: true, 
-    token: Buffer.from(`${username}:${Date.now()}`).toString('base64'),
-    user: { id: user.id, username: user.username, role: user.role }
+    token: Buffer.from(`${user.username}:${Date.now()}`).toString('base64'),
+    user
   });
 });
 
@@ -561,7 +591,7 @@ app.get('/api/admin/pontos', (req, res) => {
 
 app.get('/api/admin/users', (req, res) => {
   try {
-    const users = db.prepare('SELECT id, username, role, created_at FROM admin_users ORDER BY username ASC').all();
+    const users = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, created_at FROM admin_users ORDER BY first_name ASC, last_name ASC, username ASC').all();
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -570,12 +600,15 @@ app.get('/api/admin/users', (req, res) => {
 
 app.post('/api/admin/users', (req, res) => {
   try {
-    const username = String(req.body?.username || '').trim();
+    const firstName = String(req.body?.firstName || req.body?.first_name || '').trim();
+    const lastName = String(req.body?.lastName || req.body?.last_name || '').trim();
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const whatsapp = String(req.body?.whatsapp || '').trim();
     const password = String(req.body?.password || '').trim();
     const role = String(req.body?.role || 'vendedor').trim();
 
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
+    if (!firstName || !lastName || !email || !password) {
+      return res.status(400).json({ error: 'Nome, sobrenome, e-mail e senha são obrigatórios' });
     }
 
     const validRoles = ['admin', 'gerente_comercial', 'vendedor'];
@@ -583,21 +616,26 @@ app.post('/api/admin/users', (req, res) => {
       return res.status(400).json({ error: 'Role inválido. Valores permitidos: admin, gerente_comercial, vendedor' });
     }
 
-    if (username.length < 3) {
-      return res.status(400).json({ error: 'Usuário deve ter ao menos 3 caracteres' });
-    }
-
     if (password.length < 6) {
       return res.status(400).json({ error: 'Senha deve ter ao menos 6 caracteres' });
     }
 
-    const existing = db.prepare('SELECT id FROM admin_users WHERE username = ?').get(username);
-    if (existing) {
-      return res.status(409).json({ error: 'Usuário já existe' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'E-mail inválido' });
     }
 
-    const result = db.prepare('INSERT INTO admin_users (username, password, role) VALUES (?, ?, ?)').run(username, password, role);
-    const created = db.prepare('SELECT id, username, role, created_at FROM admin_users WHERE id = ?').get(result.lastInsertRowid);
+    const username = resolveUniqueUsername(firstName, lastName);
+
+    const existingEmail = db.prepare('SELECT id FROM admin_users WHERE lower(email) = lower(?)').get(email);
+    if (existingEmail) {
+      return res.status(409).json({ error: 'E-mail já cadastrado' });
+    }
+
+    const result = db.prepare(`
+      INSERT INTO admin_users (first_name, last_name, username, email, whatsapp, password, role, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    `).run(firstName, lastName, username, email, whatsapp, password, role);
+    const created = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, created_at FROM admin_users WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(created);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -641,12 +679,12 @@ app.put('/api/admin/users/:id', (req, res) => {
       return res.status(400).json({ error: 'Role inválido. Valores permitidos: admin, gerente_comercial, vendedor' });
     }
 
-    const result = db.prepare('UPDATE admin_users SET role = ?, updated_at = datetime("now") WHERE id = ?').run(role, id);
+    const result = db.prepare("UPDATE admin_users SET role = ?, updated_at = datetime('now') WHERE id = ?").run(role, id);
     if (!result.changes) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
-    const updated = db.prepare('SELECT id, username, role FROM admin_users WHERE id = ?').get(id);
+    const updated = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role FROM admin_users WHERE id = ?').get(id);
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -684,7 +722,7 @@ app.put('/api/admin/settings', (req, res) => {
         return res.status(400).json({ error: 'lucro_minimo_percentual deve ser um número entre 0 e 100' });
       }
       
-      db.prepare('INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime("now"))').run(
+      db.prepare("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))").run(
         'lucro_minimo_percentual', 
         String(value)
       );
