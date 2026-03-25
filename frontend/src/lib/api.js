@@ -204,3 +204,118 @@ export async function fetchClientAddressAnalysis({ address, pointIds = [], cidad
 
   return res.json();
 }
+
+// ============== ADMIN SETTINGS ==============
+
+export async function fetchAdminSettings() {
+  const res = await fetch(`${API_BASE}/admin/settings`);
+  if (!res.ok) throw new Error('Erro ao carregar configurações');
+  return res.json();
+}
+
+export async function updateAdminSettings(settings) {
+  const res = await fetch(`${API_BASE}/admin/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings)
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Erro ao atualizar configurações');
+  }
+  return res.json();
+}
+
+// ============== PROPOSTAS ==============
+
+export async function fetchPropostas(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.usuario_id) params.set('usuario_id', filters.usuario_id);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.role) params.set('role', filters.role);
+
+  const res = await fetch(`${API_BASE}/propostas?${params.toString()}`);
+  if (!res.ok) throw new Error('Erro ao carregar propostas');
+  return res.json();
+}
+
+export async function fetchProposta(id) {
+  const res = await fetch(`${API_BASE}/propostas/${id}`);
+  if (!res.ok) throw new Error('Proposta não encontrada');
+  return res.json();
+}
+
+export async function createProposta(data) {
+  const res = await fetch(`${API_BASE}/propostas`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.error || 'Erro ao criar proposta');
+  }
+  return res.json();
+}
+
+export async function updateProposta(id, data) {
+  const res = await fetch(`${API_BASE}/propostas/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.error || 'Erro ao atualizar proposta');
+  }
+  return res.json();
+}
+
+export async function deleteProposta(id) {
+  const res = await fetch(`${API_BASE}/propostas/${id}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) throw new Error('Erro ao deletar proposta');
+  return res.json();
+}
+
+export async function aprovarProposta(id, { gerente_id, motivo }) {
+  const res = await fetch(`${API_BASE}/propostas/${id}/aprovar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gerente_id, motivo })
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.error || 'Erro ao aprovar proposta');
+  }
+  return res.json();
+}
+
+export async function rejeitarProposta(id, { gerente_id, motivo_rejeicao }) {
+  const res = await fetch(`${API_BASE}/propostas/${id}/rejeitar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gerente_id, motivo_rejeicao })
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.error || 'Erro ao rejeitar proposta');
+  }
+  return res.json();
+}
+
+// ============== ADMIN USERS WITH ROLES ==============
+
+export async function updateAdminUserRole(id, role) {
+  const res = await fetch(`${API_BASE}/admin/users/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role })
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Erro ao atualizar role do usuário');
+  }
+  return res.json();
+}

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
-  Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus
+  Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import {
@@ -17,7 +17,10 @@ import {
   requestEntornoAnalysis,
   fetchAdminUsers,
   createAdminUser,
-  deleteAdminUser
+  deleteAdminUser,
+  updateAdminUserRole,
+  fetchAdminSettings,
+  updateAdminSettings
 } from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
 import { parseScreen, serializeSimulationConfig } from '../lib/simulation';
@@ -30,11 +33,17 @@ const ENTORNO_SEGMENTOS = [
   'automotivo', 'varejo', 'restaurante', 'imobiliaria',
   'construtora', 'contabilidade', 'advocacia', 'industria', 'outro'
 ];
+const USER_ROLES = [
+  { value: 'admin', label: 'Admin (acesso total)' },
+  { value: 'gerente_comercial', label: 'Gerente Comercial (aprova propostas)' },
+  { value: 'vendedor', label: 'Vendedor (criar propostas)' }
+];
 
 const ADMIN_TABS = [
   { key: 'pontos', label: 'Pontos', icon: PanelsTopLeft },
   { key: 'entorno', label: 'Análise de entorno', icon: MapPinned },
-  { key: 'usuarios', label: 'Usuários', icon: Users }
+  { key: 'usuarios', label: 'Usuários', icon: Users },
+  { key: 'configuracoes', label: 'Configurações', icon: Settings }
 ];
 
 const emptyForm = {
@@ -43,7 +52,8 @@ const emptyForm = {
   insercoes: '', tempo: '15s', loop: '3 min', veiculacao: 'Vídeo sem áudio',
   publico: 'A/B', telas: '1', preco: '', descricao: '', imagem: '',
   simulacao_tela: '', simulacao_arte: '', simulacao_preview: '',
-  arte_largura: '1920', arte_altura: '1080'
+  arte_largura: '1920', arte_altura: '1080',
+  custo_operacional: ''
 };
 
 export default function Admin() {
@@ -67,8 +77,17 @@ export default function Admin() {
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState('');
-  const [newUser, setNewUser] = useState({ username: '', password: '' });
+  const [newUser, setNewUser] = useState({ username: '', password: '', role: 'vendedor' });
   const [creatingUser, setCreatingUser] = useState(false);
+  const [editingRole, setEditingRole] = useState(null);
+  const [selectedRole, setSelectedRole] = useState('vendedor');
+  const [updatingRole, setUpdatingRole] = useState(false);
+
+  const [settings, setSettings] = useState({ lucro_minimo_percentual: 15 });
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+  const [lucroMinimoValue, setLucroMinimoValue] = useState(15);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const [entornoForm, setEntornoForm] = useState({
     segmento: 'clinica',
@@ -181,6 +200,12 @@ export default function Admin() {
       clearInterval(timer);
     };
   }, [entornoCurrentJob?.id, entornoCurrentJob?.status]);
+
+  useEffect(() => {
+    if (activeTab === 'configuracoes' && auth) {
+      loadSettings();
+    }
+  }, [activeTab, auth]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -307,9 +332,10 @@ export default function Admin() {
     try {
       await createAdminUser({
         username: newUser.username.trim(),
-        password: newUser.password
+        password: newUser.password,
+        role: newUser.role || 'vendedor'
       });
-      setNewUser({ username: '', password: '' });
+      setNewUser({ username: '', password: '', role: 'vendedor' });
       await loadUsers();
     } catch (err) {
       setUsersError(err.message || 'Falha ao criar usuário');
@@ -326,6 +352,48 @@ export default function Admin() {
       await loadUsers();
     } catch (err) {
       setUsersError(err.message || 'Falha ao remover usuário');
+    }
+  };
+
+  const handleUpdateUserRole = async (userId, newRole) => {
+    setUpdatingRole(true);
+    setUsersError('');
+    try {
+      await updateAdminUserRole(userId, newRole);
+      setEditingRole(null);
+      await loadUsers();
+    } catch (err) {
+      setUsersError(err.message || 'Falha ao atualizar role do usuário');
+    } finally {
+      setUpdatingRole(false);
+    }
+  };
+
+  const loadSettings = async () => {
+    setSettingsLoading(true);
+    setSettingsError('');
+    try {
+      const data = await fetchAdminSettings();
+      setSettings(data);
+      setLucroMinimoValue(data.lucro_minimo_percentual || 15);
+    } catch (err) {
+      setSettingsError(err.message || 'Falha ao carregar configurações');
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const handleSaveSettings = async (e) => {
+    e.preventDefault();
+    setSavingSettings(true);
+    setSettingsError('');
+    try {
+      await updateAdminSettings({ lucro_minimo_percentual: Number(lucroMinimoValue) });
+      await loadSettings();
+    } catch (err) {
+      setSettingsError(err.message || 'Falha ao salvar configurações');
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -591,8 +659,62 @@ export default function Admin() {
             creating={creatingUser}
             onCreate={handleCreateUser}
             onDelete={handleDeleteUser}
+            onUpdateRole={handleUpdateUserRole}
+            editingRole={editingRole}
+            setEditingRole={setEditingRole}
+            selectedRole={selectedRole}
+            setSelectedRole={setSelectedRole}
+            updatingRole={updatingRole}
+            userRoles={USER_ROLES}
             onReload={loadUsers}
           />
+        ) : null}
+
+        {activeTab === 'configuracoes' ? (
+          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Configurações do sistema</h3>
+              <p className="text-xs text-brand-gray-500 mt-1">Configure parâmetros globais para propostas e vendas.</p>
+            </div>
+
+            {settingsError && <p className="mt-3 text-xs text-red-300">{settingsError}</p>}
+
+            <form onSubmit={handleSaveSettings} className="mt-6 space-y-4 max-w-md">
+              <div>
+                <label className="block text-xs text-brand-gray-400 mb-2">
+                  Lucro Mínimo Obrigatório (%)
+                </label>
+                <p className="text-xs text-brand-gray-500 mb-2">
+                  Vendedores precisarão de aprovação do Gerente Comercial se aplicarem desconto acima desse percentual.
+                </p>
+                <div className="flex items-end gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={lucroMinimoValue}
+                    onChange={e => setLucroMinimoValue(Number(e.target.value))}
+                    className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                  />
+                  <button
+                    type="submit"
+                    disabled={savingSettings || settingsLoading}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2.5 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
+                  >
+                    <Save size={15} />
+                    {savingSettings ? 'Salvando...' : 'Salvar'}
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            <div className="mt-6 p-4 bg-brand-orange/5 border border-brand-orange/20 rounded-xl">
+              <p className="text-xs text-brand-orange leading-relaxed">
+                <strong>ℹ️ Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro mínimo obrigatório (desconto acima do valor configurado aqui), a proposta fica aguardando aprovação de um Gerente Comercial antes de poder ser finalizada.
+              </p>
+            </div>
+          </section>
         ) : null}
       </div>
 
@@ -644,6 +766,7 @@ export default function Admin() {
                   <FormField label="Veiculação" value={form.veiculacao} onChange={v => updateField('veiculacao', v)} />
                   <FormField label="Telas" value={form.telas} onChange={v => updateField('telas', v)} type="number" />
                   <FormField label="Preço (R$)" value={form.preco} onChange={v => updateField('preco', v)} type="number" step="0.01" />
+                  <FormField label="Custo Operacional (R$)" value={form.custo_operacional} onChange={v => updateField('custo_operacional', v)} type="number" step="0.01" />
                   <FormField label="Arte largura (px)" value={form.arte_largura} onChange={v => updateField('arte_largura', v)} type="number" min="1" />
                   <FormField label="Arte altura (px)" value={form.arte_altura} onChange={v => updateField('arte_altura', v)} type="number" min="1" />
                 </div>
@@ -926,6 +1049,13 @@ function UsersAdminPanel({
   creating,
   onCreate,
   onDelete,
+  onUpdateRole,
+  editingRole,
+  setEditingRole,
+  selectedRole,
+  setSelectedRole,
+  updatingRole,
+  userRoles,
   onReload
 }) {
   return (
@@ -933,7 +1063,7 @@ function UsersAdminPanel({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Cadastro de usuários admin</h3>
-          <p className="text-xs text-brand-gray-500 mt-1">Gerencie quem pode acessar o painel administrativo.</p>
+          <p className="text-xs text-brand-gray-500 mt-1">Gerencie quem pode acessar o painel administrativo e defina permissões.</p>
         </div>
         <button
           type="button"
@@ -945,7 +1075,7 @@ function UsersAdminPanel({
         </button>
       </div>
 
-      <form onSubmit={onCreate} className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+      <form onSubmit={onCreate} className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
         <input
           type="text"
           value={newUser.username}
@@ -964,13 +1094,20 @@ function UsersAdminPanel({
           required
           minLength={6}
         />
+        <select
+          value={newUser.role || 'vendedor'}
+          onChange={(event) => setNewUser((prev) => ({ ...prev, role: event.target.value }))}
+          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white appearance-none focus:outline-none focus:border-brand-orange/40"
+        >
+          {userRoles.map(r => <option key={r.value} value={r.value} className="bg-brand-dark">{r.label}</option>)}
+        </select>
         <button
           type="submit"
           disabled={creating}
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
         >
           <UserPlus size={15} />
-          {creating ? 'Criando...' : 'Criar usuário'}
+          {creating ? 'Criando...' : 'Criar'}
         </button>
       </form>
 
@@ -981,35 +1118,94 @@ function UsersAdminPanel({
           <thead>
             <tr className="bg-white/[0.03] text-left text-brand-gray-400">
               <th className="px-3 py-2">Usuário</th>
+              <th className="px-3 py-2">Role</th>
               <th className="px-3 py-2 text-right">Ações</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={2} className="px-3 py-4 text-center text-brand-gray-500">Carregando usuários...</td>
+                <td colSpan={3} className="px-3 py-4 text-center text-brand-gray-500">Carregando usuários...</td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={2} className="px-3 py-4 text-center text-brand-gray-500">Nenhum usuário cadastrado.</td>
+                <td colSpan={3} className="px-3 py-4 text-center text-brand-gray-500">Nenhum usuário cadastrado.</td>
               </tr>
             ) : users.map((user) => (
               <tr key={user.id} className="border-t border-white/5 text-brand-gray-300">
-                <td className="px-3 py-2">{user.username}</td>
-                <td className="px-3 py-2 text-right">
-                  <button
-                    type="button"
-                    onClick={() => onDelete(user.id, user.username)}
-                    className="inline-flex items-center gap-2 rounded-lg px-2 py-1 text-red-300 hover:bg-red-400/10"
-                  >
-                    <Trash2 size={13} />
-                    Remover
-                  </button>
+                <td className="px-3 py-2 font-medium">{user.username}</td>
+                <td className="px-3 py-2">
+                  {editingRole === user.id ? (
+                    <select
+                      value={selectedRole}
+                      onChange={(e) => setSelectedRole(e.target.value)}
+                      className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white appearance-none"
+                    >
+                      {userRoles.map(r => <option key={r.value} value={r.value} className="bg-brand-dark">{r.label}</option>)}
+                    </select>
+                  ) : (
+                    <span className="inline-block px-2 py-1 rounded-lg bg-brand-orange/10 text-brand-orange text-xs">
+                      {userRoles.find(r => r.value === user.role)?.label || user.role}
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-right space-x-2">
+                  {editingRole === user.id ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => onUpdateRole(user.id, selectedRole)}
+                        disabled={updatingRole}
+                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-brand-orange hover:bg-brand-orange/10 disabled:opacity-50"
+                      >
+                        <Save size={12} />
+                        Salvar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingRole(null)}
+                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-brand-gray-400 hover:bg-white/10"
+                      >
+                        Cancelar
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingRole(user.id);
+                          setSelectedRole(user.role || 'vendedor');
+                        }}
+                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-brand-gray-400 hover:bg-white/10"
+                      >
+                        <Pencil size={12} />
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(user.id, user.username)}
+                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-red-300 hover:bg-red-400/10"
+                      >
+                        <Trash2 size={12} />
+                        Remover
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-4 p-4 bg-brand-orange/5 border border-brand-orange/20 rounded-xl text-xs text-brand-gray-300">
+        <p><strong>Permissões por Role:</strong></p>
+        <ul className="list-disc list-inside mt-2 space-y-1">
+          <li><strong>Admin:</strong> Acesso total ao painel administrativo</li>
+          <li><strong>Gerente Comercial:</strong> Pode visualizar e aprovar propostas que excedem lucro mínimo</li>
+          <li><strong>Vendedor:</strong> Pode criar propostas, mas propostas precisam de aprovação se excederem limite de lucro</li>
+        </ul>
       </div>
     </section>
   );

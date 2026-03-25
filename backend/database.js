@@ -24,6 +24,7 @@ db.exec(`
     publico TEXT DEFAULT 'A/B',
     telas INTEGER DEFAULT 1,
     preco REAL DEFAULT 0,
+    custo_operacional REAL DEFAULT 0,
     descricao TEXT,
     imagem TEXT,
     arte_largura INTEGER DEFAULT 1920,
@@ -38,7 +39,10 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS admin_users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL
+    password TEXT NOT NULL,
+    role TEXT DEFAULT 'vendedor',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
   )
 `);
 
@@ -62,6 +66,10 @@ ensureColumn('pontos', 'simulacao_arte', 'TEXT');
 ensureColumn('pontos', 'simulacao_preview', 'TEXT');
 ensureColumn('pontos', 'arte_largura', 'INTEGER DEFAULT 1920');
 ensureColumn('pontos', 'arte_altura', 'INTEGER DEFAULT 1080');
+ensureColumn('pontos', 'custo_operacional', 'REAL DEFAULT 0');
+ensureColumn('admin_users', 'role', 'TEXT DEFAULT "vendedor"');
+ensureColumn('admin_users', 'created_at', 'TEXT DEFAULT (datetime("now"))');
+ensureColumn('admin_users', 'updated_at', 'TEXT DEFAULT (datetime("now"))');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS entorno_cache (
@@ -102,6 +110,43 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS propostas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id INTEGER NOT NULL,
+    titulo TEXT NOT NULL,
+    descricao TEXT,
+    pontos_json TEXT NOT NULL,
+    desconto_percentual REAL DEFAULT 0,
+    desconto_tipo TEXT DEFAULT 'nenhum',
+    valor_total_original REAL DEFAULT 0,
+    valor_total_desconto REAL DEFAULT 0,
+    valor_total_final REAL DEFAULT 0,
+    status TEXT DEFAULT 'rascunho',
+    requer_aprovacao INTEGER DEFAULT 0,
+    aprovado_por INTEGER,
+    motivo_rejeicao TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (usuario_id) REFERENCES admin_users(id) ON DELETE CASCADE,
+    FOREIGN KEY (aprovado_por) REFERENCES admin_users(id) ON DELETE SET NULL
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS propostas_aprovacoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    proposta_id INTEGER NOT NULL,
+    gerente_id INTEGER NOT NULL,
+    status TEXT DEFAULT 'pendente',
+    motivo TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    atualizado_em TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (proposta_id) REFERENCES propostas(id) ON DELETE CASCADE,
+    FOREIGN KEY (gerente_id) REFERENCES admin_users(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
   UPDATE pontos
   SET
     arte_largura = COALESCE(arte_largura, 1920),
@@ -136,6 +181,21 @@ db.exec(`
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_entorno_jobs_segment_radius_status
   ON entorno_jobs (segmento_analisado, raio_m, status)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_propostas_usuario_status
+  ON propostas (usuario_id, status)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_propostas_requer_aprovacao
+  ON propostas (requer_aprovacao, status)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_propostas_aprovacoes_status
+  ON propostas_aprovacoes (status, gerente_id)
 `);
 
 // Seed data if empty
@@ -295,8 +355,15 @@ if (count.c === 0) {
 // Seed admin if empty
 const adminCount = db.prepare('SELECT COUNT(*) as c FROM admin_users').get();
 if (adminCount.c === 0) {
-  db.prepare('INSERT INTO admin_users (username, password) VALUES (?, ?)').run('admin', 'intermidia2025');
-  console.log('Admin user created: admin / intermidia2025');
+  db.prepare('INSERT INTO admin_users (username, password, role) VALUES (?, ?, ?)').run('admin', 'intermidia2025', 'admin');
+  console.log('Admin user created: admin / intermidia2025 (role: admin)');
+}
+
+// Initialize app settings if empty
+const lucroMinimoSetting = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('lucro_minimo_percentual');
+if (!lucroMinimoSetting) {
+  db.prepare('INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)').run('lucro_minimo_percentual', '15');
+  console.log('Default setting initialized: lucro_minimo_percentual = 15%');
 }
 
 module.exports = db;

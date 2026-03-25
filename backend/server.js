@@ -216,9 +216,13 @@ app.post('/api/auth/login', (req, res) => {
   if (!username || !password) {
     return res.status(400).json({ error: 'Username e password obrigatórios' });
   }
-  const user = db.prepare('SELECT * FROM admin_users WHERE username = ? AND password = ?').get(username, password);
+  const user = db.prepare('SELECT id, username, role FROM admin_users WHERE username = ? AND password = ?').get(username, password);
   if (!user) return res.status(401).json({ error: 'Credenciais inválidas' });
-  res.json({ success: true, token: Buffer.from(`${username}:${Date.now()}`).toString('base64') });
+  res.json({ 
+    success: true, 
+    token: Buffer.from(`${username}:${Date.now()}`).toString('base64'),
+    user: { id: user.id, username: user.username, role: user.role }
+  });
 });
 
 // CREATE ponto
@@ -506,7 +510,7 @@ app.get('/api/admin/pontos', (req, res) => {
 
 app.get('/api/admin/users', (req, res) => {
   try {
-    const users = db.prepare('SELECT id, username FROM admin_users ORDER BY username ASC').all();
+    const users = db.prepare('SELECT id, username, role, created_at FROM admin_users ORDER BY username ASC').all();
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -517,9 +521,15 @@ app.post('/api/admin/users', (req, res) => {
   try {
     const username = String(req.body?.username || '').trim();
     const password = String(req.body?.password || '').trim();
+    const role = String(req.body?.role || 'vendedor').trim();
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
+    }
+
+    const validRoles = ['admin', 'gerente_comercial', 'vendedor'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ error: 'Role inválido. Valores permitidos: admin, gerente_comercial, vendedor' });
     }
 
     if (username.length < 3) {
@@ -535,8 +545,8 @@ app.post('/api/admin/users', (req, res) => {
       return res.status(409).json({ error: 'Usuário já existe' });
     }
 
-    const result = db.prepare('INSERT INTO admin_users (username, password) VALUES (?, ?)').run(username, password);
-    const created = db.prepare('SELECT id, username FROM admin_users WHERE id = ?').get(result.lastInsertRowid);
+    const result = db.prepare('INSERT INTO admin_users (username, password, role) VALUES (?, ?, ?)').run(username, password, role);
+    const created = db.prepare('SELECT id, username, role, created_at FROM admin_users WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(created);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -566,9 +576,303 @@ app.delete('/api/admin/users/:id', (req, res) => {
   }
 });
 
+app.put('/api/admin/users/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+
+    const role = String(req.body?.role || '').trim();
+    const validRoles = ['admin', 'gerente_comercial', 'vendedor'];
+    
+    if (!role || !validRoles.includes(role)) {
+      return res.status(400).json({ error: 'Role inválido. Valores permitidos: admin, gerente_comercial, vendedor' });
+    }
+
+    const result = db.prepare('UPDATE admin_users SET role = ?, updated_at = datetime("now") WHERE id = ?').run(role, id);
+    if (!result.changes) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    const updated = db.prepare('SELECT id, username, role FROM admin_users WHERE id = ?').get(id);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/admin/pdf-layout', (req, res) => {
   try {
     res.json(readPdfLayoutOverrides());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/settings', (req, res) => {
+  try {
+    const settings = db.prepare('SELECT key, value FROM app_settings').all();
+    const result = {};
+    settings.forEach(s => {
+      result[s.key] = isNaN(s.value) ? s.value : Number(s.value);
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/settings', (req, res) => {
+  try {
+    const { lucro_minimo_percentual } = req.body;
+    
+    if (lucro_minimo_percentual !== undefined) {
+      const value = Number(lucro_minimo_percentual);
+      if (!Number.isFinite(value) || value < 0 || value > 100) {
+        return res.status(400).json({ error: 'lucro_minimo_percentual deve ser um número entre 0 e 100' });
+      }
+      
+      db.prepare('INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime("now"))').run(
+        'lucro_minimo_percentual', 
+        String(value)
+      );
+    }
+
+    const settings = db.prepare('SELECT key, value FROM app_settings').all();
+    const result = {};
+    settings.forEach(s => {
+      result[s.key] = isNaN(s.value) ? s.value : Number(s.value);
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============== PROPOSTAS ENDPOINTS ==============
+
+// GET todas as propostas (com filtro por role)
+app.get('/api/propostas', (req, res) => {
+  try {
+    const usuarioId = req.query.usuario_id;
+    const status = req.query.status;
+    const role = req.query.role;
+
+    let query = 'SELECT p.*, u.username as usuario_nome FROM propostas p LEFT JOIN admin_users u ON p.usuario_id = u.id';
+    const params = [];
+
+    if (role === 'vendedor' && usuarioId) {
+      query += ' WHERE p.usuario_id = ?';
+      params.push(usuarioId);
+    } else if (role === 'gerente_comercial' || role === 'admin') {
+      // Gerente comercial e admin veem todas as propostas
+    } else if (usuarioId) {
+      query += ' WHERE p.usuario_id = ?';
+      params.push(usuarioId);
+    }
+
+    if (status) {
+      query += params.length > 0 ? ' AND p.status = ?' : ' WHERE p.status = ?';
+      params.push(status);
+    }
+
+    query += ' ORDER BY p.updated_at DESC';
+    const propostas = db.prepare(query).all(...params);
+    res.json(propostas);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET uma proposta específica
+app.get('/api/propostas/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const proposta = db.prepare('SELECT p.*, u.username as usuario_nome FROM propostas p LEFT JOIN admin_users u ON p.usuario_id = u.id WHERE p.id = ?').get(id);
+    
+    if (!proposta) {
+      return res.status(404).json({ error: 'Proposta não encontrada' });
+    }
+
+    proposta.pontos = JSON.parse(proposta.pontos_json || '[]');
+    delete proposta.pontos_json;
+
+    res.json(proposta);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST criar nova proposta
+app.post('/api/propostas', (req, res) => {
+  try {
+    const { usuario_id, titulo, descricao, pontos, desconto_percentual, desconto_tipo, valor_total_original } = req.body;
+
+    if (!usuario_id || !titulo || !Array.isArray(pontos) || !desconto_tipo) {
+      return res.status(400).json({ error: 'Campos obrigatórios: usuario_id, titulo, pontos (array), desconto_tipo' });
+    }
+
+    const lucroMinimo = Number(db.prepare('SELECT value FROM app_settings WHERE key = "lucro_minimo_percentual"').get()?.value || 15);
+    const desconto = Number(desconto_percentual || 0);
+    const clicarDesconto = (desconto / 100);
+
+    // Calcular se requer aprovação
+    let requerAprovacao = 0;
+    if (desconto_tipo !== 'nenhum' && clicarDesconto > (lucroMinimo / 100)) {
+      requerAprovacao = 1;
+    }
+
+    const valor_final = Number(valor_total_original) * (1 - clicarDesconto);
+    const valor_desconto = Number(valor_total_original) - valor_final;
+
+    const result = db.prepare(`
+      INSERT INTO propostas (usuario_id, titulo, descricao, pontos_json, desconto_percentual, desconto_tipo, valor_total_original, valor_total_desconto, valor_total_final, status, requer_aprovacao)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      usuario_id, 
+      titulo, 
+      descricao || '',
+      JSON.stringify(pontos),
+      desconto,
+      desconto_tipo,
+      valor_total_original,
+      valor_desconto,
+      valor_final,
+      'rascunho',
+      requerAprovacao
+    );
+
+    const proposta = db.prepare('SELECT id, usuario_id, titulo, status, requer_aprovacao FROM propostas WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json(proposta);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT atualizar proposta
+app.put('/api/propostas/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { titulo, descricao, pontos, desconto_percentual, desconto_tipo, valor_total_original } = req.body;
+
+    const proposta = db.prepare('SELECT * FROM propostas WHERE id = ?').get(id);
+    if (!proposta) {
+      return res.status(404).json({ error: 'Proposta não encontrada' });
+    }
+
+    const lucroMinimo = Number(db.prepare('SELECT value FROM app_settings WHERE key = "lucro_minimo_percentual"').get()?.value || 15);
+    const desconto = Number(desconto_percentual || 0);
+    const clicarDesconto = (desconto / 100);
+
+    // Calcular se requer aprovação
+    let requerAprovacao = 0;
+    if (desconto_tipo !== 'nenhum' && clicarDesconto > (lucroMinimo / 100)) {
+      requerAprovacao = 1;
+    }
+
+    const valor_final = Number(valor_total_original) * (1 - clicarDesconto);
+    const valor_desconto = Number(valor_total_original) - valor_final;
+
+    db.prepare(`
+      UPDATE propostas 
+      SET titulo = ?, descricao = ?, pontos_json = ?, desconto_percentual = ?, desconto_tipo = ?, valor_total_original = ?, valor_total_desconto = ?, valor_total_final = ?, requer_aprovacao = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      titulo || proposta.titulo,
+      descricao !== undefined ? descricao : proposta.descricao,
+      pontos ? JSON.stringify(pontos) : proposta.pontos_json,
+      desconto,
+      desconto_tipo || proposta.desconto_tipo,
+      valor_total_original !== undefined ? valor_total_original : proposta.valor_total_original,
+      valor_desconto,
+      valor_final,
+      requerAprovacao,
+      id
+    );
+
+    const updated = db.prepare('SELECT id, usuario_id, titulo, status, requer_aprovacao FROM propostas WHERE id = ?').get(id);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE proposta
+app.delete('/api/propostas/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const result = db.prepare('DELETE FROM propostas WHERE id = ?').run(id);
+    
+    if (!result.changes) {
+      return res.status(404).json({ error: 'Proposta não encontrada' });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST aprovar proposta (apenas gerente comercial e admin)
+app.post('/api/propostas/:id/aprovar', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { gerente_id, motivo } = req.body;
+
+    const proposta = db.prepare('SELECT * FROM propostas WHERE id = ?').get(id);
+    if (!proposta) {
+      return res.status(404).json({ error: 'Proposta não encontrada' });
+    }
+
+    // Criar registro de aprovação
+    db.prepare(`
+      INSERT INTO propostas_aprovacoes (proposta_id, gerente_id, status, motivo)
+      VALUES (?, ?, ?, ?)
+    `).run(id, gerente_id, 'aprovado', motivo || '');
+
+    // Atualizar proposta
+    db.prepare(`
+      UPDATE propostas 
+      SET status = ?, aprovado_por = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run('aprovada', gerente_id, id);
+
+    res.json({ success: true, message: 'Proposta aprovada com sucesso' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST rejeitar proposta (apenas gerente comercial e admin)
+app.post('/api/propostas/:id/rejeitar', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { gerente_id, motivo_rejeicao } = req.body;
+
+    const proposta = db.prepare('SELECT * FROM propostas WHERE id = ?').get(id);
+    if (!proposta) {
+      return res.status(404).json({ error: 'Proposta não encontrada' });
+    }
+
+    if (!motivo_rejeicao) {
+      return res.status(400).json({ error: 'motivo_rejeicao é obrigatório' });
+    }
+
+    // Criar registro de rejeição
+    db.prepare(`
+      INSERT INTO propostas_aprovacoes (proposta_id, gerente_id, status, motivo)
+      VALUES (?, ?, ?, ?)
+    `).run(id, gerente_id, 'rejeitado', motivo_rejeicao);
+
+    // Atualizar proposta
+    db.prepare(`
+      UPDATE propostas 
+      SET status = ?, motivo_rejeicao = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run('rejeitada', motivo_rejeicao, id);
+
+    res.json({ success: true, message: 'Proposta rejeitada com sucesso' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
