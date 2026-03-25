@@ -4,6 +4,18 @@ const compression = require('compression');
 const path = require('path');
 const multer = require('multer');
 const db = require('./database');
+const {
+  DEFAULT_RADIUS,
+  getSegmentCategories,
+  normalizeSegment,
+  normalizeRadius,
+  enqueueJob,
+  getJob,
+  listJobs,
+  getScoresWithCoverage,
+  invalidatePointCache,
+  getProviderRuntimeInfo
+} = require('./entornoAnalysis');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -53,6 +65,13 @@ const upload = multer({
 function pickUploadedPath(req, fieldName) {
   const file = req.files?.[fieldName]?.[0];
   return file ? `/uploads/${file.filename}` : null;
+}
+
+function parseOptionalCity(value) {
+  if (!value) return '';
+  const normalized = String(value).trim();
+  if (!normalized || normalized.toLowerCase() === 'todas') return '';
+  return normalized;
 }
 
 // ==================== API ROUTES ====================
@@ -166,6 +185,7 @@ app.post('/api/pontos', upload.fields([
     );
 
     const ponto = db.prepare('SELECT * FROM pontos WHERE id = ?').get(result.lastInsertRowid);
+    invalidatePointCache(ponto.id);
     res.status(201).json(ponto);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -217,7 +237,110 @@ app.put('/api/pontos/:id', upload.fields([
     );
 
     const ponto = db.prepare('SELECT * FROM pontos WHERE id = ?').get(req.params.id);
+    const enderecoAlterado = String(data.endereco || existing.endereco) !== String(existing.endereco || '');
+    const latInformada = data.lat !== undefined && data.lat !== null && String(data.lat).trim() !== '';
+    const lngInformada = data.lng !== undefined && data.lng !== null && String(data.lng).trim() !== '';
+    const coordenadasAlteradas = (latInformada && Number.parseFloat(data.lat) !== Number(existing.lat)) || (lngInformada && Number.parseFloat(data.lng) !== Number(existing.lng));
+    if (enderecoAlterado || coordenadasAlteradas) {
+      invalidatePointCache(ponto.id);
+    }
     res.json(ponto);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List available segment categories for entorno analysis
+app.get('/api/entorno/categories', (req, res) => {
+  const requested = req.query.segmento;
+  const { segment, categories } = getSegmentCategories(requested);
+  res.json({
+    segmento: segment,
+    categorias: categories,
+    raioPadrao: DEFAULT_RADIUS,
+    providers: getProviderRuntimeInfo()
+  });
+});
+
+// Queue async entorno analysis job
+app.post('/api/entorno/analyze', (req, res) => {
+  try {
+    const segmento = normalizeSegment(req.body?.segmento || req.query.segmento);
+    const raio = normalizeRadius(req.body?.raio || req.query.raio || DEFAULT_RADIUS);
+    const cidade = parseOptionalCity(req.body?.cidade || req.query.cidade);
+    const job = enqueueJob({ segment: segmento, radius: raio, city: cidade });
+
+    res.status(202).json({
+      success: true,
+      ...job,
+      message: job.deduplicated
+        ? 'Analise ja estava em andamento para esse recorte.'
+        : 'Analise de entorno enfileirada com sucesso.'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get job status
+app.get('/api/entorno/jobs/:id', (req, res) => {
+  try {
+    const jobId = Number(req.params.id);
+    if (!Number.isFinite(jobId)) {
+      return res.status(400).json({ error: 'job id invalido' });
+    }
+    const job = getJob(jobId);
+    if (!job) {
+      return res.status(404).json({ error: 'job nao encontrado' });
+    }
+    res.json(job);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List recent jobs for monitoring in admin
+app.get('/api/entorno/jobs', (req, res) => {
+  try {
+    const cidade = parseOptionalCity(req.query.cidade);
+    const jobs = listJobs({
+      limit: req.query.limit,
+      status: req.query.status ? String(req.query.status).trim() : '',
+      segment: req.query.segmento ? String(req.query.segmento).trim() : '',
+      city: cidade
+    });
+    res.json({ jobs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Read cached entorno scores and optionally auto-queue refresh
+app.get('/api/entorno/scores', (req, res) => {
+  try {
+    const segmento = normalizeSegment(req.query.segmento);
+    const raio = normalizeRadius(req.query.raio || DEFAULT_RADIUS);
+    const cidade = parseOptionalCity(req.query.cidade);
+    const force = String(req.query.force || '').toLowerCase() === 'true';
+
+    const scores = getScoresWithCoverage({ segment: segmento, radius: raio, city: cidade });
+    let job = null;
+
+    if (force || scores.coverage < 0.85) {
+      job = enqueueJob({ segment: segmento, radius: raio, city: cidade });
+    }
+
+    res.json({
+      segmento,
+      raio,
+      cidade,
+      totalPontos: scores.totalPoints,
+      pontosComCache: scores.freshPoints,
+      coberturaCache: Number(scores.coverage.toFixed(4)),
+      metrics: scores.metrics,
+      byPoint: scores.byPoint,
+      job
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

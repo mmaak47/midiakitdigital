@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react';
-import { Sparkles, PlusCircle, Target } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Loader2, PlusCircle, Sparkles, Target } from 'lucide-react';
 import CustomSelect from './CustomSelect';
 import { SEGMENTOS, OBJETIVOS, suggestIdealPlan } from '../lib/strategy';
+import { fetchEntornoJobStatus, fetchEntornoScores } from '../lib/api';
+
+const DEFAULT_ENTORNO_RADIUS = 800;
 
 export default function StrategicPlanner({ pontos = [], publicos = [], cidades = [], onAddPlan }) {
   const [form, setForm] = useState({
@@ -11,6 +14,83 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
     publico: '',
     investimentoMensal: 12000
   });
+  const [entorno, setEntorno] = useState({
+    loading: false,
+    jobId: null,
+    coverage: 0,
+    scoresByPoint: {},
+    updatedAt: null,
+    error: ''
+  });
+
+  useEffect(() => {
+    let active = true;
+    let pollTimer = null;
+
+    const loadScores = async (force = false) => {
+      try {
+        setEntorno((prev) => ({ ...prev, loading: true, error: '' }));
+        const response = await fetchEntornoScores({
+          segmento: form.segmento,
+          cidade: form.cidade,
+          raio: DEFAULT_ENTORNO_RADIUS,
+          force
+        });
+
+        if (!active) return;
+
+        const latest = response.metrics?.[0]?.updated_at || null;
+        setEntorno((prev) => ({
+          ...prev,
+          loading: false,
+          coverage: Number(response.coberturaCache || 0),
+          scoresByPoint: response.byPoint || {},
+          updatedAt: latest,
+          jobId: response.job?.jobId || null,
+          error: ''
+        }));
+
+        if (response.job?.jobId) {
+          pollJob(response.job.jobId);
+        }
+      } catch (err) {
+        if (!active) return;
+        setEntorno((prev) => ({
+          ...prev,
+          loading: false,
+          error: err.message || 'Erro ao consultar analise de entorno'
+        }));
+      }
+    };
+
+    const pollJob = (jobId) => {
+      const poll = async () => {
+        try {
+          const job = await fetchEntornoJobStatus(jobId);
+          if (!active) return;
+
+          if (job.status === 'completed' || job.status === 'failed') {
+            await loadScores(false);
+            return;
+          }
+
+          pollTimer = setTimeout(poll, 3500);
+        } catch {
+          if (!active) return;
+          pollTimer = setTimeout(poll, 5000);
+        }
+      };
+
+      poll();
+    };
+
+    loadScores(false);
+
+    return () => {
+      active = false;
+      if (pollTimer) clearTimeout(pollTimer);
+    };
+  }, [form.segmento, form.cidade]);
 
   const suggestion = useMemo(() => suggestIdealPlan({
     pontos,
@@ -18,8 +98,9 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
     publico: form.publico,
     objetivo: form.objetivo,
     segmento: form.segmento,
-    investimentoMensal: form.investimentoMensal
-  }), [pontos, form]);
+    investimentoMensal: form.investimentoMensal,
+    entornoByPoint: entorno.scoresByPoint
+  }), [pontos, form, entorno.scoresByPoint]);
 
   const totals = suggestion.totals;
 
@@ -51,6 +132,27 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
       <div className="grid lg:grid-cols-[1fr_auto] gap-4 items-start">
         <div>
           <p className="text-sm text-brand-gray-300 mb-3">{suggestion.justificativa}</p>
+          <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-brand-gray-400">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold uppercase tracking-wide text-brand-gray-300">Analise de entorno</span>
+              {entorno.loading && (
+                <span className="inline-flex items-center gap-1 text-brand-orange">
+                  <Loader2 size={12} className="animate-spin" />
+                  Atualizando
+                </span>
+              )}
+              {entorno.jobId && (
+                <span className="rounded-full border border-brand-orange/30 bg-brand-orange/10 px-2 py-0.5 text-brand-orange">
+                  Job #{entorno.jobId}
+                </span>
+              )}
+            </div>
+            <p className="mt-1">
+              Cobertura do cache: {(entorno.coverage * 100).toFixed(0)}% dos pontos
+              {entorno.updatedAt ? ` • atualizado em ${new Date(entorno.updatedAt).toLocaleString('pt-BR')}` : ''}
+            </p>
+            {entorno.error && <p className="mt-1 text-red-300">{entorno.error}</p>}
+          </div>
           <div className="flex flex-wrap gap-2.5 mb-4">
             {suggestion.pontos.slice(0, 8).map((p) => (
               <span key={p.id} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-orange/15 to-brand-orange/5 border border-brand-orange/30 text-xs font-medium text-brand-orange hover:border-brand-orange/60 transition-colors">
@@ -78,7 +180,7 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
 
       <div className="mt-4 flex items-center gap-2 text-xs text-brand-gray-500">
         <Target size={13} className="text-brand-orange" />
-        Recomendacao automatica com base em objetivo, publico e faixa de investimento.
+        Recomendacao automatica com base em objetivo, publico, faixa de investimento e analise de entorno por segmento.
       </div>
     </section>
   );

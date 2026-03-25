@@ -245,12 +245,28 @@ function getObjectiveFormatBoost(tipo, objetivo) {
   return 0;
 }
 
-function buildCandidate(point, { objetivo, publico, segmento, medianPrice, maxPrice }) {
+function scoreSegmentEnvironment(point, entornoByPoint = null) {
+  if (!entornoByPoint || !point?.id) return 0;
+
+  const metrics = entornoByPoint[point.id] || entornoByPoint[String(point.id)];
+  if (!metrics) return 0;
+
+  const total = Number(metrics.total_estabelecimentos_relacionados) || 0;
+  const score = Number(metrics.score_relevancia) || 0;
+  const categories = Array.isArray(metrics.categorias_encontradas)
+    ? metrics.categorias_encontradas.length
+    : 0;
+
+  return Math.min(48, score * 0.62 + total * 1.35 + categories * 2.8);
+}
+
+function buildCandidate(point, { objetivo, publico, segmento, medianPrice, maxPrice, entornoByPoint }) {
   const preco = Math.max(0, toNumber(point.preco));
   const objectiveScore = scorePointByObjective(point, objetivo);
   const efficiencyScore = scoreCostEfficiency(point);
   const publicoScore = scorePublicoAffinity(point, publico);
   const segmentoScore = scoreSegmentAffinity(point, segmento);
+  const entornoScore = scoreSegmentEnvironment(point, entornoByPoint);
   const formatBoost = getObjectiveFormatBoost(point.tipo, objetivo);
   const premiumPenalty = preco > medianPrice * 2.4 ? -8 : 0;
   const hugePenalty = maxPrice > 0 && preco > maxPrice * 0.85 ? -4 : 0;
@@ -258,11 +274,13 @@ function buildCandidate(point, { objetivo, publico, segmento, medianPrice, maxPr
   return {
     ...point,
     _preco: preco,
+    _entornoScore: entornoScore,
     _baseScore:
       objectiveScore * 1.25 +
       efficiencyScore * 0.9 +
       publicoScore +
       segmentoScore +
+      entornoScore +
       formatBoost +
       premiumPenalty +
       hugePenalty
@@ -313,7 +331,8 @@ export function suggestIdealPlan({
   publico,
   objetivo,
   segmento,
-  investimentoMensal = 0
+  investimentoMensal = 0,
+  entornoByPoint = null
 }) {
   const budget = Math.max(0, toNumber(investimentoMensal));
   const cidadeNormalizada = normalizeFilterValue(cidade, 'Todas');
@@ -341,7 +360,8 @@ export function suggestIdealPlan({
       publico: publicoNormalizado,
       segmento,
       medianPrice,
-      maxPrice
+      maxPrice,
+      entornoByPoint
     }))
     .sort((a, b) => b._baseScore - a._baseScore);
 
@@ -410,10 +430,11 @@ export function suggestIdealPlan({
     spend = candidates[0]._preco;
   }
 
-  const cleaned = selected.map(({ _baseScore, _preco, ...point }) => point);
+  const cleaned = selected.map(({ _baseScore, _preco, _entornoScore, ...point }) => point);
   const totals = campaignTotals(cleaned);
   const formatos = new Set(cleaned.map((p) => p.tipo).filter(Boolean)).size;
   const orcamentoUsoPct = budget > 0 ? Math.round((totals.valorTotal / budget) * 100) : null;
+  const withEntorno = selected.filter((point) => point._entornoScore > 0).length;
 
   let foco = 'equilibrio entre frequencia, eficiencia de custo e cobertura.';
   if (objetivo === 'presenca premium') {
@@ -431,6 +452,9 @@ export function suggestIdealPlan({
   const justificativa = [
     `Plano recomendado com ${totals.quantidade} ponto${totals.quantidade > 1 ? 's' : ''} e ${formatos} formato${formatos > 1 ? 's' : ''}, priorizando ${foco}`,
     `Fluxo potencial de ${new Intl.NumberFormat('pt-BR').format(totals.fluxoTotal)} impactos/mensais e CPM estimado em R$ ${totals.cpmEstimado.toFixed(2)}.`,
+    withEntorno > 0
+      ? `${withEntorno} ponto${withEntorno > 1 ? 's' : ''} recebeu ganho de aderencia por entorno relevante ao segmento selecionado.`
+      : 'Sem dados de entorno suficientes no momento, o plano foi calculado apenas com comportamento, publico e eficiencia.',
     budget > 0
       ? `Uso de orçamento em ${orcamentoUsoPct}% (R$ ${new Intl.NumberFormat('pt-BR').format(totals.valorTotal)} de R$ ${new Intl.NumberFormat('pt-BR').format(budget)}), com seleção por ganho marginal para evitar pontos redundantes.`
       : 'Sem limite de orçamento informado, o motor priorizou eficiência e diversidade para um plano-base robusto.'

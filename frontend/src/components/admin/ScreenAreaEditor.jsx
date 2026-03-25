@@ -8,7 +8,9 @@ import {
   normalizeCorners
 } from '../../lib/simulation';
 
-const HANDLE_RADIUS = 1.8;
+const HANDLE_RADIUS = 1.15;
+const EDGE_HIT_STROKE = 2.25;
+const HANDLE_HIT_RADIUS = 2.4;
 
 function bilerp(tl, tr, br, bl, u, v) {
   const top = {
@@ -228,14 +230,14 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
 
             {hasSelection && (
               <>
-                <polygon points={polygonPoints} fill="rgba(254,92,43,0.14)" stroke="rgba(254,92,43,0.85)" strokeWidth="0.35" />
+                <polygon points={polygonPoints} fill="rgba(254,92,43,0.12)" stroke="rgba(254,92,43,0.88)" strokeWidth="0.24" />
 
                 {Array.from({ length: 4 }).map((_, index) => (
-                  <polyline key={`grid-h-${index}`} points={polylineForInterpolation(activeCorners, 'v', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.24)" strokeWidth="0.18" />
+                  <polyline key={`grid-h-${index}`} points={polylineForInterpolation(activeCorners, 'v', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.12" />
                 ))}
 
                 {Array.from({ length: 4 }).map((_, index) => (
-                  <polyline key={`grid-v-${index}`} points={polylineForInterpolation(activeCorners, 'u', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.18" />
+                  <polyline key={`grid-v-${index}`} points={polylineForInterpolation(activeCorners, 'u', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.13)" strokeWidth="0.12" />
                 ))}
 
                 <polygon points={polygonPoints} fill="transparent" onPointerDown={startQuadDrag} style={{ cursor: 'move' }} />
@@ -253,7 +255,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
                     x2={edge.b.x}
                     y2={edge.b.y}
                     stroke="transparent"
-                    strokeWidth="4"
+                    strokeWidth={EDGE_HIT_STROKE}
                     onPointerDown={(event) => startEdgeDrag(event, edge.key)}
                     style={{ cursor: edge.key === 'top' || edge.key === 'bottom' ? 'ns-resize' : 'ew-resize' }}
                   />
@@ -261,8 +263,8 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
 
                 {activeCorners.map((point, index) => (
                   <g key={`handle-${index}`}>
-                    <circle cx={point.x} cy={point.y} r={HANDLE_RADIUS * 1.8} fill="transparent" onPointerDown={(event) => startCornerDrag(event, index)} style={{ cursor: 'grab' }} />
-                    <circle cx={point.x} cy={point.y} r={HANDLE_RADIUS} fill="white" stroke="rgba(254,92,43,0.95)" strokeWidth="0.45" pointerEvents="none" />
+                    <circle cx={point.x} cy={point.y} r={HANDLE_HIT_RADIUS} fill="transparent" onPointerDown={(event) => startCornerDrag(event, index)} style={{ cursor: 'grab' }} />
+                    <circle cx={point.x} cy={point.y} r={HANDLE_RADIUS} fill="white" stroke="rgba(254,92,43,0.98)" strokeWidth="0.34" pointerEvents="none" />
                   </g>
                 ))}
               </>

@@ -2,16 +2,31 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
-  Building2, Save, Copy, Check
+  Building2, Save, Copy, Check, Loader2, RefreshCcw
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
-import { login, fetchAdminPontos, createPonto, updatePonto, deletePonto } from '../lib/api';
+import {
+  login,
+  fetchAdminPontos,
+  createPonto,
+  updatePonto,
+  deletePonto,
+  fetchEntornoCategories,
+  fetchEntornoJobs,
+  fetchEntornoJobStatus,
+  requestEntornoAnalysis
+} from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
 import { parseScreen, serializeSimulationConfig } from '../lib/simulation';
 
 const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const DEFAULT_TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
 const PUBLICOS = ['A', 'B', 'A/B'];
+const ENTORNO_SEGMENTOS = [
+  'clinica', 'hospital', 'educacao', 'escola', 'faculdade',
+  'automotivo', 'varejo', 'restaurante', 'imobiliaria',
+  'construtora', 'contabilidade', 'advocacia', 'industria', 'outro'
+];
 
 const emptyForm = {
   nome: '', cidade: 'Londrina', tipo: 'Elevador', endereco: '',
@@ -40,6 +55,18 @@ export default function Admin() {
   const [search, setSearch] = useState('');
   const [promptCopied, setPromptCopied] = useState(false);
 
+  const [entornoForm, setEntornoForm] = useState({
+    segmento: 'clinica',
+    cidade: '',
+    raio: 800
+  });
+  const [entornoCategories, setEntornoCategories] = useState([]);
+  const [entornoProviders, setEntornoProviders] = useState(null);
+  const [entornoBusy, setEntornoBusy] = useState(false);
+  const [entornoError, setEntornoError] = useState('');
+  const [entornoJobs, setEntornoJobs] = useState([]);
+  const [entornoCurrentJob, setEntornoCurrentJob] = useState(null);
+
   const [cidades, setCidades] = useState([]);
   const [tipos, setTipos] = useState([]);
 
@@ -67,6 +94,78 @@ export default function Admin() {
     setBaseImagePreviewUrl(blobUrl);
     return () => URL.revokeObjectURL(blobUrl);
   }, [imageFile]);
+
+  useEffect(() => {
+    if (!auth) return;
+
+    let cancelled = false;
+
+    const loadCategories = async () => {
+      try {
+        const data = await fetchEntornoCategories(entornoForm.segmento);
+        if (cancelled) return;
+        setEntornoCategories(Array.isArray(data.categorias) ? data.categorias : []);
+        setEntornoProviders(data.providers || null);
+      } catch {
+        if (cancelled) return;
+        setEntornoCategories([]);
+      }
+    };
+
+    loadCategories();
+    return () => {
+      cancelled = true;
+    };
+  }, [auth, entornoForm.segmento]);
+
+  useEffect(() => {
+    if (!auth) return;
+
+    let cancelled = false;
+
+    const loadJobs = async () => {
+      try {
+        const response = await fetchEntornoJobs({ limit: 15 });
+        if (cancelled) return;
+        setEntornoJobs(Array.isArray(response.jobs) ? response.jobs : []);
+      } catch {
+        if (cancelled) return;
+        setEntornoJobs([]);
+      }
+    };
+
+    loadJobs();
+    const timer = setInterval(loadJobs, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [auth]);
+
+  useEffect(() => {
+    if (!entornoCurrentJob?.id) return;
+
+    const status = String(entornoCurrentJob.status || '').toLowerCase();
+    if (status === 'completed' || status === 'failed') return;
+
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const latest = await fetchEntornoJobStatus(entornoCurrentJob.id);
+        if (cancelled) return;
+        setEntornoCurrentJob(latest);
+      } catch {
+        if (cancelled) return;
+      }
+    };
+
+    const timer = setInterval(tick, 3000);
+    tick();
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [entornoCurrentJob?.id, entornoCurrentJob?.status]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -169,6 +268,29 @@ export default function Admin() {
       loadPontos();
     } catch (err) {
       alert(err.message);
+    }
+  };
+
+  const handleRunEntorno = async () => {
+    setEntornoBusy(true);
+    setEntornoError('');
+    try {
+      const payload = {
+        segmento: entornoForm.segmento,
+        cidade: entornoForm.cidade,
+        raio: Number(entornoForm.raio) || 800
+      };
+      const response = await requestEntornoAnalysis(payload);
+      if (response?.jobId) {
+        const job = await fetchEntornoJobStatus(response.jobId);
+        setEntornoCurrentJob(job);
+      }
+      const jobsResponse = await fetchEntornoJobs({ limit: 15 });
+      setEntornoJobs(Array.isArray(jobsResponse.jobs) ? jobsResponse.jobs : []);
+    } catch (err) {
+      setEntornoError(err.message || 'Falha ao enfileirar análise de entorno');
+    } finally {
+      setEntornoBusy(false);
     }
   };
 
@@ -302,6 +424,19 @@ export default function Admin() {
             Novo ponto
           </button>
         </div>
+
+        <EntornoAdminPanel
+          form={entornoForm}
+          setForm={setEntornoForm}
+          cidades={cidades}
+          categories={entornoCategories}
+          providers={entornoProviders}
+          busy={entornoBusy}
+          error={entornoError}
+          onRun={handleRunEntorno}
+          currentJob={entornoCurrentJob}
+          jobs={entornoJobs}
+        />
 
         {/* Search */}
         <div className="mb-6">
@@ -568,6 +703,147 @@ function FormField({ label, value, onChange, className = '', type = 'text', ...p
         {...props}
       />
     </div>
+  );
+}
+
+function EntornoAdminPanel({
+  form,
+  setForm,
+  cidades,
+  categories,
+  providers,
+  busy,
+  error,
+  onRun,
+  currentJob,
+  jobs
+}) {
+  const currentStatus = String(currentJob?.status || '').toLowerCase();
+  const processing = currentStatus === 'queued' || currentStatus === 'running';
+
+  return (
+    <section className="mb-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Análise de entorno</h3>
+          <p className="text-xs text-brand-gray-500 mt-1">Reprocessamento manual por segmento e cidade, com fila assíncrona e monitoramento de jobs.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onRun}
+          disabled={busy}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
+        >
+          {busy ? <Loader2 size={15} className="animate-spin" /> : <RefreshCcw size={15} />}
+          {busy ? 'Enfileirando...' : 'Reprocessar agora'}
+        </button>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+        <div>
+          <label className="block text-xs text-brand-gray-400 mb-1.5">Segmento</label>
+          <select
+            value={form.segmento}
+            onChange={(e) => setForm((prev) => ({ ...prev, segmento: e.target.value }))}
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+          >
+            {ENTORNO_SEGMENTOS.map((segmento) => (
+              <option key={segmento} value={segmento} className="bg-brand-dark">{segmento}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs text-brand-gray-400 mb-1.5">Cidade</label>
+          <select
+            value={form.cidade}
+            onChange={(e) => setForm((prev) => ({ ...prev, cidade: e.target.value }))}
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+          >
+            <option value="" className="bg-brand-dark">Todas</option>
+            {cidades.map((cidade) => (
+              <option key={cidade} value={cidade} className="bg-brand-dark">{cidade}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs text-brand-gray-400 mb-1.5">Raio (m)</label>
+          <input
+            type="number"
+            min={200}
+            max={2000}
+            step={50}
+            value={form.raio}
+            onChange={(e) => setForm((prev) => ({ ...prev, raio: Number(e.target.value) || 800 }))}
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+          />
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-brand-gray-300">
+          <p className="font-semibold uppercase tracking-wide text-brand-gray-400 mb-1">Provedores</p>
+          {providers ? (
+            <>
+              <p>Ordem: {Array.isArray(providers.providerOrder) ? providers.providerOrder.join(' → ') : '-'}</p>
+              <p className="mt-1">Disponíveis: {Object.entries(providers.availableProviders || {}).filter(([, ok]) => !!ok).map(([name]) => name).join(', ') || 'nenhum'}</p>
+            </>
+          ) : (
+            <p>Carregando configuração...</p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-brand-gray-300">
+        <p className="font-semibold uppercase tracking-wide text-brand-gray-400 mb-1">Categorias do segmento</p>
+        <p>{categories.length ? categories.join(', ') : 'Nenhuma categoria configurada para este segmento.'}</p>
+      </div>
+
+      {error && (
+        <p className="mt-3 text-xs text-red-300">{error}</p>
+      )}
+
+      {currentJob && (
+        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-brand-gray-300">
+          <p className="font-semibold uppercase tracking-wide text-brand-gray-400">Job atual #{currentJob.id}</p>
+          <p className="mt-1">Status: <span className={processing ? 'text-brand-orange' : currentStatus === 'failed' ? 'text-red-300' : 'text-green-300'}>{currentJob.status}</span></p>
+          <p className="mt-1">Processados: {currentJob.processed_points || 0}/{currentJob.total_points || 0} • Erros: {currentJob.error_count || 0}</p>
+          {currentJob.last_error && <p className="mt-1 text-red-300">Último erro: {currentJob.last_error}</p>}
+        </div>
+      )}
+
+      <div className="mt-3 overflow-x-auto rounded-xl border border-white/10">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-white/[0.03] text-left text-brand-gray-400">
+              <th className="px-3 py-2">Job</th>
+              <th className="px-3 py-2">Segmento</th>
+              <th className="px-3 py-2">Cidade</th>
+              <th className="px-3 py-2">Raio</th>
+              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">Progresso</th>
+              <th className="px-3 py-2">Atualizado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {jobs.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-3 py-4 text-center text-brand-gray-500">Nenhum job recente.</td>
+              </tr>
+            ) : jobs.map((job) => (
+              <tr key={job.id} className="border-t border-white/5 text-brand-gray-300">
+                <td className="px-3 py-2">#{job.id}</td>
+                <td className="px-3 py-2">{job.segmento_analisado}</td>
+                <td className="px-3 py-2">{job.cidade || 'Todas'}</td>
+                <td className="px-3 py-2">{job.raio_m}m</td>
+                <td className="px-3 py-2">{job.status}</td>
+                <td className="px-3 py-2">{job.processed_points || 0}/{job.total_points || 0}</td>
+                <td className="px-3 py-2">{job.updated_at ? new Date(job.updated_at).toLocaleString('pt-BR') : '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

@@ -56,6 +56,44 @@ ensureColumn('pontos', 'arte_largura', 'INTEGER DEFAULT 1920');
 ensureColumn('pontos', 'arte_altura', 'INTEGER DEFAULT 1080');
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS entorno_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ponto_id INTEGER NOT NULL,
+    latitude REAL,
+    longitude REAL,
+    segmento_analisado TEXT NOT NULL,
+    raio_m INTEGER NOT NULL,
+    total_estabelecimentos_relacionados INTEGER DEFAULT 0,
+    categorias_encontradas TEXT,
+    distancia_media REAL,
+    score_relevancia REAL DEFAULT 0,
+    raw_result TEXT,
+    updated_at TEXT DEFAULT (datetime('now')),
+    expires_at TEXT,
+    UNIQUE(ponto_id, segmento_analisado, raio_m),
+    FOREIGN KEY (ponto_id) REFERENCES pontos(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS entorno_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    segmento_analisado TEXT NOT NULL,
+    raio_m INTEGER NOT NULL,
+    cidade TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'queued',
+    total_points INTEGER DEFAULT 0,
+    processed_points INTEGER DEFAULT 0,
+    error_count INTEGER DEFAULT 0,
+    last_error TEXT,
+    started_at TEXT,
+    finished_at TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+db.exec(`
   UPDATE pontos
   SET
     arte_largura = COALESCE(arte_largura, 1920),
@@ -75,6 +113,21 @@ db.exec(`
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_pontos_ativo_publico
   ON pontos (ativo, publico)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_entorno_cache_segment_radius
+  ON entorno_cache (segmento_analisado, raio_m)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_entorno_cache_expires
+  ON entorno_cache (expires_at)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_entorno_jobs_segment_radius_status
+  ON entorno_jobs (segmento_analisado, raio_m, status)
 `);
 
 // Seed data if empty

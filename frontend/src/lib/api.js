@@ -73,3 +73,53 @@ export async function deletePonto(id) {
   if (!res.ok) throw new Error('Erro ao deletar ponto');
   return res.json();
 }
+
+export async function fetchEntornoScores({ segmento, raio = 800, cidade, force = false }) {
+  const params = new URLSearchParams();
+  if (segmento) params.set('segmento', segmento);
+  if (raio) params.set('raio', String(raio));
+  if (cidade && cidade !== 'Todas') params.set('cidade', cidade);
+  if (force) params.set('force', 'true');
+
+  const res = await fetch(`${API_BASE}/entorno/scores?${params.toString()}`);
+  if (!res.ok) throw new Error('Erro ao carregar scores de entorno');
+  return res.json();
+}
+
+export async function requestEntornoAnalysis({ segmento, raio = 800, cidade }) {
+  const res = await fetch(`${API_BASE}/entorno/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ segmento, raio, cidade })
+  });
+  if (!res.ok) throw new Error('Erro ao enfileirar analise de entorno');
+  return res.json();
+}
+
+export async function fetchEntornoJobStatus(jobId) {
+  const res = await fetch(`${API_BASE}/entorno/jobs/${jobId}`);
+  if (!res.ok) throw new Error('Erro ao consultar status da analise de entorno');
+  return res.json();
+}
+
+export async function fetchEntornoCategories(segmento) {
+  const params = new URLSearchParams();
+  if (segmento) params.set('segmento', segmento);
+
+  const query = params.toString();
+  const res = await fetch(`${API_BASE}/entorno/categories${query ? `?${query}` : ''}`);
+  if (!res.ok) throw new Error('Erro ao carregar categorias de entorno');
+  return res.json();
+}
+
+export async function fetchEntornoJobs({ limit = 20, status, segmento, cidade } = {}) {
+  const params = new URLSearchParams();
+  if (limit) params.set('limit', String(limit));
+  if (status) params.set('status', status);
+  if (segmento) params.set('segmento', segmento);
+  if (cidade && cidade !== 'Todas') params.set('cidade', cidade);
+
+  const res = await fetch(`${API_BASE}/entorno/jobs?${params.toString()}`);
+  if (!res.ok) throw new Error('Erro ao carregar jobs de entorno');
+  return res.json();
+}

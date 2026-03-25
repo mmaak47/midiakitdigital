@@ -10,8 +10,8 @@ export const defaultDisplaySettings = {
   brightness: 1.08,
   reflection: 0.18,
   spill: 0.14,
-  ledPixelIntensity: 0.18,
-  ledPixelSize: 6,
+  ledPixelIntensity: 0.1,
+  ledPixelSize: 5,
   glare: 0.12
 };
 
@@ -263,14 +263,14 @@ function drawScreenGlow(ctx, corners, settings, canvasWidth, canvasHeight) {
   ctx.clip();
   ctx.globalCompositeOperation = 'screen';
   const radial = ctx.createRadialGradient(bounds.centerX, bounds.centerY, 0, bounds.centerX, bounds.centerY, glowRadius);
-  radial.addColorStop(0, `rgba(255,255,255,${0.08 + (settings.brightness - 1) * 0.16})`);
-  radial.addColorStop(0.55, `rgba(255,196,120,${settings.glare * 0.45})`);
+  radial.addColorStop(0, `rgba(255,255,255,${0.06 + (settings.brightness - 1) * 0.12})`);
+  radial.addColorStop(0.55, `rgba(255,196,120,${settings.glare * 0.34})`);
   radial.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = radial;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
   if (settings.brightness > 1) {
-    ctx.fillStyle = `rgba(255,255,255,${(settings.brightness - 1) * 0.12})`;
+    ctx.fillStyle = `rgba(255,255,255,${(settings.brightness - 1) * 0.08})`;
     createQuadPath(ctx, corners);
     ctx.fill();
   }
@@ -301,18 +301,42 @@ function getLedPattern(size, intensity) {
   const key = `${size}-${intensity}`;
   if (!getLedPattern.cache.has(key)) {
     const pitch = Math.max(4, Math.round(size));
+    const tile = pitch * 2;
     const canvas = document.createElement('canvas');
-    canvas.width = pitch;
-    canvas.height = pitch;
+    canvas.width = tile;
+    canvas.height = tile;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      ctx.clearRect(0, 0, pitch, pitch);
-      ctx.fillStyle = `rgba(0,0,0,${0.28 + intensity * 0.45})`;
-      ctx.fillRect(0, 0, pitch, pitch);
+      ctx.clearRect(0, 0, tile, tile);
+      ctx.fillStyle = `rgba(7,8,12,${0.02 + intensity * 0.06})`;
+      ctx.fillRect(0, 0, tile, tile);
+
+      const drawDot = (x, y, radius, alpha) => {
+        const gradient = ctx.createRadialGradient(x, y, radius * 0.15, x, y, radius);
+        gradient.addColorStop(0, `rgba(255,255,255,${alpha})`);
+        gradient.addColorStop(0.45, `rgba(255,255,255,${alpha * 0.45})`);
+        gradient.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      };
+
+      const radius = Math.max(0.75, pitch * 0.19);
+      const alpha = 0.06 + intensity * 0.12;
+      drawDot(pitch * 0.5, pitch * 0.5, radius, alpha);
+      drawDot(pitch * 1.5, pitch * 0.52, radius * 0.95, alpha * 0.88);
+      drawDot(pitch * 0.54, pitch * 1.52, radius * 0.95, alpha * 0.82);
+      drawDot(pitch * 1.48, pitch * 1.5, radius * 0.9, alpha * 0.76);
+
+      ctx.strokeStyle = `rgba(255,255,255,${0.012 + intensity * 0.02})`;
+      ctx.lineWidth = 0.45;
       ctx.beginPath();
-      ctx.fillStyle = `rgba(255,255,255,${0.10 + intensity * 0.28})`;
-      ctx.arc(pitch / 2, pitch / 2, Math.max(0.8, pitch * 0.18), 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(pitch, 0);
+      ctx.lineTo(pitch, tile);
+      ctx.moveTo(0, pitch);
+      ctx.lineTo(tile, pitch);
+      ctx.stroke();
     }
     getLedPattern.cache.set(key, canvas);
   }
@@ -332,7 +356,12 @@ function drawLedPixels(ctx, corners, settings) {
   createQuadPath(ctx, corners);
   ctx.clip();
   ctx.globalCompositeOperation = 'multiply';
-  ctx.globalAlpha = 0.48 + settings.ledPixelIntensity * 0.42;
+  ctx.globalAlpha = 0.16 + settings.ledPixelIntensity * 0.18;
+  ctx.fillStyle = pattern;
+  ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
+
+  ctx.globalCompositeOperation = 'screen';
+  ctx.globalAlpha = 0.03 + settings.ledPixelIntensity * 0.08;
   ctx.fillStyle = pattern;
   ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
   ctx.restore();
