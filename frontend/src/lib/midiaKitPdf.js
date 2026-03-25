@@ -13,15 +13,15 @@ const BRAND_PANEL = '#171717';
 const BRAND_BORDER = 'rgba(255,255,255,0.08)';
 
 const CITY_STATE_MAP = {
-  'londrina': 'Paran├í',
-  'maring├í': 'Paran├í',
-  'maringa': 'Paran├í',
-  'balne├írio cambori├║': 'Santa Catarina',
+  'londrina': 'Paraná',
+  'maringá': 'Paraná',
+  'maringa': 'Paraná',
+  'balneário camboriú': 'Santa Catarina',
   'balneario camboriu': 'Santa Catarina',
-  'itaja├¡': 'Santa Catarina',
+  'itajaí': 'Santa Catarina',
   'itajai': 'Santa Catarina',
-  'curitiba': 'Paran├í',
-  'florian├│polis': 'Santa Catarina',
+  'curitiba': 'Paraná',
+  'florianópolis': 'Santa Catarina',
   'florianopolis': 'Santa Catarina',
 };
 function getCityState(cidade) {
@@ -111,6 +111,19 @@ function pickImageUrl(ponto) {
 
 function pickProposalImageUrl(ponto) {
   return ponto?.proposalSimulationPreview || ponto?.simulacao_preview || pickImageUrl(ponto);
+}
+
+function isVehicleFlowPoint(point) {
+  const explicit = String(point?.tipo_fluxo || '').toLowerCase().trim();
+  if (explicit === 'veiculos') return true;
+  if (explicit === 'pessoas') {
+    const tipo = String(point?.tipo || '').toLowerCase();
+    if (tipo.includes('painel') && tipo.includes('led')) return true;
+    return false;
+  }
+
+  const tipo = String(point?.tipo || '').toLowerCase();
+  return tipo.includes('painel') && tipo.includes('led');
 }
 
 function buildResumo(pontos) {
@@ -243,15 +256,15 @@ function buildCalibrationPreviewData() {
     nome: 'MUFFATO MADRE LEONIA (ELEVADOR SOCIAL)',
     cidade: 'Londrina',
     tipo: 'Tela Indoor',
-    endereco: 'Av. Madre Leonia Milito, 1175 ┬À Gleba Palhano',
+    endereco: 'Av. Madre Leonia Milito, 1175 • Gleba Palhano',
     publico: 'A/B',
     fluxo: 128000,
     telas: 4,
     insercoes: 720,
     tempo: '15s',
     loop: '3 min',
-    veiculacao: 'V├¡deo sem ├íudio',
-    horario: '06:00 ├ás 22:00',
+    veiculacao: 'Vídeo sem áudio',
+    horario: '06:00 às 22:00',
     preco: 6200,
     proposalSimulationPreview: ''
   };
@@ -264,12 +277,12 @@ function buildCalibrationPreviewData() {
     proposalCity: 'Londrina',
     proposalTotals: { valorTotal: 24800, fluxoTotal: 512000, cpmEstimado: 18.42, insercoesTotal: 1440 },
     highlights: [
-      'Cobertura premium em rotas de alta recorr├¬ncia.',
-      'Presen├ºa visual forte em pontos de decis├úo e deslocamento.',
-      'Leitura comercial organizada para defesa r├ípida na reuni├úo.'
+      'Cobertura premium em rotas de alta recorrência.',
+      'Presença visual forte em pontos de decisão e deslocamento.',
+      'Leitura comercial organizada para defesa rápida na reunião.'
     ],
     point,
-    points: [point, { ...point, nome: 'AEROPORTO DE LONDRINA (SAGU├âO)', endereco: 'Av. Santos Dumont, 900' }]
+    points: [point, { ...point, nome: 'AEROPORTO DE LONDRINA (SAGUÃO)', endereco: 'Av. Santos Dumont, 900' }]
   };
 }
 
@@ -369,7 +382,7 @@ function buildMetricCards(cards, options = {}) {
       ${cards.map((card) => `
         <div style="border:1px solid ${options.borderColor || BRAND_BORDER};background:${options.background || 'rgba(255,255,255,0.06)'};border-radius:${options.radius || 26}px;padding:${options.padding || '24px 26px'};backdrop-filter:blur(10px);min-height:${options.minHeight || 0}px;box-sizing:border-box;">
           <div style="display:flex;align-items:center;gap:12px;color:${options.labelColor || 'rgba(255,255,255,0.72)'};font-size:${options.labelSize || 16}px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">
-            <span style="display:inline-flex;align-items:center;justify-content:center;width:${options.iconSize || 36}px;height:${options.iconSize || 36}px;border-radius:999px;background:rgba(254,92,43,0.18);color:${BRAND_ORANGE};font-weight:700;line-height:1;flex:0 0 auto;">${card.iconHtml || escapeHtml(card.icon || 'ÔÇó')}</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:${options.iconSize || 36}px;height:${options.iconSize || 36}px;border-radius:999px;background:rgba(254,92,43,0.18);color:${BRAND_ORANGE};font-weight:700;line-height:1;flex:0 0 auto;">${card.iconHtml || escapeHtml(card.icon || '•')}</span>
             <span style="line-height:1.2;">${escapeHtml(card.label)}</span>
           </div>
           <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:${options.valueSize || 36}px;line-height:1.05;font-weight:700;color:${options.valueColor || '#ffffff'};letter-spacing:-0.03em;word-break:${options.valueWordBreak || 'break-word'};white-space:${options.valueWhiteSpace || 'normal'};">${escapeHtml(card.value)}</div>
@@ -387,10 +400,10 @@ function proposalIcon(kind) {
     return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7a8 8 0 0 0-13.7-2.5"></path><path d="M17 7h3V4"></path><path d="M4 17a8 8 0 0 0 13.7 2.5"></path><path d="M7 17H4v3"></path></svg>`;
   }
   if (kind === 'money') {
-    return `<span style="font-family:Poppins, system-ui, sans-serif;font-size:32px;font-weight:700;line-height:1;display:block;transform:translateY(1px);">R$</span>`;
+    return `<span style="font-family:Poppins, system-ui, sans-serif;font-size:23px;font-weight:700;line-height:1;display:block;transform:translateY(0.5px);">R$</span>`;
   }
   if (kind === 'cpm') {
-    return `<span style="font-family:Poppins, system-ui, sans-serif;font-size:28px;font-weight:700;line-height:1;display:block;transform:translateY(1px);">CP</span>`;
+    return `<span style="font-family:Poppins, system-ui, sans-serif;font-size:20px;font-weight:700;line-height:1;display:block;transform:translateY(0.5px);">CP</span>`;
   }
   return `<span style="display:block;width:8px;height:8px;border-radius:999px;background:${BRAND_ORANGE};"></span>`;
 }
@@ -403,7 +416,7 @@ function buildHeroImageFrame(image, options = {}) {
   if (!image) {
     return `
       <div style="height:100%;border-radius:${options.radius || 30}px;border:1px solid ${BRAND_BORDER};background:linear-gradient(135deg,#121212,#1B1B1B);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.62);font-size:28px;font-weight:600;">
-        Imagem indispon├¡vel
+        Imagem indisponível
       </div>
     `;
   }
@@ -459,7 +472,7 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
       <div style="font-family:Poppins, system-ui, sans-serif;color:#fff;font-size:64px;line-height:0.95;font-weight:700;text-transform:uppercase;">${escapeHtml(cidade)}</div>
       ${estado ? `<div style="margin-top:10px;color:#fff;font-size:16px;letter-spacing:0.06em;text-transform:uppercase;opacity:0.82;">${escapeHtml(estado)}</div>` : ''}
       <div style="margin-top:20px;color:${BRAND_ORANGE};font-size:30px;font-weight:700;letter-spacing:0.03em;">MIDIAKIT 2026</div>
-      <div style="margin-top:10px;color:rgba(255,255,255,0.86);font-size:20px;">${formatInt(pontos.length)} pontos ÔÇó ${formatInt(resumo.telas)} telas ÔÇó fluxo ${formatInt(resumo.fluxo)}/m├¬s</div>
+      <div style="margin-top:10px;color:rgba(255,255,255,0.86);font-size:20px;">${formatInt(pontos.length)} pontos • ${formatInt(resumo.telas)} telas • fluxo ${formatInt(resumo.fluxo)}/mês</div>
     </div>
   `, '#030303');
 }
@@ -475,20 +488,20 @@ function buildMidiaKitManifestoPage({ assets }) {
     <div style="position:absolute;left:740px;right:82px;top:82px;">
       <img src="${assets.logo || ''}" alt="" style="height:70px;width:auto;object-fit:contain;" />
       <div style="margin-top:24px;font-size:23px;line-height:1.42;color:#fff;max-width:760px;">
-        Na Intermidia, n├úo apenas defendemos a m├¡dia OOH e DOOH. N├│s vivemos a transforma├º├úo que ela representa.
+        Na Intermidia, não apenas defendemos a mídia OOH e DOOH. Nós vivemos a transformação que ela representa.
       </div>
       <div style="margin-top:22px;width:180px;height:4px;background:${BRAND_ORANGE};"></div>
     </div>
 
     <div style="position:absolute;left:740px;right:82px;top:270px;display:grid;grid-template-columns:1fr 1fr;gap:34px;">
       <div style="font-size:21px;line-height:1.45;color:#fff;">
-        <strong style="display:block;font-family:Poppins, system-ui, sans-serif;font-size:58px;line-height:1.08;font-weight:700;letter-spacing:-0.02em;margin-bottom:22px;">A Intermidia ├® especialista em comunica├º├úo Out of Home e Digital Out of Home desde 2007.</strong>
-        Somos apaixonados pelo impacto que a m├¡dia OOH e DOOH pode gerar.
+        <strong style="display:block;font-family:Poppins, system-ui, sans-serif;font-size:58px;line-height:1.08;font-weight:700;letter-spacing:-0.02em;margin-bottom:22px;">A Intermidia é especialista em comunicação Out of Home e Digital Out of Home desde 2007.</strong>
+        Somos apaixonados pelo impacto que a mídia OOH e DOOH pode gerar.
       </div>
       <div style="font-size:21px;line-height:1.45;color:#fff;">
-        Valorizamos a for├ºa da publicidade no ambiente urbano e acreditamos que cada ponto de contato ├® uma oportunidade para transformar marcas em refer├¬ncia.
+        Valorizamos a força da publicidade no ambiente urbano e acreditamos que cada ponto de contato é uma oportunidade para transformar marcas em referência.
         <br/><br/>
-        Entregamos solu├º├Áes que levam sua mensagem al├®m do ├│bvio, alcan├ºando as pessoas onde elas vivem, trabalham e se movem.
+        Entregamos soluções que levam sua mensagem além do óbvio, alcançando as pessoas onde elas vivem, trabalham e se movem.
       </div>
     </div>
   `, '#000');
@@ -515,7 +528,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
   const lines = rows.map((row) => `${row.tipo.toLowerCase()} e ${formatInt(row.pontos)} pontos`).join(', ');
 
   const cards = [
-    { label: 'endere├ºos', value: formatInt(totalEnderecos) },
+    { label: 'endereços', value: formatInt(totalEnderecos) },
     { label: 'pontos de impacto', value: formatInt(totalPontos) }
   ];
 
@@ -542,7 +555,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
         </div>
       `).join('')}
       <div style="margin-top:26px;font-size:40px;line-height:1.4;color:#fff;max-width:460px;">
-        em <strong>${escapeHtml(lines || 'formatos estrat├®gicos')}</strong> com cobertura urbana premium.
+        em <strong>${escapeHtml(lines || 'formatos estratégicos')}</strong> com cobertura urbana premium.
       </div>
     </div>
 
@@ -581,7 +594,7 @@ function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }
       <div style="font-family:Poppins, system-ui, sans-serif;font-size:58px;font-weight:700;line-height:1;">${escapeHtml(formatInt(telas))}</div>
       <div style="font-size:34px;line-height:1.15;opacity:0.92;">telas</div>
       <div style="margin-top:16px;font-family:Poppins, system-ui, sans-serif;font-size:58px;font-weight:700;line-height:1;">${escapeHtml(formatInt(enderecos))}</div>
-      <div style="font-size:34px;line-height:1.15;opacity:0.92;">endere├ºos</div>
+      <div style="font-size:34px;line-height:1.15;opacity:0.92;">endereços</div>
     </div>
 
     <div style="position:absolute;left:82px;bottom:58px;font-family:Poppins, system-ui, sans-serif;font-size:22px;font-weight:700;color:rgba(255,255,255,0.7);letter-spacing:0.06em;text-transform:uppercase;">${escapeHtml((cityStats.cidade || '').toUpperCase())}</div>
@@ -595,14 +608,14 @@ function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }
 function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   const layout = getActivePdfLayoutConfig().midiaKit.pointPage;
   const estado = getCityState(ponto.cidade);
-  const fluxoLabel = ponto.tipo_fluxo === 'veiculos' ? 'Veículos / mês' : 'Pessoas / mês';
+  const fluxoLabel = isVehicleFlowPoint(ponto) ? 'Veículos / mês' : 'Pessoas / mês';
   const details = [
     { key: 'publico', label: 'Público', value: ponto.publico || '-' },
     { key: 'fluxo', label: fluxoLabel, value: formatInt(ponto.fluxo) },
     { key: 'telas', label: 'Telas', value: formatInt(ponto.telas) },
-    { key: 'insercoes', label: 'Inserções', value: `Mín. ${formatInt(ponto.insercoes)}` },
+    { key: 'insercoes', label: 'Inserções', value: `Mínimo de ${formatInt(ponto.insercoes)}` },
     { key: 'tempo', label: 'Tempo', value: ponto.tempo || '-' },
-    { key: 'loop', label: 'Looping', value: `Mín. ${ponto.loop || '-'}` },
+    { key: 'loop', label: 'Looping', value: `Mínimo de ${ponto.loop || '-'}` },
     { label: 'Veiculação', value: ponto.veiculacao || '-' },
     { label: 'Horário', value: ponto.horario || '-' }
   ];
@@ -626,7 +639,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
 
     <div style="position:absolute;left:${layout.contentLeft}px;top:42px;right:${layout.contentRight}px;border-bottom:2px solid #161616;padding-bottom:12px;">
       <div style="display:flex;align-items:center;gap:16px;">
-        <div style="width:46px;height:46px;border:2px solid #222;display:flex;align-items:center;justify-content:center;font-size:21px;">ÔûÑ</div>
+        <div style="width:46px;height:46px;border:2px solid #222;display:flex;align-items:center;justify-content:center;font-size:21px;">#</div>
         <div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.typeFontSize}px;line-height:0.9;font-weight:700;letter-spacing:-0.03em;color:#000;">${escapeHtml((ponto.tipo || 'FORMATO').toUpperCase())}</div>
       </div>
     </div>
@@ -636,7 +649,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
         <div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.nameFontSize}px;line-height:1.02;font-weight:700;color:#000;max-width:calc(100% - ${layout.nameMaxWidthOffset}px);word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME')}</div>
         <div style="font-size:44px;line-height:0.95;font-weight:700;color:#000;white-space:nowrap;padding-top:8px;">${index}/${total}</div>
       </div>
-      <div style="margin-top:8px;font-size:18px;line-height:1.3;color:#444;">${escapeHtml(ponto.endereco || 'Endere├ºo n├úo informado')}${escapeHtml(ponto.cidade ? ` ┬À ${ponto.cidade}` : '')}</div>
+      <div style="margin-top:8px;font-size:18px;line-height:1.3;color:#444;">${escapeHtml(ponto.endereco || 'Endereço não informado')}${escapeHtml(ponto.cidade ? ` • ${ponto.cidade}` : '')}</div>
     </div>
 
     <div style="position:absolute;left:${layout.contentLeft}px;top:${layout.metricsBoxTop}px;right:${layout.contentRight}px;border:2px solid rgba(17,17,17,0.32);background:rgba(255,255,255,0.5);padding:22px 24px;border-radius:16px;"></div>
@@ -655,8 +668,8 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
     <div style="position:absolute;left:${layout.contentLeft}px;bottom:${layout.footerLineBottom}px;right:${layout.contentRight}px;border-top:2px solid #1a1a1a;"></div>
     <div style="position:absolute;left:${layout.contentLeft}px;bottom:${layout.footerBottom}px;right:${layout.contentRight}px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
       <div>
-        <div style="font-size:20px;line-height:1.35;color:#111;">m├¡nimo de ${escapeHtml(formatInt(ponto.insercoes || 0))} inser├º├Áes/m├¬s</div>
-        <div style="font-size:20px;line-height:1.35;color:#111;">veicula├º├úo: ${escapeHtml((ponto.veiculacao || 'v├¡deo sem ├íudio').toLowerCase())}</div>
+        <div style="font-size:20px;line-height:1.35;color:#111;">mínimo de ${escapeHtml(formatInt(ponto.insercoes || 0))} inserções/mês</div>
+        <div style="font-size:20px;line-height:1.35;color:#111;">veiculação: ${escapeHtml((ponto.veiculacao || 'vídeo sem áudio').toLowerCase())}</div>
       </div>
       <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-end;min-width:320px;">
         <div style="font-size:26px;line-height:1;color:#111;margin-bottom:${layout.priceLabelMarginBottom}px;">Valor mensal:</div>
@@ -673,20 +686,13 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
   const pointsWithEntorno = proposalPoints.filter((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0).length;
   const originalTotal = pricingSummary?.originalTotal ?? proposalTotals.valorTotal;
   const finalTotal = pricingSummary?.finalTotal ?? proposalTotals.valorTotal;
-  const hasDiscount = pricingSummary?.hasDiscount && originalTotal !== finalTotal;
-  const cards = hasDiscount
-    ? [
-        { iconHtml: proposalIcon('target'), label: 'Pontos', value: formatInt(proposalPoints.length) },
-        { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
-        { iconHtml: proposalIcon('money'), label: 'Valor Tabela', value: formatMoney(originalTotal) },
-        { iconHtml: proposalIcon('money'), label: 'Valor Negociado', value: formatMoney(finalTotal) }
-      ]
-    : [
-        { iconHtml: proposalIcon('target'), label: 'Pontos', value: formatInt(proposalPoints.length) },
-        { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
-        { iconHtml: proposalIcon('money'), label: 'Valor Negociado', value: formatMoney(finalTotal) },
-        { iconHtml: proposalIcon('cpm'), label: 'CPM estimado', value: formatDecimalMoney(proposalTotals.cpmEstimado) }
-      ];
+  const cards = [
+    { iconHtml: proposalIcon('target'), label: 'Pontos', value: formatInt(proposalPoints.length) },
+    { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
+    { iconHtml: proposalIcon('money'), label: 'Valor Tabela', value: formatMoney(originalTotal) },
+    { iconHtml: proposalIcon('money'), label: 'Valor Negociado', value: formatMoney(finalTotal) },
+    { iconHtml: proposalIcon('cpm'), label: 'CPM estimado', value: formatDecimalMoney(proposalTotals.cpmEstimado) }
+  ];
   const strategicItems = highlights.length ? highlights : ['Argumentos estratégicos serão definidos na reunião comercial.'];
 
   return createPage(`
@@ -703,7 +709,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
         </div>
 
         <div style="margin-top:40px;font-family:Poppins, system-ui, sans-serif;font-size:84px;line-height:0.92;font-weight:700;letter-spacing:-0.05em;max-width:760px;">${escapeHtml(proposalClient)}</div>
-        <div style="margin-top:20px;font-size:28px;line-height:1.45;color:rgba(255,255,255,0.74);max-width:720px;">Praça ${escapeHtml(proposalCity)} com material de venda redesenhado para leitura mais forte, imagens melhor enquadradas e informações sem estouro de margem.</div>
+        <div style="margin-top:20px;font-size:28px;line-height:1.45;color:rgba(255,255,255,0.74);max-width:720px;">Planejamento comercial para ${escapeHtml(proposalCity)} com foco em cobertura, frequência e presença de marca.</div>
 
         <div data-calibration-id="proposal.cover.chips" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:24px;">
           ${[
@@ -766,7 +772,7 @@ function buildProposalPointPage({ point, index, total, image, image2, segmento, 
   const audience = buildAudienceQualification(point);
   const environment = buildEntornoSummary(point?.entornoMetrics, segmento);
   const relevantPlacesCount = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
-  const fluxoLabel = point.tipo_fluxo === 'veiculos' ? 'veículos/mês' : 'pessoas/mês';
+  const fluxoLabel = isVehicleFlowPoint(point) ? 'veículos/mês' : 'pessoas/mês';
   const coords = (() => {
     const lat = Number(point.lat); const lng = Number(point.lng);
     if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) > 0.0001) {
@@ -777,7 +783,7 @@ function buildProposalPointPage({ point, index, total, image, image2, segmento, 
   const stats = [
     { label: 'Fluxo', value: `${formatInt(point.fluxo)} ${fluxoLabel}` },
     { label: 'Telas', value: formatInt(point.telas) },
-    { label: 'Mín. Inserções', value: formatInt(point.insercoes) },
+    { label: 'Inserções', value: `Mínimo de ${formatInt(point.insercoes)}` },
     { label: 'Valor Negociado', value: formatMoney(point.preco) }
   ];
 
@@ -879,7 +885,36 @@ function hashToAngle(value) {
   return (normalized * Math.PI) / 180;
 }
 
-function buildEntornoEvidenceMapSvg(rows) {
+function clampLat(lat) {
+  return Math.max(-85.05112878, Math.min(85.05112878, lat));
+}
+
+function lngLatToWorldPixel(lat, lng, zoom) {
+  const latClamped = clampLat(lat);
+  const sin = Math.sin((latClamped * Math.PI) / 180);
+  const scale = 256 * (2 ** zoom);
+  const x = ((lng + 180) / 360) * scale;
+  const y = (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale;
+  return { x, y };
+}
+
+function pickMapZoom(samples, width, height, padding = 28) {
+  for (let zoom = 15; zoom >= 9; zoom -= 1) {
+    const projected = samples.map((item) => lngLatToWorldPixel(item.lat, item.lng, zoom));
+    const minX = Math.min(...projected.map((item) => item.x));
+    const maxX = Math.max(...projected.map((item) => item.x));
+    const minY = Math.min(...projected.map((item) => item.y));
+    const maxY = Math.max(...projected.map((item) => item.y));
+    const spanX = Math.max(maxX - minX, 1);
+    const spanY = Math.max(maxY - minY, 1);
+    if (spanX <= (width - padding * 2) * 0.92 && spanY <= (height - padding * 2) * 0.92) {
+      return zoom;
+    }
+  }
+  return 9;
+}
+
+function buildEntornoEvidenceMapHtml(rows) {
   const width = 980;
   const height = 380;
   const padding = 34;
@@ -918,7 +953,7 @@ function buildEntornoEvidenceMapSvg(rows) {
   if (!points.length) {
     return `
       <div style="height:100%;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.62);font-size:15px;">
-        Sem coordenadas v├ílidas para montar o mapa de evid├¬ncias.
+        Sem coordenadas válidas para montar o mapa de evidências.
       </div>
     `;
   }
@@ -928,18 +963,32 @@ function buildEntornoEvidenceMapSvg(rows) {
     ...realPlaceCoords.map((item) => ({ lat: item.lat, lng: item.lng }))
   ];
 
-  const minLat = Math.min(...mapSamples.map((item) => item.lat));
-  const maxLat = Math.max(...mapSamples.map((item) => item.lat));
-  const minLng = Math.min(...mapSamples.map((item) => item.lng));
-  const maxLng = Math.max(...mapSamples.map((item) => item.lng));
-
-  const latSpan = Math.max(maxLat - minLat, 0.01);
-  const lngSpan = Math.max(maxLng - minLng, 0.01);
+  const zoom = pickMapZoom(mapSamples, width, height, padding);
+  const projectedSamples = mapSamples.map((item) => lngLatToWorldPixel(item.lat, item.lng, zoom));
+  const minX = Math.min(...projectedSamples.map((item) => item.x));
+  const maxX = Math.max(...projectedSamples.map((item) => item.x));
+  const minY = Math.min(...projectedSamples.map((item) => item.y));
+  const maxY = Math.max(...projectedSamples.map((item) => item.y));
+  const spanX = Math.max(maxX - minX, 1);
+  const spanY = Math.max(maxY - minY, 1);
+  const innerWidth = width - padding * 2;
+  const innerHeight = height - padding * 2;
+  const scale = Math.min(innerWidth / spanX, innerHeight / spanY, 1);
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  const viewWorldWidth = width / scale;
+  const viewWorldHeight = height / scale;
+  const viewMinX = centerX - viewWorldWidth / 2;
+  const viewMinY = centerY - viewWorldHeight / 2;
+  const viewMaxX = viewMinX + viewWorldWidth;
+  const viewMaxY = viewMinY + viewWorldHeight;
 
   const project = (lat, lng) => {
-    const x = padding + ((lng - minLng) / lngSpan) * (width - padding * 2);
-    const y = padding + ((maxLat - lat) / latSpan) * (height - padding * 2);
-    return { x, y };
+    const world = lngLatToWorldPixel(lat, lng, zoom);
+    return {
+      x: (world.x - viewMinX) * scale,
+      y: (world.y - viewMinY) * scale
+    };
   };
 
   const nearbyMarkers = realPlaceCoords.map((place) => {
@@ -978,36 +1027,47 @@ function buildEntornoEvidenceMapSvg(rows) {
     });
   }
 
-  const pointMarkersSvg = points.map((entry) => {
+  const pointMarkersHtml = points.map((entry) => {
     const { x, y } = project(entry.lat, entry.lng);
     return `
-      <g>
-        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="10" fill="rgba(254,92,43,0.28)" stroke="rgba(254,92,43,0.5)" stroke-width="1"></circle>
-        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6.2" fill="${BRAND_ORANGE}"></circle>
-        <text x="${x.toFixed(1)}" y="${(y + 3.2).toFixed(1)}" text-anchor="middle" font-size="8" font-weight="700" fill="#0a0a0a">${entry.index}</text>
-      </g>
+      <div style="position:absolute;left:${(x - 10).toFixed(1)}px;top:${(y - 10).toFixed(1)}px;width:20px;height:20px;border-radius:999px;border:1px solid rgba(254,92,43,0.56);background:rgba(254,92,43,0.3);"></div>
+      <div style="position:absolute;left:${(x - 6).toFixed(1)}px;top:${(y - 6).toFixed(1)}px;width:12px;height:12px;border-radius:999px;background:${BRAND_ORANGE};"></div>
+      <div style="position:absolute;left:${(x - 7).toFixed(1)}px;top:${(y - 6).toFixed(1)}px;min-width:14px;text-align:center;font-size:9px;font-weight:700;color:#0a0a0a;line-height:12px;">${entry.index}</div>
     `;
   }).join('');
 
-  const nearbyMarkersSvg = nearbyMarkers.map((marker) => `
-    <g>
-      <circle cx="${marker.x.toFixed(1)}" cy="${marker.y.toFixed(1)}" r="4" fill="rgba(255,255,255,0.74)" stroke="rgba(255,255,255,0.32)" stroke-width="1"></circle>
-      <title>${escapeHtml(`${marker.label} ÔÇó ${Math.round(marker.distance)} m`)}</title>
-    </g>
+  const nearbyMarkersHtml = nearbyMarkers.map((marker) => `
+    <div title="${escapeHtml(`${marker.label} • ${Math.round(marker.distance)} m`)}" style="position:absolute;left:${(marker.x - 4).toFixed(1)}px;top:${(marker.y - 4).toFixed(1)}px;width:8px;height:8px;border-radius:999px;background:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.32);"></div>
   `).join('');
 
+  const tileSize = 256;
+  const worldTiles = 2 ** zoom;
+  const startTileX = Math.floor(viewMinX / tileSize);
+  const endTileX = Math.floor(viewMaxX / tileSize);
+  const startTileY = Math.floor(viewMinY / tileSize);
+  const endTileY = Math.floor(viewMaxY / tileSize);
+  const tilePx = tileSize * scale;
+
+  const tilesHtml = [];
+  for (let tileX = startTileX; tileX <= endTileX; tileX += 1) {
+    for (let tileY = startTileY; tileY <= endTileY; tileY += 1) {
+      if (tileY < 0 || tileY >= worldTiles) continue;
+      const wrappedTileX = ((tileX % worldTiles) + worldTiles) % worldTiles;
+      const left = ((tileX * tileSize) - viewMinX) * scale;
+      const top = ((tileY * tileSize) - viewMinY) * scale;
+      tilesHtml.push(`
+        <img crossorigin="anonymous" src="https://tile.openstreetmap.org/${zoom}/${wrappedTileX}/${tileY}.png" alt="" style="position:absolute;left:${left.toFixed(2)}px;top:${top.toFixed(2)}px;width:${(tilePx + 0.5).toFixed(2)}px;height:${(tilePx + 0.5).toFixed(2)}px;object-fit:cover;" />
+      `);
+    }
+  }
+
   return `
-    <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mapa esquem├ítico de pontos e entorno">
-      <defs>
-        <pattern id="gridPattern" width="38" height="38" patternUnits="userSpaceOnUse">
-          <path d="M 38 0 L 0 0 0 38" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1" />
-        </pattern>
-      </defs>
-      <rect x="0" y="0" width="${width}" height="${height}" rx="16" fill="rgba(8,8,8,0.78)" />
-      <rect x="0" y="0" width="${width}" height="${height}" rx="16" fill="url(#gridPattern)" />
-      ${nearbyMarkersSvg}
-      ${pointMarkersSvg}
-    </svg>
+    <div style="position:relative;width:100%;height:100%;border-radius:16px;overflow:hidden;background:#0b0b0b;" role="img" aria-label="Mapa geográfico de pontos e entorno">
+      ${tilesHtml.join('')}
+      <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.05),rgba(0,0,0,0.16));"></div>
+      ${nearbyMarkersHtml}
+      ${pointMarkersHtml}
+    </div>
   `;
 }
 
@@ -1039,7 +1099,7 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
       };
     });
 
-  const evidenceMapSvg = buildEntornoEvidenceMapSvg(rows);
+  const evidenceMapSvg = buildEntornoEvidenceMapHtml(rows);
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#050505;"></div>
@@ -1050,14 +1110,14 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
         <div style="display:flex;align-items:center;gap:14px;">
           <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;" />
-          <div style="display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 16px;border-radius:999px;background:rgba(254,92,43,0.16);border:1px solid rgba(254,92,43,0.24);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Evid├¬ncias de entorno</div>
+          <div style="display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 16px;border-radius:999px;background:rgba(254,92,43,0.16);border:1px solid rgba(254,92,43,0.24);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Evidências de entorno</div>
         </div>
-        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.62);">${escapeHtml(proposalCity || 'M├║ltiplas pra├ºas')} ÔÇó ${escapeHtml(segmentLabel)}</div>
+        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.62);">${escapeHtml(proposalCity || 'Múltiplas praças')} • ${escapeHtml(segmentLabel)}</div>
       </div>
 
       <div style="padding:18px 22px;border-radius:22px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;">
         <div>
-          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Pontos com ader├¬ncia</div>
+          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Pontos com aderência</div>
           <div style="margin-top:8px;font-size:34px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(pointsWithEntorno.length)}</div>
         </div>
         <div>
@@ -1072,7 +1132,7 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
 
       <div style="display:grid;grid-template-columns:1.05fr 0.95fr;gap:14px;min-height:320px;">
         <div style="border-radius:20px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);overflow:hidden;position:relative;">
-          <div style="position:absolute;top:10px;left:12px;z-index:2;padding:5px 10px;border-radius:999px;border:1px solid rgba(254,92,43,0.26);background:rgba(254,92,43,0.14);font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${BRAND_ORANGE};">Mapa esquem├ítico de evid├¬ncias</div>
+          <div style="position:absolute;top:10px;left:12px;z-index:2;padding:5px 10px;border-radius:999px;border:1px solid rgba(254,92,43,0.26);background:rgba(254,92,43,0.14);font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${BRAND_ORANGE};">Mapa geográfico de evidências</div>
           <div style="position:absolute;right:12px;bottom:10px;z-index:2;display:flex;gap:10px;align-items:center;font-size:11px;color:rgba(255,255,255,0.68);">
             <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:999px;background:${BRAND_ORANGE};display:inline-block;"></span>Pontos</span>
             <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:999px;background:rgba(255,255,255,0.8);display:inline-block;"></span>Entorno</span>
@@ -1084,7 +1144,7 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
           ${rows.slice(0, 3).map(({ point, totalLocais, score }) => `
             <div style="padding:14px 14px;border-radius:16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
               <div style="font-size:16px;line-height:1.2;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
-              <div style="margin-top:5px;font-size:12px;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} ÔÇó ${escapeHtml(point.tipo || '-')}</div>
+              <div style="margin-top:5px;font-size:12px;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} • ${escapeHtml(point.tipo || '-')}</div>
               <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
                 <div style="font-size:12px;color:rgba(255,255,255,0.62);">Locais relevantes</div>
                 <div style="font-size:20px;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(totalLocais)}</div>
@@ -1100,7 +1160,7 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
           <div style="padding:14px 16px;border-radius:18px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);display:grid;grid-template-columns:2fr 0.8fr 1.5fr;gap:14px;align-items:start;">
             <div>
               <div style="font-size:17px;line-height:1.2;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
-              <div style="margin-top:3px;font-size:12px;color:rgba(255,255,255,0.65);">${escapeHtml(point.cidade || '-')} ÔÇó ${escapeHtml(point.tipo || '-')}</div>
+              <div style="margin-top:3px;font-size:12px;color:rgba(255,255,255,0.65);">${escapeHtml(point.cidade || '-')} • ${escapeHtml(point.tipo || '-')}</div>
               <div style="margin-top:8px;font-size:12px;line-height:1.42;color:rgba(255,255,255,0.78);">${escapeHtml(summary.summary)}</div>
             </div>
             <div>
@@ -1109,7 +1169,7 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
               <div style="margin-top:4px;font-size:12px;color:${BRAND_ORANGE};font-weight:700;">score ${score.toFixed(1).replace('.', ',')}</div>
             </div>
             <div style="display:grid;gap:6px;">
-              ${(places.length ? places : ['Sem locais pr├│ximos listados no cache atual.']).map((label) => `
+              ${(places.length ? places : ['Sem locais próximos listados no cache atual.']).map((label) => `
                 <div style="padding:8px 10px;border-radius:12px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);font-size:11px;color:rgba(255,255,255,0.82);line-height:1.35;word-break:break-word;">${escapeHtml(label)}</div>
               `).join('')}
             </div>
@@ -1321,7 +1381,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
           <div style="font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Impacto por ponto</div>
           ${proposalPoints.map((p) => `
             <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;">
-              <div style="font-size:16px;color:#fff;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.nome || 'Ponto')}</div>
+              <div style="font-size:16px;color:#fff;font-weight:600;min-width:0;max-width:72%;line-height:1.25;white-space:normal;word-break:break-word;">${escapeHtml(p.nome || 'Ponto')}</div>
               <div style="flex-shrink:0;font-size:15px;color:rgba(255,255,255,0.72);">${formatInt(p.fluxo || 0)}/mês</div>
             </div>
           `).join('')}
@@ -1330,7 +1390,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
         <div style="padding:28px 30px;border-radius:28px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;gap:16px;">
           <div style="font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Resumo financeiro</div>
           ${[
-            { label: 'Mín. Inserções/mês', value: formatInt(insercoesTotal) },
+            { label: 'Inserções/mês', value: `Mínimo de ${formatInt(insercoesTotal)}` },
             { label: 'Valor Negociado', value: formatMoney(finalTotal) },
             { label: 'Custo por impacto', value: fluxoTotal > 0 ? `R$ ${(finalTotal / fluxoTotal).toFixed(2).replace('.', ',')}` : '-' }
           ].map((row) => `
@@ -1339,7 +1399,6 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
               <div style="margin-top:6px;font-size:26px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${escapeHtml(row.value)}</div>
             </div>
           `).join('')}
-          ${simulationSummary ? `<div style="margin-top:auto;padding:12px 14px;border-radius:14px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.07);font-size:12px;line-height:1.5;color:rgba(255,255,255,0.6);">${escapeHtml(simulationSummary)}</div>` : ''}
         </div>
       </div>
     </div>
@@ -1348,7 +1407,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
 
 export async function generateMidiaKitPdf({ praca, pontos }) {
   activePdfLayoutConfig = await loadPdfLayoutConfig();
-  const cidade = praca && praca !== 'Todas as pra├ºas' ? praca : 'Consolidado';
+  const cidade = praca && praca !== 'Todas as praças' ? praca : 'Consolidado';
   const kitPontos = Array.isArray(pontos) ? pontos : [];
   const resumo = buildResumo(kitPontos);
   const assets = await loadPdfAssets();

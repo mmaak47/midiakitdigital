@@ -12,6 +12,9 @@ import {
   Users
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { Circle, CircleMarker, MapContainer, TileLayer, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { buildAudienceQualification, buildEntornoSummary, getSegmentDisplayName } from '../lib/strategy';
 
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -36,12 +39,33 @@ export default function PresentationMode({ points = [], totals, segmento, client
 
   const currentView = useMemo(() => {
     if (!current) return null;
+    const lat = Number(current.lat);
+    const lng = Number(current.lng);
+    const pointCoords = Number.isFinite(lat) && Number.isFinite(lng)
+      ? { lat, lng }
+      : null;
+    const nearbyCoords = Array.isArray(current?.entornoMetrics?.places)
+      ? current.entornoMetrics.places
+        .filter((place) => Number.isFinite(Number(place?.lat)) && Number.isFinite(Number(place?.lng)))
+        .slice(0, 20)
+        .map((place) => ({
+          lat: Number(place.lat),
+          lng: Number(place.lng),
+          name: place.name || 'Local',
+          distance: Number(place.distance) || 0
+        }))
+      : [];
+
     return {
       mediaUrl: current.proposalSimulationPreview || current.simulacao_preview || current.imagem,
       audience: buildAudienceQualification(current),
       entorno: buildEntornoSummary(current.entornoMetrics, segmento),
       segmentLabel: getSegmentDisplayName(segmento),
-      radiusMeters: Number(current?.entornoMetrics?.raio_m) || 800
+      radiusMeters: Number(current?.entornoMetrics?.raio_m) || 800,
+      geo: {
+        point: pointCoords,
+        nearby: nearbyCoords
+      }
     };
   }, [current, segmento]);
 
@@ -198,10 +222,12 @@ export default function PresentationMode({ points = [], totals, segmento, client
                     }}
                   />
 
-                  <RadiusRadarCard
-                    title="Visual de raio e proximidade"
+                  <GeoRadiusMapCard
+                    title="Mapa geográfico de evidências"
                     radiusMeters={currentView.radiusMeters}
-                    places={currentView.entorno.places}
+                    point={currentView.geo.point}
+                    places={currentView.geo.nearby}
+                    fallbackPlaces={currentView.entorno.places}
                   />
                 </div>
               </div>
@@ -328,6 +354,81 @@ function MiniStat({ label, value }) {
       <div className="text-[10px] uppercase tracking-[0.14em] text-brand-gray-500">{label}</div>
       <div className="mt-1 text-lg font-semibold text-white">{value}</div>
     </div>
+  );
+}
+
+function FitGeoBounds({ point, places = [], radiusMeters }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!point) return;
+    const coords = [
+      L.latLng(point.lat, point.lng),
+      ...places.map((place) => L.latLng(place.lat, place.lng))
+    ];
+
+    if (coords.length > 1) {
+      map.fitBounds(L.latLngBounds(coords), { padding: [28, 28], maxZoom: 16 });
+      return;
+    }
+
+    map.setView([point.lat, point.lng], radiusMeters >= 1500 ? 13 : 14);
+  }, [map, point, places, radiusMeters]);
+
+  return null;
+}
+
+function GeoRadiusMapCard({ title, radiusMeters, point, places = [], fallbackPlaces = [] }) {
+  if (!point) {
+    return <RadiusRadarCard title={title} radiusMeters={radiusMeters} places={fallbackPlaces} />;
+  }
+
+  return (
+    <motion.div layout className="rounded-[24px] border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-4">
+      <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-brand-gray-500">
+        <Building2 size={14} className="text-brand-orange" />
+        {title}
+      </div>
+
+      <div className="mt-3 h-[240px] overflow-hidden rounded-2xl border border-white/10">
+        <MapContainer
+          center={[point.lat, point.lng]}
+          zoom={14}
+          className="h-full w-full"
+          zoomControl={false}
+          attributionControl={false}
+          style={{ background: '#0a0a0a' }}
+        >
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <FitGeoBounds point={point} places={places} radiusMeters={radiusMeters} />
+
+          <Circle
+            center={[point.lat, point.lng]}
+            radius={Math.max(100, Number(radiusMeters) || 800)}
+            pathOptions={{ color: '#FE5C2B', fillColor: '#FE5C2B', fillOpacity: 0.1, weight: 1.4 }}
+          />
+
+          <CircleMarker
+            center={[point.lat, point.lng]}
+            radius={7}
+            pathOptions={{ color: '#0a0a0a', fillColor: '#FE5C2B', fillOpacity: 1, weight: 1.8 }}
+          />
+
+          {places.map((place, index) => (
+            <CircleMarker
+              key={`${place.name}-${index}`}
+              center={[place.lat, place.lng]}
+              radius={4}
+              pathOptions={{ color: 'rgba(255,255,255,0.4)', fillColor: '#ffffff', fillOpacity: 0.85, weight: 1 }}
+            />
+          ))}
+        </MapContainer>
+      </div>
+
+      <p className="mt-2 text-xs text-brand-gray-500">
+        Raio analisado: <span className="font-semibold text-brand-gray-300">{formatRadius(Math.max(100, Number(radiusMeters) || 800))}</span>
+      </p>
+    </motion.div>
   );
 }
 

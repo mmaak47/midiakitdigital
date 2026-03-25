@@ -17,13 +17,25 @@ export default function PointModal({ ponto, onClose }) {
   const formatNumber = (n) =>
     new Intl.NumberFormat('pt-BR').format(n);
 
+  const isVehicleFlow = (() => {
+    const explicit = String(ponto.tipo_fluxo || '').toLowerCase().trim();
+    if (explicit === 'veiculos') return true;
+    if (explicit === 'pessoas') {
+      const tipo = String(ponto.tipo || '').toLowerCase();
+      return tipo.includes('painel') && tipo.includes('led');
+    }
+    const tipo = String(ponto.tipo || '').toLowerCase();
+    return tipo.includes('painel') && tipo.includes('led');
+  })();
+  const fluxoUnit = isVehicleFlow ? 'veículos' : 'pessoas';
+
   const details = [
     { icon: MapPin, label: 'Endereço', value: ponto.endereco },
     { icon: Clock, label: 'Horário', value: ponto.horario },
-    { icon: Users, label: 'Fluxo mensal', value: formatNumber(ponto.fluxo) + ' pessoas' },
-    { icon: Hash, label: 'Inserções mensais', value: formatNumber(ponto.insercoes) },
+    { icon: Users, label: 'Fluxo mensal', value: formatNumber(ponto.fluxo) + ` ${fluxoUnit}` },
+    { icon: Hash, label: 'Inserções mensais', value: `Mínimo de ${formatNumber(ponto.insercoes)}` },
     { icon: Play, label: 'Tempo do anúncio', value: ponto.tempo },
-    { icon: RotateCcw, label: 'Loop', value: ponto.loop },
+    { icon: RotateCcw, label: 'Looping', value: ponto.loop ? `Mínimo de ${ponto.loop}` : '' },
     { icon: Monitor, label: 'Veiculação', value: ponto.veiculacao },
     { icon: Monitor, label: 'Quantidade de telas', value: ponto.telas },
     { icon: Users, label: 'Público', value: `Classe ${ponto.publico}` },

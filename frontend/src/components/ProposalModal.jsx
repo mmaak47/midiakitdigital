@@ -30,6 +30,7 @@ import { fetchClientAddressAnalysis, fetchEntornoJobStatus, fetchEntornoScores }
 import CustomSelect from './CustomSelect';
 import ProposalBuilder from './ProposalBuilder';
 import PresentationMode from './PresentationMode';
+import QuickPresentationMode from './QuickPresentationMode';
 
 const DEFAULT_ENTORNO_RADIUS = 800;
 
@@ -37,6 +38,7 @@ export default function ProposalModal({ onClose }) {
   const { favorites } = useFavorites();
   const [step, setStep] = useState('review');
   const [showPresentation, setShowPresentation] = useState(false);
+  const [showQuickPresentation, setShowQuickPresentation] = useState(false);
   const [form, setForm] = useState({
     clientName: '',
     clientAddress: '',
@@ -327,7 +329,7 @@ export default function ProposalModal({ onClose }) {
   const simulationSummary = useMemo(() => {
     const items = Object.values(simulationResults);
     if (!simulationArtFile) {
-      return 'A área da tela vem do admin. Gere o prompt desta proposta, produza a arte e envie aqui para montar os previews que entram na apresentação.';
+      return '';
     }
     if (!items.length) {
       return 'Arte carregada. Ajuste brilho, reflexo, spill de luz e pixel LED para aproximar o look do simulador antes de gerar.';
@@ -780,7 +782,7 @@ export default function ProposalModal({ onClose }) {
                   </div>
                 </div>
 
-                <div className="grid sm:grid-cols-3 gap-3">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <button onClick={handleExportProposalPdf} disabled={pdfBusy} className="h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(254,92,43,0.28)]">
                     <Download size={16} />
                     {pdfBusy ? 'Gerando PDF...' : 'Exportar PDF da proposta'}
@@ -789,6 +791,11 @@ export default function ProposalModal({ onClose }) {
                   <button onClick={() => setShowPresentation(true)} className="h-11 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] font-medium inline-flex items-center justify-center gap-2">
                     <Presentation size={16} />
                     Modo apresentação
+                  </button>
+
+                  <button onClick={() => setShowQuickPresentation(true)} className="h-11 rounded-xl border border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange font-medium inline-flex items-center justify-center gap-2">
+                    <Presentation size={16} />
+                    Apresentação rápida
                   </button>
 
                   <button onClick={() => setStep('review')} className="h-11 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] font-medium">
@@ -803,6 +810,10 @@ export default function ProposalModal({ onClose }) {
 
       {showPresentation && (
         <PresentationMode points={proposalPoints} totals={totals} segmento={form.segmento} clientName={form.clientName} pricingSummary={pricingSummary} onClose={() => setShowPresentation(false)} />
+      )}
+
+      {showQuickPresentation && (
+        <QuickPresentationMode points={proposalPoints} totals={totals} segmento={form.segmento} clientName={form.clientName} pricingSummary={pricingSummary} onClose={() => setShowQuickPresentation(false)} />
       )}
 
       {showPreviewLightbox && activePreviewPoint && (
