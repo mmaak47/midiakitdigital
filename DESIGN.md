@@ -204,6 +204,10 @@ transition-all duration-300
   - Ajuste um valor numérico no config
   - Gere o PDF para validar visualmente
   - Repita microajustes até ficar no ponto
+- Modo calibração no app:
+  - Acesse `/admin`
+  - Use o painel `Modo calibração PDF`
+  - Os valores são salvos no navegador e aplicados automaticamente na próxima geração do PDF
 
 Exemplos de campos úteis para ajuste fino:
 

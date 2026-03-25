@@ -17,6 +17,7 @@ import {
   requestEntornoAnalysis
 } from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
+import PdfCalibrationPanel from '../components/admin/PdfCalibrationPanel';
 import { parseScreen, serializeSimulationConfig } from '../lib/simulation';
 
 const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
@@ -437,6 +438,8 @@ export default function Admin() {
           currentJob={entornoCurrentJob}
           jobs={entornoJobs}
         />
+
+        <PdfCalibrationPanel />
 
         {/* Search */}
         <div className="mb-6">

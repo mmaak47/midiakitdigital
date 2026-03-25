@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { PDF_LAYOUT } from './pdfLayoutConfig';
+import { getPdfLayoutConfig } from './pdfLayoutConfig';
 
 const PAGE_WIDTH = 1600;
 const PAGE_HEIGHT = 1131;
@@ -303,7 +303,7 @@ function metricIconSvg(kind, color = '#111111') {
 }
 
 function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
-  const layout = PDF_LAYOUT.midiaKit.cover;
+  const layout = getPdfLayoutConfig().midiaKit.cover;
   const cityLine = cidade === 'Consolidado' && layout.showAllCitiesOnConsolidated
     ? 'Londrina, Maringá e Balneário Camboriú'
     : cidade;
@@ -429,7 +429,7 @@ function splitFormatTitle(tipo) {
 }
 
 function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
-  const layout = PDF_LAYOUT.midiaKit.formatDivider;
+  const layout = getPdfLayoutConfig().midiaKit.formatDivider;
   const lines = splitFormatTitle(tipo);
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
@@ -460,7 +460,7 @@ function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
 }
 
 function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
-  const layout = PDF_LAYOUT.midiaKit.pointPage;
+  const layout = getPdfLayoutConfig().midiaKit.pointPage;
   const details = [
     { key: 'publico', label: 'Público', value: ponto.publico || '-' },
     { key: 'fluxo', label: 'Fluxo / mês', value: formatInt(ponto.fluxo) },
@@ -529,7 +529,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
 }
 
 function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, highlights, simulationSummary, assets }) {
-  const layout = PDF_LAYOUT.proposal.cover;
+  const layout = getPdfLayoutConfig().proposal.cover;
   const cards = [
     { iconHtml: proposalIcon('target'), label: 'Pontos', value: formatInt(proposalPoints.length) },
     { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
@@ -599,7 +599,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
 }
 
 function buildProposalPointPage({ point, index, total, image, assets }) {
-  const layout = PDF_LAYOUT.proposal.point;
+  const layout = getPdfLayoutConfig().proposal.point;
   const stats = [
     { label: 'Público', value: point.publico || '-' },
     { label: 'Fluxo', value: formatInt(point.fluxo) },
