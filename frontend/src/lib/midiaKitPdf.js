@@ -282,6 +282,10 @@ function metricIconSvg(kind, color = '#111111') {
 }
 
 function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
+  const cityLine = cidade === 'Consolidado'
+    ? 'Londrina, Maringá e Balneário Camboriú'
+    : cidade;
+
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
     <div style="position:absolute;inset:0;background:url('${assets.heroBg || assets.cityBg || ''}') center/cover no-repeat;"></div>
@@ -296,12 +300,12 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
     <div style="position:absolute;left:72px;bottom:120px;width:420px;">
       <div style="font-family:Poppins, system-ui, sans-serif;color:#fff;font-size:58px;line-height:0.95;font-weight:700;letter-spacing:-0.04em;">Elevando o branding</div>
       <div style="margin-top:20px;color:rgba(255,255,255,0.8);font-size:34px;line-height:1.22;">Invista no futuro da publicidade OOH e DOOH</div>
-      <div style="margin-top:26px;display:inline-flex;align-items:center;padding:10px 16px;background:#fff;color:#000;font-size:18px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;">Out of Home</div>
+      <div style="margin-top:26px;display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 18px;background:#fff;color:#000;font-size:18px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;line-height:1;">Out of Home</div>
     </div>
 
     <div style="position:absolute;right:70px;bottom:90px;text-align:left;">
       <div style="font-family:Poppins, system-ui, sans-serif;color:#fff;font-size:64px;line-height:0.95;font-weight:700;text-transform:uppercase;">${escapeHtml(cidade)}</div>
-      <div style="margin-top:10px;color:#fff;font-size:16px;letter-spacing:0.06em;text-transform:uppercase;opacity:0.82;">Londrina, Maringá e Balneário Camboriú</div>
+      <div style="margin-top:10px;color:#fff;font-size:16px;letter-spacing:0.06em;text-transform:uppercase;opacity:0.82;">${escapeHtml(cityLine)}</div>
       <div style="margin-top:20px;color:${BRAND_ORANGE};font-size:30px;font-weight:700;letter-spacing:0.03em;">MIDIAKIT 2026</div>
       <div style="margin-top:10px;color:rgba(255,255,255,0.86);font-size:20px;">${formatInt(pontos.length)} pontos • ${formatInt(resumo.telas)} telas • fluxo ${formatInt(resumo.fluxo)}/mês</div>
     </div>
@@ -411,24 +415,16 @@ function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
 
     <div style="position:absolute;left:0;top:0;bottom:0;width:170px;background:linear-gradient(180deg,#0a0a0a,#050505);border-right:1px solid rgba(255,255,255,0.12);"></div>
     <div style="position:absolute;left:0;top:0;bottom:0;width:170px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
-    <div style="position:absolute;left:16px;top:18px;right:16px;display:flex;justify-content:center;">
-      <img src="${assets.logo07 || assets.logoHorizontal || assets.logo || ''}" alt="" style="height:60px;width:auto;object-fit:contain;" />
+    <div style="position:absolute;left:22px;top:30px;">
+      <img src="${assets.logo07 || assets.logoHorizontal || assets.logo || ''}" alt="" style="height:150px;width:auto;object-fit:contain;" />
     </div>
-    <div style="position:absolute;left:50%;top:150px;bottom:26px;transform:translateX(-50%);writing-mode:vertical-rl;text-orientation:mixed;font-family:Poppins, system-ui, sans-serif;font-size:44px;line-height:1;font-weight:700;color:rgba(255,255,255,0.9);letter-spacing:-0.02em;text-transform:uppercase;white-space:nowrap;">
+    <div style="position:absolute;left:84px;top:240px;bottom:40px;writing-mode:vertical-rl;text-orientation:mixed;font-family:Poppins, system-ui, sans-serif;font-size:26px;line-height:1.2;font-weight:700;color:rgba(255,255,255,0.92);letter-spacing:0.08em;text-transform:uppercase;white-space:nowrap;display:flex;align-items:center;justify-content:center;">
       ${escapeHtml((cityStats.cidade || '').toUpperCase())}
     </div>
 
-    <div style="position:absolute;left:250px;top:108px;">
-      <img src="${assets.logo07 || assets.logoHorizontal || assets.logo || ''}" alt="" style="height:210px;width:auto;object-fit:contain;opacity:0.98;" />
-    </div>
-
     <div style="position:absolute;left:560px;bottom:138px;width:560px;border-left:2px solid rgba(255,255,255,0.58);border-bottom:2px solid rgba(255,255,255,0.58);height:344px;"></div>
-    <div style="position:absolute;right:90px;top:198px;text-align:left;">
+    <div style="position:absolute;right:98px;top:198px;text-align:left;max-width:630px;">
       ${lines.map((line) => `<div style="font-family:Poppins, system-ui, sans-serif;font-size:96px;line-height:0.9;font-weight:700;color:#fff;letter-spacing:-0.04em;">${escapeHtml(line)}</div>`).join('')}
-    </div>
-
-    <div style="position:absolute;right:104px;bottom:42px;">
-      <img src="${assets.logoHorizontal || assets.logo07 || assets.logo || ''}" alt="" style="height:42px;width:auto;object-fit:contain;opacity:0.9;" />
     </div>
 
     <div style="position:absolute;right:190px;bottom:170px;text-align:right;color:#fff;">
@@ -454,53 +450,52 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#d9d9d9;"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:40px;background:#0c0c0c;"></div>
-    <div style="position:absolute;left:40px;top:0;bottom:0;right:670px;background:#e7e7e7;"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:56px;background:#0c0c0c;"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:56px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
+    <div style="position:absolute;left:0;top:14px;bottom:14px;width:56px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;">
+      <img src="${assets.logoHorizontal || assets.logo07 || assets.logo || ''}" alt="" style="width:38px;height:auto;transform:rotate(-90deg);transform-origin:center;object-fit:contain;" />
+      <div style="writing-mode:vertical-rl;text-orientation:mixed;font-size:11px;font-weight:700;letter-spacing:0.08em;color:rgba(255,255,255,0.82);text-transform:uppercase;line-height:1.15;">${escapeHtml(ponto.cidade || '')}</div>
+    </div>
+
+    <div style="position:absolute;left:56px;top:0;bottom:0;right:670px;background:#e7e7e7;"></div>
     <div style="position:absolute;right:0;top:0;bottom:0;width:670px;background:#1a1a1a;"></div>
     <div style="position:absolute;right:0;top:0;bottom:0;width:670px;background:url('${image || assets.showcase || ''}') center/cover no-repeat;"></div>
 
-    <div style="position:absolute;left:58px;top:52px;right:710px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:2px solid #161616;padding-bottom:14px;">
+    <div style="position:absolute;left:76px;top:52px;right:710px;display:flex;align-items:flex-end;justify-content:flex-start;gap:14px;border-bottom:2px solid #161616;padding-bottom:12px;">
       <div style="display:flex;align-items:center;gap:16px;">
         <div style="width:46px;height:46px;border:2px solid #222;display:flex;align-items:center;justify-content:center;font-size:21px;">▥</div>
-        <div style="font-family:Poppins, system-ui, sans-serif;font-size:50px;line-height:0.95;font-weight:700;letter-spacing:-0.04em;color:#000;">${escapeHtml((ponto.tipo || 'FORMATO').toUpperCase())}</div>
+        <div style="font-family:Poppins, system-ui, sans-serif;font-size:62px;line-height:0.9;font-weight:700;letter-spacing:-0.03em;color:#000;">${escapeHtml((ponto.tipo || 'FORMATO').toUpperCase())}</div>
       </div>
-      <div style="padding:8px 16px;border:2px solid #333;font-size:28px;line-height:1;color:#111;text-transform:uppercase;">${escapeHtml((ponto.publico || 'A/B').toUpperCase())}</div>
     </div>
 
-    <div style="position:absolute;left:58px;top:140px;right:710px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;">
-      <div style="font-family:Poppins, system-ui, sans-serif;font-size:56px;line-height:0.95;font-weight:700;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME')}</div>
-      <div style="font-size:26px;font-weight:700;color:#000;">${index}/${total}</div>
+    <div style="position:absolute;left:76px;top:156px;right:710px;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
+      <div style="font-family:Poppins, system-ui, sans-serif;font-size:52px;line-height:1.02;font-weight:700;color:#000;max-width:calc(100% - 110px);word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME')}</div>
+      <div style="font-size:44px;line-height:0.95;font-weight:700;color:#000;white-space:nowrap;padding-top:8px;">${index}/${total}</div>
     </div>
 
-    <div style="position:absolute;left:58px;top:232px;right:710px;font-size:28px;line-height:1.4;color:#111;">${escapeHtml(ponto.endereco || 'Endereço não informado')} ${escapeHtml(ponto.cidade ? `· ${ponto.cidade}` : '')}</div>
+    <div style="position:absolute;left:76px;top:286px;right:710px;font-size:28px;line-height:1.4;color:#111;">${escapeHtml(ponto.endereco || 'Endereço não informado')} ${escapeHtml(ponto.cidade ? `· ${ponto.cidade}` : '')}</div>
 
-    <div style="position:absolute;left:58px;top:300px;right:710px;border:2px solid rgba(17,17,17,0.4);background:rgba(255,255,255,0.5);padding:22px 24px;border-radius:16px;"></div>
-    <div style="position:absolute;left:82px;top:324px;right:734px;display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;">
+    <div style="position:absolute;left:76px;top:352px;right:710px;border:2px solid rgba(17,17,17,0.32);background:rgba(255,255,255,0.5);padding:22px 24px;border-radius:16px;"></div>
+    <div style="position:absolute;left:102px;top:378px;right:734px;display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;">
       ${details.slice(0, 6).map((item) => `
-        <div style="display:flex;flex-direction:column;gap:6px;min-height:96px;">
-          <div style="display:flex;align-items:center;gap:8px;min-height:22px;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;flex:0 0 20px;">${metricIconSvg(item.key)}</div>
-            <div style="font-size:18px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;line-height:1;">${escapeHtml(item.label)}</div>
-          </div>
-          <div style="padding-left:28px;font-family:Poppins, system-ui, sans-serif;font-size:30px;line-height:1.18;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
+        <div style="display:grid;grid-template-columns:22px 1fr;grid-template-areas:'icon label' '. value';column-gap:10px;row-gap:7px;min-height:96px;">
+          <div style="grid-area:icon;display:flex;align-items:center;justify-content:center;width:22px;height:22px;">${metricIconSvg(item.key)}</div>
+          <div style="grid-area:label;font-size:18px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;line-height:1.05;">${escapeHtml(item.label)}</div>
+          <div style="grid-area:value;font-family:Poppins, system-ui, sans-serif;font-size:30px;line-height:1.18;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
         </div>
       `).join('')}
     </div>
 
-    <div style="position:absolute;left:58px;bottom:150px;right:710px;border-top:2px solid #1a1a1a;"></div>
-    <div style="position:absolute;left:58px;bottom:78px;right:710px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
+    <div style="position:absolute;left:76px;bottom:168px;right:710px;border-top:2px solid #1a1a1a;"></div>
+    <div style="position:absolute;left:76px;bottom:54px;right:710px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
       <div>
-        <div style="font-size:20px;line-height:1.4;color:#111;">mínimo de ${escapeHtml(formatInt(ponto.insercoes || 0))} inserções/mês</div>
-        <div style="font-size:20px;line-height:1.4;color:#111;">veiculação: ${escapeHtml((ponto.veiculacao || 'vídeo sem áudio').toLowerCase())}</div>
+        <div style="font-size:20px;line-height:1.35;color:#111;">mínimo de ${escapeHtml(formatInt(ponto.insercoes || 0))} inserções/mês</div>
+        <div style="font-size:20px;line-height:1.35;color:#111;">veiculação: ${escapeHtml((ponto.veiculacao || 'vídeo sem áudio').toLowerCase())}</div>
       </div>
-      <div style="text-align:right;">
-        <div style="font-size:26px;color:#111;">Valor mensal:</div>
-        <div style="font-family:Poppins, system-ui, sans-serif;font-size:56px;line-height:1;font-weight:700;color:#000;">${escapeHtml(formatMoney(ponto.preco))}</div>
+      <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-end;min-width:320px;">
+        <div style="font-size:26px;line-height:1;color:#111;margin-bottom:10px;">Valor mensal:</div>
+        <div style="font-family:Poppins, system-ui, sans-serif;font-size:68px;line-height:0.96;font-weight:700;color:#000;white-space:nowrap;">${escapeHtml(formatMoney(ponto.preco))}</div>
       </div>
-    </div>
-
-    <div style="position:absolute;left:8px;top:16px;width:24px;height:24px;overflow:hidden;">
-      <img src="${assets.logo || ''}" alt="" style="width:100%;height:100%;object-fit:contain;" />
     </div>
 
     <div style="position:absolute;right:20px;bottom:22px;padding:8px 12px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.22);">
