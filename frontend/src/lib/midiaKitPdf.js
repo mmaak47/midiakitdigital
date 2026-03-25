@@ -237,10 +237,10 @@ function buildMetricCards(cards, options = {}) {
       ${cards.map((card) => `
         <div style="border:1px solid ${options.borderColor || BRAND_BORDER};background:${options.background || 'rgba(255,255,255,0.06)'};border-radius:${options.radius || 26}px;padding:${options.padding || '24px 26px'};backdrop-filter:blur(10px);min-height:${options.minHeight || 0}px;box-sizing:border-box;">
           <div style="display:flex;align-items:center;gap:12px;color:${options.labelColor || 'rgba(255,255,255,0.72)'};font-size:${options.labelSize || 16}px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">
-            <span style="display:inline-flex;align-items:center;justify-content:center;width:${options.iconSize || 34}px;height:${options.iconSize || 34}px;border-radius:999px;background:rgba(254,92,43,0.18);color:${BRAND_ORANGE};font-weight:700;">${escapeHtml(card.icon || '•')}</span>
-            <span>${escapeHtml(card.label)}</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:${options.iconSize || 36}px;height:${options.iconSize || 36}px;border-radius:999px;background:rgba(254,92,43,0.18);color:${BRAND_ORANGE};font-weight:700;line-height:1;flex:0 0 auto;">${escapeHtml(card.icon || '•')}</span>
+            <span style="line-height:1.2;">${escapeHtml(card.label)}</span>
           </div>
-          <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:${options.valueSize || 36}px;line-height:1.05;font-weight:700;color:${options.valueColor || '#ffffff'};letter-spacing:-0.03em;word-break:break-word;">${escapeHtml(card.value)}</div>
+          <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:${options.valueSize || 36}px;line-height:1.05;font-weight:700;color:${options.valueColor || '#ffffff'};letter-spacing:-0.03em;word-break:${options.valueWordBreak || 'break-word'};white-space:${options.valueWhiteSpace || 'normal'};">${escapeHtml(card.value)}</div>
         </div>
       `).join('')}
     </div>
@@ -526,7 +526,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
       <div style="display:flex;flex-direction:column;min-width:0;">
         <div style="display:flex;align-items:center;gap:18px;">
           <img src="${assets.logo || ''}" alt="" style="height:48px;width:auto;object-fit:contain;" />
-          <div style="display:inline-flex;align-items:center;padding:10px 16px;border-radius:999px;background:rgba(254,92,43,0.14);border:1px solid rgba(254,92,43,0.24);font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Proposta comercial</div>
+          <div style="display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 20px;border-radius:999px;background:rgba(254,92,43,0.14);border:1px solid rgba(254,92,43,0.24);font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};line-height:1;">Proposta comercial</div>
         </div>
 
         <div style="margin-top:40px;font-family:Poppins, system-ui, sans-serif;font-size:84px;line-height:0.92;font-weight:700;letter-spacing:-0.05em;max-width:760px;">${escapeHtml(proposalClient)}</div>
@@ -538,36 +538,35 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
             `${proposalPoints.length || 0} pontos`,
             `Gerado em ${new Date().toLocaleDateString('pt-BR')}`
           ].map((chip) => `
-            <div style="padding:12px 18px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:600;color:rgba(255,255,255,0.78);">${escapeHtml(chip)}</div>
+            <div style="display:inline-flex;align-items:center;justify-content:center;min-height:58px;padding:0 24px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:600;color:rgba(255,255,255,0.78);line-height:1;">${escapeHtml(chip)}</div>
           `).join('')}
         </div>
 
         <div style="margin-top:auto;">
-          ${buildMetricCards(cards, { valueSize: 32, minHeight: 146 })}
+          ${buildMetricCards(cards, {
+            valueSize: 22,
+            labelSize: 14,
+            minHeight: 146,
+            gap: 14,
+            padding: '22px 18px',
+            valueWhiteSpace: 'nowrap',
+            valueWordBreak: 'normal'
+          })}
         </div>
       </div>
 
-      <div style="display:grid;grid-template-rows:1fr auto;gap:20px;min-width:0;">
+      <div style="display:grid;grid-template-rows:1fr;gap:20px;min-width:0;">
         <div style="padding:28px 30px;border-radius:34px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.09);backdrop-filter:blur(14px);display:flex;flex-direction:column;">
           <div style="display:flex;align-items:center;gap:12px;font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};"><span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;background:rgba(254,92,43,0.16);">◎</span>Direcionamento estratégico</div>
           <div style="margin-top:22px;display:grid;gap:14px;">
             ${strategicItems.map((item) => `
               <div style="display:grid;grid-template-columns:36px 1fr;gap:14px;align-items:flex-start;padding:16px 18px;border-radius:22px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);">
-                <div style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;background:rgba(254,92,43,0.16);color:${BRAND_ORANGE};font-weight:700;">•</div>
+                <div style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;background:rgba(254,92,43,0.16);">
+                  <span style="display:block;width:8px;height:8px;border-radius:999px;background:${BRAND_ORANGE};"></span>
+                </div>
                 <div style="font-size:22px;line-height:1.5;color:#fff;word-break:break-word;">${escapeHtml(item)}</div>
               </div>
             `).join('')}
-          </div>
-        </div>
-
-        <div style="padding:24px 28px;border-radius:28px;background:rgba(10,10,10,0.62);border:1px solid rgba(255,255,255,0.08);display:grid;grid-template-columns:1.1fr 0.9fr;gap:18px;align-items:center;">
-          <div>
-            <div style="font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.56);">Leitura do material</div>
-            <div style="margin-top:10px;font-size:22px;line-height:1.5;color:#fff;">${escapeHtml(simulationSummary || 'As páginas seguintes apresentam cada ponto com preview/simulação e dados essenciais para tomada comercial.')}</div>
-          </div>
-          <div style="position:relative;height:190px;border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);">
-            <img src="${assets.showcase || assets.about2 || ''}" alt="" style="width:100%;height:100%;object-fit:cover;" />
-            <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.06) 0%,rgba(0,0,0,0.68) 100%);"></div>
           </div>
         </div>
       </div>
@@ -592,13 +591,13 @@ function buildProposalPointPage({ point, index, total, image, assets }) {
         <div style="display:flex;align-items:center;gap:16px;min-width:0;">
           <img src="${assets.logo || ''}" alt="" style="height:34px;width:auto;object-fit:contain;" />
           <div style="min-width:0;">
-            <div style="font-family:Poppins, system-ui, sans-serif;font-size:34px;line-height:1.05;font-weight:700;letter-spacing:-0.03em;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
+            <div style="font-family:Poppins, system-ui, sans-serif;font-size:34px;line-height:1.03;font-weight:700;letter-spacing:-0.03em;color:#fff;white-space:normal;word-break:break-word;">${formatPointNameHtml(point.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.66em;font-weight:600;letter-spacing:-0.01em;' })}</div>
             <div style="margin-top:6px;font-size:18px;line-height:1.4;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} · ${escapeHtml(point.tipo || '-')}</div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:20px;background:#111;border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;color:#fff;">
-          <span style="color:${BRAND_ORANGE};">${index}</span>
-          <span style="color:rgba(255,255,255,0.56);">/ ${total}</span>
+        <div style="display:inline-flex;align-items:center;justify-content:center;min-width:98px;min-height:56px;padding:0 18px;border-radius:20px;background:#111;border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;color:#fff;line-height:1;">
+          <span style="display:inline-flex;align-items:center;justify-content:center;color:${BRAND_ORANGE};">${index}</span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.56);padding-left:8px;">/ ${total}</span>
         </div>
       </div>
 
@@ -624,9 +623,6 @@ function buildProposalPointPage({ point, index, total, image, assets }) {
             `).join('')}
           </div>
 
-          <div style="margin-top:auto;padding:24px 26px;border-radius:28px;background:rgba(254,92,43,0.12);border:1px solid rgba(254,92,43,0.24);font-size:20px;line-height:1.5;color:#fff;">
-            Preview com proporção preservada e margem segura para evitar cortes e textos espremidos.
-          </div>
         </div>
       </div>
     </div>
