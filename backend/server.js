@@ -228,21 +228,24 @@ app.post('/api/auth/login', (req, res) => {
 // CREATE ponto
 app.post('/api/pontos', upload.fields([
   { name: 'imagem', maxCount: 1 },
+  { name: 'imagem2', maxCount: 1 },
   { name: 'simulacao_arte', maxCount: 1 },
   { name: 'simulacao_preview', maxCount: 1 }
 ]), (req, res) => {
   try {
     const data = req.body;
     const imagem = pickUploadedPath(req, 'imagem') || data.imagem || null;
+    const imagem2 = pickUploadedPath(req, 'imagem2') || data.imagem2 || null;
     const simulacaoArte = pickUploadedPath(req, 'simulacao_arte') || data.simulacao_arte || null;
     const simulacaoPreview = pickUploadedPath(req, 'simulacao_preview') || data.simulacao_preview || null;
     const simulacaoTela = data.simulacao_tela || null;
     const arteLargura = parseInt(data.arte_largura, 10) || 1920;
     const arteAltura = parseInt(data.arte_altura, 10) || 1080;
+    const tipoFluxo = data.tipo_fluxo || 'pessoas';
 
     const stmt = db.prepare(`
-      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, tipo_fluxo)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -251,7 +254,7 @@ app.post('/api/pontos', upload.fields([
       data.horario, parseInt(data.fluxo) || 0, parseInt(data.insercoes) || 0,
       data.tempo || '15s', data.loop || '3 min', data.veiculacao || 'Vídeo sem áudio',
       data.publico || 'A/B', parseInt(data.telas) || 1, parseFloat(data.preco) || 0,
-      data.descricao, imagem, simulacaoTela, simulacaoArte, simulacaoPreview, arteLargura, arteAltura
+      data.descricao, imagem, imagem2, simulacaoTela, simulacaoArte, simulacaoPreview, arteLargura, arteAltura, tipoFluxo
     );
 
     const ponto = db.prepare('SELECT * FROM pontos WHERE id = ?').get(result.lastInsertRowid);
@@ -265,6 +268,7 @@ app.post('/api/pontos', upload.fields([
 // UPDATE ponto
 app.put('/api/pontos/:id', upload.fields([
   { name: 'imagem', maxCount: 1 },
+  { name: 'imagem2', maxCount: 1 },
   { name: 'simulacao_arte', maxCount: 1 },
   { name: 'simulacao_preview', maxCount: 1 }
 ]), (req, res) => {
@@ -274,19 +278,21 @@ app.put('/api/pontos/:id', upload.fields([
     if (!existing) return res.status(404).json({ error: 'Ponto não encontrado' });
 
     const imagem = pickUploadedPath(req, 'imagem') || data.imagem || existing.imagem;
+    const imagem2 = pickUploadedPath(req, 'imagem2') || data.imagem2 || existing.imagem2 || null;
     const simulacaoArte = pickUploadedPath(req, 'simulacao_arte') || data.simulacao_arte || existing.simulacao_arte;
     const simulacaoPreview = pickUploadedPath(req, 'simulacao_preview') || data.simulacao_preview || existing.simulacao_preview;
     const simulacaoTela = data.simulacao_tela || existing.simulacao_tela;
     const arteLargura = parseInt(data.arte_largura, 10) || existing.arte_largura || 1920;
     const arteAltura = parseInt(data.arte_altura, 10) || existing.arte_altura || 1080;
+    const tipoFluxo = data.tipo_fluxo || existing.tipo_fluxo || 'pessoas';
 
     const stmt = db.prepare(`
       UPDATE pontos SET
         nome = ?, cidade = ?, tipo = ?, endereco = ?, lat = ?, lng = ?,
         horario = ?, fluxo = ?, insercoes = ?, tempo = ?, loop = ?,
         veiculacao = ?, publico = ?, telas = ?, preco = ?, descricao = ?,
-        imagem = ?, simulacao_tela = ?, simulacao_arte = ?, simulacao_preview = ?,
-        arte_largura = ?, arte_altura = ?,
+        imagem = ?, imagem2 = ?, simulacao_tela = ?, simulacao_arte = ?, simulacao_preview = ?,
+        arte_largura = ?, arte_altura = ?, tipo_fluxo = ?,
         updated_at = datetime('now')
       WHERE id = ?
     `);
@@ -300,9 +306,9 @@ app.put('/api/pontos/:id', upload.fields([
       data.tempo || existing.tempo, data.loop || existing.loop,
       data.veiculacao || existing.veiculacao, data.publico || existing.publico,
       parseInt(data.telas) || existing.telas, parseFloat(data.preco) || existing.preco,
-      data.descricao || existing.descricao, imagem,
+      data.descricao || existing.descricao, imagem, imagem2,
       simulacaoTela, simulacaoArte, simulacaoPreview,
-      arteLargura, arteAltura,
+      arteLargura, arteAltura, tipoFluxo,
       req.params.id
     );
 

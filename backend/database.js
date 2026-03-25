@@ -67,6 +67,8 @@ ensureColumn('pontos', 'simulacao_preview', 'TEXT');
 ensureColumn('pontos', 'arte_largura', 'INTEGER DEFAULT 1920');
 ensureColumn('pontos', 'arte_altura', 'INTEGER DEFAULT 1080');
 ensureColumn('pontos', 'custo_operacional', 'REAL DEFAULT 0');
+ensureColumn('pontos', 'tipo_fluxo', "TEXT DEFAULT 'pessoas'");
+ensureColumn('pontos', 'imagem2', 'TEXT');
 ensureColumn('admin_users', 'role', 'TEXT DEFAULT "vendedor"');
 ensureColumn('admin_users', 'created_at', 'TEXT');
 ensureColumn('admin_users', 'updated_at', 'TEXT');

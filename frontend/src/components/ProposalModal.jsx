@@ -62,6 +62,7 @@ export default function ProposalModal({ onClose }) {
   const [activePreviewPointId, setActivePreviewPointId] = useState(null);
   const [showPreviewLightbox, setShowPreviewLightbox] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfSections, setPdfSections] = useState({ score: true, coverage: true, impact: true });
   const [entorno, setEntorno] = useState({
     loading: false,
     jobId: null,
@@ -406,7 +407,10 @@ export default function ProposalModal({ onClose }) {
         segmento: form.segmento,
         strategicText: argumentos,
         simulationSummary,
-        analysisMode
+        analysisMode,
+        showCampaignScore: pdfSections.score,
+        showCoverageLayer: pdfSections.coverage,
+        showImpactSection: pdfSections.impact
       });
     } catch (error) {
       setSimulationError(error?.message || 'Falha ao gerar o PDF da proposta.');
@@ -755,6 +759,26 @@ export default function ProposalModal({ onClose }) {
                 </div>
 
                 <ProposalBuilder clientName={form.clientName} city={activeCities} publico={form.publicos} segmento={getSegmentDisplayName(form.segmento)} points={proposalPoints} totals={totals} pricingSummary={pricingSummary} strategicText={argumentos} simulationSummary={simulationSummary} activePreviewPointId={activePreviewPoint?.id} onSelectPreview={setActivePreviewPointId} onGenerate={() => {}} />
+
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-400">Seções opcionais do PDF</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: 'score', label: 'Score da campanha' },
+                      { key: 'coverage', label: 'Cobertura e presença' },
+                      { key: 'impact', label: 'Impacto da campanha' }
+                    ].map(({ key, label }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setPdfSections((s) => ({ ...s, [key]: !s[key] }))}
+                        className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${pdfSections[key] ? 'border-brand-orange/40 bg-brand-orange/12 text-brand-orange' : 'border-white/15 text-brand-gray-400 hover:bg-white/[0.06]'}`}
+                      >
+                        {pdfSections[key] ? '✓ ' : ''}{label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 <div className="grid sm:grid-cols-3 gap-3">
                   <button onClick={handleExportProposalPdf} disabled={pdfBusy} className="h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(254,92,43,0.28)]">

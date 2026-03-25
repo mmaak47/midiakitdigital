@@ -595,15 +595,16 @@ function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }
 function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   const layout = getActivePdfLayoutConfig().midiaKit.pointPage;
   const estado = getCityState(ponto.cidade);
+  const fluxoLabel = ponto.tipo_fluxo === 'veiculos' ? 'Veículos / mês' : 'Pessoas / mês';
   const details = [
-    { key: 'publico', label: 'P├║blico', value: ponto.publico || '-' },
-    { key: 'fluxo', label: 'Fluxo / m├¬s', value: formatInt(ponto.fluxo) },
+    { key: 'publico', label: 'Público', value: ponto.publico || '-' },
+    { key: 'fluxo', label: fluxoLabel, value: formatInt(ponto.fluxo) },
     { key: 'telas', label: 'Telas', value: formatInt(ponto.telas) },
-    { key: 'insercoes', label: 'Inser├º├Áes', value: formatInt(ponto.insercoes) },
+    { key: 'insercoes', label: 'Inserções', value: `Mín. ${formatInt(ponto.insercoes)}` },
     { key: 'tempo', label: 'Tempo', value: ponto.tempo || '-' },
-    { key: 'loop', label: 'Loop', value: ponto.loop || '-' },
-    { label: 'Veicula├º├úo', value: ponto.veiculacao || '-' },
-    { label: 'Hor├írio', value: ponto.horario || '-' }
+    { key: 'loop', label: 'Looping', value: `Mín. ${ponto.loop || '-'}` },
+    { label: 'Veiculação', value: ponto.veiculacao || '-' },
+    { label: 'Horário', value: ponto.horario || '-' }
   ];
 
   return createPage(`
@@ -666,17 +667,27 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   `, '#ECE7E0');
 }
 
-function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, highlights, simulationSummary, segmento, assets }) {
+function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, pricingSummary, highlights, simulationSummary, segmento, assets }) {
   const layout = getActivePdfLayoutConfig().proposal.cover;
   const segmentLabel = getSegmentDisplayName(segmento);
   const pointsWithEntorno = proposalPoints.filter((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0).length;
-  const cards = [
-    { iconHtml: proposalIcon('target'), label: 'Pontos', value: formatInt(proposalPoints.length) },
-    { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
-    { iconHtml: proposalIcon('money'), label: 'Valor total', value: formatMoney(proposalTotals.valorTotal) },
-    { iconHtml: proposalIcon('cpm'), label: 'CPM estimado', value: formatDecimalMoney(proposalTotals.cpmEstimado) }
-  ];
-  const strategicItems = highlights.length ? highlights : ['Argumentos estrat├®gicos ser├úo definidos na reuni├úo comercial.'];
+  const originalTotal = pricingSummary?.originalTotal ?? proposalTotals.valorTotal;
+  const finalTotal = pricingSummary?.finalTotal ?? proposalTotals.valorTotal;
+  const hasDiscount = pricingSummary?.hasDiscount && originalTotal !== finalTotal;
+  const cards = hasDiscount
+    ? [
+        { iconHtml: proposalIcon('target'), label: 'Pontos', value: formatInt(proposalPoints.length) },
+        { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
+        { iconHtml: proposalIcon('money'), label: 'Valor Tabela', value: formatMoney(originalTotal) },
+        { iconHtml: proposalIcon('money'), label: 'Valor Negociado', value: formatMoney(finalTotal) }
+      ]
+    : [
+        { iconHtml: proposalIcon('target'), label: 'Pontos', value: formatInt(proposalPoints.length) },
+        { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
+        { iconHtml: proposalIcon('money'), label: 'Valor Negociado', value: formatMoney(finalTotal) },
+        { iconHtml: proposalIcon('cpm'), label: 'CPM estimado', value: formatDecimalMoney(proposalTotals.cpmEstimado) }
+      ];
+  const strategicItems = highlights.length ? highlights : ['Argumentos estratégicos serão definidos na reunião comercial.'];
 
   return createPage(`
     <div style="position:absolute;inset:0;background:url('${assets.heroBg || assets.cityBg || ''}') center/cover no-repeat;"></div>
@@ -692,7 +703,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
         </div>
 
         <div style="margin-top:40px;font-family:Poppins, system-ui, sans-serif;font-size:84px;line-height:0.92;font-weight:700;letter-spacing:-0.05em;max-width:760px;">${escapeHtml(proposalClient)}</div>
-        <div style="margin-top:20px;font-size:28px;line-height:1.45;color:rgba(255,255,255,0.74);max-width:720px;">Pra├ºa ${escapeHtml(proposalCity)} com material de venda redesenhado para leitura mais forte, imagens melhor enquadradas e informa├º├Áes sem estouro de margem.</div>
+        <div style="margin-top:20px;font-size:28px;line-height:1.45;color:rgba(255,255,255,0.74);max-width:720px;">Praça ${escapeHtml(proposalCity)} com material de venda redesenhado para leitura mais forte, imagens melhor enquadradas e informações sem estouro de margem.</div>
 
         <div data-calibration-id="proposal.cover.chips" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:24px;">
           ${[
@@ -723,7 +734,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
 
       <div style="display:grid;grid-template-rows:1fr;gap:20px;min-width:0;">
         <div style="padding:28px 30px;border-radius:34px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.09);backdrop-filter:blur(14px);display:flex;flex-direction:column;">
-          <div data-calibration-id="proposal.cover.strategicHeader" style="display:flex;align-items:center;gap:12px;font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};"><span style="display:inline-flex;align-items:center;justify-content:center;width:${layout.strategicHeaderIconSize}px;height:${layout.strategicHeaderIconSize}px;border-radius:999px;background:rgba(254,92,43,0.16);">${proposalIcon('target')}</span>Direcionamento estrat├®gico</div>
+          <div data-calibration-id="proposal.cover.strategicHeader" style="display:flex;align-items:center;gap:12px;font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};"><span style="display:inline-flex;align-items:center;justify-content:center;width:${layout.strategicHeaderIconSize}px;height:${layout.strategicHeaderIconSize}px;border-radius:999px;background:rgba(254,92,43,0.16);">${proposalIcon('target')}</span>Direcionamento estratégico</div>
           <div data-calibration-id="proposal.cover.strategicCards" style="margin-top:22px;display:grid;gap:14px;">
             ${strategicItems.map((item) => `
               <div style="display:grid;grid-template-columns:36px 1fr;gap:14px;align-items:flex-start;padding:16px 18px;border-radius:22px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);">
@@ -750,17 +761,33 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
   `, BRAND_DARK);
 }
 
-function buildProposalPointPage({ point, index, total, image, segmento, assets }) {
+function buildProposalPointPage({ point, index, total, image, image2, segmento, assets }) {
   const layout = getActivePdfLayoutConfig().proposal.point;
   const audience = buildAudienceQualification(point);
   const environment = buildEntornoSummary(point?.entornoMetrics, segmento);
   const relevantPlacesCount = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
+  const fluxoLabel = point.tipo_fluxo === 'veiculos' ? 'veículos/mês' : 'pessoas/mês';
+  const coords = (() => {
+    const lat = Number(point.lat); const lng = Number(point.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) > 0.0001) {
+      return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    }
+    return null;
+  })();
   const stats = [
-    { label: 'Fluxo', value: formatInt(point.fluxo) },
+    { label: 'Fluxo', value: `${formatInt(point.fluxo)} ${fluxoLabel}` },
     { label: 'Telas', value: formatInt(point.telas) },
-    { label: 'Inser├º├Áes', value: formatInt(point.insercoes) },
-    { label: 'Investimento', value: formatMoney(point.preco) }
+    { label: 'Mín. Inserções', value: formatInt(point.insercoes) },
+    { label: 'Valor Negociado', value: formatMoney(point.preco) }
   ];
+
+  const hasSecondImage = image2 && point.tipo === 'Elevador';
+  const imageFrameHtml = hasSecondImage
+    ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;height:100%;">
+        ${buildHeroImageFrame(image, { fit: 'contain', radius: 20 })}
+        ${buildHeroImageFrame(image2, { fit: 'contain', radius: 20 })}
+      </div>`
+    : buildHeroImageFrame(image, { fit: 'contain', radius: 28 });
 
   return createPage(`
     <div style="position:absolute;inset:0;background:linear-gradient(135deg,#050505 0%,#0B0B0B 38%,#111111 100%);"></div>
@@ -771,7 +798,7 @@ function buildProposalPointPage({ point, index, total, image, segmento, assets }
           <img src="${assets.logo || ''}" alt="" style="height:34px;width:auto;object-fit:contain;" />
           <div style="min-width:0;">
             <div style="font-family:Poppins, system-ui, sans-serif;font-size:34px;line-height:1.03;font-weight:700;letter-spacing:-0.03em;color:#fff;white-space:normal;word-break:break-word;">${formatPointNameHtml(point.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.66em;font-weight:600;letter-spacing:-0.01em;' })}</div>
-            <div style="margin-top:6px;font-size:18px;line-height:1.4;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} ┬À ${escapeHtml(point.tipo || '-')}</div>
+            <div style="margin-top:6px;font-size:18px;line-height:1.4;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} · ${escapeHtml(point.tipo || '-')}${coords ? ` <span style="font-size:14px;color:rgba(255,255,255,0.4);">· ${escapeHtml(coords)}</span>` : ''}</div>
           </div>
         </div>
         <div data-calibration-id="proposal.point.counter" style="display:inline-grid;grid-template-columns:auto auto auto;align-items:center;justify-content:center;column-gap:${layout.counterGap}px;min-width:${layout.counterMinWidth}px;min-height:${layout.counterMinHeight}px;padding:0 ${layout.counterPaddingX}px;border-radius:20px;background:#111;border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;color:#fff;line-height:1;font-family:Poppins, system-ui, sans-serif;">
@@ -784,7 +811,7 @@ function buildProposalPointPage({ point, index, total, image, segmento, assets }
       <div style="display:grid;grid-template-columns:1.18fr 0.82fr;gap:24px;min-height:0;">
         <div data-calibration-id="proposal.point.imageFrame" style="position:relative;min-width:0;">
           <div style="position:absolute;inset:0;padding:26px;border-radius:34px;background:linear-gradient(180deg,#121212 0%,#090909 100%);border:1px solid rgba(255,255,255,0.08);box-sizing:border-box;">
-            ${buildHeroImageFrame(image, { fit: 'contain', radius: 28 })}
+            ${imageFrameHtml}
           </div>
         </div>
 
@@ -796,7 +823,7 @@ function buildProposalPointPage({ point, index, total, image, segmento, assets }
           </div>
 
           <div style="padding:22px 24px;border-radius:28px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
-            <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Qualifica├º├úo do p├║blico</div>
+            <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Qualificação do público</div>
             <div style="margin-top:10px;display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:0 14px;border-radius:999px;background:rgba(254,92,43,0.16);border:1px solid rgba(254,92,43,0.24);font-size:15px;font-weight:700;color:${BRAND_ORANGE};">${escapeHtml(audience.badge)}</div>
             <div style="margin-top:12px;font-size:22px;line-height:1.35;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(audience.headline)}</div>
             <div style="margin-top:10px;font-size:16px;line-height:1.5;color:rgba(255,255,255,0.72);word-break:break-word;">${escapeHtml(audience.summary)}</div>
@@ -1143,6 +1170,182 @@ async function loadPdfAssets() {
   return pdfAssetsPromise;
 }
 
+function buildCampaignScorePage({ proposalPoints, segmento, assets }) {
+  const segmentLabel = getSegmentDisplayName(segmento);
+  const rows = proposalPoints.map((point) => {
+    const score = Number(point?.entornoMetrics?.score_relevancia) || 0;
+    const total = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
+    return { nome: point.nome || 'Ponto sem nome', cidade: point.cidade || '-', score, total };
+  }).sort((a, b) => b.score - a.score);
+
+  const maxScore = Math.max(...rows.map((r) => r.score), 1);
+
+  return createPage(`
+    <div style="position:absolute;inset:0;background:#050505;"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(254,92,43,0.08) 0%,transparent 40%);"></div>
+    <div style="position:relative;z-index:1;height:100%;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+        <div style="display:flex;align-items:center;gap:16px;">
+          <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;" />
+          <div style="display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 18px;border-radius:999px;background:rgba(254,92,43,0.16);border:1px solid rgba(254,92,43,0.24);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Score da campanha</div>
+        </div>
+        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">${escapeHtml(segmentLabel)}</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div style="padding:22px 26px;border-radius:24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+          <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Pontos com score</div>
+          <div style="margin-top:10px;font-size:42px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${rows.filter((r) => r.score > 0).length}</div>
+        </div>
+        <div style="padding:22px 26px;border-radius:24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+          <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Score médio</div>
+          <div style="margin-top:10px;font-size:42px;line-height:1;font-weight:700;color:${BRAND_ORANGE};font-family:Poppins, system-ui, sans-serif;">${rows.length ? (rows.reduce((s, r) => s + r.score, 0) / rows.length).toFixed(1).replace('.', ',') : '0,0'}</div>
+        </div>
+      </div>
+
+      <div style="flex:1;display:grid;gap:12px;align-content:start;overflow:hidden;">
+        ${rows.map((row) => {
+          const bar = Math.max(2, Math.round((row.score / maxScore) * 100));
+          const color = row.score >= 7 ? BRAND_ORANGE : row.score >= 4 ? '#fff' : 'rgba(255,255,255,0.45)';
+          return `
+            <div style="display:grid;grid-template-columns:2fr 0.4fr 1.4fr;gap:14px;align-items:center;padding:16px 20px;border-radius:18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);">
+              <div>
+                <div style="font-size:18px;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${escapeHtml(row.nome)}</div>
+                <div style="margin-top:3px;font-size:13px;color:rgba(255,255,255,0.55);">${escapeHtml(row.cidade)} · ${row.total} locais relevantes</div>
+              </div>
+              <div style="text-align:right;font-size:28px;font-weight:700;color:${color};font-family:Poppins, system-ui, sans-serif;">${row.score.toFixed(1).replace('.', ',')}</div>
+              <div style="height:10px;border-radius:999px;background:rgba(255,255,255,0.1);overflow:hidden;">
+                <div style="height:100%;width:${bar}%;border-radius:999px;background:${color};"></div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `, BRAND_DARK);
+}
+
+function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, assets }) {
+  const segmentLabel = getSegmentDisplayName(segmento);
+  const withEntorno = proposalPoints.filter((p) => Number(p?.entornoMetrics?.total_estabelecimentos_relacionados) > 0);
+  const coveragePct = proposalPoints.length ? Math.round((withEntorno.length / proposalPoints.length) * 100) : 0;
+  const totalLocais = proposalPoints.reduce((s, p) => s + (Number(p?.entornoMetrics?.total_estabelecimentos_relacionados) || 0), 0);
+
+  return createPage(`
+    <div style="position:absolute;inset:0;background:#050505;"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(254,92,43,0.06) 0%,transparent 40%);"></div>
+    <div style="position:relative;z-index:1;height:100%;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+        <div style="display:flex;align-items:center;gap:16px;">
+          <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;" />
+          <div style="display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 18px;border-radius:999px;background:rgba(254,92,43,0.16);border:1px solid rgba(254,92,43,0.24);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Cobertura e presença</div>
+        </div>
+        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">${escapeHtml(segmentLabel)}</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+        ${[
+          { label: 'Pontos na proposta', value: formatInt(proposalPoints.length) },
+          { label: 'Com entorno analisado', value: formatInt(withEntorno.length) },
+          { label: 'Cobertura do segmento', value: `${coveragePct}%` },
+          { label: 'Total de locais mapeados', value: formatInt(totalLocais) }
+        ].map((card) => `
+          <div style="padding:22px 20px;border-radius:22px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">${escapeHtml(card.label)}</div>
+            <div style="margin-top:10px;font-size:36px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${escapeHtml(card.value)}</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <div style="flex:1;display:grid;gap:12px;align-content:start;overflow:hidden;">
+        <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">Presença por ponto</div>
+        ${proposalPoints.map((point) => {
+          const locais = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
+          const score = Number(point?.entornoMetrics?.score_relevancia) || 0;
+          const hasData = locais > 0;
+          return `
+            <div style="display:grid;grid-template-columns:1.8fr 0.5fr 0.5fr 1.2fr;gap:14px;align-items:center;padding:14px 18px;border-radius:16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);">
+              <div>
+                <div style="font-size:16px;font-weight:700;color:#fff;">${escapeHtml(point.nome || 'Ponto')}</div>
+                <div style="margin-top:2px;font-size:12px;color:rgba(255,255,255,0.5);">${escapeHtml(point.cidade || '-')} · ${escapeHtml(point.tipo || '-')}</div>
+              </div>
+              <div style="font-size:22px;font-weight:700;color:${hasData ? '#fff' : 'rgba(255,255,255,0.3)'};font-family:Poppins;">${formatInt(locais)}</div>
+              <div style="font-size:18px;font-weight:700;color:${score >= 6 ? BRAND_ORANGE : 'rgba(255,255,255,0.4)'};font-family:Poppins;">${score.toFixed(1).replace('.', ',')}</div>
+              <div style="height:8px;border-radius:999px;background:rgba(255,255,255,0.1);overflow:hidden;">
+                <div style="height:100%;width:${Math.min(100, score * 10)}%;border-radius:999px;background:${score >= 6 ? BRAND_ORANGE : 'rgba(255,255,255,0.4)'};"></div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `, BRAND_DARK);
+}
+
+function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, assets }) {
+  const segmentLabel = getSegmentDisplayName(segmento);
+  const fluxoTotal = Number(proposalTotals?.fluxoTotal) || 0;
+  const insercoesTotal = Number(proposalTotals?.insercoesTotal) || 0;
+  const cpm = Number(proposalTotals?.cpmEstimado) || 0;
+  const finalTotal = pricingSummary?.finalTotal ?? proposalTotals?.valorTotal ?? 0;
+  const mesesCampanha = 3;
+  const impactos3m = fluxoTotal * mesesCampanha;
+
+  return createPage(`
+    <div style="position:absolute;inset:0;background:#050505;"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(254,92,43,0.1) 0%,transparent 50%);"></div>
+    <div style="position:relative;z-index:1;height:100%;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+        <div style="display:flex;align-items:center;gap:16px;">
+          <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;" />
+          <div style="display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 18px;border-radius:999px;background:rgba(254,92,43,0.16);border:1px solid rgba(254,92,43,0.24);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Impacto da campanha</div>
+        </div>
+        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">${escapeHtml(segmentLabel)}</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+        ${[
+          { label: 'Impactos/mês', value: formatInt(fluxoTotal) },
+          { label: `Impactos em ${mesesCampanha} meses`, value: formatInt(impactos3m) },
+          { label: 'CPM estimado', value: formatDecimalMoney(cpm) }
+        ].map((card) => `
+          <div style="padding:26px 28px;border-radius:26px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">${escapeHtml(card.label)}</div>
+            <div style="margin-top:12px;font-size:42px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${escapeHtml(card.value)}</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:20px;flex:1;">
+        <div style="padding:28px 30px;border-radius:28px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;gap:14px;">
+          <div style="font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Impacto por ponto</div>
+          ${proposalPoints.map((p) => `
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;">
+              <div style="font-size:16px;color:#fff;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.nome || 'Ponto')}</div>
+              <div style="flex-shrink:0;font-size:15px;color:rgba(255,255,255,0.72);">${formatInt(p.fluxo || 0)}/mês</div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div style="padding:28px 30px;border-radius:28px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;gap:16px;">
+          <div style="font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Resumo financeiro</div>
+          ${[
+            { label: 'Mín. Inserções/mês', value: formatInt(insercoesTotal) },
+            { label: 'Valor Negociado', value: formatMoney(finalTotal) },
+            { label: 'Custo por impacto', value: fluxoTotal > 0 ? `R$ ${(finalTotal / fluxoTotal).toFixed(2).replace('.', ',')}` : '-' }
+          ].map((row) => `
+            <div>
+              <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">${escapeHtml(row.label)}</div>
+              <div style="margin-top:6px;font-size:26px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${escapeHtml(row.value)}</div>
+            </div>
+          `).join('')}
+          ${simulationSummary ? `<div style="margin-top:auto;padding:12px 14px;border-radius:14px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.07);font-size:12px;line-height:1.5;color:rgba(255,255,255,0.6);">${escapeHtml(simulationSummary)}</div>` : ''}
+        </div>
+      </div>
+    </div>
+  `, BRAND_DARK);
+}
+
 export async function generateMidiaKitPdf({ praca, pontos }) {
   activePdfLayoutConfig = await loadPdfLayoutConfig();
   const cidade = praca && praca !== 'Todas as pra├ºas' ? praca : 'Consolidado';
@@ -1195,16 +1398,26 @@ export async function generateProposalPdf({
   totals,
   segmento,
   strategicText,
-  simulationSummary
+  simulationSummary,
+  pricingSummary,
+  showCampaignScore = true,
+  showCoverageLayer = true,
+  showImpactSection = true
 }) {
   activePdfLayoutConfig = await loadPdfLayoutConfig();
   const proposalPoints = Array.isArray(points) ? points : [];
   const proposalTotals = totals || { valorTotal: 0, fluxoTotal: 0, cpmEstimado: 0, insercoesTotal: 0 };
-  const proposalCity = city || 'M├║ltiplas pra├ºas';
-  const proposalClient = clientName || 'Cliente n├úo informado';
+  const proposalCity = city || 'Múltiplas praças';
+  const proposalClient = clientName || 'Cliente não informado';
   const highlights = normalizeLines(strategicText, 4);
   const assets = await loadPdfAssets();
   const proposalImages = await Promise.all(proposalPoints.map((point) => imageToDataUrl(pickProposalImageUrl(point))));
+  const proposalImages2 = await Promise.all(proposalPoints.map((point) => {
+    if (point.tipo === 'Elevador' && point.imagem2) {
+      return imageToDataUrl(point.imagem2.startsWith('http') ? point.imagem2 : assetUrl(point.imagem2));
+    }
+    return Promise.resolve(null);
+  }));
 
   const pages = [
     buildProposalCoverPage({
@@ -1212,6 +1425,7 @@ export async function generateProposalPdf({
       proposalCity,
       proposalPoints,
       proposalTotals,
+      pricingSummary,
       highlights,
       simulationSummary,
       segmento,
@@ -1225,6 +1439,7 @@ export async function generateProposalPdf({
       index: index + 1,
       total: proposalPoints.length,
       image: proposalImages[index],
+      image2: proposalImages2[index] || null,
       segmento,
       assets
     }));
@@ -1236,6 +1451,18 @@ export async function generateProposalPdf({
     segmento,
     assets
   }));
+
+  if (showCampaignScore) {
+    pages.push(buildCampaignScorePage({ proposalPoints, segmento, assets }));
+  }
+
+  if (showCoverageLayer) {
+    pages.push(buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, assets }));
+  }
+
+  if (showImpactSection) {
+    pages.push(buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, assets }));
+  }
 
   const fileName = `proposta-${slugify(proposalClient)}-${new Date().toISOString().slice(0, 10)}.pdf`;
   await renderPagesToPdf(pages, fileName);

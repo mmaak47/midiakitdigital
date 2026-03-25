@@ -151,7 +151,7 @@ export default function PresentationMode({ points = [], totals, segmento, client
                   </div>
 
                   <div className="grid gap-3 md:grid-cols-4">
-                    <MetricCard icon={Target} label="Investimento" value={formatCurrency(current.preco || 0)} accent="orange" />
+                    <MetricCard icon={Target} label="Valor Negociado" value={formatCurrency(current.preco || 0)} accent="orange" />
                     <MetricCard icon={TrendingUp} label="Fluxo mensal" value={formatNumber(current.fluxo || 0)} accent="white" />
                     <MetricCard icon={Monitor} label="Telas" value={formatNumber(current.telas || 0)} accent="white" />
                     <MetricCard icon={Users} label="Público" value={current.publico || 'A/B'} accent="orange" />
@@ -219,11 +219,13 @@ export default function PresentationMode({ points = [], totals, segmento, client
               </div>
 
               <div className="mt-4 grid gap-3">
-                <MiniStat label="Valor total" value={formatCurrency(totals.valorTotal || 0)} />
+                <MiniStat label="Valor Negociado" value={formatCurrency(pricingSummary?.finalTotal ?? totals.valorTotal ?? 0)} />
+                {pricingSummary?.hasDiscount && pricingSummary.originalTotal !== pricingSummary.finalTotal ? (
+                  <MiniStat label="Valor Tabela" value={formatCurrency(pricingSummary.originalTotal || 0)} />
+                ) : null}
                 <MiniStat label="Fluxo total" value={formatNumber(totals.fluxoTotal || 0)} />
                 <MiniStat label="CPM estimado" value={`R$ ${(totals.cpmEstimado || 0).toFixed(2).replace('.', ',')}`} />
                 <MiniStat label="Inserções" value={formatNumber(totals.insercoesTotal || 0)} />
-                {pricingSummary?.hasDiscount ? <MiniStat label="Desconto" value={formatCurrency(pricingSummary.discountTotal || 0)} /> : null}
               </div>
             </div>
 

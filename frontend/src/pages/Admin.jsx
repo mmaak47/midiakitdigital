@@ -50,10 +50,10 @@ const emptyForm = {
   nome: '', cidade: 'Londrina', tipo: 'Elevador', endereco: '',
   lat: '', lng: '', horario: '06:00 às 22:00', fluxo: '',
   insercoes: '', tempo: '15s', loop: '3 min', veiculacao: 'Vídeo sem áudio',
-  publico: 'A/B', telas: '1', preco: '', descricao: '', imagem: '',
+  publico: 'A/B', telas: '1', preco: '', descricao: '', imagem: '', imagem2: '',
   simulacao_tela: '', simulacao_arte: '', simulacao_preview: '',
   arte_largura: '1920', arte_altura: '1080',
-  custo_operacional: ''
+  custo_operacional: '', tipo_fluxo: 'pessoas'
 };
 
 export default function Admin() {
@@ -68,6 +68,7 @@ export default function Admin() {
   const [editing, setEditing] = useState(null); // null | 'new' | ponto object
   const [form, setForm] = useState(emptyForm);
   const [imageFile, setImageFile] = useState(null);
+  const [imagem2File, setImagem2File] = useState(null);
   const [baseImagePreviewUrl, setBaseImagePreviewUrl] = useState('');
   const [screenSelection, setScreenSelection] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -254,6 +255,7 @@ export default function Admin() {
   const openNew = () => {
     setForm(emptyForm);
     setImageFile(null);
+    setImagem2File(null);
     setScreenSelection(null);
     setEditing('new');
   };
@@ -277,13 +279,17 @@ export default function Admin() {
       preco: ponto.preco?.toString() || '',
       descricao: ponto.descricao || '',
       imagem: ponto.imagem || '',
+      imagem2: ponto.imagem2 || '',
       simulacao_tela: ponto.simulacao_tela || '',
       simulacao_arte: ponto.simulacao_arte || '',
       simulacao_preview: ponto.simulacao_preview || '',
       arte_largura: ponto.arte_largura?.toString() || '1920',
-      arte_altura: ponto.arte_altura?.toString() || '1080'
+      arte_altura: ponto.arte_altura?.toString() || '1080',
+      custo_operacional: ponto.custo_operacional?.toString() || '',
+      tipo_fluxo: ponto.tipo_fluxo || 'pessoas'
     });
     setImageFile(null);
+    setImagem2File(null);
     setScreenSelection(parseScreen(ponto.simulacao_tela));
     setEditing(ponto);
   };
@@ -299,6 +305,7 @@ export default function Admin() {
       };
       Object.entries(payload).forEach(([k, v]) => fd.append(k, v ?? ''));
       if (imageFile) fd.append('imagem', imageFile);
+      if (imagem2File) fd.append('imagem2', imagem2File);
 
       if (editing === 'new') {
         await createPonto(fd);
@@ -755,6 +762,7 @@ export default function Admin() {
                   <FormSelect label="Cidade" value={form.cidade} onChange={v => updateField('cidade', v)} options={cidades} />
                   <FormSelect label="Tipo" value={form.tipo} onChange={v => updateField('tipo', v)} options={tipos} />
                   <FormSelect label="Público" value={form.publico} onChange={v => updateField('publico', v)} options={PUBLICOS} />
+                  <FormSelect label="Tipo de fluxo" value={form.tipo_fluxo} onChange={v => updateField('tipo_fluxo', v)} options={['pessoas', 'veiculos']} />
                   <FormField label="Endereço" value={form.endereco} onChange={v => updateField('endereco', v)} className="md:col-span-2" />
                   <FormField label="Latitude" value={form.lat} onChange={v => updateField('lat', v)} type="number" step="any" />
                   <FormField label="Longitude" value={form.lng} onChange={v => updateField('lng', v)} type="number" step="any" />
@@ -762,7 +770,7 @@ export default function Admin() {
                   <FormField label="Fluxo mensal" value={form.fluxo} onChange={v => updateField('fluxo', v)} type="number" />
                   <FormField label="Inserções mensais" value={form.insercoes} onChange={v => updateField('insercoes', v)} type="number" />
                   <FormField label="Tempo" value={form.tempo} onChange={v => updateField('tempo', v)} />
-                  <FormField label="Loop" value={form.loop} onChange={v => updateField('loop', v)} />
+                  <FormField label="Looping" value={form.loop} onChange={v => updateField('loop', v)} />
                   <FormField label="Veiculação" value={form.veiculacao} onChange={v => updateField('veiculacao', v)} />
                   <FormField label="Telas" value={form.telas} onChange={v => updateField('telas', v)} type="number" />
                   <FormField label="Preço (R$)" value={form.preco} onChange={v => updateField('preco', v)} type="number" step="0.01" />
@@ -798,6 +806,28 @@ export default function Admin() {
                     {(form.imagem || imageFile) && (
                       <span className="text-xs text-brand-gray-500">
                         {imageFile ? 'Nova imagem selecionada' : 'Imagem existente'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Imagem 2 upload (Elevador — segunda foto) */}
+                <div>
+                  <label className="block text-xs text-brand-gray-400 mb-1.5">Imagem 2 <span className="text-brand-gray-600">(opcional — segunda foto para Elevador)</span></label>
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-brand-gray-300 hover:bg-white/10 cursor-pointer transition-colors">
+                      <Upload size={16} />
+                      {imagem2File ? imagem2File.name : 'Upload de 2ª imagem'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e => setImagem2File(e.target.files[0] || null)}
+                        className="hidden"
+                      />
+                    </label>
+                    {(form.imagem2 || imagem2File) && (
+                      <span className="text-xs text-brand-gray-500">
+                        {imagem2File ? 'Nova imagem selecionada' : 'Imagem existente'}
                       </span>
                     )}
                   </div>
