@@ -110,6 +110,62 @@ export const PDF_CALIBRATION_GROUPS = [
   }
 ];
 
+export const PDF_CALIBRATION_PREVIEWS = [
+  {
+    key: 'midiaKit.cover',
+    label: 'Midia Kit · Capa',
+    focusTargets: [
+      { key: 'midiaKit.cover.outOfHomeBadge', label: 'Chip Out of Home' },
+      { key: 'midiaKit.cover.cityBlock', label: 'Bloco da cidade' }
+    ]
+  },
+  {
+    key: 'midiaKit.formatDivider',
+    label: 'Midia Kit · Divisória de formato',
+    focusTargets: [
+      { key: 'midiaKit.formatDivider.leftRail', label: 'Faixa lateral' },
+      { key: 'midiaKit.formatDivider.cityLabel', label: 'Cidade vertical' },
+      { key: 'midiaKit.formatDivider.titleBlock', label: 'Título do formato' },
+      { key: 'midiaKit.formatDivider.statsBlock', label: 'Bloco de estatísticas' }
+    ]
+  },
+  {
+    key: 'midiaKit.pointPage',
+    label: 'Midia Kit · Página de ponto',
+    focusTargets: [
+      { key: 'midiaKit.pointPage.leftRail', label: 'Barra lateral' },
+      { key: 'midiaKit.pointPage.typeHeader', label: 'Cabeçalho do formato' },
+      { key: 'midiaKit.pointPage.nameBlock', label: 'Nome do ponto' },
+      { key: 'midiaKit.pointPage.addressBlock', label: 'Endereço' },
+      { key: 'midiaKit.pointPage.metricsBox', label: 'Caixa de métricas' },
+      { key: 'midiaKit.pointPage.footerBlock', label: 'Rodapé' },
+      { key: 'midiaKit.pointPage.priceBlock', label: 'Bloco de preço' }
+    ]
+  },
+  {
+    key: 'proposal.cover',
+    label: 'Proposta · Capa',
+    focusTargets: [
+      { key: 'proposal.cover.badge', label: 'Badge de proposta' },
+      { key: 'proposal.cover.chips', label: 'Chips informativos' },
+      { key: 'proposal.cover.metricCards', label: 'Cards métricos' },
+      { key: 'proposal.cover.strategicHeader', label: 'Cabeçalho estratégico' },
+      { key: 'proposal.cover.strategicCards', label: 'Cards estratégicos' }
+    ]
+  },
+  {
+    key: 'proposal.point',
+    label: 'Proposta · Página de ponto',
+    focusTargets: [
+      { key: 'proposal.point.header', label: 'Cabeçalho' },
+      { key: 'proposal.point.counter', label: 'Contador' },
+      { key: 'proposal.point.imageFrame', label: 'Imagem principal' },
+      { key: 'proposal.point.addressBox', label: 'Box de endereço' },
+      { key: 'proposal.point.statsList', label: 'Lista de métricas' }
+    ]
+  }
+];
+
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
 }

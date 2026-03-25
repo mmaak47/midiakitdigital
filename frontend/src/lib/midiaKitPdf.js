@@ -3,6 +3,7 @@ import { loadPdfLayoutConfig } from './pdfLayoutConfig';
 
 const PAGE_WIDTH = 1600;
 const PAGE_HEIGHT = 1131;
+export const PDF_PAGE_SIZE = { width: PAGE_WIDTH, height: PAGE_HEIGHT };
 const BRAND_ORANGE = '#FE5C2B';
 const BRAND_DARK = '#0A0A0A';
 const BRAND_PANEL = '#171717';
@@ -10,6 +11,7 @@ const BRAND_BORDER = 'rgba(255,255,255,0.08)';
 const imageCache = new Map();
 const IMAGE_FETCH_TIMEOUT_MS = 15000;
 const IMAGE_RENDER_WAIT_TIMEOUT_MS = 8000;
+let pdfAssetsPromise = null;
 let activePdfLayoutConfig = null;
 
 function getActivePdfLayoutConfig() {
@@ -175,6 +177,108 @@ function createPage(content, background = '#050505') {
   return page;
 }
 
+function highlightCalibrationTargets(page, focusKey, isolateFocus) {
+  const allTargets = Array.from(page.querySelectorAll('[data-calibration-id]'));
+  if (!allTargets.length) return page;
+
+  const focusedTargets = focusKey
+    ? Array.from(page.querySelectorAll(`[data-calibration-id="${focusKey}"]`))
+    : [];
+
+  allTargets.forEach((target) => {
+    target.style.transition = 'opacity 120ms ease, filter 120ms ease, box-shadow 120ms ease, outline 120ms ease';
+    target.style.position = target.style.position || 'relative';
+    target.style.zIndex = '1';
+    target.style.opacity = '1';
+    target.style.filter = 'none';
+    target.style.outline = 'none';
+    target.style.boxShadow = target.style.boxShadow || '';
+  });
+
+  if (!focusedTargets.length) {
+    return page;
+  }
+
+  allTargets.forEach((target) => {
+    const isFocused = target.dataset.calibrationId === focusKey;
+    if (!isFocused && isolateFocus) {
+      target.style.opacity = '0.14';
+      target.style.filter = 'grayscale(0.25) saturate(0.55) brightness(0.72)';
+    }
+    if (isFocused) {
+      target.style.zIndex = '3';
+      target.style.outline = `3px solid ${BRAND_ORANGE}`;
+      target.style.outlineOffset = '4px';
+      target.style.boxShadow = '0 0 0 1px rgba(0,0,0,0.28), 0 22px 48px rgba(0,0,0,0.34)';
+    }
+  });
+
+  return page;
+}
+
+function buildCalibrationPreviewData() {
+  const point = {
+    nome: 'MUFFATO MADRE LEONIA (ELEVADOR SOCIAL)',
+    cidade: 'Londrina',
+    tipo: 'Tela Indoor',
+    endereco: 'Av. Madre Leonia Milito, 1175 · Gleba Palhano',
+    publico: 'A/B',
+    fluxo: 128000,
+    telas: 4,
+    insercoes: 720,
+    tempo: '15s',
+    loop: '3 min',
+    veiculacao: 'Vídeo sem áudio',
+    horario: '06:00 às 22:00',
+    preco: 6200,
+    proposalSimulationPreview: ''
+  };
+
+  return {
+    cidade: 'Londrina',
+    resumo: { telas: 84, fluxo: 2840000, preco: 0, ticketMedio: 0 },
+    cityStats: { cidade: 'Londrina', totalTelas: 84, totalEnderecos: 19 },
+    proposalClient: 'Cliente Exemplo',
+    proposalCity: 'Londrina',
+    proposalTotals: { valorTotal: 24800, fluxoTotal: 512000, cpmEstimado: 18.42, insercoesTotal: 1440 },
+    highlights: [
+      'Cobertura premium em rotas de alta recorrência.',
+      'Presença visual forte em pontos de decisão e deslocamento.',
+      'Leitura comercial organizada para defesa rápida na reunião.'
+    ],
+    point,
+    points: [point, { ...point, nome: 'AEROPORTO DE LONDRINA (SAGUÃO)', endereco: 'Av. Santos Dumont, 900' }]
+  };
+}
+
+function buildCalibrationPreviewPage(previewKey, assets) {
+  const sample = buildCalibrationPreviewData();
+  const image = assets.showcase || assets.cityBg || assets.heroBg || '';
+
+  switch (previewKey) {
+    case 'midiaKit.cover':
+      return buildMidiaKitCoverPage({ cidade: sample.cidade, pontos: sample.points, resumo: sample.resumo, assets });
+    case 'midiaKit.formatDivider':
+      return buildMidiaKitFormatDividerPage({ tipo: 'Tela Indoor Premium', cityStats: sample.cityStats, assets });
+    case 'midiaKit.pointPage':
+      return buildMidiaKitPointPage({ ponto: sample.point, index: 1, total: 12, image, assets });
+    case 'proposal.cover':
+      return buildProposalCoverPage({
+        proposalClient: sample.proposalClient,
+        proposalCity: sample.proposalCity,
+        proposalPoints: sample.points,
+        proposalTotals: sample.proposalTotals,
+        highlights: sample.highlights,
+        simulationSummary: null,
+        assets
+      });
+    case 'proposal.point':
+      return buildProposalPointPage({ point: sample.point, index: 1, total: 6, image, assets });
+    default:
+      throw new Error(`Preview PDF desconhecido: ${previewKey}`);
+  }
+}
+
 async function waitForImages(node) {
   const images = Array.from(node.querySelectorAll('img'));
   await Promise.all(images.map((img) => {
@@ -327,10 +431,10 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
     <div style="position:absolute;left:72px;bottom:120px;width:420px;">
       <div style="font-family:Poppins, system-ui, sans-serif;color:#fff;font-size:58px;line-height:0.95;font-weight:700;letter-spacing:-0.04em;">Elevando o branding</div>
       <div style="margin-top:20px;color:rgba(255,255,255,0.8);font-size:34px;line-height:1.22;">Invista no futuro da publicidade OOH e DOOH</div>
-      <div style="margin-top:26px;display:inline-flex;align-items:center;justify-content:center;min-height:${layout.outOfHomeMinHeight}px;padding:0 ${layout.outOfHomePaddingX}px;background:#fff;color:#000;font-size:18px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;line-height:1;">Out of Home</div>
+      <div data-calibration-id="midiaKit.cover.outOfHomeBadge" style="margin-top:26px;display:inline-flex;align-items:center;justify-content:center;min-height:${layout.outOfHomeMinHeight}px;padding:0 ${layout.outOfHomePaddingX}px;background:#fff;color:#000;font-size:18px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;line-height:1;">Out of Home</div>
     </div>
 
-    <div style="position:absolute;right:70px;bottom:90px;text-align:left;">
+    <div data-calibration-id="midiaKit.cover.cityBlock" style="position:absolute;right:70px;bottom:90px;text-align:left;">
       <div style="font-family:Poppins, system-ui, sans-serif;color:#fff;font-size:64px;line-height:0.95;font-weight:700;text-transform:uppercase;">${escapeHtml(cidade)}</div>
       <div style="margin-top:10px;color:#fff;font-size:16px;letter-spacing:0.06em;text-transform:uppercase;opacity:0.82;">${escapeHtml(cityLine)}</div>
       <div style="margin-top:20px;color:${BRAND_ORANGE};font-size:30px;font-weight:700;letter-spacing:0.03em;">MIDIAKIT 2026</div>
@@ -441,21 +545,21 @@ function buildMidiaKitFormatDividerPage({ tipo, cityStats, assets }) {
     <img src="${assets.wallpaper || assets.heroBg || ''}" alt="" style="position:absolute;inset:-80px;width:calc(100% + 160px);height:calc(100% + 160px);object-fit:cover;filter:blur(16px) saturate(1.12);opacity:0.18;" />
     <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 46%, rgba(254,92,43,0.16) 0%, rgba(254,92,43,0.03) 38%, rgba(0,0,0,0.92) 78%);"></div>
 
-    <div style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:linear-gradient(180deg,#0a0a0a,#050505);border-right:1px solid rgba(255,255,255,0.12);"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
+    <div data-calibration-id="midiaKit.formatDivider.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:linear-gradient(180deg,#0a0a0a,#050505);border-right:1px solid rgba(255,255,255,0.12);"></div>
+    <div data-calibration-id="midiaKit.formatDivider.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
     <div style="position:absolute;left:22px;top:30px;">
       <img src="${assets.logo07 || assets.logoHorizontal || assets.logo || ''}" alt="" style="height:150px;width:auto;object-fit:contain;" />
     </div>
-    <div style="position:absolute;left:84px;top:${layout.cityVerticalTop}px;bottom:${layout.cityVerticalBottom}px;writing-mode:vertical-rl;text-orientation:mixed;font-family:Poppins, system-ui, sans-serif;font-size:${layout.cityVerticalFontSize}px;line-height:1.2;font-weight:700;color:rgba(255,255,255,0.92);letter-spacing:${layout.cityVerticalLetterSpacing}em;text-transform:uppercase;white-space:nowrap;display:flex;align-items:center;justify-content:center;">
+    <div data-calibration-id="midiaKit.formatDivider.cityLabel" style="position:absolute;left:84px;top:${layout.cityVerticalTop}px;bottom:${layout.cityVerticalBottom}px;writing-mode:vertical-rl;text-orientation:mixed;font-family:Poppins, system-ui, sans-serif;font-size:${layout.cityVerticalFontSize}px;line-height:1.2;font-weight:700;color:rgba(255,255,255,0.92);letter-spacing:${layout.cityVerticalLetterSpacing}em;text-transform:uppercase;white-space:nowrap;display:flex;align-items:center;justify-content:center;">
       ${escapeHtml((cityStats.cidade || '').toUpperCase())}
     </div>
 
     <div style="position:absolute;left:560px;bottom:138px;width:560px;border-left:2px solid rgba(255,255,255,0.58);border-bottom:2px solid rgba(255,255,255,0.58);height:344px;"></div>
-    <div style="position:absolute;right:98px;top:198px;text-align:left;max-width:630px;">
+    <div data-calibration-id="midiaKit.formatDivider.titleBlock" style="position:absolute;right:98px;top:198px;text-align:left;max-width:630px;">
       ${lines.map((line) => `<div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.titleFontSize}px;line-height:0.9;font-weight:700;color:#fff;letter-spacing:-0.04em;">${escapeHtml(line)}</div>`).join('')}
     </div>
 
-    <div style="position:absolute;right:190px;bottom:170px;text-align:right;color:#fff;">
+    <div data-calibration-id="midiaKit.formatDivider.statsBlock" style="position:absolute;right:190px;bottom:170px;text-align:right;color:#fff;">
       <div style="font-family:Poppins, system-ui, sans-serif;font-size:58px;font-weight:700;line-height:1;">${escapeHtml(formatInt(cityStats.totalTelas || 0))}</div>
       <div style="font-size:34px;line-height:1.15;opacity:0.92;">telas</div>
       <div style="margin-top:16px;font-family:Poppins, system-ui, sans-serif;font-size:58px;font-weight:700;line-height:1;">${escapeHtml(formatInt(cityStats.totalEnderecos || 0))}</div>
@@ -479,9 +583,9 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#d9d9d9;"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:#0c0c0c;"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
-    <div style="position:absolute;left:0;top:14px;bottom:14px;width:${layout.leftRailWidth}px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;">
+    <div data-calibration-id="midiaKit.pointPage.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:#0c0c0c;"></div>
+    <div data-calibration-id="midiaKit.pointPage.leftRail" style="position:absolute;left:0;top:0;bottom:0;width:${layout.leftRailWidth}px;background:url('${assets.pattern || ''}') center/cover no-repeat;opacity:0.12;"></div>
+    <div data-calibration-id="midiaKit.pointPage.leftRail" style="position:absolute;left:0;top:14px;bottom:14px;width:${layout.leftRailWidth}px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;">
       <img src="${assets.logoHorizontal || assets.logo07 || assets.logo || ''}" alt="" style="width:38px;height:auto;transform:rotate(-90deg);transform-origin:center;object-fit:contain;" />
       <div style="writing-mode:vertical-rl;text-orientation:mixed;font-size:11px;font-weight:700;letter-spacing:0.08em;color:rgba(255,255,255,0.82);text-transform:uppercase;line-height:1.15;">${escapeHtml(ponto.cidade || '')}</div>
     </div>
@@ -490,22 +594,22 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
     <div style="position:absolute;right:0;top:0;bottom:0;width:${layout.imagePanelWidth}px;background:#1a1a1a;"></div>
     <div style="position:absolute;right:0;top:0;bottom:0;width:${layout.imagePanelWidth}px;background:url('${image || assets.showcase || ''}') center/cover no-repeat;"></div>
 
-    <div style="position:absolute;left:${layout.contentLeft}px;top:52px;right:${layout.contentRight}px;display:flex;align-items:flex-end;justify-content:flex-start;gap:14px;border-bottom:2px solid #161616;padding-bottom:12px;">
+    <div data-calibration-id="midiaKit.pointPage.typeHeader" style="position:absolute;left:${layout.contentLeft}px;top:52px;right:${layout.contentRight}px;display:flex;align-items:flex-end;justify-content:flex-start;gap:14px;border-bottom:2px solid #161616;padding-bottom:12px;">
       <div style="display:flex;align-items:center;gap:16px;">
         <div style="width:46px;height:46px;border:2px solid #222;display:flex;align-items:center;justify-content:center;font-size:21px;">▥</div>
         <div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.typeFontSize}px;line-height:0.9;font-weight:700;letter-spacing:-0.03em;color:#000;">${escapeHtml((ponto.tipo || 'FORMATO').toUpperCase())}</div>
       </div>
     </div>
 
-    <div style="position:absolute;left:${layout.contentLeft}px;top:${layout.nameTop}px;right:${layout.contentRight}px;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
+    <div data-calibration-id="midiaKit.pointPage.nameBlock" style="position:absolute;left:${layout.contentLeft}px;top:${layout.nameTop}px;right:${layout.contentRight}px;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
       <div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.nameFontSize}px;line-height:1.02;font-weight:700;color:#000;max-width:calc(100% - ${layout.nameMaxWidthOffset}px);word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME')}</div>
       <div style="font-size:44px;line-height:0.95;font-weight:700;color:#000;white-space:nowrap;padding-top:8px;">${index}/${total}</div>
     </div>
 
-    <div style="position:absolute;left:${layout.contentLeft}px;top:${layout.addressTop}px;right:${layout.contentRight}px;font-size:28px;line-height:1.4;color:#111;">${escapeHtml(ponto.endereco || 'Endereço não informado')} ${escapeHtml(ponto.cidade ? `· ${ponto.cidade}` : '')}</div>
+    <div data-calibration-id="midiaKit.pointPage.addressBlock" style="position:absolute;left:${layout.contentLeft}px;top:${layout.addressTop}px;right:${layout.contentRight}px;font-size:28px;line-height:1.4;color:#111;">${escapeHtml(ponto.endereco || 'Endereço não informado')} ${escapeHtml(ponto.cidade ? `· ${ponto.cidade}` : '')}</div>
 
-    <div style="position:absolute;left:${layout.contentLeft}px;top:${layout.metricsBoxTop}px;right:${layout.contentRight}px;border:2px solid rgba(17,17,17,0.32);background:rgba(255,255,255,0.5);padding:22px 24px;border-radius:16px;"></div>
-    <div style="position:absolute;left:${layout.contentLeft + 26}px;top:${layout.metricsGridTop}px;right:${layout.contentRight + 24}px;display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;">
+    <div data-calibration-id="midiaKit.pointPage.metricsBox" style="position:absolute;left:${layout.contentLeft}px;top:${layout.metricsBoxTop}px;right:${layout.contentRight}px;border:2px solid rgba(17,17,17,0.32);background:rgba(255,255,255,0.5);padding:22px 24px;border-radius:16px;"></div>
+    <div data-calibration-id="midiaKit.pointPage.metricsBox" style="position:absolute;left:${layout.contentLeft + 26}px;top:${layout.metricsGridTop}px;right:${layout.contentRight + 24}px;display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;">
       ${details.slice(0, 6).map((item) => `
         <div style="display:grid;grid-template-columns:22px 1fr;grid-template-areas:'icon label' '. value';column-gap:10px;row-gap:7px;min-height:96px;">
           <div style="grid-area:icon;display:flex;align-items:center;justify-content:center;width:22px;height:22px;">${metricIconSvg(item.key)}</div>
@@ -515,13 +619,13 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
       `).join('')}
     </div>
 
-    <div style="position:absolute;left:${layout.contentLeft}px;bottom:${layout.footerLineBottom}px;right:${layout.contentRight}px;border-top:2px solid #1a1a1a;"></div>
-    <div style="position:absolute;left:${layout.contentLeft}px;bottom:${layout.footerBottom}px;right:${layout.contentRight}px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
+    <div data-calibration-id="midiaKit.pointPage.footerBlock" style="position:absolute;left:${layout.contentLeft}px;bottom:${layout.footerLineBottom}px;right:${layout.contentRight}px;border-top:2px solid #1a1a1a;"></div>
+    <div data-calibration-id="midiaKit.pointPage.footerBlock" style="position:absolute;left:${layout.contentLeft}px;bottom:${layout.footerBottom}px;right:${layout.contentRight}px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
       <div>
         <div style="font-size:20px;line-height:1.35;color:#111;">mínimo de ${escapeHtml(formatInt(ponto.insercoes || 0))} inserções/mês</div>
         <div style="font-size:20px;line-height:1.35;color:#111;">veiculação: ${escapeHtml((ponto.veiculacao || 'vídeo sem áudio').toLowerCase())}</div>
       </div>
-      <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-end;min-width:320px;">
+      <div data-calibration-id="midiaKit.pointPage.priceBlock" style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-end;min-width:320px;">
         <div style="font-size:26px;line-height:1;color:#111;margin-bottom:${layout.priceLabelMarginBottom}px;">Valor mensal:</div>
         <div style="font-family:Poppins, system-ui, sans-serif;font-size:${layout.priceValueFontSize}px;line-height:0.96;font-weight:700;color:#000;white-space:nowrap;">${escapeHtml(formatMoney(ponto.preco))}</div>
       </div>
@@ -551,7 +655,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
       <div style="display:flex;flex-direction:column;min-width:0;">
         <div style="display:flex;align-items:center;gap:18px;">
           <img src="${assets.logo || ''}" alt="" style="height:48px;width:auto;object-fit:contain;" />
-          <div style="display:inline-flex;align-items:center;justify-content:center;min-height:${layout.badgeMinHeight}px;padding:0 ${layout.badgePaddingX}px;border-radius:999px;background:rgba(254,92,43,0.14);border:1px solid rgba(254,92,43,0.24);font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};line-height:1;text-align:center;">
+          <div data-calibration-id="proposal.cover.badge" style="display:inline-flex;align-items:center;justify-content:center;min-height:${layout.badgeMinHeight}px;padding:0 ${layout.badgePaddingX}px;border-radius:999px;background:rgba(254,92,43,0.14);border:1px solid rgba(254,92,43,0.24);font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};line-height:1;text-align:center;">
             <span style="display:block;transform:translateY(1px);">Proposta comercial</span>
           </div>
         </div>
@@ -559,7 +663,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
         <div style="margin-top:40px;font-family:Poppins, system-ui, sans-serif;font-size:84px;line-height:0.92;font-weight:700;letter-spacing:-0.05em;max-width:760px;">${escapeHtml(proposalClient)}</div>
         <div style="margin-top:20px;font-size:28px;line-height:1.45;color:rgba(255,255,255,0.74);max-width:720px;">Praça ${escapeHtml(proposalCity)} com material de venda redesenhado para leitura mais forte, imagens melhor enquadradas e informações sem estouro de margem.</div>
 
-        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:24px;">
+        <div data-calibration-id="proposal.cover.chips" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:24px;">
           ${[
             proposalCity,
             formatPointCountLabel(proposalPoints.length || 0),
@@ -571,7 +675,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
           `).join('')}
         </div>
 
-        <div style="margin-top:auto;">
+        <div data-calibration-id="proposal.cover.metricCards" style="margin-top:auto;">
           ${buildMetricCards(cards, {
             valueSize: layout.metricValueSize,
             labelSize: layout.metricLabelSize,
@@ -586,8 +690,8 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
 
       <div style="display:grid;grid-template-rows:1fr;gap:20px;min-width:0;">
         <div style="padding:28px 30px;border-radius:34px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.09);backdrop-filter:blur(14px);display:flex;flex-direction:column;">
-          <div style="display:flex;align-items:center;gap:12px;font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};"><span style="display:inline-flex;align-items:center;justify-content:center;width:${layout.strategicHeaderIconSize}px;height:${layout.strategicHeaderIconSize}px;border-radius:999px;background:rgba(254,92,43,0.16);">${proposalIcon('target')}</span>Direcionamento estratégico</div>
-          <div style="margin-top:22px;display:grid;gap:14px;">
+          <div data-calibration-id="proposal.cover.strategicHeader" style="display:flex;align-items:center;gap:12px;font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};"><span style="display:inline-flex;align-items:center;justify-content:center;width:${layout.strategicHeaderIconSize}px;height:${layout.strategicHeaderIconSize}px;border-radius:999px;background:rgba(254,92,43,0.16);">${proposalIcon('target')}</span>Direcionamento estratégico</div>
+          <div data-calibration-id="proposal.cover.strategicCards" style="margin-top:22px;display:grid;gap:14px;">
             ${strategicItems.map((item) => `
               <div style="display:grid;grid-template-columns:36px 1fr;gap:14px;align-items:flex-start;padding:16px 18px;border-radius:22px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);">
                 <div style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;background:rgba(254,92,43,0.16);">
@@ -617,7 +721,7 @@ function buildProposalPointPage({ point, index, total, image, assets }) {
     <div style="position:absolute;inset:0;background:linear-gradient(135deg,#050505 0%,#0B0B0B 38%,#111111 100%);"></div>
     <div style="position:absolute;top:0;right:0;bottom:0;width:34%;background:url('${assets.wallpaper || assets.cityBg || ''}') center/cover no-repeat;opacity:0.08;"></div>
     <div style="position:relative;z-index:1;height:100%;padding:42px 46px;box-sizing:border-box;display:grid;grid-template-rows:auto 1fr;gap:24px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px 22px;border-radius:26px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+      <div data-calibration-id="proposal.point.header" style="display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px 22px;border-radius:26px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
         <div style="display:flex;align-items:center;gap:16px;min-width:0;">
           <img src="${assets.logo || ''}" alt="" style="height:34px;width:auto;object-fit:contain;" />
           <div style="min-width:0;">
@@ -625,7 +729,7 @@ function buildProposalPointPage({ point, index, total, image, assets }) {
             <div style="margin-top:6px;font-size:18px;line-height:1.4;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} · ${escapeHtml(point.tipo || '-')}</div>
           </div>
         </div>
-        <div style="display:inline-grid;grid-template-columns:auto auto auto;align-items:center;justify-content:center;column-gap:${layout.counterGap}px;min-width:${layout.counterMinWidth}px;min-height:${layout.counterMinHeight}px;padding:0 ${layout.counterPaddingX}px;border-radius:20px;background:#111;border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;color:#fff;line-height:1;font-family:Poppins, system-ui, sans-serif;">
+        <div data-calibration-id="proposal.point.counter" style="display:inline-grid;grid-template-columns:auto auto auto;align-items:center;justify-content:center;column-gap:${layout.counterGap}px;min-width:${layout.counterMinWidth}px;min-height:${layout.counterMinHeight}px;padding:0 ${layout.counterPaddingX}px;border-radius:20px;background:#111;border:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;color:#fff;line-height:1;font-family:Poppins, system-ui, sans-serif;">
           <span style="display:block;color:${BRAND_ORANGE};transform:translateY(1px);">${index}</span>
           <span style="display:block;color:rgba(255,255,255,0.56);transform:translateY(1px);">/</span>
           <span style="display:block;color:rgba(255,255,255,0.86);transform:translateY(1px);">${total}</span>
@@ -633,19 +737,19 @@ function buildProposalPointPage({ point, index, total, image, assets }) {
       </div>
 
       <div style="display:grid;grid-template-columns:1.18fr 0.82fr;gap:24px;min-height:0;">
-        <div style="position:relative;min-width:0;">
+        <div data-calibration-id="proposal.point.imageFrame" style="position:relative;min-width:0;">
           <div style="position:absolute;inset:0;padding:26px;border-radius:34px;background:linear-gradient(180deg,#121212 0%,#090909 100%);border:1px solid rgba(255,255,255,0.08);box-sizing:border-box;">
             ${buildHeroImageFrame(image, { fit: 'contain', radius: 28 })}
           </div>
         </div>
 
         <div style="display:flex;flex-direction:column;gap:18px;min-width:0;">
-          <div style="padding:26px 28px;border-radius:30px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);">
+          <div data-calibration-id="proposal.point.addressBox" style="padding:26px 28px;border-radius:30px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);">
             <div style="font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Endereço</div>
             <div style="margin-top:12px;font-size:23px;line-height:1.5;color:#fff;word-break:break-word;">${escapeHtml(point.endereco || 'Endereço não informado')}</div>
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr;gap:14px;">
+          <div data-calibration-id="proposal.point.statsList" style="display:grid;grid-template-columns:1fr;gap:14px;">
             ${stats.map((item) => `
               <div style="padding:18px 20px;border-radius:24px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);">
                 <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">${escapeHtml(item.label)}</div>
@@ -661,45 +765,60 @@ function buildProposalPointPage({ point, index, total, image, assets }) {
 }
 
 async function loadPdfAssets() {
-  const [
-    logo,
-    logoHorizontal,
-    logo07,
-    heroBg,
-    cityBg,
-    about1,
-    about2,
-    audience,
-    showcase,
-    wallpaper,
-    pattern
-  ] = await Promise.all([
-    imageToDataUrl(assetUrl('/logo.png')),
-    imageToDataUrl(assetUrl('/logo-deitado.png')),
-    imageToDataUrl(assetUrl('/logo-07.png')),
-    imageToDataUrl(assetUrl('/hero-bg.jpg')),
-    imageToDataUrl(assetUrl('/city-bg.jpg')),
-    imageToDataUrl(assetUrl('/about-1.jpg')),
-    imageToDataUrl(assetUrl('/about-2.jpg')),
-    imageToDataUrl(assetUrl('/audience.jpg')),
-    imageToDataUrl(assetUrl('/showcase.png')),
-    imageToDataUrl(assetUrl('/wallpaper.jpg')),
-    imageToDataUrl(assetUrl('/patterns/INTERMIDIA_PATTERN_ID.VISUAL_2024_INTERMIDIA_PATTERN_ID.VISUAL-4.png'))
-  ]);
+  if (pdfAssetsPromise) {
+    return pdfAssetsPromise;
+  }
 
-  return {
-    logo,
-    logoHorizontal,
-    logo07,
-    heroBg,
-    cityBg,
-    about1,
-    about2,
-    audience,
-    showcase,
-    wallpaper,
-    pattern
-  };
+  pdfAssetsPromise = (async () => {
+    const [
+      logo,
+      logoHorizontal,
+      logo07,
+      heroBg,
+      cityBg,
+      about1,
+      about2,
+      audience,
+      showcase,
+      wallpaper,
+      pattern
+    ] = await Promise.all([
+      imageToDataUrl(assetUrl('/logo.png')),
+      imageToDataUrl(assetUrl('/logo-deitado.png')),
+      imageToDataUrl(assetUrl('/logo-07.png')),
+      imageToDataUrl(assetUrl('/hero-bg.jpg')),
+      imageToDataUrl(assetUrl('/city-bg.jpg')),
+      imageToDataUrl(assetUrl('/about-1.jpg')),
+      imageToDataUrl(assetUrl('/about-2.jpg')),
+      imageToDataUrl(assetUrl('/audience.jpg')),
+      imageToDataUrl(assetUrl('/showcase.png')),
+      imageToDataUrl(assetUrl('/wallpaper.jpg')),
+      imageToDataUrl(assetUrl('/patterns/INTERMIDIA_PATTERN_ID.VISUAL_2024_INTERMIDIA_PATTERN_ID.VISUAL-4.png'))
+    ]);
+
+    return {
+      logo,
+      logoHorizontal,
+      logo07,
+      heroBg,
+      cityBg,
+      about1,
+      about2,
+      audience,
+      showcase,
+      wallpaper,
+      pattern
+    };
+  })();
+
+  return pdfAssetsPromise;
+}
+
+export async function buildPdfCalibrationPreview({ previewKey, layoutConfig, focusKey = '', isolateFocus = false }) {
+  activePdfLayoutConfig = layoutConfig || await loadPdfLayoutConfig();
+  const assets = await loadPdfAssets();
+  const page = buildCalibrationPreviewPage(previewKey, assets);
+  return highlightCalibrationTargets(page, focusKey, isolateFocus);
 }
 
 export async function generateMidiaKitPdf({ praca, pontos }) {

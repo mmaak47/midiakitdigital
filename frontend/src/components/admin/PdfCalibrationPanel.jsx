@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Check, Copy, Loader2, RotateCcw, Server, SlidersHorizontal, Upload } from 'lucide-react';
 import {
   PDF_CALIBRATION_GROUPS,
+  PDF_CALIBRATION_PREVIEWS,
   PDF_LAYOUT_STORAGE_KEY,
   getDefaultPdfLayoutConfig,
   getStoredPdfLayoutOverrides,
@@ -13,6 +14,7 @@ import {
   saveAdminPdfLayout,
   resetAdminPdfLayout
 } from '../../lib/api';
+import PdfCalibrationPreview from './PdfCalibrationPreview';
 
 function getValueByPath(source, path) {
   return path.split('.').reduce((acc, key) => acc?.[key], source);
@@ -59,6 +61,9 @@ function buildOverrideObject(defaults, current) {
 
 export default function PdfCalibrationPanel() {
   const defaultConfig = useMemo(() => getDefaultPdfLayoutConfig(), []);
+  const [selectedPreviewKey, setSelectedPreviewKey] = useState(PDF_CALIBRATION_PREVIEWS[0]?.key || 'midiaKit.cover');
+  const [selectedFocusKey, setSelectedFocusKey] = useState('');
+  const [isolateFocus, setIsolateFocus] = useState(true);
   const [config, setConfig] = useState(() => {
     const stored = getStoredPdfLayoutOverrides();
     return Object.keys(stored).length
@@ -108,6 +113,30 @@ export default function PdfCalibrationPanel() {
   const overridePreview = useMemo(() => {
     return JSON.stringify(buildOverrideObject(defaultConfig, config), null, 2);
   }, [config, defaultConfig]);
+
+  const selectedPreview = useMemo(() => {
+    return PDF_CALIBRATION_PREVIEWS.find((item) => item.key === selectedPreviewKey) || PDF_CALIBRATION_PREVIEWS[0];
+  }, [selectedPreviewKey]);
+
+  const visibleGroups = useMemo(() => {
+    if (!selectedPreview?.key) return PDF_CALIBRATION_GROUPS;
+    return PDF_CALIBRATION_GROUPS.filter((group) => group.key === selectedPreview.key);
+  }, [selectedPreview]);
+
+  useEffect(() => {
+    const availableFocusKeys = selectedPreview?.focusTargets?.map((item) => item.key) || [];
+    if (!availableFocusKeys.length) {
+      setSelectedFocusKey('');
+      return;
+    }
+    if (!availableFocusKeys.includes(selectedFocusKey)) {
+      setSelectedFocusKey(availableFocusKeys[0]);
+    }
+  }, [selectedPreview, selectedFocusKey]);
+
+  const selectedFocus = useMemo(() => {
+    return selectedPreview?.focusTargets?.find((item) => item.key === selectedFocusKey) || null;
+  }, [selectedPreview, selectedFocusKey]);
 
   const updateNumberField = (path, rawValue) => {
     const numericValue = Number(rawValue);
@@ -210,9 +239,64 @@ export default function PdfCalibrationPanel() {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
-        <div className="grid gap-4 md:grid-cols-2">
-          {PDF_CALIBRATION_GROUPS.map((group) => (
+      <div className="mt-5 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-brand-gray-500">Página em preview</label>
+                <select
+                  value={selectedPreviewKey}
+                  onChange={(event) => setSelectedPreviewKey(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                >
+                  {PDF_CALIBRATION_PREVIEWS.map((preview) => (
+                    <option key={preview.key} value={preview.key}>
+                      {preview.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-brand-gray-500">Box isolado</label>
+                <select
+                  value={selectedFocusKey}
+                  onChange={(event) => setSelectedFocusKey(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                >
+                  {(selectedPreview?.focusTargets || []).map((target) => (
+                    <option key={target.key} value={target.key}>
+                      {target.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <label className="flex items-end">
+                <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white">
+                  <input
+                    type="checkbox"
+                    checked={isolateFocus}
+                    onChange={(event) => setIsolateFocus(event.target.checked)}
+                    className="accent-brand-orange"
+                  />
+                  Escurecer resto
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <PdfCalibrationPreview
+            config={config}
+            previewKey={selectedPreviewKey}
+            focusKey={selectedFocusKey}
+            focusLabel={selectedFocus?.label || ''}
+            isolateFocus={isolateFocus}
+          />
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {visibleGroups.map((group) => (
             <div key={group.key} className="rounded-2xl border border-white/10 bg-black/20 p-4">
               <h4 className="text-sm font-semibold text-white">{group.title}</h4>
               <div className="mt-4 space-y-3">
@@ -249,7 +333,8 @@ export default function PdfCalibrationPanel() {
                 })}
               </div>
             </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         <div className="space-y-4">
