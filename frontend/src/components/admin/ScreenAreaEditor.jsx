@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { RefreshCcw, Trash2 } from 'lucide-react';
+import { Minus, Plus, RefreshCcw, Trash2 } from 'lucide-react';
 import {
   buildDefaultQuadAt,
   buildRectQuad,
@@ -8,9 +8,14 @@ import {
   normalizeCorners
 } from '../../lib/simulation';
 
-const HANDLE_RADIUS = 1.15;
-const EDGE_HIT_STROKE = 2.25;
-const HANDLE_HIT_RADIUS = 2.4;
+const HANDLE_RADIUS = 0.85;
+const EDGE_HIT_STROKE = 1.8;
+const HANDLE_HIT_RADIUS = 2;
+const SELECTION_STROKE = 0.16;
+const GRID_STROKE = 0.08;
+const MIN_ZOOM = 100;
+const MAX_ZOOM = 300;
+const ZOOM_STEP = 10;
 
 function bilerp(tl, tr, br, bl, u, v) {
   const top = {
@@ -48,6 +53,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
   const stageRef = useRef(null);
   const [drag, setDrag] = useState(null);
   const [helper, setHelper] = useState('Arraste no fundo para criar a área. Depois ajuste cantos, arestas ou a área inteira.');
+  const [zoom, setZoom] = useState(100);
 
   const normalizedCorners = useMemo(() => normalizeCorners(corners), [corners]);
   const hasSelection = !!normalizedCorners;
@@ -66,6 +72,17 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
   const applyNext = (nextCorners) => {
     const normalized = normalizeCorners(nextCorners);
     if (normalized) onChange(normalized);
+  };
+
+  const updateZoom = (nextZoom) => {
+    setZoom(clamp(nextZoom, MIN_ZOOM, MAX_ZOOM));
+  };
+
+  const handleWheelZoom = (event) => {
+    if (!event.ctrlKey) return;
+    event.preventDefault();
+    const delta = event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+    updateZoom(zoom + delta);
   };
 
   const startBackgroundSelection = (event) => {
@@ -197,10 +214,32 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-400">Editor de tela</p>
-          <p className="text-[11px] text-brand-gray-500">Marcação visual no estilo do simulador, com perspectiva por cantos e arestas.</p>
+          <p className="text-[11px] text-brand-gray-500">Marcação visual no estilo do simulador, com perspectiva por cantos e arestas. Use Ctrl + scroll para zoom.</p>
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="inline-flex items-center rounded-lg border border-white/10 bg-white/5">
+            <button
+              type="button"
+              onClick={() => updateZoom(zoom - ZOOM_STEP)}
+              disabled={zoom <= MIN_ZOOM}
+              className="inline-flex h-9 w-9 items-center justify-center text-brand-gray-300 hover:bg-white/10 disabled:opacity-40"
+            >
+              <Minus size={14} />
+            </button>
+            <span className="min-w-[56px] px-2 text-center text-xs font-semibold text-white">{zoom}%</span>
+            <button
+              type="button"
+              onClick={() => updateZoom(zoom + ZOOM_STEP)}
+              disabled={zoom >= MAX_ZOOM}
+              className="inline-flex h-9 w-9 items-center justify-center text-brand-gray-300 hover:bg-white/10 disabled:opacity-40"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+          <button type="button" onClick={() => updateZoom(100)} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10">
+            100%
+          </button>
           <button type="button" onClick={() => onChange(buildDefaultQuadAt(bounds.centerX, bounds.centerY))} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10">
             <RefreshCcw size={14} />
             Centralizar
@@ -213,63 +252,72 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-        <div ref={stageRef} className="relative overflow-hidden rounded-xl border border-white/10 bg-black">
-          <img src={imageUrl} alt="Base do ponto" className="block w-full h-auto select-none" draggable="false" />
-
-          <svg
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            className="absolute inset-0 h-full w-full touch-none select-none"
-            onPointerDown={startBackgroundSelection}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerUp}
-            style={{ cursor: drag ? 'crosshair' : hasSelection ? 'default' : 'crosshair' }}
+        <div
+          className="overflow-auto rounded-xl border border-white/10 bg-black max-h-[62vh]"
+          onWheel={handleWheelZoom}
+        >
+          <div
+            ref={stageRef}
+            className="relative"
+            style={{ width: `${zoom}%`, minWidth: '100%' }}
           >
-            <rect x="0" y="0" width="100" height="100" fill="rgba(0,0,0,0.12)" />
+            <img src={imageUrl} alt="Base do ponto" className="block w-full h-auto select-none" draggable="false" />
 
-            {hasSelection && (
-              <>
-                <polygon points={polygonPoints} fill="rgba(254,92,43,0.12)" stroke="rgba(254,92,43,0.88)" strokeWidth="0.24" />
+            <svg
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              className="absolute inset-0 h-full w-full touch-none select-none"
+              onPointerDown={startBackgroundSelection}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+              style={{ cursor: drag ? 'crosshair' : hasSelection ? 'default' : 'crosshair' }}
+            >
+              <rect x="0" y="0" width="100" height="100" fill="rgba(0,0,0,0.12)" />
 
-                {Array.from({ length: 4 }).map((_, index) => (
-                  <polyline key={`grid-h-${index}`} points={polylineForInterpolation(activeCorners, 'v', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.12" />
-                ))}
+              {hasSelection && (
+                <>
+                  <polygon points={polygonPoints} fill="rgba(254,92,43,0.12)" stroke="rgba(254,92,43,0.88)" strokeWidth={SELECTION_STROKE} />
 
-                {Array.from({ length: 4 }).map((_, index) => (
-                  <polyline key={`grid-v-${index}`} points={polylineForInterpolation(activeCorners, 'u', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.13)" strokeWidth="0.12" />
-                ))}
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <polyline key={`grid-h-${index}`} points={polylineForInterpolation(activeCorners, 'v', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth={GRID_STROKE} />
+                  ))}
 
-                <polygon points={polygonPoints} fill="transparent" onPointerDown={startQuadDrag} style={{ cursor: 'move' }} />
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <polyline key={`grid-v-${index}`} points={polylineForInterpolation(activeCorners, 'u', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.13)" strokeWidth={GRID_STROKE} />
+                  ))}
 
-                {[
-                  { key: 'top', a: activeCorners[0], b: activeCorners[1] },
-                  { key: 'right', a: activeCorners[1], b: activeCorners[2] },
-                  { key: 'bottom', a: activeCorners[2], b: activeCorners[3] },
-                  { key: 'left', a: activeCorners[3], b: activeCorners[0] }
-                ].map((edge) => (
-                  <line
-                    key={edge.key}
-                    x1={edge.a.x}
-                    y1={edge.a.y}
-                    x2={edge.b.x}
-                    y2={edge.b.y}
-                    stroke="transparent"
-                    strokeWidth={EDGE_HIT_STROKE}
-                    onPointerDown={(event) => startEdgeDrag(event, edge.key)}
-                    style={{ cursor: edge.key === 'top' || edge.key === 'bottom' ? 'ns-resize' : 'ew-resize' }}
-                  />
-                ))}
+                  <polygon points={polygonPoints} fill="transparent" onPointerDown={startQuadDrag} style={{ cursor: 'move' }} />
 
-                {activeCorners.map((point, index) => (
-                  <g key={`handle-${index}`}>
-                    <circle cx={point.x} cy={point.y} r={HANDLE_HIT_RADIUS} fill="transparent" onPointerDown={(event) => startCornerDrag(event, index)} style={{ cursor: 'grab' }} />
-                    <circle cx={point.x} cy={point.y} r={HANDLE_RADIUS} fill="white" stroke="rgba(254,92,43,0.98)" strokeWidth="0.34" pointerEvents="none" />
-                  </g>
-                ))}
-              </>
-            )}
-          </svg>
+                  {[
+                    { key: 'top', a: activeCorners[0], b: activeCorners[1] },
+                    { key: 'right', a: activeCorners[1], b: activeCorners[2] },
+                    { key: 'bottom', a: activeCorners[2], b: activeCorners[3] },
+                    { key: 'left', a: activeCorners[3], b: activeCorners[0] }
+                  ].map((edge) => (
+                    <line
+                      key={edge.key}
+                      x1={edge.a.x}
+                      y1={edge.a.y}
+                      x2={edge.b.x}
+                      y2={edge.b.y}
+                      stroke="transparent"
+                      strokeWidth={EDGE_HIT_STROKE}
+                      onPointerDown={(event) => startEdgeDrag(event, edge.key)}
+                      style={{ cursor: edge.key === 'top' || edge.key === 'bottom' ? 'ns-resize' : 'ew-resize' }}
+                    />
+                  ))}
+
+                  {activeCorners.map((point, index) => (
+                    <g key={`handle-${index}`}>
+                      <circle cx={point.x} cy={point.y} r={HANDLE_HIT_RADIUS} fill="transparent" onPointerDown={(event) => startCornerDrag(event, index)} style={{ cursor: 'grab' }} />
+                      <circle cx={point.x} cy={point.y} r={HANDLE_RADIUS} fill="white" stroke="rgba(254,92,43,0.98)" strokeWidth="0.26" pointerEvents="none" />
+                    </g>
+                  ))}
+                </>
+              )}
+            </svg>
+          </div>
         </div>
       </div>
 
