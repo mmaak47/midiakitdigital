@@ -74,6 +74,8 @@ export default function Admin() {
   const [screenSelection, setScreenSelection] = useState(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [filterCidade, setFilterCidade] = useState('todas');
+  const [filterTipo, setFilterTipo] = useState('todos');
   const [activeTab, setActiveTab] = useState('pontos');
 
   const [users, setUsers] = useState([]);
@@ -431,10 +433,15 @@ export default function Admin() {
 
   const updateField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
 
-  const filtered = pontos.filter(p =>
-    !search || p.nome.toLowerCase().includes(search.toLowerCase()) ||
-    p.cidade.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = pontos.filter((p) => {
+    const searchTerm = search.trim().toLowerCase();
+    const matchSearch = !searchTerm
+      || p.nome.toLowerCase().includes(searchTerm)
+      || p.cidade.toLowerCase().includes(searchTerm);
+    const matchCidade = filterCidade === 'todas' || p.cidade === filterCidade;
+    const matchTipo = filterTipo === 'todos' || p.tipo === filterTipo;
+    return matchSearch && matchCidade && matchTipo;
+  });
 
   const artWidth = parseInt(form.arte_largura, 10) || 0;
   const artHeight = parseInt(form.arte_altura, 10) || 0;
@@ -586,14 +593,42 @@ export default function Admin() {
 
         {activeTab === 'pontos' ? (
           <>
-            <div className="mb-6">
+            <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center">
               <input
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Buscar por nome ou cidade..."
-                className="w-full max-w-md px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-500 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                className="w-full lg:max-w-md px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-500 focus:outline-none focus:border-brand-orange/40 transition-colors"
               />
+
+              <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                <select
+                  value={filterCidade}
+                  onChange={(e) => setFilterCidade(e.target.value)}
+                  className="w-full sm:w-52 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-brand-orange/40 transition-colors"
+                >
+                  <option value="todas" className="bg-brand-dark text-white">Todas as cidades</option>
+                  {cidades.map((cidade) => (
+                    <option key={cidade} value={cidade} className="bg-brand-dark text-white">
+                      {cidade}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={filterTipo}
+                  onChange={(e) => setFilterTipo(e.target.value)}
+                  className="w-full sm:w-52 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-brand-orange/40 transition-colors"
+                >
+                  <option value="todos" className="bg-brand-dark text-white">Todos os tipos</option>
+                  {tipos.map((tipo) => (
+                    <option key={tipo} value={tipo} className="bg-brand-dark text-white">
+                      {tipo}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="border border-white/5 rounded-2xl overflow-hidden">
