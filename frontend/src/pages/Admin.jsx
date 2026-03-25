@@ -74,6 +74,7 @@ export default function Admin() {
   const [baseImagePreviewUrl, setBaseImagePreviewUrl] = useState('');
   const [screenSelection, setScreenSelection] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [focusDragging, setFocusDragging] = useState(false);
   const [search, setSearch] = useState('');
   const [filterCidade, setFilterCidade] = useState('todas');
   const [filterTipo, setFilterTipo] = useState('todos');
@@ -454,6 +455,7 @@ export default function Admin() {
   const previewFocoY = clampNumber(form.imagem_foco_y, 0, 100, 50);
   const previewFocoZoom = clampNumber(form.imagem_foco_zoom, 100, 220, 100);
   const imagePreviewForFocus = baseImagePreviewUrl || form.imagem;
+  const simulationSuggestedFocus = useMemo(() => deriveFocusFromSimulationString(form.simulacao_tela), [form.simulacao_tela]);
 
   const autoArtPrompt = useMemo(() => {
     if (!artWidth || !artHeight || !form.nome) return '';
@@ -483,6 +485,15 @@ export default function Admin() {
     } catch (err) {
       console.error('Falha ao copiar:', err);
     }
+  };
+
+  const updateImageFocusFromPointer = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const x = clampNumber(((event.clientX - rect.left) / rect.width) * 100, 0, 100, 50);
+    const y = clampNumber(((event.clientY - rect.top) / rect.height) * 100, 0, 100, 50);
+    updateField('imagem_foco_x', String(Math.round(x)));
+    updateField('imagem_foco_y', String(Math.round(y)));
   };
 
   // Login screen
@@ -995,17 +1006,76 @@ export default function Admin() {
                       />
                     </div>
 
-                    <div className="rounded-xl border border-white/10 bg-black/35 overflow-hidden h-52">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateField('imagem_foco_x', String(Math.round(simulationSuggestedFocus.x)));
+                          updateField('imagem_foco_y', String(Math.round(simulationSuggestedFocus.y)));
+                          updateField('imagem_foco_zoom', String(Math.round(simulationSuggestedFocus.zoom)));
+                        }}
+                        className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-xs text-white transition-colors"
+                      >
+                        Usar foco automático da tela marcada
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateField('imagem_foco_x', '50');
+                          updateField('imagem_foco_y', '50');
+                          updateField('imagem_foco_zoom', '100');
+                        }}
+                        className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-xs text-white transition-colors"
+                      >
+                        Resetar enquadramento
+                      </button>
+                    </div>
+
+                    <div
+                      className="rounded-xl border border-white/10 bg-black/35 overflow-hidden h-72 relative select-none cursor-crosshair"
+                      onPointerDown={(event) => {
+                        setFocusDragging(true);
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        updateImageFocusFromPointer(event);
+                      }}
+                      onPointerMove={(event) => {
+                        if (focusDragging) updateImageFocusFromPointer(event);
+                      }}
+                      onPointerUp={(event) => {
+                        if (focusDragging) {
+                          updateImageFocusFromPointer(event);
+                          setFocusDragging(false);
+                        }
+                      }}
+                      onPointerCancel={() => setFocusDragging(false)}
+                    >
                       {imagePreviewForFocus ? (
-                        <img
-                          src={imagePreviewForFocus}
-                          alt="Preview enquadramento"
-                          className="w-full h-full object-cover"
-                          style={{
-                            transform: `scale(${previewFocoZoom / 100})`,
-                            transformOrigin: `${previewFocoX}% ${previewFocoY}%`
-                          }}
-                        />
+                        <>
+                          <img
+                            src={imagePreviewForFocus}
+                            alt="Preview enquadramento"
+                            className="w-full h-full object-cover"
+                            style={{
+                              objectPosition: `${previewFocoX}% ${previewFocoY}%`,
+                              transform: `scale(${previewFocoZoom / 100})`,
+                              transformOrigin: `${previewFocoX}% ${previewFocoY}%`
+                            }}
+                          />
+                          <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/25 to-transparent" />
+                          <div
+                            className="absolute pointer-events-none -translate-x-1/2 -translate-y-1/2"
+                            style={{ left: `${previewFocoX}%`, top: `${previewFocoY}%` }}
+                          >
+                            <div className="w-8 h-8 rounded-full border border-brand-orange shadow-[0_0_0_999px_rgba(0,0,0,0.08)]" />
+                            <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 w-px h-4 bg-brand-orange/80" />
+                            <div className="absolute left-1/2 bottom-0 -translate-x-1/2 translate-y-1/2 w-px h-4 bg-brand-orange/80" />
+                            <div className="absolute top-1/2 left-0 -translate-y-1/2 -translate-x-1/2 h-px w-4 bg-brand-orange/80" />
+                            <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 h-px w-4 bg-brand-orange/80" />
+                          </div>
+                          <div className="absolute left-3 bottom-3 rounded-lg bg-black/65 px-2 py-1 text-[11px] text-white/80 pointer-events-none">
+                            Arraste para mover o foco
+                          </div>
+                        </>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xs text-brand-gray-500">
                           Envie a imagem base para pré-visualizar o enquadramento
@@ -1075,6 +1145,38 @@ function clampNumber(value, min, max, fallback) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
   return Math.min(max, Math.max(min, numeric));
+}
+
+function deriveFocusFromSimulationString(simulacaoTela) {
+  const fallback = { x: 50, y: 50, zoom: 100 };
+  if (!simulacaoTela) return fallback;
+
+  try {
+    const parsed = typeof simulacaoTela === 'string' ? JSON.parse(simulacaoTela) : simulacaoTela;
+    if (!Array.isArray(parsed) || parsed.length < 4) return fallback;
+    const corners = parsed
+      .map((point) => ({ x: Number(point?.x), y: Number(point?.y) }))
+      .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+    if (corners.length < 4) return fallback;
+
+    const xs = corners.map((point) => point.x);
+    const ys = corners.map((point) => point.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const width = clampNumber(maxX - minX, 1, 100, 1);
+    const height = clampNumber(maxY - minY, 1, 100, 1);
+    const minSide = Math.min(width, height);
+
+    return {
+      x: clampNumber((minX + maxX) / 2, 0, 100, 50),
+      y: clampNumber((minY + maxY) / 2, 0, 100, 50),
+      zoom: clampNumber(Math.round(100 + Math.max(0, 32 - minSide) * 2), 100, 220, 100)
+    };
+  } catch {
+    return fallback;
+  }
 }
 
 function RangeField({ label, value, min, max, step = 1, onChange }) {

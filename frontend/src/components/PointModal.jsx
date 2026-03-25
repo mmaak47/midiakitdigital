@@ -135,6 +135,7 @@ export default function PointModal({ ponto, onClose }) {
                     alt={ponto.nome}
                     className="w-full h-full object-cover"
                     style={{
+                      objectPosition: `${imageFocus.x}% ${imageFocus.y}%`,
                       transform: `scale(${imageFocus.zoom / 100})`,
                       transformOrigin: `${imageFocus.x}% ${imageFocus.y}%`
                     }}
