@@ -108,14 +108,14 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
     <section className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-white/[0.01] p-6 shadow-lg shadow-black/20">
       <div className="flex items-center gap-2 mb-5">
         <Sparkles size={18} className="text-brand-orange" />
-        <h2 className="text-sm font-bold uppercase tracking-wider text-white">Sugestao de plano ideal</h2>
+        <h2 className="text-sm font-bold uppercase tracking-wider text-white">Sugestão de plano ideal</h2>
       </div>
 
       <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-4 mb-5">
         <CustomSelect label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS} />
         <CustomSelect label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} />
-        <CustomSelect label="Praca" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={['Todas', ...cidades]} />
-        <CustomSelect label="Publico" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={['Todos', ...publicos]} />
+        <CustomSelect label="Praça" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={['Todas', ...cidades]} />
+        <CustomSelect label="Público" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={['Todos', ...publicos]} />
         <div>
           <label className="text-[11px] uppercase tracking-wide text-brand-gray-500 font-semibold">Investimento mensal</label>
           <input
@@ -134,7 +134,7 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
           <p className="text-sm text-brand-gray-300 mb-3">{suggestion.justificativa}</p>
           <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-brand-gray-400">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold uppercase tracking-wide text-brand-gray-300">Analise de entorno</span>
+              <span className="font-semibold uppercase tracking-wide text-brand-gray-300">Análise de entorno</span>
               {entorno.loading && (
                 <span className="inline-flex items-center gap-1 text-brand-orange">
                   <Loader2 size={12} className="animate-spin" />
@@ -180,7 +180,7 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
 
       <div className="mt-4 flex items-center gap-2 text-xs text-brand-gray-500">
         <Target size={13} className="text-brand-orange" />
-        Recomendacao automatica com base em objetivo, publico, faixa de investimento e analise de entorno por segmento.
+        Recomendação automática com base em objetivo, público, faixa de investimento e análise de entorno por segmento.
       </div>
     </section>
   );

@@ -489,8 +489,8 @@ export default function Admin() {
           ) : null}
         </div>
 
-        <div className="mb-6 overflow-x-auto">
-          <div className="min-w-max inline-flex gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-2">
+        <div className="mb-6">
+          <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-2">
             {ADMIN_TABS.map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.key;

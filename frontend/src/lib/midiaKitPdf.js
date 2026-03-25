@@ -396,17 +396,18 @@ function buildHeroImageFrame(image, options = {}) {
   `;
 }
 
-function metricIconSvg(kind, color = '#111111') {
+function metricIconSvg(kind, color = '#111111', size = 20) {
   const common = `fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"`;
+  const wh = `width="${size}" height="${size}"`;
   const icons = {
-    publico: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><circle cx="9" cy="8" r="3.2"></circle><circle cx="16.5" cy="9.5" r="2.5"></circle><path d="M3.5 18.5c0-3.1 2.5-5.5 5.5-5.5s5.5 2.4 5.5 5.5"></path><path d="M14.6 18.5c0-2.3 1.8-4.1 4.1-4.1"></path></svg>`,
-    fluxo: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><path d="M3.5 12h13"></path><path d="M12 6.5L16.5 12 12 17.5"></path><path d="M20.5 8.5v7"></path></svg>`,
-    telas: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><rect x="3" y="5" width="18" height="12" rx="2"></rect><path d="M9 20h6"></path><path d="M12 17v3"></path></svg>`,
-    insercoes: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><path d="M12 4v16"></path><path d="M5 12h14"></path><circle cx="12" cy="12" r="8"></circle></svg>`,
-    tempo: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l2.8 2.8"></path></svg>`,
-    loop: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><path d="M17 7h3V4"></path><path d="M7 17H4v3"></path><path d="M20 7a8 8 0 0 0-13.7-2.5"></path><path d="M4 17a8 8 0 0 0 13.7 2.5"></path></svg>`,
-    veiculacao: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M10 9.2l5 2.8-5 2.8z"></path></svg>`,
-    horario: `<svg viewBox="0 0 24 24" width="20" height="20" ${common}><circle cx="12" cy="12" r="8"></circle><path d="M12 7v5h4"></path></svg>`
+    publico: `<svg viewBox="0 0 24 24" ${wh} ${common}><circle cx="9" cy="8" r="3.2"></circle><circle cx="16.5" cy="9.5" r="2.5"></circle><path d="M3.5 18.5c0-3.1 2.5-5.5 5.5-5.5s5.5 2.4 5.5 5.5"></path><path d="M14.6 18.5c0-2.3 1.8-4.1 4.1-4.1"></path></svg>`,
+    fluxo: `<svg viewBox="0 0 24 24" ${wh} ${common}><path d="M3.5 12h13"></path><path d="M12 6.5L16.5 12 12 17.5"></path><path d="M20.5 8.5v7"></path></svg>`,
+    telas: `<svg viewBox="0 0 24 24" ${wh} ${common}><rect x="3" y="5" width="18" height="12" rx="2"></rect><path d="M9 20h6"></path><path d="M12 17v3"></path></svg>`,
+    insercoes: `<svg viewBox="0 0 24 24" ${wh} ${common}><path d="M12 4v16"></path><path d="M5 12h14"></path><circle cx="12" cy="12" r="8"></circle></svg>`,
+    tempo: `<svg viewBox="0 0 24 24" ${wh} ${common}><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l2.8 2.8"></path></svg>`,
+    loop: `<svg viewBox="0 0 24 24" ${wh} ${common}><path d="M17 7h3V4"></path><path d="M7 17H4v3"></path><path d="M20 7a8 8 0 0 0-13.7-2.5"></path><path d="M4 17a8 8 0 0 0 13.7 2.5"></path></svg>`,
+    veiculacao: `<svg viewBox="0 0 24 24" ${wh} ${common}><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M10 9.2l5 2.8-5 2.8z"></path></svg>`,
+    horario: `<svg viewBox="0 0 24 24" ${wh} ${common}><circle cx="12" cy="12" r="8"></circle><path d="M12 7v5h4"></path></svg>`
   };
 
   return icons[kind] || icons.fluxo;
@@ -615,7 +616,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
     <div data-calibration-id="midiaKit.pointPage.metricsBox" style="position:absolute;left:${layout.contentLeft + 26}px;top:${layout.metricsGridTop}px;right:${layout.contentRight + 24}px;display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;">
       ${details.slice(0, 6).map((item) => `
         <div style="display:grid;grid-template-columns:22px 1fr;grid-template-areas:'icon label' '. value';column-gap:10px;row-gap:7px;min-height:96px;">
-          <div style="grid-area:icon;display:flex;align-items:center;justify-content:center;width:22px;height:22px;">${metricIconSvg(item.key)}</div>
+          <div style="grid-area:icon;display:flex;align-items:center;justify-content:center;width:${layout.metricIconSize + 2}px;height:${layout.metricIconSize + 2}px;">${metricIconSvg(item.key, '#111111', layout.metricIconSize)}</div>
           <div style="grid-area:label;font-size:${layout.metricLabelFontSize}px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#222;line-height:1.05;">${escapeHtml(item.label)}</div>
           <div style="grid-area:value;font-family:Poppins, system-ui, sans-serif;font-size:${layout.metricValueFontSize}px;line-height:1.18;font-weight:700;color:#000;word-break:break-word;">${escapeHtml(item.value)}</div>
         </div>
@@ -685,6 +686,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
           ${buildMetricCards(cards, {
             valueSize: layout.metricValueSize,
             labelSize: layout.metricLabelSize,
+            iconSize: layout.metricIconSize,
             minHeight: 146,
             gap: layout.metricGap,
             padding: layout.metricPadding,

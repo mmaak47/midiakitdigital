@@ -284,7 +284,7 @@ export default function PdfCalibrationPanel() {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="mt-5 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-4">
           <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
             <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">

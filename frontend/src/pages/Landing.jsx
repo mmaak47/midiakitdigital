@@ -136,7 +136,7 @@ export default function Landing() {
     const map = new Map();
 
     pontos.forEach((p) => {
-      const label = p.publico || 'Nao informado';
+      const label = p.publico || 'Não informado';
       map.set(label, (map.get(label) || 0) + 1);
     });
 
@@ -214,7 +214,7 @@ export default function Landing() {
             custom={1}
             className="text-3xl sm:text-4xl md:text-5xl font-bold leading-[1.05] tracking-tight mb-4 max-w-4xl"
           >
-            Planejamento por praca com inventario real, audiencia e oportunidades de midia.
+            Planejamento por praça com inventário real, audiência e oportunidades de mídia.
           </motion.h1>
 
           <motion.p
@@ -224,7 +224,7 @@ export default function Landing() {
             custom={2}
             className="text-base md:text-lg text-brand-gray-400 max-w-3xl mb-8"
           >
-            Selecione uma praca para gerar um midia kit focado na cidade ou visualize o consolidado de todas as pracas.
+            Selecione uma praça para gerar um mídia kit focado na cidade ou visualize o consolidado de todas as praças.
           </motion.p>
 
           <motion.div
@@ -236,7 +236,7 @@ export default function Landing() {
           >
             <div className="grid sm:grid-cols-2 gap-4">
               <CustomSelect 
-                label="Praca"
+                label="Praça"
                 value={selectedPraca}
                 onChange={setSelectedPraca}
                 options={pracas}
@@ -244,7 +244,7 @@ export default function Landing() {
               />
 
               <div>
-                <label className="text-xs text-brand-gray-500 uppercase tracking-wide font-semibold block mb-2">Visualizacao</label>
+                <label className="text-xs text-brand-gray-500 uppercase tracking-wide font-semibold block mb-2">Visualização</label>
                 <div className="h-[50px] rounded-xl bg-gradient-to-r from-white/10 to-white/5 border border-white/15 px-4 flex items-center text-sm font-medium text-white">
                   {selectedPraca === 'Todas as praças' ? 'Consolidado multirregional' : `Foco em ${selectedPraca}`}
                 </div>
@@ -264,7 +264,7 @@ export default function Landing() {
               disabled={generatingPdf || pontos.length === 0}
               className="h-[50px] self-end px-6 bg-white/5 border border-white/15 text-white font-semibold rounded-xl hover:bg-white/10 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             >
-              {generatingPdf ? 'Gerando PDF...' : 'Gerar PDF da praca'}
+              {generatingPdf ? 'Gerando PDF...' : 'Gerar PDF da praça'}
             </button>
           </motion.div>
 
@@ -289,16 +289,16 @@ export default function Landing() {
       <section className="py-10 border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6">
           {loading ? (
-            <div className="text-sm text-brand-gray-500">Carregando inventario...</div>
+            <div className="text-sm text-brand-gray-500">Carregando inventário...</div>
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
               {[
                 { label: 'Pontos', value: formatInt(resumo.pontos), icon: MapPinned },
                 { label: 'Telas', value: formatInt(resumo.telas), icon: Monitor },
                 { label: 'Fluxo estimado', value: formatInt(resumo.fluxo), icon: Users },
-                { label: 'Insercoes', value: formatInt(resumo.insercoes), icon: Activity },
-                { label: 'Ticket medio', value: formatMoney(resumo.ticketMedio), icon: CircleDollarSign },
-                { label: 'CPM medio', value: `R$ ${resumo.cpm}`, icon: Target }
+                { label: 'Inserções', value: formatInt(resumo.insercoes), icon: Activity },
+                { label: 'Ticket médio', value: formatMoney(resumo.ticketMedio), icon: CircleDollarSign },
+                { label: 'CPM médio', value: `R$ ${resumo.cpm}`, icon: Target }
               ].map((card, i) => (
                 <motion.div
                   key={card.label}
@@ -329,7 +329,7 @@ export default function Landing() {
             <div className="p-5 border-b border-white/10 flex items-center justify-between">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <Layers3 size={18} className="text-brand-orange" />
-                Inventario por formato
+                Inventário por formato
               </h2>
               <span className="text-xs text-brand-gray-500 uppercase tracking-wide">{selectedPraca}</span>
             </div>
@@ -354,7 +354,7 @@ export default function Landing() {
                   ))}
                   {!loading && formatos.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-5 py-4 text-brand-gray-500">Nenhum formato encontrado para esta selecao.</td>
+                      <td colSpan={4} className="px-5 py-4 text-brand-gray-500">Nenhum formato encontrado para esta seleção.</td>
                     </tr>
                   )}
                 </tbody>
@@ -370,11 +370,11 @@ export default function Landing() {
           >
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
               <BarChart3 size={18} className="text-brand-orange" />
-              Perfil de publico
+              Perfil de público
             </h3>
             <div className="space-y-2">
               {publicos.length === 0 && (
-                <div className="text-sm text-brand-gray-500">Sem dados de publico para esta selecao.</div>
+                <div className="text-sm text-brand-gray-500">Sem dados de público para esta seleção.</div>
               )}
               {publicos.map((item) => {
                 const pct = resumo.pontos ? Math.round((item.total / resumo.pontos) * 100) : 0;
@@ -398,7 +398,7 @@ export default function Landing() {
       <section className="py-12 border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-2xl font-bold">Catalogo completo da selecao</h2>
+            <h2 className="text-2xl font-bold">Catálogo completo da seleção</h2>
             <span className="text-xs uppercase tracking-wide text-brand-gray-500">{formatInt(pontos.length)} pontos</span>
           </div>
 
@@ -456,7 +456,7 @@ export default function Landing() {
                                   {ponto.tipo}
                                 </span>
                                 <span className="text-[11px] uppercase tracking-wide rounded-md px-2 py-1 bg-white/[0.04] text-brand-gray-300 border border-white/10">
-                                  Publico {ponto.publico || 'N/I'}
+                                  Público {ponto.publico || 'N/I'}
                                 </span>
                               </div>
                               <h4 className="text-xl font-semibold leading-tight">{ponto.nome}</h4>
@@ -487,18 +487,18 @@ export default function Landing() {
                           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
                             <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
                               <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Users size={12} /> Fluxo</div>
-                              <div className="font-medium">{formatInt(Number(ponto.fluxo) || 0)} / mes</div>
+                              <div className="font-medium">{formatInt(Number(ponto.fluxo) || 0)} / mês</div>
                             </div>
                             <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
-                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Hash size={12} /> Insercoes</div>
-                              <div className="font-medium">{formatInt(Number(ponto.insercoes) || 0)} / mes</div>
+                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Hash size={12} /> Inserções</div>
+                              <div className="font-medium">{formatInt(Number(ponto.insercoes) || 0)} / mês</div>
                             </div>
                             <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
                               <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Monitor size={12} /> Telas</div>
                               <div className="font-medium">{formatInt(Number(ponto.telas) || 0)}</div>
                             </div>
                             <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
-                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Clock size={12} /> Horario</div>
+                              <div className="text-brand-gray-500 text-[11px] uppercase tracking-wide flex items-center gap-1"><Clock size={12} /> Horário</div>
                               <div className="font-medium">{ponto.horario || 'N/I'}</div>
                             </div>
                             <div className="rounded-lg bg-white/[0.03] p-2 border border-white/5">
@@ -512,7 +512,7 @@ export default function Landing() {
                           </div>
 
                           <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs text-brand-gray-500">
-                            <span>Veiculacao: {ponto.veiculacao || 'N/I'}</span>
+                            <span>Veiculação: {ponto.veiculacao || 'N/I'}</span>
                             {(ponto.lat && ponto.lng) && <span>Coordenadas: {ponto.lat}, {ponto.lng}</span>}
                           </div>
                         </div>
@@ -523,7 +523,7 @@ export default function Landing() {
               </section>
             ))}
             {!loading && pontos.length === 0 && (
-              <div className="text-sm text-brand-gray-500">Nenhum ponto disponivel para a selecao atual.</div>
+              <div className="text-sm text-brand-gray-500">Nenhum ponto disponível para a seleção atual.</div>
             )}
           </div>
         </div>
@@ -539,7 +539,7 @@ export default function Landing() {
             className="grid lg:grid-cols-[1fr_auto] gap-6 items-center"
           >
             <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-3">Quer fechar o plano desta praca?</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-3">Quer fechar o plano desta praça?</h2>
               <p className="text-brand-gray-400 max-w-2xl">
                 Continue para o explorador com filtros aplicados e selecione os pontos para montar sua proposta comercial.
               </p>
@@ -548,7 +548,7 @@ export default function Landing() {
               onClick={() => navigate(explorerPath)}
               className="group inline-flex items-center justify-center gap-2 px-8 h-[52px] bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200"
             >
-              Explorar inventario completo
+              Explorar inventário completo
               <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
           </motion.div>
@@ -563,9 +563,9 @@ export default function Landing() {
           </div>
           <div className="flex items-center gap-6 text-sm text-brand-gray-500">
             <Link to="/explorar" className="hover:text-white transition-colors">Pontos</Link>
-            <button onClick={() => setSelectedPraca('Todas as praças')} className="hover:text-white transition-colors">Todas as pracas</button>
+            <button onClick={() => setSelectedPraca('Todas as praças')} className="hover:text-white transition-colors">Todas as praças</button>
             <span className="inline-flex items-center gap-2">
-              <Building2 size={14} /> {formatInt(Math.max(pracas.length - 1, 0))} pracas
+              <Building2 size={14} /> {formatInt(Math.max(pracas.length - 1, 0))} praças
             </span>
           </div>
         </div>
