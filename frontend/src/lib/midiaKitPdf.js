@@ -124,6 +124,26 @@ function formatPointNameHtml(name, options = {}) {
   return html;
 }
 
+function formatPointAddress(address) {
+  const raw = String(address || '').trim();
+  if (!raw) return '';
+
+  const main = raw.split('•')[0].trim().replace(/\s*\b(Parana|Santa Catarina|Sao Paulo|Rio de Janeiro|Minas Gerais)\b\s*$/i, '').trim();
+  const match = main.match(/^([^,]+,\s*[^,-]+)(?:\s*-\s*([^,]+))?/);
+  if (match) {
+    const streetAndNumber = match[1].trim();
+    const district = (match[2] || '').trim();
+    return district ? `${streetAndNumber} - ${district}` : streetAndNumber;
+  }
+
+  const parts = main.split(',').map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0]}, ${parts[1]}`;
+  }
+
+  return main;
+}
+
 function pickImageUrl(ponto) {
   if (Array.isArray(ponto?.imagens) && ponto.imagens.length > 0) {
     const first = ponto.imagens[0];
@@ -723,7 +743,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
                   <div style="font-size:18px;font-weight:700;color:#fff;line-height:1.2;">${escapeHtml(ponto.nome || `Ponto ${index + 1}`)}</div>
                   <span style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;padding:0 10px;border-radius:999px;background:rgba(254,92,43,0.14);font-size:13px;font-weight:700;color:${BRAND_ORANGE};">${index + 1}</span>
                 </div>
-                <div style="margin-top:8px;display:flex;align-items:flex-start;gap:10px;color:rgba(255,255,255,0.66);font-size:14px;line-height:1.35;">${midiaKitDetailIcon('location', BRAND_ORANGE, 15)}<span>${escapeHtml(ponto.endereco || 'Endereço não informado')}</span></div>
+                <div style="margin-top:8px;display:flex;align-items:flex-start;gap:10px;color:rgba(255,255,255,0.66);font-size:14px;line-height:1.35;">${midiaKitDetailIcon('location', BRAND_ORANGE, 15)}<span>${escapeHtml(formatPointAddress(ponto.endereco) || 'Endereço não informado')}</span></div>
                 <div style="margin-top:8px;display:flex;align-items:flex-start;gap:10px;color:rgba(255,255,255,0.66);font-size:14px;line-height:1.35;">${midiaKitDetailIcon('coordinates', BRAND_ORANGE, 15)}<span>${escapeHtml(formatCoordinates(ponto))}</span></div>
               </div>
             `).join('')}
@@ -812,7 +832,6 @@ function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }
 }
 
 function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
-  const estado = getCityState(ponto.cidade);
   const fluxoLabel = isVehicleFlowPoint(ponto) ? 'Veículos / mês' : 'Pessoas / mês';
   const metrics = [
     { key: 'publico', label: 'Público', value: ponto.publico || '-' },
@@ -823,73 +842,73 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
     { key: 'loop', label: 'Loop', value: ponto.loop ? `Mín. ${ponto.loop}` : '-' }
   ];
   const photo = image || assets.showcase || assets.about1 || '';
-  const locationLabel = [ponto.endereco, ponto.cidade, estado].filter(Boolean).join(' • ');
+  const locationLabel = formatPointAddress(ponto.endereco);
   const veiculacao = ponto.veiculacao || 'Vídeo sem áudio';
   const horario = ponto.horario || '-';
 
   return createPage(`
-    <div style="position:absolute;inset:0;background:#F3EEE6;"></div>
-    <div style="position:absolute;inset:0;background:linear-gradient(180deg,#F7F2EA 0%,#EFE7DB 100%);"></div>
-    <div style="position:absolute;left:64px;top:64px;right:64px;bottom:64px;border-radius:36px;border:1px solid rgba(24,18,12,0.10);overflow:hidden;background:#FCF9F4;box-shadow:0 28px 62px rgba(72,43,18,0.12);">
-      <div style="position:absolute;left:0;top:0;bottom:0;width:58.5%;padding:44px 44px 40px 44px;box-sizing:border-box;background:linear-gradient(180deg,#FFFDFC 0%,#F8F1E8 100%);"></div>
-      <div style="position:absolute;right:0;top:0;bottom:0;width:41.5%;padding:22px;box-sizing:border-box;background:#F2E7D9;">
+    <div style="position:absolute;inset:0;background:#ECEFF3;"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg,#F4F6F9 0%,#E9EDF2 100%);"></div>
+    <div style="position:absolute;left:64px;top:64px;right:64px;bottom:64px;border-radius:36px;border:1px solid rgba(17,24,39,0.10);overflow:hidden;background:#F8FAFC;box-shadow:0 28px 62px rgba(15,23,42,0.12);">
+      <div style="position:absolute;left:0;top:0;bottom:0;width:58.5%;padding:52px 52px 46px 52px;box-sizing:border-box;background:linear-gradient(180deg,#FFFFFF 0%,#F1F5F9 100%);"></div>
+      <div style="position:absolute;right:0;top:0;bottom:0;width:41.5%;padding:24px;box-sizing:border-box;background:#E5EAF0;">
         ${buildHeroImageFrame(photo, { radius: 28, fit: 'cover' })}
       </div>
 
-      <div style="position:absolute;left:44px;top:40px;width:calc(58.5% - 88px);display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
-        <img src="${assets.logo || ''}" alt="" style="width:150px;height:auto;object-fit:contain;" />
+      <div style="position:absolute;left:52px;top:46px;width:calc(58.5% - 104px);display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
+        <img src="${assets.logoLight || assets.logo || ''}" alt="" style="width:220px;height:auto;object-fit:contain;" />
         <div style="display:flex;align-items:center;gap:10px;">
-          <span style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 14px;border-radius:999px;background:rgba(254,92,43,0.10);border:1px solid rgba(254,92,43,0.30);font-size:13px;font-weight:700;color:${BRAND_ORANGE};">${index}/${total}</span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;height:48px;padding:0 18px;border-radius:999px;background:rgba(254,92,43,0.10);border:1px solid rgba(254,92,43,0.30);font-size:18px;font-weight:700;color:${BRAND_ORANGE};">${index}/${total}</span>
         </div>
       </div>
 
-      <div style="position:absolute;left:44px;top:138px;width:calc(58.5% - 88px);">
-        <div style="display:inline-flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;background:rgba(254,92,43,0.10);border:1px solid rgba(254,92,43,0.28);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">
+      <div style="position:absolute;left:52px;top:184px;width:calc(58.5% - 104px);">
+        <div style="display:inline-flex;align-items:center;gap:10px;padding:12px 20px;border-radius:999px;background:rgba(254,92,43,0.10);border:1px solid rgba(254,92,43,0.28);font-size:16px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">
           ${midiaKitDetailIcon('type', BRAND_ORANGE, 15)} ${escapeHtml(ponto.tipo || 'Formato')}
         </div>
 
-        <div style="margin-top:24px;font-family:Poppins, system-ui, sans-serif;font-size:56px;line-height:1.02;font-weight:700;letter-spacing:-0.035em;color:#1A130C;word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.62em;font-weight:600;letter-spacing:-0.01em;color:rgba(26,19,12,0.64);' })}</div>
+        <div style="margin-top:28px;font-family:Poppins, system-ui, sans-serif;font-size:74px;line-height:1.02;font-weight:700;letter-spacing:-0.035em;color:#111827;word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.62em;font-weight:600;letter-spacing:-0.01em;color:rgba(17,24,39,0.62);' })}</div>
 
-        <div style="margin-top:18px;display:grid;gap:12px;">
-          <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(26,19,12,0.78);font-size:18px;line-height:1.4;">
-            <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${midiaKitDetailIcon('location', BRAND_ORANGE, 16)}</span>
+        <div style="margin-top:24px;display:grid;gap:14px;">
+          <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(17,24,39,0.78);font-size:24px;line-height:1.4;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${midiaKitDetailIcon('location', BRAND_ORANGE, 18)}</span>
             <span>${escapeHtml(locationLabel || 'Endereço não informado')}</span>
           </div>
-          <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(26,19,12,0.78);font-size:18px;line-height:1.4;">
-            <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${midiaKitDetailIcon('coordinates', BRAND_ORANGE, 16)}</span>
+          <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(17,24,39,0.78);font-size:24px;line-height:1.4;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${midiaKitDetailIcon('coordinates', BRAND_ORANGE, 18)}</span>
             <span>${escapeHtml(formatCoordinates(ponto))}</span>
           </div>
         </div>
       </div>
 
-      <div style="position:absolute;left:44px;right:calc(41.5% + 44px);top:478px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;">
+      <div style="position:absolute;left:52px;right:calc(41.5% + 52px);top:760px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;">
         ${metrics.map((item) => `
-          <div style="padding:22px 20px 18px;border-radius:22px;background:#FFFFFF;border:1px solid rgba(254,92,43,0.20);min-height:124px;box-sizing:border-box;">
+          <div style="padding:24px 22px 20px;border-radius:22px;background:#FFFFFF;border:1px solid rgba(254,92,43,0.20);min-height:152px;box-sizing:border-box;">
             <div style="display:flex;align-items:center;gap:10px;">
-              <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${metricIconSvg(item.key, BRAND_ORANGE, 17)}</span>
-              <span style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(74,52,37,0.72);">${escapeHtml(item.label)}</span>
+              <span style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${metricIconSvg(item.key, BRAND_ORANGE, 20)}</span>
+              <span style="font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(55,65,81,0.74);">${escapeHtml(item.label)}</span>
             </div>
-            <div style="margin-top:14px;font-family:Poppins, system-ui, sans-serif;font-size:30px;line-height:1.16;font-weight:700;color:#1A130C;word-break:break-word;">${escapeHtml(item.value)}</div>
+            <div style="margin-top:16px;font-family:Poppins, system-ui, sans-serif;font-size:40px;line-height:1.16;font-weight:700;color:#111827;word-break:break-word;">${escapeHtml(item.value)}</div>
           </div>
         `).join('')}
       </div>
 
-      <div style="position:absolute;left:44px;right:calc(41.5% + 44px);bottom:42px;padding-top:24px;border-top:1px solid rgba(26,19,12,0.16);display:grid;grid-template-columns:1fr 1fr auto;gap:18px;align-items:end;">
+      <div style="position:absolute;left:52px;right:calc(41.5% + 52px);bottom:52px;padding-top:26px;border-top:1px solid rgba(17,24,39,0.16);display:grid;grid-template-columns:1fr 1fr auto;gap:18px;align-items:end;">
         <div>
-          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(74,52,37,0.62);">Veiculação</div>
-          <div style="margin-top:8px;font-size:22px;line-height:1.25;color:#1A130C;">${escapeHtml(veiculacao)}</div>
+          <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(55,65,81,0.64);">Veiculação</div>
+          <div style="margin-top:8px;font-size:28px;line-height:1.25;color:#111827;">${escapeHtml(veiculacao)}</div>
         </div>
         <div>
-          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(74,52,37,0.62);">Horário</div>
-          <div style="margin-top:8px;font-size:22px;line-height:1.25;color:#1A130C;">${escapeHtml(horario)}</div>
+          <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(55,65,81,0.64);">Horário</div>
+          <div style="margin-top:8px;font-size:28px;line-height:1.25;color:#111827;">${escapeHtml(horario)}</div>
         </div>
         <div style="text-align:right;min-width:260px;">
-          <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(74,52,37,0.62);">${midiaKitDetailIcon('money', BRAND_ORANGE, 15)} Valor mensal</div>
-          <div style="margin-top:10px;font-family:Poppins, system-ui, sans-serif;font-size:56px;line-height:0.96;font-weight:700;color:${BRAND_ORANGE};white-space:nowrap;">${escapeHtml(formatMoney(ponto.preco))}</div>
+          <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(55,65,81,0.64);">${midiaKitDetailIcon('money', BRAND_ORANGE, 18)} Valor mensal</div>
+          <div style="margin-top:10px;font-family:Poppins, system-ui, sans-serif;font-size:82px;line-height:0.96;font-weight:700;color:${BRAND_ORANGE};white-space:nowrap;">${escapeHtml(formatMoney(ponto.preco))}</div>
         </div>
       </div>
     </div>
-  `, '#F3EEE6');
+  `, '#ECEFF3');
 }
 
 function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, pricingSummary, highlights, strategicTopics, strategicSubtitle, simulationSummary, segmento, assets }) {
@@ -1544,6 +1563,7 @@ async function loadPdfAssets() {
   pdfAssetsPromise = (async () => {
     const [
       logo,
+      logoLight,
       logoHorizontal,
       logo07,
       heroBg,
@@ -1556,6 +1576,7 @@ async function loadPdfAssets() {
       pattern
     ] = await Promise.all([
       imageToDataUrl(assetUrl('/logo.png')),
+      imageToDataUrl(assetUrl('/logo-light.png')),
       imageToDataUrl(assetUrl('/logo-deitado.png')),
       imageToDataUrl(assetUrl('/logo-07.png')),
       imageToDataUrl(assetUrl('/hero-bg.jpg')),
@@ -1570,6 +1591,7 @@ async function loadPdfAssets() {
 
     return {
       logo,
+      logoLight,
       logoHorizontal,
       logo07,
       heroBg,
