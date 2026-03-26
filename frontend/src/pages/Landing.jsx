@@ -323,7 +323,7 @@ export default function Landing() {
     metaRow: isDark ? 'border-t border-white/10 text-brand-gray-500' : 'border-t border-neutral-200 text-neutral-500',
     controlPanel: isDark ? 'from-white/[0.06] to-white/[0.02] border-white/10' : 'from-neutral-100 to-white border-neutral-300 shadow-sm',
     vizDisplay: isDark ? 'from-white/10 to-white/5 border-white/15' : 'from-neutral-100 to-white border-neutral-300',
-    heroOverlay: isDark ? 'from-black/90 via-black/80 to-[#050505]' : 'from-white/92 via-white/78 to-[#f4f5f7]',
+    heroOverlay: isDark ? 'from-black/90 via-black/80 to-[#050505]' : 'from-[#fff7f3]/90 via-[#ffefe8]/72 to-[#f4f5f7]',
     pdfBtn: isDark ? 'bg-white/5 border-white/15 text-white hover:bg-white/10' : 'bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50 shadow-sm',
     pracaChip: isDark ? 'bg-white/[0.03] text-brand-gray-400 border-white/10 hover:text-white' : 'bg-white text-neutral-500 border-neutral-200 hover:text-neutral-900 shadow-sm',
     toggleBtn: isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-100 shadow-sm',
@@ -481,11 +481,30 @@ export default function Landing() {
 
       {/* ── Hero ─────────────────────────────────────────────── */}
       <section className={`pt-20 pb-10 border-b relative overflow-visible ${t.sectionBorder}`}>
-        <div className={`absolute inset-0 bg-cover bg-center ${isDark ? 'opacity-35' : 'opacity-[0.12] saturate-[0.7]'}`} style={{ backgroundImage: "url('/city-bg.jpg')" }} />
-        <div className={`absolute inset-0 bg-gradient-to-b ${t.heroOverlay}`} />
+        <div
+          className={`absolute inset-0 bg-cover bg-center ${isDark ? 'opacity-35' : 'opacity-[0.08] saturate-[0.75]'}`}
+          style={{
+            backgroundImage: "url('/city-bg.jpg')",
+            filter: isDark ? 'none' : 'blur(1.8px)'
+          }}
+        />
         {!isDark && (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(254,92,43,0.16),transparent_42%),radial-gradient(circle_at_88%_0%,rgba(254,92,43,0.1),transparent_35%)]" />
+          <>
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,#fff7f2_0%,#ffe8dc_46%,#fff8f3_100%)]" />
+            <div className="absolute -top-14 -left-16 w-[260px] h-[260px] rounded-full bg-brand-orange/14" />
+            <div className="absolute -top-20 right-[-42px] w-[320px] h-[320px] rounded-full bg-brand-orange/16" />
+            <div className="absolute top-[58%] right-[7%] w-[168px] h-[168px] rounded-full bg-brand-orange/12" />
+            <div className="absolute top-[68%] left-[11%] w-[118px] h-[118px] rounded-full bg-brand-orange/10" />
+            <div
+              className="absolute inset-0 bg-cover bg-center opacity-[0.055]"
+              style={{
+                backgroundImage: "url('/about-1.jpg')",
+                filter: 'blur(2.4px) saturate(0.75)'
+              }}
+            />
+          </>
         )}
+        <div className={`absolute inset-0 bg-gradient-to-b ${t.heroOverlay}`} />
         <div className="absolute -top-16 left-10 w-64 h-64 bg-brand-orange/20 rounded-full blur-[90px]" />
 
         <div className="relative max-w-7xl mx-auto px-6">
