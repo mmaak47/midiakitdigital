@@ -5,6 +5,8 @@ export const defaultSelectionCorners = [
   { x: 28, y: 62 }
 ];
 
+const EDGE_POINT_COUNT = 8;
+
 export const defaultDisplaySettings = {
   opacity: 0.96,
   brightness: 1.08,
@@ -35,12 +37,39 @@ export function normalizePoint(point, fallback) {
   };
 }
 
+function midpoint(a, b) {
+  return {
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2
+  };
+}
+
+function expandQuadToEdgePoints(points) {
+  return [
+    points[0],
+    midpoint(points[0], points[1]),
+    points[1],
+    midpoint(points[1], points[2]),
+    points[2],
+    midpoint(points[2], points[3]),
+    points[3],
+    midpoint(points[3], points[0])
+  ];
+}
+
+function getNormalizedSelectionTemplate(pointCount) {
+  const base = defaultSelectionCorners.map((point) => ({ ...point }));
+  return pointCount === EDGE_POINT_COUNT ? expandQuadToEdgePoints(base) : base;
+}
+
 export function normalizeCorners(corners) {
-  if (!Array.isArray(corners) || corners.length !== 4) return null;
-  const normalized = corners.map((point, index) => normalizePoint(point, defaultSelectionCorners[index]));
-  const bounds = getSelectionBoundsRaw(normalized);
+  if (!Array.isArray(corners) || ![4, EDGE_POINT_COUNT].includes(corners.length)) return null;
+  const template = getNormalizedSelectionTemplate(corners.length);
+  const normalized = corners.map((point, index) => normalizePoint(point, template[index]));
+  const normalizedEdgePoints = normalized.length === 4 ? expandQuadToEdgePoints(normalized) : normalized;
+  const bounds = getSelectionBoundsRaw(normalizedEdgePoints);
   if (bounds.width < 2 || bounds.height < 2) return null;
-  return normalized;
+  return normalizedEdgePoints;
 }
 
 export function normalizeDisplaySettings(input) {
@@ -159,8 +188,63 @@ function getSelectionBoundsRaw(corners) {
 }
 
 export function getSelectionBounds(corners) {
-  const normalized = normalizeCorners(corners) || defaultSelectionCorners;
+  const normalized = normalizeCorners(corners) || normalizeCorners(defaultSelectionCorners);
   return getSelectionBoundsRaw(normalized);
+}
+
+function interpolateSegment(points, t) {
+  if (!points.length) return { x: 0, y: 0 };
+  if (points.length === 1) return points[0];
+
+  const clampedT = clamp(t, 0, 1);
+  const scaled = clampedT * (points.length - 1);
+  const index = Math.min(points.length - 2, Math.floor(scaled));
+  const localT = scaled - index;
+  const start = points[index];
+  const end = points[index + 1];
+
+  return {
+    x: start.x + (end.x - start.x) * localT,
+    y: start.y + (end.y - start.y) * localT
+  };
+}
+
+function getEdgeControlPoints(corners) {
+  if (!Array.isArray(corners) || corners.length < 4) return null;
+  if (corners.length >= EDGE_POINT_COUNT) {
+    return {
+      top: [corners[0], corners[1], corners[2]],
+      right: [corners[2], corners[3], corners[4]],
+      bottom: [corners[6], corners[5], corners[4]],
+      left: [corners[0], corners[7], corners[6]],
+      quad: [corners[0], corners[2], corners[4], corners[6]]
+    };
+  }
+
+  return {
+    top: [corners[0], corners[1]],
+    right: [corners[1], corners[2]],
+    bottom: [corners[3], corners[2]],
+    left: [corners[0], corners[3]],
+    quad: [corners[0], corners[1], corners[2], corners[3]]
+  };
+}
+
+function evaluateSurfacePoint(corners, u, v) {
+  const edges = getEdgeControlPoints(corners);
+  if (!edges) return { x: 0, y: 0 };
+
+  const top = interpolateSegment(edges.top, u);
+  const bottom = interpolateSegment(edges.bottom, u);
+  const left = interpolateSegment(edges.left, v);
+  const right = interpolateSegment(edges.right, v);
+  const [tl, tr, br, bl] = edges.quad;
+  const bilinear = bilerp(tl, tr, br, bl, u, v);
+
+  return {
+    x: (1 - v) * top.x + v * bottom.x + (1 - u) * left.x + u * right.x - bilinear.x,
+    y: (1 - v) * top.y + v * bottom.y + (1 - u) * left.y + u * right.y - bilinear.y
+  };
 }
 
 function bilerp(tl, tr, br, bl, u, v) {
@@ -180,11 +264,12 @@ function bilerp(tl, tr, br, bl, u, v) {
 }
 
 function getQuadAspect(corners) {
-  const [tl, tr, br, bl] = corners;
-  const topWidth = Math.hypot(tr.x - tl.x, tr.y - tl.y);
-  const bottomWidth = Math.hypot(br.x - bl.x, br.y - bl.y);
-  const leftHeight = Math.hypot(bl.x - tl.x, bl.y - tl.y);
-  const rightHeight = Math.hypot(br.x - tr.x, br.y - tr.y);
+  const edges = getEdgeControlPoints(corners);
+  const segmentLength = (points) => points.slice(1).reduce((sum, point, index) => sum + Math.hypot(point.x - points[index].x, point.y - points[index].y), 0);
+  const topWidth = segmentLength(edges.top);
+  const bottomWidth = segmentLength(edges.bottom);
+  const leftHeight = segmentLength(edges.left);
+  const rightHeight = segmentLength(edges.right);
   const width = Math.max(1, (topWidth + bottomWidth) / 2);
   const height = Math.max(1, (leftHeight + rightHeight) / 2);
   return width / height;
@@ -226,9 +311,12 @@ function getRoundedCornerDescriptors(corners, style) {
   const radiusFactor = normalizeScreenStyle(style).cornerRadius;
   if (radiusFactor <= 0) return null;
 
-  return corners.map((corner, index) => {
-    const prev = corners[(index + 3) % corners.length];
-    const next = corners[(index + 1) % corners.length];
+  const cornerIndexes = corners.length >= EDGE_POINT_COUNT ? [0, 2, 4, 6] : [0, 1, 2, 3];
+
+  return cornerIndexes.map((cornerIndex) => {
+    const corner = corners[cornerIndex];
+    const prev = corners[(cornerIndex + corners.length - 1) % corners.length];
+    const next = corners[(cornerIndex + 1) % corners.length];
     const prevLength = distanceBetween(corner, prev);
     const nextLength = distanceBetween(corner, next);
     const offset = Math.min(prevLength, nextLength) * radiusFactor;
@@ -248,26 +336,28 @@ function createQuadPath(ctx, corners, style) {
 
   if (!roundedCorners) {
     ctx.moveTo(corners[0].x, corners[0].y);
-    ctx.lineTo(corners[1].x, corners[1].y);
-    ctx.lineTo(corners[2].x, corners[2].y);
-    ctx.lineTo(corners[3].x, corners[3].y);
+    for (let index = 1; index < corners.length; index += 1) {
+      ctx.lineTo(corners[index].x, corners[index].y);
+    }
     ctx.closePath();
     return;
   }
 
   ctx.moveTo(roundedCorners[0].outPoint.x, roundedCorners[0].outPoint.y);
-  for (let index = 1; index < roundedCorners.length; index += 1) {
-    const descriptor = roundedCorners[index];
-    ctx.lineTo(descriptor.inPoint.x, descriptor.inPoint.y);
-    ctx.quadraticCurveTo(descriptor.corner.x, descriptor.corner.y, descriptor.outPoint.x, descriptor.outPoint.y);
+  for (let index = 0; index < roundedCorners.length; index += 1) {
+    const current = roundedCorners[index];
+    const next = roundedCorners[(index + 1) % roundedCorners.length];
+    const betweenPoints = corners.length >= EDGE_POINT_COUNT
+      ? [corners[(index * 2 + 1) % corners.length]]
+      : [];
+
+    betweenPoints.forEach((point) => {
+      ctx.lineTo(point.x, point.y);
+    });
+
+    ctx.lineTo(next.inPoint.x, next.inPoint.y);
+    ctx.quadraticCurveTo(next.corner.x, next.corner.y, next.outPoint.x, next.outPoint.y);
   }
-  ctx.lineTo(roundedCorners[0].inPoint.x, roundedCorners[0].inPoint.y);
-  ctx.quadraticCurveTo(
-    roundedCorners[0].corner.x,
-    roundedCorners[0].corner.y,
-    roundedCorners[0].outPoint.x,
-    roundedCorners[0].outPoint.y
-  );
   ctx.closePath();
 }
 
@@ -277,9 +367,7 @@ function isPrintedSurface(panelType) {
 }
 
 function drawCreativeIntoQuad(ctx, creative, corners, display, style, options = {}) {
-  if (!Array.isArray(corners) || corners.length !== 4) return;
-
-  const [tl, tr, br, bl] = corners;
+  if (!Array.isArray(corners) || corners.length < 4) return;
   const targetAspect = getQuadAspect(corners);
   const { sx, sy, sw, sh } = computeSourceCrop(creative.width, creative.height, targetAspect);
   const divisions = options.highQuality ? 18 : 10;
@@ -296,10 +384,10 @@ function drawCreativeIntoQuad(ctx, creative, corners, display, style, options = 
       const u0 = column / divisions;
       const u1 = (column + 1) / divisions;
 
-      const p00 = bilerp(tl, tr, br, bl, u0, v0);
-      const p10 = bilerp(tl, tr, br, bl, u1, v0);
-      const p11 = bilerp(tl, tr, br, bl, u1, v1);
-      const p01 = bilerp(tl, tr, br, bl, u0, v1);
+      const p00 = evaluateSurfacePoint(corners, u0, v0);
+      const p10 = evaluateSurfacePoint(corners, u1, v0);
+      const p11 = evaluateSurfacePoint(corners, u1, v1);
+      const p01 = evaluateSurfacePoint(corners, u0, v1);
 
       const srcX = sx + sw * u0;
       const srcY = sy + sh * v0;

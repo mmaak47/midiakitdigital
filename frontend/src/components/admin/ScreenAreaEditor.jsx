@@ -19,6 +19,42 @@ const MAX_ZOOM = 300;
 const ZOOM_STEP = 10;
 const ROUNDED_PRESET_RADIUS = 0.18;
 
+function interpolateSegment(points, t) {
+  if (!points.length) return { x: 0, y: 0 };
+  if (points.length === 1) return points[0];
+  const clampedT = clamp(t, 0, 1);
+  const scaled = clampedT * (points.length - 1);
+  const index = Math.min(points.length - 2, Math.floor(scaled));
+  const localT = scaled - index;
+  const start = points[index];
+  const end = points[index + 1];
+  return {
+    x: start.x + (end.x - start.x) * localT,
+    y: start.y + (end.y - start.y) * localT
+  };
+}
+
+function getEdgeControlPoints(corners) {
+  if (!Array.isArray(corners) || corners.length < 4) return null;
+  if (corners.length >= 8) {
+    return {
+      top: [corners[0], corners[1], corners[2]],
+      right: [corners[2], corners[3], corners[4]],
+      bottom: [corners[6], corners[5], corners[4]],
+      left: [corners[0], corners[7], corners[6]],
+      quad: [corners[0], corners[2], corners[4], corners[6]]
+    };
+  }
+
+  return {
+    top: [corners[0], corners[1]],
+    right: [corners[1], corners[2]],
+    bottom: [corners[3], corners[2]],
+    left: [corners[0], corners[3]],
+    quad: [corners[0], corners[1], corners[2], corners[3]]
+  };
+}
+
 function bilerp(tl, tr, br, bl, u, v) {
   const top = {
     x: tl.x + (tr.x - tl.x) * u,
@@ -35,13 +71,28 @@ function bilerp(tl, tr, br, bl, u, v) {
   };
 }
 
+function evaluateSurfacePoint(corners, u, v) {
+  const edges = getEdgeControlPoints(corners);
+  if (!edges) return { x: 0, y: 0 };
+  const top = interpolateSegment(edges.top, u);
+  const bottom = interpolateSegment(edges.bottom, u);
+  const left = interpolateSegment(edges.left, v);
+  const right = interpolateSegment(edges.right, v);
+  const [tl, tr, br, bl] = edges.quad;
+  const bilinear = bilerp(tl, tr, br, bl, u, v);
+  return {
+    x: (1 - v) * top.x + v * bottom.x + (1 - u) * left.x + u * right.x - bilinear.x,
+    y: (1 - v) * top.y + v * bottom.y + (1 - u) * left.y + u * right.y - bilinear.y
+  };
+}
+
 function polylineForInterpolation(corners, fixedAxis, value) {
   const points = [];
   for (let index = 0; index <= 10; index += 1) {
     const variable = index / 10;
     const point = fixedAxis === 'u'
-      ? bilerp(corners[0], corners[1], corners[2], corners[3], value, variable)
-      : bilerp(corners[0], corners[1], corners[2], corners[3], variable, value);
+      ? evaluateSurfacePoint(corners, value, variable)
+      : evaluateSurfacePoint(corners, variable, value);
     points.push(`${point.x},${point.y}`);
   }
   return points.join(' ');
@@ -68,12 +119,14 @@ function pointTowards(from, to, distance) {
 function buildSelectionPath(corners, style) {
   const cornerRadius = normalizeScreenStyle(style).cornerRadius;
   if (!cornerRadius) {
-    return `M ${corners[0].x} ${corners[0].y} L ${corners[1].x} ${corners[1].y} L ${corners[2].x} ${corners[2].y} L ${corners[3].x} ${corners[3].y} Z`;
+    return `M ${corners[0].x} ${corners[0].y} ${corners.slice(1).map((point) => `L ${point.x} ${point.y}`).join(' ')} Z`;
   }
 
-  const descriptors = corners.map((corner, index) => {
-    const prev = corners[(index + 3) % corners.length];
-    const next = corners[(index + 1) % corners.length];
+  const cornerIndexes = corners.length >= 8 ? [0, 2, 4, 6] : [0, 1, 2, 3];
+  const descriptors = cornerIndexes.map((cornerIndex) => {
+    const corner = corners[cornerIndex];
+    const prev = corners[(cornerIndex + corners.length - 1) % corners.length];
+    const next = corners[(cornerIndex + 1) % corners.length];
     const prevLength = distanceBetween(corner, prev);
     const nextLength = distanceBetween(corner, next);
     const offset = Math.min(prevLength, nextLength) * cornerRadius;
@@ -86,13 +139,15 @@ function buildSelectionPath(corners, style) {
   });
 
   const commands = [`M ${descriptors[0].outPoint.x} ${descriptors[0].outPoint.y}`];
-  for (let index = 1; index < descriptors.length; index += 1) {
-    const descriptor = descriptors[index];
-    commands.push(`L ${descriptor.inPoint.x} ${descriptor.inPoint.y}`);
-    commands.push(`Q ${descriptor.corner.x} ${descriptor.corner.y} ${descriptor.outPoint.x} ${descriptor.outPoint.y}`);
+  for (let index = 0; index < descriptors.length; index += 1) {
+    const next = descriptors[(index + 1) % descriptors.length];
+    if (corners.length >= 8) {
+      const midpoint = corners[(index * 2 + 1) % corners.length];
+      commands.push(`L ${midpoint.x} ${midpoint.y}`);
+    }
+    commands.push(`L ${next.inPoint.x} ${next.inPoint.y}`);
+    commands.push(`Q ${next.corner.x} ${next.corner.y} ${next.outPoint.x} ${next.outPoint.y}`);
   }
-  commands.push(`L ${descriptors[0].inPoint.x} ${descriptors[0].inPoint.y}`);
-  commands.push(`Q ${descriptors[0].corner.x} ${descriptors[0].corner.y} ${descriptors[0].outPoint.x} ${descriptors[0].outPoint.y}`);
   commands.push('Z');
   return commands.join(' ');
 }
@@ -271,20 +326,17 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
 
     if (drag.kind === 'edge') {
       const mapping = {
-        top: [0, 1],
-        right: [1, 2],
-        bottom: [2, 3],
-        left: [3, 0]
+        top: next.length >= 8 ? [0, 1, 2] : [0, 1],
+        right: next.length >= 8 ? [2, 3, 4] : [1, 2],
+        bottom: next.length >= 8 ? [4, 5, 6] : [2, 3],
+        left: next.length >= 8 ? [6, 7, 0] : [3, 0]
       };
-      const [first, second] = mapping[drag.edge];
-      next[first] = {
-        x: clamp(drag.startCorners[first].x + dx, 0, 100),
-        y: clamp(drag.startCorners[first].y + dy, 0, 100)
-      };
-      next[second] = {
-        x: clamp(drag.startCorners[second].x + dx, 0, 100),
-        y: clamp(drag.startCorners[second].y + dy, 0, 100)
-      };
+      mapping[drag.edge].forEach((pointIndex) => {
+        next[pointIndex] = {
+          x: clamp(drag.startCorners[pointIndex].x + dx, 0, 100),
+          y: clamp(drag.startCorners[pointIndex].y + dy, 0, 100)
+        };
+      });
       applyNext(next);
       return;
     }
@@ -315,14 +367,14 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
     setHelper('Arraste cantos, arestas ou a área interna. Scroll do mouse aplica zoom. Botão do meio move a área ampliada.');
   };
 
-  const polygonPoints = activeCorners.map((point) => `${point.x},${point.y}`).join(' ');
+  const pointMode = activeCorners.length >= 8 ? '8 pontos' : '4 pontos';
 
   return (
     <div ref={editorRootRef} className={isFullscreen ? 'h-screen w-screen overflow-auto bg-black p-4 space-y-3' : 'space-y-3'}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-400">Editor de tela</p>
-          <p className="text-[11px] text-brand-gray-500">Marcação visual no estilo do simulador, com perspectiva por cantos e arestas. Scroll aplica zoom e botão do meio move a área com zoom.</p>
+          <p className="text-[11px] text-brand-gray-500">Marcação visual com warp por cantos, pontos intermediários e arestas. Scroll aplica zoom e botão do meio move a área com zoom.</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -495,6 +547,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
           <p className="text-[11px] text-brand-gray-400 uppercase tracking-wide mb-2">Leitura rápida</p>
           <div className="space-y-1 text-sm text-brand-gray-300">
             <div>Formato: {normalizedStyle.cornerRadius > 0 ? 'Arredondado' : 'Retangular'}</div>
+            <div>Controle: {pointMode}</div>
             <div>Largura: {bounds.width.toFixed(1)}%</div>
             <div>Altura: {bounds.height.toFixed(1)}%</div>
             <div>Centro X: {bounds.centerX.toFixed(1)}%</div>

@@ -1210,8 +1210,9 @@ function deriveFocusFromSimulationString(simulacaoTela) {
 
   try {
     const parsed = typeof simulacaoTela === 'string' ? JSON.parse(simulacaoTela) : simulacaoTela;
-    if (!Array.isArray(parsed) || parsed.length < 4) return fallback;
-    const corners = parsed
+    const pointsSource = Array.isArray(parsed) ? parsed : parsed?.corners;
+    if (!Array.isArray(pointsSource) || pointsSource.length < 4) return fallback;
+    const corners = pointsSource
       .map((point) => ({ x: Number(point?.x), y: Number(point?.y) }))
       .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
     if (corners.length < 4) return fallback;
