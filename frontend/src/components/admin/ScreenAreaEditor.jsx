@@ -5,7 +5,8 @@ import {
   buildRectQuad,
   defaultSelectionCorners,
   getSelectionBounds,
-  normalizeCorners
+  normalizeCorners,
+  normalizeScreenStyle
 } from '../../lib/simulation';
 
 const HANDLE_RADIUS = 0.55;
@@ -16,6 +17,7 @@ const GRID_STROKE = 0.05;
 const MIN_ZOOM = 100;
 const MAX_ZOOM = 300;
 const ZOOM_STEP = 10;
+const ROUNDED_PRESET_RADIUS = 0.18;
 
 function bilerp(tl, tr, br, bl, u, v) {
   const top = {
@@ -49,7 +51,53 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
+function distanceBetween(a, b) {
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}
+
+function pointTowards(from, to, distance) {
+  const length = distanceBetween(from, to);
+  if (!length) return { x: from.x, y: from.y };
+  const ratio = distance / length;
+  return {
+    x: from.x + (to.x - from.x) * ratio,
+    y: from.y + (to.y - from.y) * ratio
+  };
+}
+
+function buildSelectionPath(corners, style) {
+  const cornerRadius = normalizeScreenStyle(style).cornerRadius;
+  if (!cornerRadius) {
+    return `M ${corners[0].x} ${corners[0].y} L ${corners[1].x} ${corners[1].y} L ${corners[2].x} ${corners[2].y} L ${corners[3].x} ${corners[3].y} Z`;
+  }
+
+  const descriptors = corners.map((corner, index) => {
+    const prev = corners[(index + 3) % corners.length];
+    const next = corners[(index + 1) % corners.length];
+    const prevLength = distanceBetween(corner, prev);
+    const nextLength = distanceBetween(corner, next);
+    const offset = Math.min(prevLength, nextLength) * cornerRadius;
+    const safeOffset = Math.min(offset, prevLength / 2.2, nextLength / 2.2);
+    return {
+      corner,
+      inPoint: pointTowards(corner, prev, safeOffset),
+      outPoint: pointTowards(corner, next, safeOffset)
+    };
+  });
+
+  const commands = [`M ${descriptors[0].outPoint.x} ${descriptors[0].outPoint.y}`];
+  for (let index = 1; index < descriptors.length; index += 1) {
+    const descriptor = descriptors[index];
+    commands.push(`L ${descriptor.inPoint.x} ${descriptor.inPoint.y}`);
+    commands.push(`Q ${descriptor.corner.x} ${descriptor.corner.y} ${descriptor.outPoint.x} ${descriptor.outPoint.y}`);
+  }
+  commands.push(`L ${descriptors[0].inPoint.x} ${descriptors[0].inPoint.y}`);
+  commands.push(`Q ${descriptors[0].corner.x} ${descriptors[0].corner.y} ${descriptors[0].outPoint.x} ${descriptors[0].outPoint.y}`);
+  commands.push('Z');
+  return commands.join(' ');
+}
+
+export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, onStyleChange }) {
   const editorRootRef = useRef(null);
   const stageRef = useRef(null);
   const viewportRef = useRef(null);
@@ -69,9 +117,11 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
   }, []);
 
   const normalizedCorners = useMemo(() => normalizeCorners(corners), [corners]);
+  const normalizedStyle = useMemo(() => normalizeScreenStyle(style), [style]);
   const hasSelection = !!normalizedCorners;
   const activeCorners = normalizedCorners || defaultSelectionCorners;
   const bounds = getSelectionBounds(activeCorners);
+  const selectionPath = useMemo(() => buildSelectionPath(activeCorners, normalizedStyle), [activeCorners, normalizedStyle]);
 
   const toPercentPoint = (event) => {
     const rect = stageRef.current?.getBoundingClientRect();
@@ -89,6 +139,10 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
 
   const updateZoom = (nextZoom) => {
     setZoom(clamp(nextZoom, MIN_ZOOM, MAX_ZOOM));
+  };
+
+  const updateStyle = (nextStyle) => {
+    onStyleChange?.(normalizeScreenStyle(nextStyle));
   };
 
   const toggleFullscreen = async () => {
@@ -313,6 +367,45 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
         </div>
       </div>
 
+      <div className="grid gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 lg:grid-cols-[auto_auto_1fr] lg:items-end">
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-brand-gray-400">Formato da seleção</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => updateStyle({ cornerRadius: 0 })}
+              className={`rounded-lg border px-3 py-2 text-xs transition-colors ${normalizedStyle.cornerRadius === 0 ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : 'border-white/10 bg-white/5 text-white hover:bg-white/10'}`}
+            >
+              Retangular
+            </button>
+            <button
+              type="button"
+              onClick={() => updateStyle({ cornerRadius: ROUNDED_PRESET_RADIUS })}
+              className={`rounded-lg border px-3 py-2 text-xs transition-colors ${normalizedStyle.cornerRadius > 0 ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : 'border-white/10 bg-white/5 text-white hover:bg-white/10'}`}
+            >
+              Arredondada
+            </button>
+          </div>
+        </div>
+
+        <label className="block min-w-[220px]">
+          <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-brand-gray-400">Curvatura dos cantos</span>
+          <input
+            type="range"
+            min="0"
+            max="35"
+            step="1"
+            value={Math.round(normalizedStyle.cornerRadius * 100)}
+            onChange={(event) => updateStyle({ cornerRadius: Number(event.target.value) / 100 })}
+            className="w-full accent-brand-orange"
+          />
+        </label>
+
+        <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-brand-gray-300">
+          {normalizedStyle.cornerRadius > 0 ? `Seleção arredondada com ${Math.round(normalizedStyle.cornerRadius * 100)}% de curvatura.` : 'Seleção retangular padrão.'}
+        </div>
+      </div>
+
       <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
         <div
           ref={viewportRef}
@@ -348,7 +441,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
 
               {hasSelection && (
                 <>
-                  <polygon points={polygonPoints} fill="rgba(254,92,43,0.08)" stroke="rgba(254,92,43,0.38)" strokeWidth={SELECTION_STROKE} />
+                  <path d={selectionPath} fill="rgba(254,92,43,0.08)" stroke="rgba(254,92,43,0.38)" strokeWidth={SELECTION_STROKE} />
 
                   {Array.from({ length: 4 }).map((_, index) => (
                     <polyline key={`grid-h-${index}`} points={polylineForInterpolation(activeCorners, 'v', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.11)" strokeWidth={GRID_STROKE} />
@@ -358,7 +451,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
                     <polyline key={`grid-v-${index}`} points={polylineForInterpolation(activeCorners, 'u', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={GRID_STROKE} />
                   ))}
 
-                  <polygon points={polygonPoints} fill="transparent" onPointerDown={startQuadDrag} style={{ cursor: 'move' }} />
+                  <path d={selectionPath} fill="transparent" onPointerDown={startQuadDrag} style={{ cursor: 'move' }} />
 
                   {[
                     { key: 'top', a: activeCorners[0], b: activeCorners[1] },
@@ -401,6 +494,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, onChange }) {
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
           <p className="text-[11px] text-brand-gray-400 uppercase tracking-wide mb-2">Leitura rápida</p>
           <div className="space-y-1 text-sm text-brand-gray-300">
+            <div>Formato: {normalizedStyle.cornerRadius > 0 ? 'Arredondado' : 'Retangular'}</div>
             <div>Largura: {bounds.width.toFixed(1)}%</div>
             <div>Altura: {bounds.height.toFixed(1)}%</div>
             <div>Centro X: {bounds.centerX.toFixed(1)}%</div>

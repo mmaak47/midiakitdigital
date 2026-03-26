@@ -24,7 +24,7 @@ import {
   updateAdminSettings
 } from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
-import { parseScreen, serializeSimulationConfig } from '../lib/simulation';
+import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
 
 const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const DEFAULT_TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
@@ -99,6 +99,7 @@ export default function Admin() {
   const [imagem2File, setImagem2File] = useState(null);
   const [baseImagePreviewUrl, setBaseImagePreviewUrl] = useState('');
   const [screenSelection, setScreenSelection] = useState(null);
+  const [screenStyle, setScreenStyle] = useState(defaultScreenStyle);
   const [saving, setSaving] = useState(false);
   const [focusDragging, setFocusDragging] = useState(false);
   const [search, setSearch] = useState('');
@@ -294,6 +295,7 @@ export default function Admin() {
     setImageFile(null);
     setImagem2File(null);
     setScreenSelection(null);
+    setScreenStyle(defaultScreenStyle);
     setEditing('new');
   };
 
@@ -331,7 +333,9 @@ export default function Admin() {
     }));
     setImageFile(null);
     setImagem2File(null);
-    setScreenSelection(parseScreen(ponto.simulacao_tela));
+    const screenConfig = parseSimulationConfig(ponto.simulacao_tela);
+    setScreenSelection(screenConfig?.corners || parseScreen(ponto.simulacao_tela));
+    setScreenStyle(screenConfig?.style || defaultScreenStyle);
     setEditing(ponto);
   };
 
@@ -342,7 +346,7 @@ export default function Admin() {
       const fd = new FormData();
       const payload = {
         ...form,
-        simulacao_tela: serializeSimulationConfig({ corners: screenSelection })
+        simulacao_tela: serializeSimulationConfig({ corners: screenSelection, style: screenStyle })
       };
       Object.entries(payload).forEach(([k, v]) => fd.append(k, v ?? ''));
       if (imageFile) fd.append('imagem', imageFile);
@@ -982,7 +986,9 @@ export default function Admin() {
                     <ScreenAreaEditor
                       imageUrl={baseImagePreviewUrl || form.imagem}
                       corners={screenSelection}
+                      style={screenStyle}
                       onChange={setScreenSelection}
+                      onStyleChange={setScreenStyle}
                     />
                   ) : (
                     <div className="h-56 rounded-lg border border-dashed border-white/15 flex items-center justify-center text-xs text-brand-gray-500">

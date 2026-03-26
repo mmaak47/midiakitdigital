@@ -15,6 +15,10 @@ export const defaultDisplaySettings = {
   glare: 0.12
 };
 
+export const defaultScreenStyle = {
+  cornerRadius: 0
+};
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -48,6 +52,12 @@ export function normalizeDisplaySettings(input) {
     ledPixelIntensity: clamp(toNumber(input?.ledPixelIntensity, defaultDisplaySettings.ledPixelIntensity), 0, 0.45),
     ledPixelSize: clamp(toNumber(input?.ledPixelSize, defaultDisplaySettings.ledPixelSize), 3, 14),
     glare: clamp(toNumber(input?.glare, defaultDisplaySettings.glare), 0, 0.4)
+  };
+}
+
+export function normalizeScreenStyle(input) {
+  return {
+    cornerRadius: clamp(toNumber(input?.cornerRadius, defaultScreenStyle.cornerRadius), 0, 0.35)
   };
 }
 
@@ -91,14 +101,16 @@ export function parseSimulationConfig(raw) {
     if (parsed?.corners) {
       return {
         corners: normalizeCorners(parsed.corners),
-        display: normalizeDisplaySettings(parsed.display)
+        display: normalizeDisplaySettings(parsed.display),
+        style: normalizeScreenStyle(parsed.style)
       };
     }
 
     if (typeof parsed?.x !== 'undefined' || typeof parsed?.width !== 'undefined') {
       return {
         corners: rectConfigToCorners(parsed),
-        display: normalizeDisplaySettings(parsed)
+        display: normalizeDisplaySettings(parsed),
+        style: normalizeScreenStyle(parsed.style)
       };
     }
   } catch {
@@ -108,18 +120,23 @@ export function parseSimulationConfig(raw) {
   return null;
 }
 
-export function serializeSimulationConfig({ corners, display } = {}) {
+export function serializeSimulationConfig({ corners, display, style } = {}) {
   const normalizedCorners = normalizeCorners(corners);
   if (!normalizedCorners) return '';
   return JSON.stringify({
     version: 2,
     corners: normalizedCorners,
+    style: normalizeScreenStyle(style),
     ...(display ? { display: normalizeDisplaySettings(display) } : {})
   });
 }
 
 export function parseScreen(raw) {
   return parseSimulationConfig(raw)?.corners || null;
+}
+
+export function parseScreenStyle(raw) {
+  return parseSimulationConfig(raw)?.style || { ...defaultScreenStyle };
 }
 
 function getSelectionBoundsRaw(corners) {
@@ -191,12 +208,66 @@ function computeSourceCrop(width, height, targetAspect) {
   return { sx, sy, sw, sh };
 }
 
-function createQuadPath(ctx, corners) {
+function distanceBetween(a, b) {
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}
+
+function pointTowards(from, to, distance) {
+  const length = distanceBetween(from, to);
+  if (!length) return { x: from.x, y: from.y };
+  const ratio = distance / length;
+  return {
+    x: from.x + (to.x - from.x) * ratio,
+    y: from.y + (to.y - from.y) * ratio
+  };
+}
+
+function getRoundedCornerDescriptors(corners, style) {
+  const radiusFactor = normalizeScreenStyle(style).cornerRadius;
+  if (radiusFactor <= 0) return null;
+
+  return corners.map((corner, index) => {
+    const prev = corners[(index + 3) % corners.length];
+    const next = corners[(index + 1) % corners.length];
+    const prevLength = distanceBetween(corner, prev);
+    const nextLength = distanceBetween(corner, next);
+    const offset = Math.min(prevLength, nextLength) * radiusFactor;
+    const safeOffset = Math.min(offset, prevLength / 2.2, nextLength / 2.2);
+
+    return {
+      corner,
+      inPoint: pointTowards(corner, prev, safeOffset),
+      outPoint: pointTowards(corner, next, safeOffset)
+    };
+  });
+}
+
+function createQuadPath(ctx, corners, style) {
+  const roundedCorners = getRoundedCornerDescriptors(corners, style);
   ctx.beginPath();
-  ctx.moveTo(corners[0].x, corners[0].y);
-  ctx.lineTo(corners[1].x, corners[1].y);
-  ctx.lineTo(corners[2].x, corners[2].y);
-  ctx.lineTo(corners[3].x, corners[3].y);
+
+  if (!roundedCorners) {
+    ctx.moveTo(corners[0].x, corners[0].y);
+    ctx.lineTo(corners[1].x, corners[1].y);
+    ctx.lineTo(corners[2].x, corners[2].y);
+    ctx.lineTo(corners[3].x, corners[3].y);
+    ctx.closePath();
+    return;
+  }
+
+  ctx.moveTo(roundedCorners[0].outPoint.x, roundedCorners[0].outPoint.y);
+  for (let index = 1; index < roundedCorners.length; index += 1) {
+    const descriptor = roundedCorners[index];
+    ctx.lineTo(descriptor.inPoint.x, descriptor.inPoint.y);
+    ctx.quadraticCurveTo(descriptor.corner.x, descriptor.corner.y, descriptor.outPoint.x, descriptor.outPoint.y);
+  }
+  ctx.lineTo(roundedCorners[0].inPoint.x, roundedCorners[0].inPoint.y);
+  ctx.quadraticCurveTo(
+    roundedCorners[0].corner.x,
+    roundedCorners[0].corner.y,
+    roundedCorners[0].outPoint.x,
+    roundedCorners[0].outPoint.y
+  );
   ctx.closePath();
 }
 
@@ -205,13 +276,17 @@ function isPrintedSurface(panelType) {
   return value.includes('frontlight') || value.includes('backlight');
 }
 
-function drawCreativeIntoQuad(ctx, creative, corners, display, options = {}) {
+function drawCreativeIntoQuad(ctx, creative, corners, display, style, options = {}) {
   if (!Array.isArray(corners) || corners.length !== 4) return;
 
   const [tl, tr, br, bl] = corners;
   const targetAspect = getQuadAspect(corners);
   const { sx, sy, sw, sh } = computeSourceCrop(creative.width, creative.height, targetAspect);
   const divisions = options.highQuality ? 18 : 10;
+
+  ctx.save();
+  createQuadPath(ctx, corners, style);
+  ctx.clip();
 
   for (let row = 0; row < divisions; row += 1) {
     const v0 = row / divisions;
@@ -252,14 +327,16 @@ function drawCreativeIntoQuad(ctx, creative, corners, display, options = {}) {
       ctx.restore();
     }
   }
+
+  ctx.restore();
 }
 
-function drawScreenGlow(ctx, corners, settings, canvasWidth, canvasHeight) {
+function drawScreenGlow(ctx, corners, settings, style, canvasWidth, canvasHeight) {
   const bounds = getSelectionBoundsRaw(corners);
   const glowRadius = Math.max(canvasWidth, canvasHeight) * (0.14 + settings.spill * 0.25);
 
   ctx.save();
-  createQuadPath(ctx, corners);
+  createQuadPath(ctx, corners, style);
   ctx.clip();
   ctx.globalCompositeOperation = 'screen';
   const radial = ctx.createRadialGradient(bounds.centerX, bounds.centerY, 0, bounds.centerX, bounds.centerY, glowRadius);
@@ -271,17 +348,17 @@ function drawScreenGlow(ctx, corners, settings, canvasWidth, canvasHeight) {
 
   if (settings.brightness > 1) {
     ctx.fillStyle = `rgba(255,255,255,${(settings.brightness - 1) * 0.08})`;
-    createQuadPath(ctx, corners);
+    createQuadPath(ctx, corners, style);
     ctx.fill();
   }
   ctx.restore();
 }
 
-function drawReflection(ctx, corners, settings) {
+function drawReflection(ctx, corners, settings, style) {
   if (settings.reflection <= 0) return;
   const bounds = getSelectionBoundsRaw(corners);
   ctx.save();
-  createQuadPath(ctx, corners);
+  createQuadPath(ctx, corners, style);
   ctx.clip();
   ctx.translate(bounds.centerX, bounds.centerY);
   ctx.rotate((-18 * Math.PI) / 180);
@@ -345,7 +422,7 @@ function getLedPattern(size, intensity) {
 
 getLedPattern.cache = new Map();
 
-function drawLedPixels(ctx, corners, settings) {
+function drawLedPixels(ctx, corners, settings, style) {
   if (settings.ledPixelIntensity <= 0) return;
   const patternCanvas = getLedPattern(settings.ledPixelSize, settings.ledPixelIntensity);
   const pattern = ctx.createPattern(patternCanvas, 'repeat');
@@ -353,7 +430,7 @@ function drawLedPixels(ctx, corners, settings) {
   const bounds = getSelectionBoundsRaw(corners);
 
   ctx.save();
-  createQuadPath(ctx, corners);
+  createQuadPath(ctx, corners, style);
   ctx.clip();
   ctx.globalCompositeOperation = 'multiply';
   ctx.globalAlpha = 0.16 + settings.ledPixelIntensity * 0.18;
@@ -367,10 +444,10 @@ function drawLedPixels(ctx, corners, settings) {
   ctx.restore();
 }
 
-function drawPrintedTexture(ctx, corners, settings) {
+function drawPrintedTexture(ctx, corners, settings, style) {
   const bounds = getSelectionBoundsRaw(corners);
   ctx.save();
-  createQuadPath(ctx, corners);
+  createQuadPath(ctx, corners, style);
   ctx.clip();
 
   const texture = document.createElement('canvas');
@@ -403,21 +480,21 @@ function drawPrintedTexture(ctx, corners, settings) {
   ctx.restore();
 }
 
-function drawLightSpill(ctx, corners, settings) {
+function drawLightSpill(ctx, corners, settings, style) {
   if (settings.spill <= 0) return;
   ctx.save();
   ctx.globalCompositeOperation = 'screen';
   ctx.shadowColor = `rgba(255,175,106,${0.28 + settings.spill * 0.55})`;
   ctx.shadowBlur = 30 + settings.spill * 90;
   ctx.fillStyle = `rgba(255,255,255,${0.018 + settings.spill * 0.04})`;
-  createQuadPath(ctx, corners);
+  createQuadPath(ctx, corners, style);
   ctx.fill();
   ctx.restore();
 }
 
-function drawQuadOutline(ctx, corners, settings) {
+function drawQuadOutline(ctx, corners, settings, style) {
   ctx.save();
-  createQuadPath(ctx, corners);
+  createQuadPath(ctx, corners, style);
   ctx.strokeStyle = `rgba(255,255,255,${0.12 + settings.reflection * 0.25})`;
   ctx.lineWidth = 1.4;
   ctx.stroke();
@@ -450,6 +527,7 @@ export async function generateSimulationPreview({
     ...parsedConfig?.display,
     ...displaySettings
   });
+  const style = normalizeScreenStyle(parsedConfig?.style);
 
   const [base, creative] = await Promise.all([
     loadImage(baseImageUrl),
@@ -474,20 +552,20 @@ export async function generateSimulationPreview({
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(base, 0, 0, outW, outH);
 
-  drawCreativeIntoQuad(ctx, creative, scaledCorners, settings, {
+  drawCreativeIntoQuad(ctx, creative, scaledCorners, settings, style, {
     highQuality: isPrintedSurface(panelType)
   });
-  drawLightSpill(ctx, scaledCorners, settings);
-  drawScreenGlow(ctx, scaledCorners, settings, outW, outH);
-  drawReflection(ctx, scaledCorners, settings);
+  drawLightSpill(ctx, scaledCorners, settings, style);
+  drawScreenGlow(ctx, scaledCorners, settings, style, outW, outH);
+  drawReflection(ctx, scaledCorners, settings, style);
 
   if (isPrintedSurface(panelType)) {
-    drawPrintedTexture(ctx, scaledCorners, settings);
+    drawPrintedTexture(ctx, scaledCorners, settings, style);
   } else {
-    drawLedPixels(ctx, scaledCorners, settings);
+    drawLedPixels(ctx, scaledCorners, settings, style);
   }
 
-  drawQuadOutline(ctx, scaledCorners, settings);
+  drawQuadOutline(ctx, scaledCorners, settings, style);
 
   const blob = await new Promise((resolve, reject) => {
     canvas.toBlob((value) => {
@@ -505,7 +583,8 @@ export async function generateSimulationPreview({
     previewUrl,
     screen: {
       corners,
-      display: settings
+      display: settings,
+      style
     }
   };
 }
