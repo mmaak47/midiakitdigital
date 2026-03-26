@@ -59,6 +59,10 @@ const emptyForm = {
 };
 
 export default function Admin() {
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('intermidia_theme') !== 'light';
+  });
   const [auth, setAuth] = useState(!!sessionStorage.getItem('admin_token'));
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -213,6 +217,11 @@ export default function Admin() {
       loadSettings();
     }
   }, [activeTab, auth]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('intermidia_theme', isDark ? 'dark' : 'light');
+  }, [isDark]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -502,15 +511,29 @@ export default function Admin() {
   // Login screen
   if (!auth) {
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div
+        className={`min-h-screen ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
+        data-theme={isDark ? 'dark' : 'light'}
+      >
         <Navbar commercial />
         <div className="flex min-h-screen items-center justify-center px-6 pt-24 pb-10">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: 'easeOut' }}
-            className="w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.03] p-8 shadow-2xl shadow-black/30 backdrop-blur"
+            className={`w-full max-w-md rounded-3xl border p-8 backdrop-blur ${isDark ? 'border-white/10 bg-white/[0.03] shadow-2xl shadow-black/30' : 'border-neutral-200 bg-white shadow-xl shadow-neutral-200/70'}`}
           >
+            <div className="mb-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsDark((prev) => !prev)}
+                className={`h-9 w-9 flex items-center justify-center rounded-lg border transition ${isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-300 bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+                title={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
+                aria-label={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
+              >
+                <i className={isDark ? 'ri-sun-line' : 'ri-moon-line'} style={{ fontSize: 16 }} />
+              </button>
+            </div>
             <div className="mb-8 flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-orange/15 text-brand-orange">
                 <LogIn size={20} />
@@ -574,7 +597,10 @@ export default function Admin() {
 
   // Admin panel
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div
+      className={`min-h-screen ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
+      data-theme={isDark ? 'dark' : 'light'}
+    >
       <Navbar commercial />
       <div className="pt-20 max-w-7xl mx-auto px-6 pb-12">
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
@@ -582,15 +608,26 @@ export default function Admin() {
             <h1 className="text-2xl font-bold">Painel Administrativo</h1>
             <p className="text-sm text-brand-gray-500 mt-1">Pontos, entorno, calibração de PDF e usuários em menus separados.</p>
           </div>
-          {activeTab === 'pontos' ? (
+          <div className="flex items-center gap-2">
+            {activeTab === 'pontos' ? (
+              <button
+                onClick={openNew}
+                className="flex items-center gap-2 px-5 py-2.5 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
+              >
+                <Plus size={16} />
+                Novo ponto
+              </button>
+            ) : null}
             <button
-              onClick={openNew}
-              className="flex items-center gap-2 px-5 py-2.5 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
+              type="button"
+              onClick={() => setIsDark((prev) => !prev)}
+              className={`h-10 w-10 flex items-center justify-center rounded-lg border transition ${isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-300 bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+              title={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
+              aria-label={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
             >
-              <Plus size={16} />
-              Novo ponto
+              <i className={isDark ? 'ri-sun-line' : 'ri-moon-line'} style={{ fontSize: 16 }} />
             </button>
-          ) : null}
+          </div>
         </div>
 
         <div className="mb-6">

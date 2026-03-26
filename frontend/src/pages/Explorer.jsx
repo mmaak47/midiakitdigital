@@ -20,6 +20,10 @@ import { useFavorites } from '../context/FavoritesContext';
 import { calculateCampaignScore, calculateCoverageLevel, campaignTotals } from '../lib/strategy';
 
 export default function Explorer() {
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('intermidia_theme') !== 'light';
+  });
   const [searchParams] = useSearchParams();
   const initialCidade = searchParams.getAll('cidade');
 
@@ -66,13 +70,21 @@ export default function Explorer() {
     fetchPontos().then(setAllPontos).catch(() => setAllPontos([]));
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('intermidia_theme', isDark ? 'dark' : 'light');
+  }, [isDark]);
+
   const handleSelectPoint = (ponto) => {
     registerView(ponto);
     setSelected(ponto);
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div
+      className={`min-h-screen ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
+      data-theme={isDark ? 'dark' : 'light'}
+    >
       <Navbar commercial />
 
       <div className="pt-16 flex h-screen">
@@ -107,27 +119,31 @@ export default function Explorer() {
           </div>
 
           {/* Toolbar */}
-          <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-xl border-b border-white/5 px-6 py-3 flex items-center justify-between">
+          <div className={`sticky top-0 z-10 backdrop-blur-xl border-b px-6 py-3 flex items-center justify-between ${isDark ? 'bg-black/80 border-white/5' : 'bg-white/90 border-neutral-200 shadow-sm'}`}>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setMobileFilters(true)}
-                className="lg:hidden p-2 hover:bg-white/10 rounded-lg transition-colors"
+                className={`lg:hidden p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-neutral-100'}`}
               >
                 <SlidersHorizontal size={18} />
               </button>
               <h1 className="text-lg font-semibold">
                 Pontos de Mídia
               </h1>
-              <span className="text-xs text-brand-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
+              <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'text-brand-gray-500 bg-white/5' : 'text-neutral-500 bg-neutral-100 border border-neutral-200'}`}>
                 {pontos.length}
               </span>
             </div>
 
-            <div className="flex items-center gap-1 bg-white/5 rounded-xl p-1">
+            <div className={`flex items-center gap-1 rounded-xl p-1 ${isDark ? 'bg-white/5' : 'bg-neutral-100 border border-neutral-200'}`}>
               <button
                 onClick={() => setView('grid')}
                 className={`p-2 rounded-lg transition-all duration-200 ${
-                  view === 'grid' ? 'bg-brand-orange text-white' : 'text-brand-gray-400 hover:text-white'
+                  view === 'grid'
+                    ? 'bg-brand-orange text-white'
+                    : isDark
+                      ? 'text-brand-gray-400 hover:text-white'
+                      : 'text-neutral-500 hover:text-neutral-900 hover:bg-white'
                 }`}
                 title="Visualização em grade"
               >
@@ -136,11 +152,23 @@ export default function Explorer() {
               <button
                 onClick={() => setView('map')}
                 className={`p-2 rounded-lg transition-all duration-200 ${
-                  view === 'map' ? 'bg-brand-orange text-white' : 'text-brand-gray-400 hover:text-white'
+                  view === 'map'
+                    ? 'bg-brand-orange text-white'
+                    : isDark
+                      ? 'text-brand-gray-400 hover:text-white'
+                      : 'text-neutral-500 hover:text-neutral-900 hover:bg-white'
                 }`}
                 title="Visualização em mapa"
               >
                 <Map size={16} />
+              </button>
+              <button
+                onClick={() => setIsDark((prev) => !prev)}
+                className={`p-2 rounded-lg transition-all duration-200 ${isDark ? 'text-brand-gray-400 hover:text-white hover:bg-white/10' : 'text-neutral-500 hover:text-neutral-900 hover:bg-white'}`}
+                title={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
+                aria-label={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
+              >
+                <i className={isDark ? 'ri-sun-line' : 'ri-moon-line'} style={{ fontSize: 16 }} />
               </button>
             </div>
           </div>

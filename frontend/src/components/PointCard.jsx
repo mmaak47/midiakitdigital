@@ -18,6 +18,9 @@ export default function PointCard({ ponto, onSelect, index = 0 }) {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
   };
 
+  const focusX = Number.isFinite(Number(ponto.imagem_foco_x)) ? Number(ponto.imagem_foco_x) : 50;
+  const focusY = Number.isFinite(Number(ponto.imagem_foco_y)) ? Number(ponto.imagem_foco_y) : 50;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -27,12 +30,14 @@ export default function PointCard({ ponto, onSelect, index = 0 }) {
       onClick={() => onSelect(ponto)}
     >
       {/* Image */}
-      <div className="relative h-44 bg-brand-gray-900 overflow-hidden">
+      <div className="relative h-40 sm:h-44 md:h-48 bg-brand-gray-900 overflow-hidden">
         {ponto.imagem ? (
           <img
             src={ponto.imagem}
             alt={ponto.nome}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            style={{ objectPosition: `${focusX}% ${focusY}%` }}
+            loading="lazy"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand-gray-900 to-brand-gray-800">

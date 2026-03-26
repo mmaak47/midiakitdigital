@@ -114,7 +114,7 @@ export default function PointModal({ ponto, onClose }) {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-brand-dark border border-white/10 rounded-2xl"
+          className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-brand-dark border border-white/10 rounded-2xl"
           onClick={e => e.stopPropagation()}
         >
           {/* Close button */}
@@ -127,7 +127,7 @@ export default function PointModal({ ponto, onClose }) {
 
           <div className="flex flex-col lg:flex-row">
             {/* Image */}
-            <div className="lg:w-1/2 relative h-64 lg:h-auto lg:min-h-[500px] bg-brand-gray-900">
+            <div className="lg:w-1/2 relative h-[44vh] min-h-[260px] max-h-[430px] sm:h-[52vh] lg:h-auto lg:min-h-[500px] bg-brand-gray-900">
               {ponto.imagem ? (
                 <div className="absolute inset-0 overflow-hidden">
                   <img
