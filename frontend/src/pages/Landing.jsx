@@ -477,7 +477,7 @@ export default function Landing() {
         <div className="absolute top-[310vh] right-[12%] w-[350px] h-[350px] bg-[#FE5C2B]/5 rounded-full blur-[120px]" />
       </div>
 
-      <Navbar showNav={false} />
+      <Navbar showNav={false} isDark={isDark} />
 
       {/* ── Hero ─────────────────────────────────────────────── */}
       <section className={`pt-20 pb-10 border-b relative overflow-visible ${t.sectionBorder}`}>
@@ -900,7 +900,7 @@ export default function Landing() {
         <div className={`absolute inset-0 ${t.footerBg}`} />
         <div className="relative max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Intermidia" className="h-6" />
+            <img src={isDark ? '/logo.png' : '/logo-light.png'} alt="Intermidia" className="h-6" />
             <span className={`text-sm ${t.footerText}`}>© {new Date().getFullYear()}</span>
           </div>
           <div className={`flex items-center gap-6 text-sm ${t.footerText}`}>

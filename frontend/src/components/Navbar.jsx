@@ -6,6 +6,7 @@ import { useState } from 'react';
 export default function Navbar({ transparent = false, showNav = true, commercial = false, isDark = true, onToggleTheme }) {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const logoSrc = isDark ? '/logo.png' : '/logo-light.png';
   const links = commercial
     ? [
         { to: '/comercial/explorar', label: 'Explorar Pontos' },
@@ -32,7 +33,7 @@ export default function Navbar({ transparent = false, showNav = true, commercial
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 group">
-          <img src="/logo.png" alt="Intermidia" className="h-8 transition-transform group-hover:scale-105" />
+          <img src={logoSrc} alt="Intermidia" className="h-8 transition-transform group-hover:scale-105" />
           {commercial ? (
             <span className={`font-logo text-lg leading-none text-transparent bg-clip-text bg-gradient-to-r from-brand-orange via-[#ff8a64] to-brand-orange ${isDark ? '' : 'drop-shadow-[0_1px_0_rgba(255,255,255,0.35)]'}`}>
               Comercial
