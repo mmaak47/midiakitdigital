@@ -5,6 +5,7 @@ import {
   DollarSign, Heart, Building2
 } from 'lucide-react';
 import { useFavorites } from '../context/FavoritesContext';
+import { getPrimaryPointDisplayImage } from '../lib/pointImages';
 
 const DEFAULT_IMAGE_FOCUS = { x: 50, y: 50, zoom: 100 };
 
@@ -63,6 +64,7 @@ export default function PointModal({ ponto, onClose, isDark = true }) {
 
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const fav = isFavorite(ponto.id);
+  const displayImage = getPrimaryPointDisplayImage(ponto);
   const imageFocus = useMemo(() => {
     const simulationFocus = deriveFocusFromSimulation(ponto.simulacao_tela);
     const hasX = Number.isFinite(Number(ponto.imagem_foco_x));
@@ -138,10 +140,10 @@ export default function PointModal({ ponto, onClose, isDark = true }) {
           <div className="flex flex-col lg:flex-row">
             {/* Image */}
             <div className={`lg:w-1/2 relative h-[44vh] min-h-[260px] max-h-[430px] sm:h-[52vh] lg:h-auto lg:min-h-[500px] ${isDark ? 'bg-brand-gray-900' : 'bg-[#eef1f5]'}`}>
-              {ponto.imagem ? (
+              {displayImage ? (
                 <div className="absolute inset-0 overflow-hidden">
                   <img
-                    src={ponto.imagem}
+                    src={displayImage}
                     alt={ponto.nome}
                     className="w-full h-full object-cover"
                     style={{

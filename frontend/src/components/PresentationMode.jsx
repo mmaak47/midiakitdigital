@@ -16,6 +16,7 @@ import { Circle, CircleMarker, MapContainer, TileLayer, useMap } from 'react-lea
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { buildAudienceQualification, buildEntornoSummary, getSegmentDisplayName } from '../lib/strategy';
+import { getPrimaryPointDisplayImage } from '../lib/pointImages';
 
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 const formatNumber = (value) => new Intl.NumberFormat('pt-BR').format(value || 0);
@@ -59,7 +60,7 @@ export default function PresentationMode({ points = [], totals, segmento, client
     const hasEntornoData = relevantPlacesCount > 0;
 
     return {
-      mediaUrl: current.proposalSimulationPreview || current.simulacao_preview || current.imagem,
+      mediaUrl: current.proposalSimulationPreview || current.simulacao_preview || getPrimaryPointDisplayImage(current),
       audience: buildAudienceQualification(current),
       entorno: buildEntornoSummary(current.entornoMetrics, segmento),
       hasEntornoData,
@@ -276,7 +277,7 @@ export default function PresentationMode({ points = [], totals, segmento, client
 
             <div className="max-h-[430px] space-y-2 overflow-y-auto rounded-[24px] border border-white/10 bg-white/[0.03] p-3">
               {points.map((point, idx) => {
-                const thumb = point.proposalSimulationPreview || point.simulacao_preview || point.imagem;
+                const thumb = point.proposalSimulationPreview || point.simulacao_preview || getPrimaryPointDisplayImage(point);
                 const active = idx === index;
                 return (
                   <button

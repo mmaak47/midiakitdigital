@@ -5,6 +5,7 @@ import Navbar from '../components/Navbar';
 import CustomSelect from '../components/CustomSelect';
 import SmartMap from '../components/SmartMap';
 import { fetchPontos } from '../lib/api';
+import { getPointDisplayImages, getPrimaryPointDisplayImage } from '../lib/pointImages';
 import { campaignTotals } from '../lib/strategy';
 
 const fadeUp = {
@@ -63,7 +64,7 @@ function AnimatedCounter({ value, formatter = formatInt, className = '' }) {
 }
 
 function PointImageGallery({ ponto, onExpand }) {
-  const images = [ponto.imagem, ponto.imagem2].filter(Boolean);
+  const images = getPointDisplayImages(ponto);
   const [idx, setIdx] = useState(0);
 
   useEffect(() => { setIdx(0); }, [ponto.id]);
@@ -127,7 +128,7 @@ function PointImageGallery({ ponto, onExpand }) {
 }
 
 function Lightbox({ ponto, imageIndex, onClose, onChangeIndex }) {
-  const images = ponto ? [ponto.imagem, ponto.imagem2].filter(Boolean) : [];
+  const images = ponto ? getPointDisplayImages(ponto) : [];
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -246,9 +247,9 @@ function MapModal({ pontos, onClose, isDark }) {
           </div>
           {selectedPoint ? (
             <div className="flex-1 p-4 space-y-3">
-              {selectedPoint.imagem && (
+              {getPrimaryPointDisplayImage(selectedPoint) && (
                 <div className={`rounded-xl overflow-hidden h-32 border ${m.imgBorder}`}>
-                  <img src={selectedPoint.imagem} alt={selectedPoint.nome} className="w-full h-full object-cover" />
+                  <img src={getPrimaryPointDisplayImage(selectedPoint)} alt={selectedPoint.nome} className="w-full h-full object-cover" />
                 </div>
               )}
               <div>

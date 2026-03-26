@@ -1173,7 +1173,7 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
   `, BRAND_DARK);
 }
 
-function buildProposalPointPage({ point, index, total, image, image2, segmento, assets }) {
+function buildProposalPointPage({ point, index, total, image, segmento, assets }) {
   const layout = getActivePdfLayoutConfig().proposal.point;
   const counterMinWidth = Math.max(Number(layout.counterMinWidth) || 0, 110);
   const counterPaddingX = Math.max(Number(layout.counterPaddingX) || 0, 14);
@@ -1196,13 +1196,7 @@ function buildProposalPointPage({ point, index, total, image, image2, segmento, 
     { label: 'Valor Negociado', value: formatMoney(point.preco) }
   ];
 
-  const hasSecondImage = image2 && point.tipo === 'Elevador';
-  const imageFrameHtml = hasSecondImage
-    ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;height:100%;">
-        ${buildHeroImageFrame(image, { fit: 'contain', radius: 20 })}
-        ${buildHeroImageFrame(image2, { fit: 'contain', radius: 20 })}
-      </div>`
-    : buildHeroImageFrame(image, { fit: 'contain', radius: 28 });
+  const imageFrameHtml = buildHeroImageFrame(image, { fit: 'contain', radius: 28 });
 
   return createPage(`
     <div style="position:absolute;inset:0;background:linear-gradient(135deg,#050505 0%,#0B0B0B 38%,#111111 100%);"></div>
@@ -1916,13 +1910,6 @@ export async function generateProposalPdf({
   const hasEntornoData = proposalPoints.some((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0);
   const assets = await loadPdfAssets();
   const proposalImages = await Promise.all(proposalPoints.map((point) => imageToDataUrl(pickProposalImageUrl(point))));
-  const proposalImages2 = await Promise.all(proposalPoints.map((point) => {
-    if (point.tipo === 'Elevador' && point.imagem2) {
-      return imageToDataUrl(point.imagem2.startsWith('http') ? point.imagem2 : assetUrl(point.imagem2));
-    }
-    return Promise.resolve(null);
-  }));
-
   const pages = [
     buildProposalCoverPage({
       proposalClient,
@@ -1955,7 +1942,6 @@ export async function generateProposalPdf({
       index: index + 1,
       total: proposalPoints.length,
       image: proposalImages[index],
-      image2: proposalImages2[index] || null,
       segmento,
       assets
     }));

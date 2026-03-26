@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { getSegmentDisplayName } from '../lib/strategy';
+import { getPrimaryPointDisplayImage } from '../lib/pointImages';
 
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 const formatNumber = (value) => new Intl.NumberFormat('pt-BR').format(Number(value) || 0);
@@ -13,9 +14,9 @@ const formatCostPerImpact = (value) => {
 };
 
 function coverImage(points) {
-  return points.find((p) => p.proposalSimulationPreview || p.simulacao_preview || p.imagem)?.proposalSimulationPreview
-    || points.find((p) => p.proposalSimulationPreview || p.simulacao_preview || p.imagem)?.simulacao_preview
-    || points.find((p) => p.proposalSimulationPreview || p.simulacao_preview || p.imagem)?.imagem
+  return points.find((p) => p.proposalSimulationPreview || p.simulacao_preview || getPrimaryPointDisplayImage(p))?.proposalSimulationPreview
+    || points.find((p) => p.proposalSimulationPreview || p.simulacao_preview || getPrimaryPointDisplayImage(p))?.simulacao_preview
+    || getPrimaryPointDisplayImage(points.find((p) => p.proposalSimulationPreview || p.simulacao_preview || getPrimaryPointDisplayImage(p)))
     || '/hero-bg.jpg';
 }
 
@@ -73,7 +74,7 @@ export default function QuickPresentationMode({ points = [], totals = {}, segmen
           { label: 'Público', value: point.publico || 'A/B' },
           { label: 'Coordenadas', value: coords }
         ],
-        image: point.proposalSimulationPreview || point.simulacao_preview || point.imagem || coverImage(points)
+        image: point.proposalSimulationPreview || point.simulacao_preview || getPrimaryPointDisplayImage(point) || coverImage(points)
       };
     });
 
