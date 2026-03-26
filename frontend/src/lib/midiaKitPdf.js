@@ -835,6 +835,25 @@ function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }
   `, '#000');
 }
 
+function buildMidiaKitEndingPage({ assets }) {
+  return createPage(`
+    <div style="position:absolute;inset:0;background:#040404;"></div>
+    <div style="position:absolute;inset:0;background:radial-gradient(circle at 18% 20%, rgba(254,92,43,0.22) 0%, rgba(254,92,43,0.06) 28%, rgba(0,0,0,0) 56%);"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(145deg,#040404 0%,#080808 56%,#050505 100%);"></div>
+
+    <div style="position:absolute;left:110px;right:110px;top:110px;bottom:110px;border-radius:40px;border:1px solid rgba(255,255,255,0.10);background:linear-gradient(180deg,rgba(255,255,255,0.04) 0%,rgba(255,255,255,0.01) 100%);"></div>
+
+    <div style="position:absolute;left:0;right:0;top:230px;display:flex;justify-content:center;">
+      <img src="${assets.logo07 || assets.logo || ''}" alt="" style="width:280px;height:auto;object-fit:contain;" />
+    </div>
+
+    <div style="position:absolute;left:190px;right:190px;top:500px;text-align:center;">
+      <div style="font-size:18px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.52);">Intermidia OOH + DOOH</div>
+      <div style="margin-top:22px;font-family:Poppins, system-ui, sans-serif;font-size:108px;line-height:0.94;font-weight:700;letter-spacing:-0.045em;color:#fff;">O mundo acontece lá fora!</div>
+    </div>
+  `, '#040404');
+}
+
 function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   const fluxoLabel = isVehicleFlowPoint(ponto) ? 'Veículos / mês' : 'Pessoas / mês';
   const metrics = [
@@ -885,7 +904,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
         </div>
       </div>
 
-      <div style="position:absolute;left:46px;right:calc(41.5% + 46px);top:548px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;">
+      <div style="position:absolute;left:46px;right:calc(41.5% + 46px);top:508px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;">
         ${metrics.map((item) => `
           <div style="padding:18px 18px 16px;border-radius:22px;background:#FFFFFF;border:1px solid rgba(254,92,43,0.20);min-height:122px;box-sizing:border-box;">
             <div style="display:flex;align-items:center;gap:10px;">
@@ -897,7 +916,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
         `).join('')}
       </div>
 
-      <div style="position:absolute;left:46px;right:calc(41.5% + 46px);bottom:38px;padding-top:18px;border-top:1px solid rgba(17,24,39,0.16);display:grid;grid-template-columns:1fr 1fr auto;gap:18px;align-items:end;">
+      <div style="position:absolute;left:46px;right:calc(41.5% + 46px);bottom:32px;padding-top:16px;border-top:1px solid rgba(17,24,39,0.16);display:grid;grid-template-columns:1fr 1fr auto;gap:18px;align-items:end;">
         <div>
           <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(55,65,81,0.64);">Veiculação</div>
           <div style="margin-top:8px;font-size:22px;line-height:1.24;color:#111827;">${escapeHtml(veiculacao)}</div>
@@ -1837,6 +1856,8 @@ export async function generateMidiaKitPdf({ praca, pontos }) {
       }));
     });
   });
+
+  pages.push(buildMidiaKitEndingPage({ assets }));
 
   const fileName = `midia-kit-${slugify(cidade)}-${new Date().toISOString().slice(0, 10)}.pdf`;
   await renderPagesToPdf(pages, fileName);
