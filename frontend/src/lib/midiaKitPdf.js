@@ -546,7 +546,7 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
       <div style="font-size:16px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.54);">Cobertura estratégica por praça</div>
       <div style="margin-top:16px;font-family:Poppins, system-ui, sans-serif;font-size:98px;line-height:0.92;font-weight:700;letter-spacing:-0.05em;color:#fff;text-transform:uppercase;">${escapeHtml(cidade)}</div>
       ${estado ? `<div style="margin-top:10px;font-size:20px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.72);">${escapeHtml(estado)}</div>` : ''}
-      <div style="margin-top:34px;max-width:660px;font-size:29px;line-height:1.24;color:rgba(255,255,255,0.86);">Inventário premium com presença urbana, formatos digitais e dados comerciais prontos para defesa de marca.</div>
+      <div style="margin-top:34px;max-width:660px;font-size:29px;line-height:1.24;color:rgba(255,255,255,0.86);">Inventário premium para planejar presença urbana com escala, frequência e impacto visual na praça.</div>
     </div>
 
     <div style="position:absolute;left:70px;right:70px;bottom:72px;display:grid;grid-template-columns:1.15fr 0.85fr;gap:28px;align-items:end;">
@@ -577,45 +577,49 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
 function buildMidiaKitManifestoPage({ assets }) {
   const cards = [
     {
-      title: 'Presença premium',
-      text: 'Inventário selecionado para maximizar presença de marca em ambientes urbanos, comerciais e de conveniência.'
+      title: 'Onde sua campanha aparece',
+      text: 'Pontos distribuídos em regiões de alto fluxo e visibilidade dentro da praça selecionada.'
     },
     {
-      title: 'Dados para negociação',
-      text: 'Fluxo, inserções, públicos e disponibilidade organizados para acelerar a construção de apresentações comerciais.'
+      title: 'Qual exposição você compra',
+      text: 'Fluxo, inserções, tempo de tela e público organizados para facilitar comparação e decisão.'
     },
     {
-      title: 'Execução visual',
-      text: 'Fotos reais dos pontos, especificações do formato e informações de localização para reduzir atrito na tomada de decisão.'
+      title: 'Como ativar com segurança',
+      text: 'Fotos reais, endereço e coordenadas de cada ponto para validar contexto e aderência da campanha.'
+    },
+    {
+      title: 'Quanto investir por formato',
+      text: 'Valor mensal por ponto e leitura de mix para montar uma proposta eficiente para a meta de cobertura.'
     }
   ];
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#050505;"></div>
-    <div style="position:absolute;left:68px;top:68px;right:68px;bottom:68px;border-radius:34px;background:linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02));border:1px solid rgba(255,255,255,0.08);overflow:hidden;"></div>
+    <div style="position:absolute;left:68px;top:68px;right:68px;bottom:68px;border-radius:34px;background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.08);overflow:hidden;"></div>
     <div style="position:absolute;left:68px;top:68px;bottom:68px;width:540px;overflow:hidden;border-top-left-radius:34px;border-bottom-left-radius:34px;">
       <img src="${assets.about1 || assets.about2 || assets.showcase || ''}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:center;filter:grayscale(0.1) contrast(1.04);" />
-      <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,5,5,0.04) 0%,rgba(5,5,5,0.36) 58%,rgba(5,5,5,0.72) 100%);"></div>
+      <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,5,5,0.02) 0%,rgba(5,5,5,0.28) 58%,rgba(5,5,5,0.76) 100%);"></div>
       <div style="position:absolute;left:34px;right:34px;bottom:34px;">
-        <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border-radius:999px;background:rgba(254,92,43,0.16);border:1px solid rgba(254,92,43,0.25);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Ecossistema Intermidia</div>
-        <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:50px;line-height:0.98;font-weight:700;color:#fff;letter-spacing:-0.04em;">DOOH pensado para branding, cobertura e performance comercial.</div>
+        <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border-radius:999px;background:rgba(254,92,43,0.16);border:1px solid rgba(254,92,43,0.25);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Leitura do inventário</div>
+        <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:50px;line-height:0.98;font-weight:700;color:#fff;letter-spacing:-0.04em;">Informação clara para escolher os pontos certos da sua campanha.</div>
       </div>
     </div>
 
     <div style="position:absolute;left:650px;right:108px;top:110px;bottom:110px;display:flex;flex-direction:column;">
       <img src="${assets.logo || ''}" alt="" style="width:170px;height:auto;object-fit:contain;" />
       <div style="margin-top:28px;font-size:16px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Visão do mídia kit</div>
-      <div style="margin-top:14px;font-family:Poppins, system-ui, sans-serif;font-size:62px;line-height:0.96;font-weight:700;color:#fff;letter-spacing:-0.04em;">Uma apresentação feita para vender presença urbana com clareza.</div>
-      <div style="margin-top:22px;font-size:24px;line-height:1.4;color:rgba(255,255,255,0.78);">Este mídia kit combina identidade visual, informações operacionais e métricas comerciais para transformar o inventário da praça em argumento de marca.</div>
+      <div style="margin-top:14px;font-family:Poppins, system-ui, sans-serif;font-size:62px;line-height:0.96;font-weight:700;color:#fff;letter-spacing:-0.04em;">Um panorama objetivo para você visualizar alcance, formatos e investimento.</div>
+      <div style="margin-top:22px;font-size:24px;line-height:1.4;color:rgba(255,255,255,0.78);">Use as próximas páginas para comparar pontos, entender contexto de cada localização e montar a melhor combinação para sua campanha.</div>
 
-      <div style="margin-top:34px;display:grid;grid-template-columns:1fr;gap:16px;">
+      <div style="margin-top:32px;padding-top:8px;display:grid;grid-template-columns:1fr 1fr;column-gap:28px;row-gap:18px;">
         ${cards.map((card) => `
-          <div style="padding:22px 24px;border-radius:24px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);">
-            <div style="display:flex;align-items:center;gap:12px;">
-              <span style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:14px;background:rgba(254,92,43,0.16);">${midiaKitDetailIcon('type', BRAND_ORANGE, 18)}</span>
-              <span style="font-size:17px;font-weight:700;color:#fff;">${escapeHtml(card.title)}</span>
+          <div style="padding:0 0 14px;border-bottom:1px solid rgba(255,255,255,0.10);">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:999px;background:rgba(254,92,43,0.18);">${midiaKitDetailIcon('type', BRAND_ORANGE, 13)}</span>
+              <span style="font-size:16px;font-weight:700;color:#fff;line-height:1.2;">${escapeHtml(card.title)}</span>
             </div>
-            <div style="margin-top:12px;font-size:18px;line-height:1.45;color:rgba(255,255,255,0.7);">${escapeHtml(card.text)}</div>
+            <div style="margin-top:10px;font-size:16px;line-height:1.48;color:rgba(255,255,255,0.68);">${escapeHtml(card.text)}</div>
           </div>
         `).join('')}
       </div>
@@ -682,7 +686,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
 
         <div style="margin-top:22px;padding:26px;border-radius:28px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);">
           <div style="font-size:14px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND_ORANGE};">Leitura rápida do inventário</div>
-          <div style="margin-top:14px;font-size:24px;line-height:1.42;color:rgba(255,255,255,0.8);">Praça com <strong style="color:#fff;">${formatInt(totalPontos)} pontos</strong>, <strong style="color:#fff;">${formatInt(resumo.telas)} telas</strong> e fluxo mensal consolidado de <strong style="color:#fff;">${formatInt(resumo.fluxo)}</strong>. O kit organiza a negociação por formato, localização e potencial de exposição.</div>
+          <div style="margin-top:14px;font-size:24px;line-height:1.42;color:rgba(255,255,255,0.8);">Praça com <strong style="color:#fff;">${formatInt(totalPontos)} pontos</strong>, <strong style="color:#fff;">${formatInt(resumo.telas)} telas</strong> e fluxo mensal consolidado de <strong style="color:#fff;">${formatInt(resumo.fluxo)}</strong>. A composição por formato facilita montar uma grade equilibrada entre cobertura e frequência.</div>
         </div>
       </div>
 
