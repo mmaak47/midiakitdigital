@@ -12,17 +12,17 @@ const markerIcon = L.divIcon({
   popupAnchor: [0, -24]
 });
 
-export default function SmartMap({ pontos = [], selectedId, onSelect, onOpenDetails }) {
+export default function SmartMap({ pontos = [], selectedId, onSelect, onOpenDetails, isDark = true }) {
   const [hoveredZone, setHoveredZone] = useState(null);
 
   const valid = useMemo(() => pontos.filter((p) => p.lat && p.lng), [pontos]);
   const center = valid.length ? [valid[0].lat, valid[0].lng] : [-23.32, -51.16];
 
   return (
-    <div className="h-full w-full rounded-2xl overflow-hidden border border-white/10 relative">
+    <div className={`smart-map h-full w-full rounded-2xl overflow-hidden border relative ${isDark ? 'smart-map-dark border-white/10' : 'smart-map-light border-neutral-200'}`}>
       <MapContainer center={center} zoom={11} className="h-full w-full">
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          url={isDark ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'}
           attribution='&copy; CARTO'
         />
 
@@ -67,14 +67,14 @@ export default function SmartMap({ pontos = [], selectedId, onSelect, onOpenDeta
       </MapContainer>
 
       {hoveredZone && (
-        <div className="absolute right-3 top-3 z-[500] w-72 rounded-xl border border-white/15 bg-black/85 backdrop-blur p-3">
-          <div className="text-sm font-semibold text-white">{hoveredZone.nome}</div>
-          <div className="text-xs text-brand-gray-400 mt-1">{hoveredZone.descricao}</div>
+        <div className={`absolute right-3 top-3 z-[500] w-72 rounded-xl border backdrop-blur p-3 ${isDark ? 'border-white/15 bg-black/85' : 'border-neutral-200 bg-white/95 shadow-sm'}`}>
+          <div className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{hoveredZone.nome}</div>
+          <div className={`text-xs mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>{hoveredZone.descricao}</div>
         </div>
       )}
 
       {selectedId && (
-        <div className="absolute left-3 bottom-3 z-[500] rounded-lg bg-brand-orange/20 border border-brand-orange/40 px-3 py-2 text-xs">
+        <div className={`absolute left-3 bottom-3 z-[500] rounded-lg border border-brand-orange/40 px-3 py-2 text-xs ${isDark ? 'bg-brand-orange/20 text-white' : 'bg-brand-orange/12 text-neutral-800'}`}>
           Ponto selecionado no mapa sincronizado com a listagem.
         </div>
       )}

@@ -34,7 +34,7 @@ import QuickPresentationMode from './QuickPresentationMode';
 
 const DEFAULT_ENTORNO_RADIUS = 800;
 
-export default function ProposalModal({ onClose, open = true, selectedPoints = null }) {
+export default function ProposalModal({ onClose, open = true, selectedPoints = null, isDark = true }) {
   const { favorites } = useFavorites();
   const sourcePoints = selectedPoints ?? favorites;
   const [step, setStep] = useState('review');
@@ -494,20 +494,20 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
         onClick={onClose}
       >
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-md" />
+        <div className={`absolute inset-0 backdrop-blur-md ${isDark ? 'bg-black/70' : 'bg-white/45'}`} />
 
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="relative w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-3xl border border-white/15 bg-gradient-to-b from-[#11141b] via-[#0d1016] to-[#090c11] shadow-[0_30px_120px_rgba(0,0,0,0.75)]"
+          className={`proposal-modal-shell relative w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-3xl border ${isDark ? 'border-white/15 bg-gradient-to-b from-[#11141b] via-[#0d1016] to-[#090c11] shadow-[0_30px_120px_rgba(0,0,0,0.75)]' : 'border-neutral-200 bg-gradient-to-b from-[#ffffff] via-[#fbfcfe] to-[#f3f5f8] shadow-[0_26px_80px_rgba(148,163,184,0.28)]'}`}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_5%,rgba(254,92,43,0.12),transparent_35%),radial-gradient(circle_at_90%_0%,rgba(255,255,255,0.07),transparent_28%)]" />
+          <div className={`pointer-events-none absolute inset-0 ${isDark ? 'bg-[radial-gradient(circle_at_15%_5%,rgba(254,92,43,0.12),transparent_35%),radial-gradient(circle_at_90%_0%,rgba(255,255,255,0.07),transparent_28%)]' : 'bg-[radial-gradient(circle_at_12%_4%,rgba(254,92,43,0.16),transparent_36%),radial-gradient(circle_at_94%_0%,rgba(254,92,43,0.10),transparent_32%)]'}`} />
 
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 z-10 p-2.5 rounded-full border border-white/10 bg-black/35 hover:bg-black/60 text-white/70 hover:text-white transition-all"
+            className={`absolute top-4 right-4 z-10 p-2.5 rounded-full border transition-all ${isDark ? 'border-white/10 bg-black/35 hover:bg-black/60 text-white/70 hover:text-white' : 'border-neutral-300 bg-white text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800'}`}
           >
             <X size={18} />
           </button>
@@ -723,7 +723,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       type="button"
                       onClick={handleGenerateSimulations}
                       disabled={simulationBusy || !proposalSourcePoints.length}
-                      className="px-5 py-2.5 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover disabled:opacity-50 shadow-[0_10px_24px_rgba(254,92,43,0.28)]"
+                      className="orange-solid-btn px-5 py-2.5 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover disabled:opacity-50 shadow-[0_10px_24px_rgba(254,92,43,0.28)]"
                     >
                       {simulationBusy ? 'Gerando simulações...' : 'Gerar simulações'}
                     </button>
@@ -777,7 +777,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
             {step === 'review' && (
               <section className="space-y-5">
-                <ProposalBuilder clientName={form.clientName} city={activeCities} publico={form.publicos} segmento={getSegmentDisplayName(form.segmento)} points={proposalPoints} totals={totals} pricingSummary={pricingSummary} strategicText={argumentos} simulationSummary={simulationSummary} activePreviewPointId={activePreviewPoint?.id} onSelectPreview={setActivePreviewPointId} onGenerate={handleGenerate} />
+                <ProposalBuilder clientName={form.clientName} city={activeCities} publico={form.publicos} segmento={getSegmentDisplayName(form.segmento)} points={proposalPoints} totals={totals} pricingSummary={pricingSummary} strategicText={argumentos} simulationSummary={simulationSummary} activePreviewPointId={activePreviewPoint?.id} onSelectPreview={setActivePreviewPointId} onGenerate={handleGenerate} isDark={isDark} />
               </section>
             )}
 
@@ -788,7 +788,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                   <p className="text-sm text-brand-gray-300">Apresentação pronta para reunião comercial, com narrativa estratégica, desconto aplicado e indicadores executivos.</p>
                 </div>
 
-                <ProposalBuilder clientName={form.clientName} city={activeCities} publico={form.publicos} segmento={getSegmentDisplayName(form.segmento)} points={proposalPoints} totals={totals} pricingSummary={pricingSummary} strategicText={argumentos} simulationSummary={simulationSummary} activePreviewPointId={activePreviewPoint?.id} onSelectPreview={setActivePreviewPointId} onGenerate={() => {}} />
+                <ProposalBuilder clientName={form.clientName} city={activeCities} publico={form.publicos} segmento={getSegmentDisplayName(form.segmento)} points={proposalPoints} totals={totals} pricingSummary={pricingSummary} strategicText={argumentos} simulationSummary={simulationSummary} activePreviewPointId={activePreviewPoint?.id} onSelectPreview={setActivePreviewPointId} onGenerate={() => {}} isDark={isDark} />
 
                 <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
                   <p className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-400">Seções opcionais do PDF</p>
@@ -812,7 +812,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                 </div>
 
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <button onClick={handleExportProposalPdf} disabled={pdfBusy} className="h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(254,92,43,0.28)]">
+                  <button onClick={handleExportProposalPdf} disabled={pdfBusy} className="orange-solid-btn h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(254,92,43,0.28)]">
                     <Download size={16} />
                     {pdfBusy ? 'Gerando PDF...' : 'Exportar PDF da proposta'}
                   </button>
@@ -846,17 +846,17 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       )}
 
       {showPreviewLightbox && activePreviewPoint && (
-        <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-sm p-4 md:p-8" onClick={() => setShowPreviewLightbox(false)}>
+        <div className={`fixed inset-0 z-[70] backdrop-blur-sm p-4 md:p-8 ${isDark ? 'bg-black/90' : 'bg-white/70'}`} onClick={() => setShowPreviewLightbox(false)}>
           <div className="max-w-6xl mx-auto h-full flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.14em] text-brand-gray-400">Preview ampliado</p>
-                <p className="text-sm text-white font-semibold">{activePreviewPoint.nome} · {activePreviewPoint.cidade}</p>
+                <p className={`text-xs uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Preview ampliado</p>
+                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{activePreviewPoint.nome} · {activePreviewPoint.cidade}</p>
               </div>
-              <button onClick={() => setShowPreviewLightbox(false)} className="px-3 py-1.5 rounded-lg border border-white/20 text-sm text-white/80 hover:text-white">Fechar</button>
+              <button onClick={() => setShowPreviewLightbox(false)} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? 'border-white/20 text-white/80 hover:text-white' : 'border-neutral-300 text-neutral-600 hover:text-neutral-900 bg-white'}`}>Fechar</button>
             </div>
 
-            <div className="rounded-2xl border border-white/15 bg-black/45 flex-1 p-2 md:p-4 min-h-0">
+            <div className={`rounded-2xl border flex-1 p-2 md:p-4 min-h-0 ${isDark ? 'border-white/15 bg-black/45' : 'border-neutral-200 bg-white'}`}>
               <img src={activePreviewPoint.proposalSimulationPreview || activePreviewPoint.simulacao_preview} alt={`Preview ${activePreviewPoint.nome}`} className="w-full h-full object-contain rounded-xl" />
             </div>
           </div>

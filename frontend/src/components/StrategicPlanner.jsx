@@ -171,7 +171,7 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
         <button
           onClick={() => onAddPlan?.(suggestion.pontos)}
           disabled={!suggestion.pontos.length}
-          className="inline-flex items-center justify-center gap-2 h-12 px-5 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white text-sm font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all disabled:opacity-60 disabled:shadow-none whitespace-nowrap"
+          className="orange-solid-btn inline-flex items-center justify-center gap-2 h-12 px-5 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white text-sm font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all disabled:opacity-60 disabled:shadow-none whitespace-nowrap"
         >
           <PlusCircle size={17} />
           Adicionar plano

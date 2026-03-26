@@ -515,7 +515,7 @@ export default function Admin() {
         className={`min-h-screen ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
         data-theme={isDark ? 'dark' : 'light'}
       >
-        <Navbar commercial />
+        <Navbar commercial isDark={isDark} onToggleTheme={() => setIsDark((prev) => !prev)} />
         <div className="flex min-h-screen items-center justify-center px-6 pt-24 pb-10">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -523,17 +523,6 @@ export default function Admin() {
             transition={{ duration: 0.35, ease: 'easeOut' }}
             className={`w-full max-w-md rounded-3xl border p-8 backdrop-blur ${isDark ? 'border-white/10 bg-white/[0.03] shadow-2xl shadow-black/30' : 'border-neutral-200 bg-white shadow-xl shadow-neutral-200/70'}`}
           >
-            <div className="mb-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsDark((prev) => !prev)}
-                className={`h-9 w-9 flex items-center justify-center rounded-lg border transition ${isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-300 bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
-                title={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
-                aria-label={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
-              >
-                <i className={isDark ? 'ri-sun-line' : 'ri-moon-line'} style={{ fontSize: 16 }} />
-              </button>
-            </div>
             <div className="mb-8 flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-orange/15 text-brand-orange">
                 <LogIn size={20} />
@@ -601,33 +590,22 @@ export default function Admin() {
       className={`min-h-screen ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
       data-theme={isDark ? 'dark' : 'light'}
     >
-      <Navbar commercial />
+      <Navbar commercial isDark={isDark} onToggleTheme={() => setIsDark((prev) => !prev)} />
       <div className="pt-20 max-w-7xl mx-auto px-6 pb-12">
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold">Painel Administrativo</h1>
             <p className="text-sm text-brand-gray-500 mt-1">Pontos, entorno, calibração de PDF e usuários em menus separados.</p>
           </div>
-          <div className="flex items-center gap-2">
-            {activeTab === 'pontos' ? (
-              <button
-                onClick={openNew}
-                className="flex items-center gap-2 px-5 py-2.5 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
-              >
-                <Plus size={16} />
-                Novo ponto
-              </button>
-            ) : null}
+          {activeTab === 'pontos' ? (
             <button
-              type="button"
-              onClick={() => setIsDark((prev) => !prev)}
-              className={`h-10 w-10 flex items-center justify-center rounded-lg border transition ${isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-300 bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
-              title={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
-              aria-label={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
+              onClick={openNew}
+              className="orange-solid-btn flex items-center gap-2 px-5 py-2.5 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
             >
-              <i className={isDark ? 'ri-sun-line' : 'ri-moon-line'} style={{ fontSize: 16 }} />
+              <Plus size={16} />
+              Novo ponto
             </button>
-          </div>
+          ) : null}
         </div>
 
         <div className="mb-6">

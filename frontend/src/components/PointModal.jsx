@@ -49,7 +49,7 @@ function deriveFocusFromSimulation(simulacaoTela) {
   };
 }
 
-export default function PointModal({ ponto, onClose }) {
+export default function PointModal({ ponto, onClose, isDark = true }) {
   if (!ponto) return null;
 
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
@@ -106,7 +106,7 @@ export default function PointModal({ ponto, onClose }) {
         onClick={onClose}
       >
         {/* Backdrop */}
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-md" />
+        <div className={`absolute inset-0 ${isDark ? 'bg-black/70' : 'bg-white/45'} backdrop-blur-md`} />
 
         {/* Modal */}
         <motion.div
@@ -114,20 +114,20 @@ export default function PointModal({ ponto, onClose }) {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-brand-dark border border-white/10 rounded-2xl"
+          className={`relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl ${isDark ? 'bg-brand-dark border border-white/10' : 'bg-white border border-neutral-200 shadow-xl'}`}
           onClick={e => e.stopPropagation()}
         >
           {/* Close button */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white/60 hover:text-white transition-all backdrop-blur-sm"
+            className={`absolute top-4 right-4 z-10 p-2 rounded-full transition-all backdrop-blur-sm ${isDark ? 'bg-black/40 hover:bg-black/60 text-white/60 hover:text-white' : 'bg-white border border-neutral-200 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100'}`}
           >
             <X size={18} />
           </button>
 
           <div className="flex flex-col lg:flex-row">
             {/* Image */}
-            <div className="lg:w-1/2 relative h-[44vh] min-h-[260px] max-h-[430px] sm:h-[52vh] lg:h-auto lg:min-h-[500px] bg-brand-gray-900">
+            <div className={`lg:w-1/2 relative h-[44vh] min-h-[260px] max-h-[430px] sm:h-[52vh] lg:h-auto lg:min-h-[500px] ${isDark ? 'bg-brand-gray-900' : 'bg-[#eef1f5]'}`}>
               {ponto.imagem ? (
                 <div className="absolute inset-0 overflow-hidden">
                   <img
@@ -142,8 +142,8 @@ export default function PointModal({ ponto, onClose }) {
                   />
                 </div>
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand-gray-900 to-brand-gray-800">
-                  <Building2 size={64} className="text-brand-gray-700" />
+                <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-brand-gray-900 to-brand-gray-800' : 'bg-gradient-to-br from-[#f4f6f9] to-[#eceff3]'}`}>
+                  <Building2 size={64} className={isDark ? 'text-brand-gray-700' : 'text-neutral-400'} />
                 </div>
               )}
             </div>
@@ -155,19 +155,19 @@ export default function PointModal({ ponto, onClose }) {
                   <span className="inline-block px-2.5 py-1 rounded-lg bg-brand-orange/10 text-brand-orange text-xs font-medium mb-3">
                     {ponto.tipo}
                   </span>
-                  <h2 className="text-2xl lg:text-3xl font-bold text-white">
+                  <h2 className={`text-2xl lg:text-3xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
                     {ponto.nome}
                   </h2>
                 </div>
               </div>
 
-              <p className="text-brand-gray-400 text-sm flex items-center gap-1.5 mb-6">
+              <p className={`text-sm flex items-center gap-1.5 mb-6 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
                 <MapPin size={14} />
                 {ponto.cidade}
               </p>
 
               {ponto.descricao && (
-                <p className="text-brand-gray-400 text-sm leading-relaxed mb-6 pb-6 border-b border-white/5">
+                <p className={`text-sm leading-relaxed mb-6 pb-6 ${isDark ? 'text-brand-gray-400 border-b border-white/5' : 'text-neutral-600 border-b border-neutral-200'}`}>
                   {ponto.descricao}
                 </p>
               )}
@@ -179,8 +179,8 @@ export default function PointModal({ ponto, onClose }) {
                     <div key={label} className="flex items-start gap-3">
                       <Icon size={16} className="text-brand-orange mt-0.5 shrink-0" />
                       <div>
-                        <div className="text-[11px] text-brand-gray-500 uppercase tracking-wider">{label}</div>
-                        <div className="text-sm text-white">{value}</div>
+                        <div className={`text-[11px] uppercase tracking-wider ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>{label}</div>
+                        <div className={`text-sm ${isDark ? 'text-white' : 'text-neutral-800'}`}>{value}</div>
                       </div>
                     </div>
                   )
@@ -188,12 +188,12 @@ export default function PointModal({ ponto, onClose }) {
               </div>
 
               {/* Price */}
-              <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 mb-6">
+              <div className={`rounded-xl p-4 mb-6 ${isDark ? 'bg-white/[0.03] border border-white/5' : 'bg-orange-50 border border-orange-100'}`}>
                 <div className="flex items-center gap-2 mb-1">
                   <DollarSign size={16} className="text-brand-orange" />
-                  <span className="text-xs text-brand-gray-500 uppercase tracking-wider">Investimento mensal</span>
+                  <span className={`text-xs uppercase tracking-wider ${isDark ? 'text-brand-gray-500' : 'text-orange-700/80'}`}>Investimento mensal</span>
                 </div>
-                <div className="text-3xl font-bold font-heading text-white">
+                <div className={`text-3xl font-bold font-heading ${isDark ? 'text-white' : 'text-neutral-900'}`}>
                   {formatCurrency(ponto.preco)}
                 </div>
               </div>
@@ -205,7 +205,7 @@ export default function PointModal({ ponto, onClose }) {
                   className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium transition-all duration-200 ${
                     fav
                       ? 'bg-brand-orange text-white hover:bg-brand-orange-hover'
-                      : 'bg-white/5 border border-white/10 text-white hover:bg-white/10'
+                      : isDark ? 'bg-white/5 border border-white/10 text-white hover:bg-white/10' : 'bg-white border border-neutral-300 text-neutral-800 hover:bg-neutral-100'
                   }`}
                 >
                   <Heart size={16} fill={fav ? 'currentColor' : 'none'} />
@@ -215,7 +215,7 @@ export default function PointModal({ ponto, onClose }) {
 
               {/* Coordinates */}
               {ponto.lat && ponto.lng && (
-                <div className="mt-4 text-[11px] text-brand-gray-600">
+                <div className={`mt-4 text-[11px] ${isDark ? 'text-brand-gray-600' : 'text-neutral-500'}`}>
                   Coordenadas: {ponto.lat}, {ponto.lng}
                 </div>
               )}

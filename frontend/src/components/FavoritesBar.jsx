@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useFavorites } from '../context/FavoritesContext';
 import ProposalModal from './ProposalModal';
 
-export default function FavoritesBar() {
+export default function FavoritesBar({ isDark = true }) {
   const { favorites, removeFavorite, clearFavorites, totalPreco, totalFluxo, totalTelas } = useFavorites();
   const [expanded, setExpanded] = useState(false);
   const [showProposal, setShowProposal] = useState(false);
@@ -23,7 +23,7 @@ export default function FavoritesBar() {
         initial={{ y: 100 }}
         animate={{ y: 0 }}
         exit={{ y: 100 }}
-        className="fixed bottom-0 left-0 right-0 z-40 bg-brand-dark/95 backdrop-blur-xl border-t border-white/10"
+        className={`fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl border-t ${isDark ? 'bg-brand-dark/95 border-white/10' : 'bg-[#f1f2f4]/96 border-neutral-300'}`}
       >
         {/* Expanded list */}
         <AnimatePresence>
@@ -36,16 +36,16 @@ export default function FavoritesBar() {
             >
               <div className="max-w-6xl mx-auto px-6 py-4 space-y-2 max-h-60 overflow-y-auto">
                 {favorites.map(p => (
-                  <div key={p.id} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-xl px-4 py-3">
+                  <div key={p.id} className={`flex items-center justify-between rounded-xl px-4 py-3 ${isDark ? 'bg-white/[0.03] border border-white/5' : 'bg-white border border-neutral-200'}`}>
                     <div>
-                      <span className="text-sm font-medium text-white">{p.nome}</span>
-                      <span className="text-xs text-brand-gray-500 ml-2">{p.cidade} · {p.tipo}</span>
+                      <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>{p.nome}</span>
+                      <span className={`text-xs ml-2 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>{p.cidade} · {p.tipo}</span>
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="text-sm font-semibold text-brand-orange">{formatCurrency(p.preco)}</span>
                       <button
                         onClick={() => removeFavorite(p.id)}
-                        className="p-1.5 hover:bg-white/10 rounded-lg text-brand-gray-500 hover:text-red-400 transition-colors"
+                        className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-brand-gray-500 hover:text-red-400' : 'hover:bg-neutral-100 text-neutral-500 hover:text-red-500'}`}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -70,25 +70,25 @@ export default function FavoritesBar() {
               </span>
             </div>
             <div className="text-left">
-              <div className="text-sm font-medium text-white">
+              <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>
                 {favorites.length} ponto{favorites.length > 1 ? 's' : ''} selecionado{favorites.length > 1 ? 's' : ''}
               </div>
-              <div className="text-[11px] text-brand-gray-500">
+              <div className={`text-[11px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
                 {totalTelas} telas · {formatNumber(totalFluxo)} pessoas/mês
               </div>
             </div>
-            <ChevronUp size={16} className={`text-brand-gray-500 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+            <ChevronUp size={16} className={`transition-transform ${expanded ? 'rotate-180' : ''} ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`} />
           </button>
 
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <div className="text-xs text-brand-gray-500">Total mensal</div>
-              <div className="text-lg font-bold font-heading text-white">{formatCurrency(totalPreco)}</div>
+              <div className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Total mensal</div>
+              <div className={`text-lg font-bold font-heading ${isDark ? 'text-white' : 'text-neutral-900'}`}>{formatCurrency(totalPreco)}</div>
             </div>
 
             <button
               onClick={() => setShowProposal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
+              className="orange-solid-btn flex items-center gap-2 px-5 py-2.5 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
             >
               <FileText size={16} />
               <span className="hidden sm:inline">Gerar proposta</span>
@@ -97,7 +97,7 @@ export default function FavoritesBar() {
 
             <button
               onClick={clearFavorites}
-              className="p-2 hover:bg-white/10 rounded-lg text-brand-gray-500 hover:text-red-400 transition-colors"
+              className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-brand-gray-500 hover:text-red-400' : 'hover:bg-neutral-100 text-neutral-500 hover:text-red-500'}`}
               title="Limpar seleção"
             >
               <Trash2 size={16} />
@@ -106,7 +106,7 @@ export default function FavoritesBar() {
         </div>
       </motion.div>
 
-      {showProposal && <ProposalModal onClose={() => setShowProposal(false)} />}
+      {showProposal && <ProposalModal onClose={() => setShowProposal(false)} isDark={isDark} />}
     </>
   );
 }

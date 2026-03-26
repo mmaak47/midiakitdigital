@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { LayoutGrid, Map, SlidersHorizontal } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
@@ -32,6 +32,7 @@ export default function Explorer() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ cidade: initialCidade, tipo: '', publico: [], search: '' });
   const [view, setView] = useState('grid');
+  const [showMapModal, setShowMapModal] = useState(false);
   const [selected, setSelected] = useState(null);
   const [mobileFilters, setMobileFilters] = useState(false);
   const { favorites, addFavorites, history, registerView } = useFavorites();
@@ -85,7 +86,7 @@ export default function Explorer() {
       className={`min-h-screen ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
       data-theme={isDark ? 'dark' : 'light'}
     >
-      <Navbar commercial />
+      <Navbar commercial isDark={isDark} onToggleTheme={() => setIsDark((prev) => !prev)} />
 
       <div className="pt-16 flex h-screen">
         <FilterSidebar
@@ -139,7 +140,7 @@ export default function Explorer() {
               <button
                 onClick={() => setView('grid')}
                 className={`p-2 rounded-lg transition-all duration-200 ${
-                  view === 'grid'
+                  !showMapModal
                     ? 'bg-brand-orange text-white'
                     : isDark
                       ? 'text-brand-gray-400 hover:text-white'
@@ -150,84 +151,102 @@ export default function Explorer() {
                 <LayoutGrid size={16} />
               </button>
               <button
-                onClick={() => setView('map')}
+                onClick={() => setShowMapModal(true)}
                 className={`p-2 rounded-lg transition-all duration-200 ${
-                  view === 'map'
+                  showMapModal
                     ? 'bg-brand-orange text-white'
                     : isDark
                       ? 'text-brand-gray-400 hover:text-white'
                       : 'text-neutral-500 hover:text-neutral-900 hover:bg-white'
                 }`}
-                title="Visualização em mapa"
+                title="Abrir mapa"
               >
                 <Map size={16} />
-              </button>
-              <button
-                onClick={() => setIsDark((prev) => !prev)}
-                className={`p-2 rounded-lg transition-all duration-200 ${isDark ? 'text-brand-gray-400 hover:text-white hover:bg-white/10' : 'text-neutral-500 hover:text-neutral-900 hover:bg-white'}`}
-                title={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
-                aria-label={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
-              >
-                <i className={isDark ? 'ri-sun-line' : 'ri-moon-line'} style={{ fontSize: 16 }} />
               </button>
             </div>
           </div>
 
           <div className="p-6">
-            {view === 'grid' ? (
-              <>
-                {loading ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
-                    {Array.from({ length: 8 }).map((_, i) => (
-                      <SkeletonCard key={i} />
-                    ))}
-                  </div>
-                ) : pontos.length === 0 ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-center py-20"
-                  >
-                    <div className="text-brand-gray-600 text-6xl mb-4">🔍</div>
-                    <h3 className="text-xl font-semibold text-brand-gray-300 mb-2">
-                      Nenhum ponto encontrado
-                    </h3>
-                    <p className="text-brand-gray-500 text-sm">
-                      Tente ajustar os filtros para ver mais resultados.
-                    </p>
-                  </motion.div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
-                    {pontos.map((ponto, i) => (
-                      <PointCard
-                        key={ponto.id}
-                        ponto={ponto}
-                        onSelect={handleSelectPoint}
-                        index={i}
-                      />
-                    ))}
-                  </div>
-                )}
-              </>
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))}
+              </div>
+            ) : pontos.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center py-20"
+              >
+                <div className="text-brand-gray-600 text-6xl mb-4">🔍</div>
+                <h3 className="text-xl font-semibold text-brand-gray-300 mb-2">
+                  Nenhum ponto encontrado
+                </h3>
+                <p className="text-brand-gray-500 text-sm">
+                  Tente ajustar os filtros para ver mais resultados.
+                </p>
+              </motion.div>
             ) : (
-              <div className="h-[calc(100vh-180px)]">
-                <SmartMap
-                  pontos={pontos}
-                  selectedId={selected?.id}
-                  onSelect={handleSelectPoint}
-                  onOpenDetails={handleSelectPoint}
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+                {pontos.map((ponto, i) => (
+                  <PointCard
+                    key={ponto.id}
+                    ponto={ponto}
+                    onSelect={handleSelectPoint}
+                    index={i}
+                    isDark={isDark}
+                  />
+                ))}
               </div>
             )}
           </div>
         </main>
       </div>
 
+      <AnimatePresence>
+        {showMapModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[65] flex items-center justify-center p-4"
+            onClick={() => setShowMapModal(false)}
+          >
+            <div className={`absolute inset-0 ${isDark ? 'bg-black/70 backdrop-blur-sm' : 'bg-white/45 backdrop-blur-sm'}`} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              className={`relative w-full max-w-[1400px] h-[84vh] rounded-2xl border overflow-hidden ${isDark ? 'bg-[#0b0b0b] border-white/10' : 'bg-white border-neutral-200 shadow-xl'}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setShowMapModal(false)}
+                className={`absolute top-3 right-3 z-[700] h-9 w-9 flex items-center justify-center rounded-lg border ${isDark ? 'border-white/15 bg-black/45 text-white hover:bg-black/65' : 'border-neutral-300 bg-white/95 text-neutral-700 hover:bg-neutral-100'}`}
+                aria-label="Fechar mapa"
+              >
+                <i className="ri-close-line" style={{ fontSize: 16 }} />
+              </button>
+
+              <SmartMap
+                pontos={pontos}
+                selectedId={selected?.id}
+                onSelect={handleSelectPoint}
+                onOpenDetails={handleSelectPoint}
+                isDark={isDark}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Point detail modal */}
-      {selected && <PointModal ponto={selected} onClose={() => setSelected(null)} />}
+      {selected && <PointModal ponto={selected} onClose={() => setSelected(null)} isDark={isDark} />}
 
       {/* Favorites bar */}
-      <FavoritesBar />
+      <FavoritesBar isDark={isDark} />
     </div>
   );
 }

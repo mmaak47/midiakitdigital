@@ -12,7 +12,8 @@ export default function ProposalBuilder({
   simulationSummary,
   activePreviewPointId,
   onSelectPreview,
-  onGenerate
+  onGenerate,
+  isDark = true
 }) {
   const formatCurrency = (n) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
   const formatNumber = (n) => new Intl.NumberFormat('pt-BR').format(n || 0);
@@ -22,19 +23,19 @@ export default function ProposalBuilder({
 
   return (
     <div className="space-y-5">
-      <section className="rounded-2xl border border-white/10 bg-gradient-to-r from-white/[0.045] to-white/[0.02] p-4 md:p-5">
-        <h3 className="text-sm font-semibold uppercase tracking-[0.14em] mb-3 text-white">Revisão da proposta</h3>
-        <div className="grid md:grid-cols-3 gap-2 text-sm text-brand-gray-300">
-          <p>Cliente: <strong className="text-white">{clientName || 'Não informado'}</strong></p>
-          <p>Cidade/praça: <strong className="text-white">{cityLabel}</strong></p>
-          <p>Pontos selecionados: <strong className="text-white">{points.length}</strong></p>
+      <section className={`rounded-2xl border p-4 md:p-5 ${isDark ? 'border-white/10 bg-gradient-to-r from-white/[0.045] to-white/[0.02]' : 'border-neutral-200 bg-gradient-to-r from-white to-[#f8fafc]'}`}>
+        <h3 className={`text-sm font-semibold uppercase tracking-[0.14em] mb-3 ${isDark ? 'text-white' : 'text-neutral-900'}`}>Revisão da proposta</h3>
+        <div className={`grid md:grid-cols-3 gap-2 text-sm ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>
+          <p>Cliente: <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{clientName || 'Não informado'}</strong></p>
+          <p>Cidade/praça: <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{cityLabel}</strong></p>
+          <p>Pontos selecionados: <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{points.length}</strong></p>
         </div>
-        <div className="mt-3 text-sm text-brand-gray-400">
-          Segmento considerado: <strong className="text-white">{segmento || 'Não informado'}</strong> • Públicos priorizados: <strong className="text-white">{publicoLabel}</strong> • Pontos com entorno aderente disponível: <strong className="text-white">{pontosComEntorno}</strong>
+        <div className={`mt-3 text-sm ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>
+          Segmento considerado: <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{segmento || 'Não informado'}</strong> • Públicos priorizados: <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{publicoLabel}</strong> • Pontos com entorno aderente disponível: <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{pontosComEntorno}</strong>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-white/10 overflow-hidden bg-white/[0.02]">
+      <section className={`rounded-2xl border overflow-hidden ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white'}`}>
         <table className="w-full text-sm">
           <thead className="bg-white/[0.04] border-b border-white/10">
             <tr>
@@ -111,11 +112,11 @@ export default function ProposalBuilder({
         <Stat label="Ticket médio" value={formatCurrency(totals.ticketMedio)} />
       </section>
 
-      <AutoArgumentGenerator argumentsList={strategicText} />
+      <AutoArgumentGenerator argumentsList={strategicText} isDark={isDark} />
 
       <button
         onClick={onGenerate}
-        className="w-full h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover shadow-[0_10px_24px_rgba(254,92,43,0.28)]"
+        className="orange-solid-btn w-full h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover shadow-[0_10px_24px_rgba(254,92,43,0.28)]"
       >
         Gerar proposta
       </button>
