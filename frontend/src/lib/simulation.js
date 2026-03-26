@@ -361,6 +361,15 @@ function createQuadPath(ctx, corners, style) {
   ctx.closePath();
 }
 
+function createPolygonPath(ctx, corners) {
+  ctx.beginPath();
+  ctx.moveTo(corners[0].x, corners[0].y);
+  for (let index = 1; index < corners.length; index += 1) {
+    ctx.lineTo(corners[index].x, corners[index].y);
+  }
+  ctx.closePath();
+}
+
 function isPrintedSurface(panelType) {
   const value = String(panelType || '').toLowerCase();
   return value.includes('frontlight') || value.includes('backlight');
@@ -580,6 +589,24 @@ function drawLightSpill(ctx, corners, settings, style) {
   ctx.restore();
 }
 
+function drawRoundedCornerMask(ctx, corners, style) {
+  const normalizedStyle = normalizeScreenStyle(style);
+  if (normalizedStyle.cornerRadius <= 0) return;
+
+  ctx.save();
+  createPolygonPath(ctx, corners);
+  createQuadPath(ctx, corners, normalizedStyle);
+  ctx.fillStyle = 'rgba(6, 8, 12, 0.58)';
+  ctx.fill('evenodd');
+
+  ctx.globalCompositeOperation = 'multiply';
+  createPolygonPath(ctx, corners);
+  createQuadPath(ctx, corners, normalizedStyle);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.16)';
+  ctx.fill('evenodd');
+  ctx.restore();
+}
+
 function drawQuadOutline(ctx, corners, settings, style) {
   ctx.save();
   createQuadPath(ctx, corners, style);
@@ -643,6 +670,7 @@ export async function generateSimulationPreview({
   drawCreativeIntoQuad(ctx, creative, scaledCorners, settings, style, {
     highQuality: isPrintedSurface(panelType)
   });
+  drawRoundedCornerMask(ctx, scaledCorners, style);
   drawLightSpill(ctx, scaledCorners, settings, style);
   drawScreenGlow(ctx, scaledCorners, settings, style, outW, outH);
   drawReflection(ctx, scaledCorners, settings, style);
