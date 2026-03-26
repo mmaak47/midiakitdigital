@@ -88,8 +88,8 @@ function PointImageGallery({ ponto, onExpand }) {
         onClick={() => onExpand(ponto, idx)}
         style={{ objectPosition: `${ponto.imagem_foco_x ?? 50}% ${ponto.imagem_foco_y ?? 50}%` }}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5 pointer-events-none">
-        <span className="flex items-center gap-1 text-[11px] text-white/80 bg-black/50 rounded-md px-2 py-1">
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5 pointer-events-none">
+        <span className="flex items-center gap-1 text-[11px] text-brand-orange bg-black/70 rounded-md px-2 py-1 border border-brand-orange/35 shadow-sm">
           <i className="ri-fullscreen-line" style={{ fontSize: 11 }} /> Ampliar
         </span>
       </div>
@@ -481,8 +481,11 @@ export default function Landing() {
 
       {/* ── Hero ─────────────────────────────────────────────── */}
       <section className={`pt-20 pb-10 border-b relative overflow-visible ${t.sectionBorder}`}>
-        <div className="absolute inset-0 opacity-35 bg-cover bg-center" style={{ backgroundImage: "url('/city-bg.jpg')" }} />
+        <div className={`absolute inset-0 bg-cover bg-center ${isDark ? 'opacity-35' : 'opacity-[0.12] saturate-[0.7]'}`} style={{ backgroundImage: "url('/city-bg.jpg')" }} />
         <div className={`absolute inset-0 bg-gradient-to-b ${t.heroOverlay}`} />
+        {!isDark && (
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(254,92,43,0.16),transparent_42%),radial-gradient(circle_at_88%_0%,rgba(254,92,43,0.1),transparent_35%)]" />
+        )}
         <div className="absolute -top-16 left-10 w-64 h-64 bg-brand-orange/20 rounded-full blur-[90px]" />
 
         <div className="relative max-w-7xl mx-auto px-6">
@@ -551,7 +554,7 @@ export default function Landing() {
 
             <button
               onClick={() => setShowMapModal(true)}
-              className="group h-[50px] self-end px-6 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
+              className="landing-orange-btn group h-[50px] self-end px-6 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
             >
               <i className="ri-pin-distance-line" style={{ fontSize: 16 }} />
               Abrir mapa
@@ -575,7 +578,7 @@ export default function Landing() {
                   : [...current, praca])}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                   selectedPracas.includes(praca)
-                    ? 'bg-brand-orange text-white border-brand-orange'
+                    ? 'landing-orange-btn bg-brand-orange text-white border-brand-orange'
                     : t.pracaChip
                 }`}
               >
@@ -586,7 +589,7 @@ export default function Landing() {
               onClick={() => setSelectedPracas([])}
               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                 selectedPracas.length === 0
-                  ? 'bg-brand-orange text-white border-brand-orange'
+                  ? 'landing-orange-btn bg-brand-orange text-white border-brand-orange'
                   : t.pracaChip
               }`}
             >
@@ -864,7 +867,7 @@ export default function Landing() {
             </div>
             <button
               onClick={() => navigate(explorerPath)}
-              className="group inline-flex items-center justify-center gap-2 px-8 h-[52px] bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover hover:shadow-lg hover:shadow-brand-orange/40 transition-all duration-200"
+              className="landing-orange-btn group inline-flex items-center justify-center gap-2 px-8 h-[52px] bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover hover:shadow-lg hover:shadow-brand-orange/40 transition-all duration-200"
             >
               Explorar inventário completo
               <i className="ri-arrow-right-line group-hover:translate-x-1 transition-transform inline-block" style={{ fontSize: 18 }} />

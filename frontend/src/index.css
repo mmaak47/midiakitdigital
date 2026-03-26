@@ -95,6 +95,12 @@ select option {
   /* Subtle white text used in image gallery overlay */
   [data-theme="light"] .text-white\/80 { color: rgba(10,10,10,0.65) !important; }
 
+  /* Keep text/icons white on orange CTA buttons in light mode */
+  [data-theme="light"] .landing-orange-btn,
+  [data-theme="light"] .landing-orange-btn i {
+    color: #ffffff !important;
+  }
+
 select option:checked {
   background-color: #FE5C2B;
   background-image: linear-gradient(#FE5C2B, #FE5C2B);
