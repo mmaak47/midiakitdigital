@@ -2,8 +2,8 @@
 import { loadPdfLayoutConfig } from './pdfLayoutConfig';
 import { buildAudienceQualification, buildEntornoSummary, getSegmentDisplayName } from './strategy';
 
-const PAGE_WIDTH = 1920;
-const PAGE_HEIGHT = 1358;
+const PAGE_WIDTH = 1680;
+const PAGE_HEIGHT = 1188;
 export const PDF_PAGE_SIZE = { width: PAGE_WIDTH, height: PAGE_HEIGHT };
 const PDF_MM_WIDTH = 297;
 const PDF_MM_HEIGHT = 210;
@@ -692,7 +692,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
       <img src="${assets.logo || ''}" alt="" style="width:170px;height:auto;object-fit:contain;opacity:0.98;" />
     </div>
 
-    <div style="position:absolute;left:70px;right:70px;top:238px;display:grid;grid-template-columns:1.05fr 0.95fr;gap:28px;">
+    <div style="position:absolute;left:70px;right:70px;top:210px;bottom:66px;display:grid;grid-template-columns:1.05fr 0.95fr;gap:28px;align-items:stretch;">
       <div>
         <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;">
           ${cards.map((card) => `
@@ -812,7 +812,9 @@ function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }
           ${lines.map((line) => `<div style="font-family:Poppins, system-ui, sans-serif;font-size:88px;line-height:0.92;font-weight:700;color:#fff;letter-spacing:-0.05em;">${escapeHtml(line)}</div>`).join('')}
         </div>
       </div>
-      <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:36px;width:auto;object-fit:contain;opacity:0.86;" />
+      <div style="display:inline-flex;align-items:center;justify-content:center;min-height:58px;padding:10px 18px;border-radius:16px;background:rgba(0,0,0,0.28);border:1px solid rgba(255,255,255,0.12);">
+        <img src="${assets.logo || assets.logoLight || assets.logoHorizontal || ''}" alt="" style="width:190px;height:auto;object-fit:contain;opacity:1;" />
+      </div>
     </div>
 
     <div style="position:absolute;left:82px;right:82px;bottom:84px;display:grid;grid-template-columns:1fr auto;gap:28px;align-items:end;">
