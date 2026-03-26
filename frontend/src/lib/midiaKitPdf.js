@@ -532,39 +532,36 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
   return createPage(`
     <div style="position:absolute;inset:0;background:#050505;"></div>
     <div style="position:absolute;inset:0;background:url('${heroImage}') center/cover no-repeat;opacity:0.22;"></div>
-    <div style="position:absolute;inset:0;background:radial-gradient(circle at 18% 18%, rgba(254,92,43,0.28) 0%, rgba(254,92,43,0.08) 24%, rgba(5,5,5,0.0) 48%),linear-gradient(135deg,#050505 12%,rgba(5,5,5,0.88) 48%,rgba(5,5,5,0.95) 100%);"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(135deg,#050505 12%,rgba(5,5,5,0.9) 48%,rgba(5,5,5,0.96) 100%);"></div>
 
-    <div style="position:absolute;left:70px;top:68px;right:70px;display:flex;align-items:flex-start;justify-content:space-between;gap:24px;">
+    <div style="position:absolute;left:76px;top:72px;right:76px;display:flex;align-items:flex-start;justify-content:space-between;gap:24px;">
       <img src="${assets.logo || ''}" alt="" style="width:178px;height:auto;object-fit:contain;" />
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span style="display:inline-flex;align-items:center;justify-content:center;height:42px;padding:0 18px;border-radius:999px;background:rgba(254,92,43,0.14);border:1px solid rgba(254,92,43,0.28);font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Midia Kit Intermidia</span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;height:42px;padding:0 18px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#fff;">OOH + DOOH 2026</span>
-      </div>
+      <span style="display:inline-flex;align-items:center;justify-content:center;height:42px;padding:0 18px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.82);">OOH + DOOH 2026</span>
     </div>
 
-    <div style="position:absolute;left:70px;top:182px;width:760px;">
+    <div style="position:absolute;left:76px;top:196px;width:730px;">
       <div style="font-size:16px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.54);">Cobertura estratégica por praça</div>
-      <div style="margin-top:16px;font-family:Poppins, system-ui, sans-serif;font-size:98px;line-height:0.92;font-weight:700;letter-spacing:-0.05em;color:#fff;text-transform:uppercase;">${escapeHtml(cidade)}</div>
+      <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:90px;line-height:0.94;font-weight:700;letter-spacing:-0.05em;color:#fff;text-transform:uppercase;">${escapeHtml(cidade)}</div>
       ${estado ? `<div style="margin-top:10px;font-size:20px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.72);">${escapeHtml(estado)}</div>` : ''}
-      <div style="margin-top:34px;max-width:660px;font-size:29px;line-height:1.24;color:rgba(255,255,255,0.86);">Inventário premium para planejar presença urbana com escala, frequência e impacto visual na praça.</div>
+      <div style="margin-top:30px;max-width:640px;font-size:26px;line-height:1.32;color:rgba(255,255,255,0.84);">Inventário premium para planejar presença urbana com escala, frequência e impacto visual na praça.</div>
     </div>
 
-    <div style="position:absolute;left:70px;right:70px;bottom:72px;display:grid;grid-template-columns:1.15fr 0.85fr;gap:28px;align-items:end;">
+    <div style="position:absolute;left:76px;right:76px;bottom:74px;display:grid;grid-template-columns:1.15fr 0.85fr;gap:34px;align-items:end;">
       <div>
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;">
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;">
           ${cards.map((card) => `
-            <div style="padding:20px 22px;border-radius:24px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);box-shadow:0 18px 44px rgba(0,0,0,0.22);">
+            <div style="padding:22px 24px;border-radius:24px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);">
               <div style="display:flex;align-items:center;gap:12px;">
-                <span style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:14px;background:rgba(254,92,43,0.16);border:1px solid rgba(254,92,43,0.22);">${midiaKitDetailIcon(card.icon, BRAND_ORANGE, 18)}</span>
+                <span style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);">${midiaKitDetailIcon(card.icon, BRAND_ORANGE, 18)}</span>
                 <span style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.56);">${escapeHtml(card.label)}</span>
               </div>
               <div style="margin-top:16px;font-family:Poppins, system-ui, sans-serif;font-size:44px;line-height:1;font-weight:700;color:#fff;">${escapeHtml(card.value)}</div>
             </div>
           `).join('')}
         </div>
-        <div style="margin-top:18px;display:flex;flex-wrap:wrap;gap:12px;">
-          <span style="display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:999px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);font-size:14px;color:#fff;">${midiaKitDetailIcon('location', BRAND_ORANGE, 16)} ${formatInt(totalEnderecos)} endereços mapeados</span>
-          <span style="display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:999px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);font-size:14px;color:#fff;">${midiaKitDetailIcon('city', BRAND_ORANGE, 16)} ${formatInt(totalPublicos)} públicos em foco</span>
+        <div style="margin-top:20px;display:flex;flex-wrap:wrap;gap:14px;">
+          <span style="display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);font-size:14px;color:#fff;">${midiaKitDetailIcon('location', BRAND_ORANGE, 16)} ${formatInt(totalEnderecos)} endereços mapeados</span>
+          <span style="display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);font-size:14px;color:#fff;">${midiaKitDetailIcon('city', BRAND_ORANGE, 16)} ${formatInt(totalPublicos)} públicos em foco</span>
         </div>
       </div>
       <div style="height:420px;">
@@ -596,23 +593,23 @@ function buildMidiaKitManifestoPage({ assets }) {
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#050505;"></div>
-    <div style="position:absolute;left:68px;top:68px;right:68px;bottom:68px;border-radius:34px;background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.08);overflow:hidden;"></div>
-    <div style="position:absolute;left:68px;top:68px;bottom:68px;width:540px;overflow:hidden;border-top-left-radius:34px;border-bottom-left-radius:34px;">
+    <div style="position:absolute;left:72px;top:72px;right:72px;bottom:72px;border-radius:34px;background:linear-gradient(135deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.08);overflow:hidden;"></div>
+    <div style="position:absolute;left:72px;top:72px;bottom:72px;width:510px;overflow:hidden;border-top-left-radius:34px;border-bottom-left-radius:34px;">
       <img src="${assets.about1 || assets.about2 || assets.showcase || ''}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:center;filter:grayscale(0.1) contrast(1.04);" />
       <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,5,5,0.02) 0%,rgba(5,5,5,0.28) 58%,rgba(5,5,5,0.76) 100%);"></div>
-      <div style="position:absolute;left:34px;right:34px;bottom:34px;">
-        <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border-radius:999px;background:rgba(254,92,43,0.16);border:1px solid rgba(254,92,43,0.25);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Leitura do inventário</div>
-        <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:50px;line-height:0.98;font-weight:700;color:#fff;letter-spacing:-0.04em;">Informação clara para escolher os pontos certos da sua campanha.</div>
+      <div style="position:absolute;left:32px;right:32px;bottom:30px;">
+        <div style="display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 14px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.86);">Leitura do inventário</div>
+        <div style="margin-top:16px;font-family:Poppins, system-ui, sans-serif;font-size:44px;line-height:1.02;font-weight:700;color:#fff;letter-spacing:-0.035em;">Informação clara para escolher os pontos certos da sua campanha.</div>
       </div>
     </div>
 
-    <div style="position:absolute;left:650px;right:108px;top:110px;bottom:110px;display:flex;flex-direction:column;">
-      <img src="${assets.logo || ''}" alt="" style="width:170px;height:auto;object-fit:contain;" />
-      <div style="margin-top:28px;font-size:16px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Visão do mídia kit</div>
-      <div style="margin-top:14px;font-family:Poppins, system-ui, sans-serif;font-size:62px;line-height:0.96;font-weight:700;color:#fff;letter-spacing:-0.04em;">Um panorama objetivo para você visualizar alcance, formatos e investimento.</div>
-      <div style="margin-top:22px;font-size:24px;line-height:1.4;color:rgba(255,255,255,0.78);">Use as próximas páginas para comparar pontos, entender contexto de cada localização e montar a melhor combinação para sua campanha.</div>
+    <div style="position:absolute;left:614px;right:94px;top:104px;bottom:104px;display:flex;flex-direction:column;">
+      <img src="${assets.logo || ''}" alt="" style="width:164px;height:auto;object-fit:contain;" />
+      <div style="margin-top:24px;font-size:14px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Visão do mídia kit</div>
+      <div style="margin-top:12px;font-family:Poppins, system-ui, sans-serif;font-size:54px;line-height:0.98;font-weight:700;color:#fff;letter-spacing:-0.04em;">Um panorama objetivo para visualizar alcance, formatos e investimento.</div>
+      <div style="margin-top:18px;font-size:21px;line-height:1.42;color:rgba(255,255,255,0.76);">Nas próximas páginas, você compara pontos, contexto de localização e custo mensal com leitura rápida.</div>
 
-      <div style="margin-top:32px;padding-top:8px;display:grid;grid-template-columns:1fr 1fr;column-gap:28px;row-gap:18px;">
+      <div style="margin-top:30px;padding-top:8px;display:grid;grid-template-columns:1fr 1fr;column-gap:26px;row-gap:16px;">
         ${cards.map((card) => `
           <div style="padding:0 0 14px;border-bottom:1px solid rgba(255,255,255,0.10);">
             <div style="display:flex;align-items:center;gap:10px;">
@@ -659,7 +656,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#050505;"></div>
-    <div style="position:absolute;inset:0;background:linear-gradient(145deg,rgba(254,92,43,0.10),transparent 34%),linear-gradient(180deg,#050505 0%,#0a0a0a 100%);"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg,#050505 0%,#0a0a0a 100%);"></div>
 
     <div style="position:absolute;left:70px;right:70px;top:70px;display:flex;align-items:flex-start;justify-content:space-between;gap:24px;">
       <div>
@@ -672,11 +669,11 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
 
     <div style="position:absolute;left:70px;right:70px;top:238px;display:grid;grid-template-columns:1.05fr 0.95fr;gap:28px;">
       <div>
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;">
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;">
           ${cards.map((card) => `
-            <div style="padding:22px;border-radius:24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+            <div style="padding:24px;border-radius:24px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);">
               <div style="display:flex;align-items:center;gap:12px;">
-                <span style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:14px;background:rgba(254,92,43,0.16);">${midiaKitDetailIcon(card.icon, BRAND_ORANGE, 18)}</span>
+                <span style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);">${midiaKitDetailIcon(card.icon, BRAND_ORANGE, 18)}</span>
                 <span style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.56);">${escapeHtml(card.label)}</span>
               </div>
               <div style="margin-top:16px;font-family:Poppins, system-ui, sans-serif;font-size:42px;line-height:1;font-weight:700;color:#fff;">${escapeHtml(card.value)}</div>
@@ -684,21 +681,21 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
           `).join('')}
         </div>
 
-        <div style="margin-top:22px;padding:26px;border-radius:28px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);">
+        <div style="margin-top:24px;padding:28px;border-radius:28px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.10);">
           <div style="font-size:14px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND_ORANGE};">Leitura rápida do inventário</div>
           <div style="margin-top:14px;font-size:24px;line-height:1.42;color:rgba(255,255,255,0.8);">Praça com <strong style="color:#fff;">${formatInt(totalPontos)} pontos</strong>, <strong style="color:#fff;">${formatInt(resumo.telas)} telas</strong> e fluxo mensal consolidado de <strong style="color:#fff;">${formatInt(resumo.fluxo)}</strong>. A composição por formato facilita montar uma grade equilibrada entre cobertura e frequência.</div>
         </div>
       </div>
 
       <div style="display:grid;grid-template-rows:auto 1fr;gap:18px;">
-        <div style="padding:26px;border-radius:28px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);">
+        <div style="padding:26px;border-radius:28px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.10);">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
             <div style="font-size:14px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND_ORANGE};">Mix de formatos</div>
             <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.44);">Top ${rows.length}</div>
           </div>
           <div style="margin-top:18px;display:grid;gap:14px;">
             ${rows.map((row) => `
-              <div style="display:grid;grid-template-columns:minmax(0,1fr) 92px 150px;gap:16px;align-items:center;padding:16px 18px;border-radius:20px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);">
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) 92px 150px;gap:16px;align-items:center;padding:18px 20px;border-radius:20px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.09);">
                 <div>
                   <div style="font-size:18px;font-weight:700;color:#fff;line-height:1.2;">${escapeHtml(row.tipo)}</div>
                   <div style="margin-top:4px;font-size:13px;color:rgba(255,255,255,0.5);">${formatInt(row.telas)} telas disponíveis</div>
@@ -716,11 +713,11 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
           </div>
         </div>
 
-        <div style="padding:26px;border-radius:28px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);">
+        <div style="padding:26px;border-radius:28px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.10);">
           <div style="font-size:14px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND_ORANGE};">Pontos em destaque</div>
           <div style="margin-top:18px;display:grid;gap:14px;">
             ${featuredPoints.map((ponto, index) => `
-              <div style="padding:16px 18px;border-radius:20px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);">
+              <div style="padding:18px 20px;border-radius:20px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.09);">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;">
                   <div style="font-size:18px;font-weight:700;color:#fff;line-height:1.2;">${escapeHtml(ponto.nome || `Ponto ${index + 1}`)}</div>
                   <span style="display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;padding:0 10px;border-radius:999px;background:rgba(254,92,43,0.14);font-size:13px;font-weight:700;color:${BRAND_ORANGE};">${index + 1}</span>
@@ -751,7 +748,7 @@ function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }
   const enderecos = formatStats ? formatStats.enderecos : (cityStats.totalEnderecos || 0);
   return createPage(`
     <div style="position:absolute;inset:0;background:#050505;"></div>
-    <img src="${assets.wallpaper || assets.heroBg || assets.showcase || ''}" alt="" style="position:absolute;inset:-60px;width:calc(100% + 120px);height:calc(100% + 120px);object-fit:cover;filter:blur(18px) saturate(1.12);opacity:0.14;" />
+    <img src="${assets.wallpaper || assets.heroBg || assets.showcase || ''}" alt="" style="position:absolute;inset:-60px;width:calc(100% + 120px);height:calc(100% + 120px);object-fit:cover;filter:blur(18px) saturate(1.08);opacity:0.10;" />
     <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,5,5,0.96) 0%,rgba(5,5,5,0.74) 45%,rgba(5,5,5,0.92) 100%);"></div>
     <div style="position:absolute;left:0;top:0;bottom:0;width:18px;background:${BRAND_ORANGE};"></div>
 
@@ -767,7 +764,7 @@ function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }
 
     <div style="position:absolute;left:82px;right:82px;bottom:84px;display:grid;grid-template-columns:1fr auto;gap:28px;align-items:end;">
       <div style="max-width:700px;">
-        <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border-radius:999px;background:rgba(254,92,43,0.16);border:1px solid rgba(254,92,43,0.24);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">${escapeHtml(cityStats.cidade || 'Praça')}</div>
+        <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.82);">${escapeHtml(cityStats.cidade || 'Praça')}</div>
         <div style="margin-top:18px;font-size:28px;line-height:1.38;color:rgba(255,255,255,0.78);">Cada formato entra no mídia kit com foto, posicionamento visual, métricas comerciais e localização para facilitar leitura executiva e negociação.</div>
       </div>
 
@@ -806,24 +803,24 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
     <div style="position:absolute;right:0;top:0;bottom:0;width:41.5%;background:#0c0c0c;"></div>
     <div style="position:absolute;left:0;top:0;bottom:0;right:41.5%;background:linear-gradient(180deg,#080808 0%,#111111 100%);"></div>
     <div style="position:absolute;left:56px;top:56px;right:56px;bottom:56px;border-radius:34px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;">
-      <div style="position:absolute;left:0;top:0;bottom:0;width:58.5%;padding:34px 36px 30px 36px;box-sizing:border-box;background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01));"></div>
+      <div style="position:absolute;left:0;top:0;bottom:0;width:58.5%;padding:38px 40px 36px 40px;box-sizing:border-box;background:linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01));"></div>
       <div style="position:absolute;right:0;top:0;bottom:0;width:41.5%;padding:18px;box-sizing:border-box;background:#080808;">
         ${buildHeroImageFrame(photo, { radius: 28, fit: 'cover' })}
       </div>
 
-      <div style="position:absolute;left:36px;top:32px;width:calc(58.5% - 72px);display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
+      <div style="position:absolute;left:40px;top:36px;width:calc(58.5% - 80px);display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
         <img src="${assets.logo || ''}" alt="" style="width:150px;height:auto;object-fit:contain;" />
         <div style="display:flex;align-items:center;gap:10px;">
           <span style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 14px;border-radius:999px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);font-size:13px;font-weight:700;color:#fff;">${index}/${total}</span>
         </div>
       </div>
 
-      <div style="position:absolute;left:36px;top:112px;width:calc(58.5% - 72px);">
-        <div style="display:inline-flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;background:rgba(254,92,43,0.14);border:1px solid rgba(254,92,43,0.24);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">
+      <div style="position:absolute;left:40px;top:124px;width:calc(58.5% - 80px);">
+        <div style="display:inline-flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.84);">
           ${midiaKitDetailIcon('type', BRAND_ORANGE, 15)} ${escapeHtml(ponto.tipo || 'Formato')}
         </div>
 
-        <div style="margin-top:22px;font-family:Poppins, system-ui, sans-serif;font-size:54px;line-height:0.98;font-weight:700;letter-spacing:-0.04em;color:#fff;word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.6em;font-weight:600;letter-spacing:-0.01em;color:rgba(255,255,255,0.68);' })}</div>
+        <div style="margin-top:24px;font-family:Poppins, system-ui, sans-serif;font-size:46px;line-height:1.02;font-weight:700;letter-spacing:-0.035em;color:#fff;word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.62em;font-weight:600;letter-spacing:-0.01em;color:rgba(255,255,255,0.68);' })}</div>
 
         <div style="margin-top:18px;display:grid;gap:12px;">
           <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(255,255,255,0.72);font-size:18px;line-height:1.4;">
@@ -837,11 +834,11 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
         </div>
       </div>
 
-      <div style="position:absolute;left:36px;right:calc(41.5% + 36px);top:332px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;">
+      <div style="position:absolute;left:40px;right:calc(41.5% + 40px);top:360px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;">
         ${metrics.map((item) => `
-          <div style="padding:18px 18px 16px;border-radius:22px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);min-height:104px;box-sizing:border-box;">
+          <div style="padding:18px 18px 16px;border-radius:22px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.10);min-height:104px;box-sizing:border-box;">
             <div style="display:flex;align-items:center;gap:10px;">
-              <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:rgba(254,92,43,0.16);flex:0 0 auto;">${metricIconSvg(item.key, BRAND_ORANGE, 17)}</span>
+              <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);flex:0 0 auto;">${metricIconSvg(item.key, BRAND_ORANGE, 17)}</span>
               <span style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.52);">${escapeHtml(item.label)}</span>
             </div>
             <div style="margin-top:14px;font-family:Poppins, system-ui, sans-serif;font-size:27px;line-height:1.16;font-weight:700;color:#fff;word-break:break-word;">${escapeHtml(item.value)}</div>
@@ -849,7 +846,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
         `).join('')}
       </div>
 
-      <div style="position:absolute;left:36px;right:calc(41.5% + 36px);bottom:30px;padding-top:22px;border-top:1px solid rgba(255,255,255,0.08);display:grid;grid-template-columns:1fr 1fr auto;gap:18px;align-items:end;">
+      <div style="position:absolute;left:40px;right:calc(41.5% + 40px);bottom:34px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.10);display:grid;grid-template-columns:1fr 1fr auto;gap:18px;align-items:end;">
         <div>
           <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.46);">Veiculação</div>
           <div style="margin-top:8px;font-size:20px;line-height:1.25;color:#fff;">${escapeHtml(veiculacao)}</div>
