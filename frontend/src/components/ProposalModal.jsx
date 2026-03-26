@@ -34,6 +34,14 @@ import QuickPresentationMode from './QuickPresentationMode';
 
 const DEFAULT_ENTORNO_RADIUS = 800;
 
+function getPointPreviewUrl(point, requireGeneratedPreview = false) {
+  if (!point) return '';
+  if (requireGeneratedPreview) {
+    return point.proposalSimulationPreview || '';
+  }
+  return point.proposalSimulationPreview || point.simulacao_preview || '';
+}
+
 export default function ProposalModal({ onClose, open = true, selectedPoints = null, isDark = true }) {
   const { favorites } = useFavorites();
   const sourcePoints = selectedPoints ?? favorites;
@@ -379,8 +387,9 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   }, [simulationArtFile, simulationResults, simulationSettings]);
 
   const previewablePoints = useMemo(() => {
-    return proposalPoints.filter((point) => point.proposalSimulationPreview || point.simulacao_preview);
-  }, [proposalPoints]);
+    const requireGeneratedPreview = !!simulationArtFile;
+    return proposalPoints.filter((point) => getPointPreviewUrl(point, requireGeneratedPreview));
+  }, [proposalPoints, simulationArtFile]);
 
   useEffect(() => {
     if (!previewablePoints.length) {
@@ -793,7 +802,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
             </section>
 
             {(step === 'review' || step === 'generated') && (
-              <PreviewPanel proposalPoints={proposalPoints} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} />
+              <PreviewPanel proposalPoints={proposalPoints} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={!!simulationArtFile} />
             )}
 
             {step === 'review' && (
@@ -878,7 +887,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
             </div>
 
             <div className={`rounded-2xl border flex-1 p-2 md:p-4 min-h-0 ${isDark ? 'border-white/15 bg-black/45' : 'border-neutral-200 bg-white'}`}>
-              <img src={activePreviewPoint.proposalSimulationPreview || activePreviewPoint.simulacao_preview} alt={`Preview ${activePreviewPoint.nome}`} className="w-full h-full object-contain rounded-xl" />
+              <img src={getPointPreviewUrl(activePreviewPoint, !!simulationArtFile)} alt={`Preview ${activePreviewPoint.nome}`} className="w-full h-full object-contain rounded-xl" />
             </div>
           </div>
         </div>
@@ -887,7 +896,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   );
 }
 
-function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand }) {
+function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand, requireGeneratedPreview = false }) {
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -904,7 +913,7 @@ function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand }
       {activePreviewPoint ? (
         <div className="grid xl:grid-cols-[1fr_260px] gap-4">
           <div className="rounded-xl border border-white/10 bg-black/25 p-2">
-            <img src={activePreviewPoint.proposalSimulationPreview || activePreviewPoint.simulacao_preview} alt={`Preview ${activePreviewPoint.nome}`} className="w-full h-[260px] md:h-[360px] object-contain rounded-lg bg-black/35" />
+            <img src={getPointPreviewUrl(activePreviewPoint, requireGeneratedPreview)} alt={`Preview ${activePreviewPoint.nome}`} className="w-full h-[260px] md:h-[360px] object-contain rounded-lg bg-black/35" />
             <div className="px-2 pt-3">
               <p className="text-sm font-semibold text-white">{activePreviewPoint.nome}</p>
               <p className="text-xs text-brand-gray-400 mt-1">{activePreviewPoint.cidade} · {activePreviewPoint.tipo}</p>
@@ -913,7 +922,7 @@ function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand }
 
           <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
             {proposalPoints.map((point) => {
-              const previewUrl = point.proposalSimulationPreview || point.simulacao_preview;
+              const previewUrl = getPointPreviewUrl(point, requireGeneratedPreview);
               const selected = point.id === activePreviewPoint?.id;
 
               return (
