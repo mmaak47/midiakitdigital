@@ -2,8 +2,8 @@
 import { loadPdfLayoutConfig } from './pdfLayoutConfig';
 import { buildAudienceQualification, buildEntornoSummary, getSegmentDisplayName } from './strategy';
 
-const PAGE_WIDTH = 2480;
-const PAGE_HEIGHT = 1754;
+const PAGE_WIDTH = 1920;
+const PAGE_HEIGHT = 1358;
 export const PDF_PAGE_SIZE = { width: PAGE_WIDTH, height: PAGE_HEIGHT };
 const PDF_MM_WIDTH = 297;
 const PDF_MM_HEIGHT = 210;
@@ -108,19 +108,23 @@ function formatPointNameHtml(name, options = {}) {
   if (!source) return 'PONTO SEM NOME';
 
   const innerStyle = options.innerStyle || 'font-size:0.62em;font-weight:600;letter-spacing:-0.01em;';
+  const applySmartBreaks = (value) => String(value || '')
+    .replace(/([./-])/g, '$1<wbr>')
+    .replace(/\s+\(/g, ' <wbr>(')
+    .replace(/\)(\s+)/g, ')<wbr>$1');
   const regex = /\(([^)]+)\)/g;
   let html = '';
   let cursor = 0;
   let match = regex.exec(source);
 
   while (match) {
-    html += escapeHtml(source.slice(cursor, match.index));
+    html += applySmartBreaks(escapeHtml(source.slice(cursor, match.index)));
     html += `<span style="${innerStyle}">(${escapeHtml(match[1])})</span>`;
     cursor = regex.lastIndex;
     match = regex.exec(source);
   }
 
-  html += escapeHtml(source.slice(cursor));
+  html += applySmartBreaks(escapeHtml(source.slice(cursor)));
   return html;
 }
 
@@ -770,16 +774,16 @@ function getFormatDescription(tipo) {
     .replace(/[\u0300-\u036f]/g, '');
 
   if (normalized.includes('backlight')) {
-    return 'Backlight e um painel com iluminacao interna, que mantem a arte viva dia e noite, com excelente leitura a distancia e em corredores de alto fluxo.';
+    return 'Backlight é um painel com iluminação interna, que mantém a arte viva dia e noite, com excelente leitura à distância e em corredores de alto fluxo.';
   }
   if (normalized.includes('frontlight')) {
-    return 'Frontlight recebe iluminacao externa direcionada para a lona, entregando grande impacto em avenidas e entradas de cidade com leitura ampla da mensagem.';
+    return 'Frontlight recebe iluminação externa direcionada para a lona, entregando grande impacto em avenidas e entradas de cidade com leitura ampla da mensagem.';
   }
   if (normalized.includes('elevador')) {
-    return 'No elevador, a tela indoor aparece em um momento de atencao quase exclusiva, com proximidade da audiencia e alta frequencia de repeticao no dia a dia.';
+    return 'No elevador, a tela indoor aparece em um momento de atenção quase exclusiva, com proximidade da audiência e alta frequência de repetição no dia a dia.';
   }
   if (normalized.includes('indoor')) {
-    return 'Indoor significa exibicao em ambiente interno, perto da decisao de compra e do tempo de permanencia do publico, com contexto comercial qualificado.';
+    return 'Indoor significa exibição em ambiente interno, perto da decisão de compra e do tempo de permanência do público, com contexto comercial qualificado.';
   }
   if (normalized.includes('video wall') || normalized.includes('video-wall') || normalized.includes('video wall')) {
     return 'Video Wall combina multiplos modulos para criar uma tela de grande impacto visual, ideal para storytelling de marca em pontos premium.';
@@ -788,7 +792,7 @@ function getFormatDescription(tipo) {
     return 'Formatos digitais em LED entregam dinamismo de criacao, atualizacao agil de campanha e alta visibilidade em rotas urbanas de recorrencia.';
   }
 
-  return 'Este formato amplia presenca de marca com leitura objetiva de imagem, localizacao e metricas para tomada de decisao comercial com mais seguranca.';
+  return 'Este formato amplia presença de marca com leitura objetiva de imagem, localização e métricas para tomada de decisão comercial com mais segurança.';
 }
 
 function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }) {
@@ -849,62 +853,62 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   return createPage(`
     <div style="position:absolute;inset:0;background:#ECEFF3;"></div>
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,#F4F6F9 0%,#E9EDF2 100%);"></div>
-    <div style="position:absolute;left:64px;top:64px;right:64px;bottom:64px;border-radius:36px;border:1px solid rgba(17,24,39,0.10);overflow:hidden;background:#F8FAFC;box-shadow:0 28px 62px rgba(15,23,42,0.12);">
-      <div style="position:absolute;left:0;top:0;bottom:0;width:58.5%;padding:52px 52px 46px 52px;box-sizing:border-box;background:linear-gradient(180deg,#FFFFFF 0%,#F1F5F9 100%);"></div>
+    <div style="position:absolute;left:56px;top:56px;right:56px;bottom:56px;border-radius:36px;border:1px solid rgba(17,24,39,0.10);overflow:hidden;background:#F8FAFC;box-shadow:0 22px 48px rgba(15,23,42,0.10);">
+      <div style="position:absolute;left:0;top:0;bottom:0;width:58.5%;padding:44px 46px 38px 46px;box-sizing:border-box;background:linear-gradient(180deg,#FFFFFF 0%,#F1F5F9 100%);"></div>
       <div style="position:absolute;right:0;top:0;bottom:0;width:41.5%;padding:24px;box-sizing:border-box;background:#E5EAF0;">
         ${buildHeroImageFrame(photo, { radius: 28, fit: 'cover' })}
       </div>
 
-      <div style="position:absolute;left:52px;top:46px;width:calc(58.5% - 104px);display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
-        <img src="${assets.logoLight || assets.logo || ''}" alt="" style="width:220px;height:auto;object-fit:contain;" />
+      <div style="position:absolute;left:46px;top:40px;width:calc(58.5% - 92px);display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
+        <img src="${assets.logoLight || assets.logo || ''}" alt="" style="width:196px;height:auto;object-fit:contain;" />
         <div style="display:flex;align-items:center;gap:10px;">
-          <span style="display:inline-flex;align-items:center;justify-content:center;height:48px;padding:0 18px;border-radius:999px;background:rgba(254,92,43,0.10);border:1px solid rgba(254,92,43,0.30);font-size:18px;font-weight:700;color:${BRAND_ORANGE};">${index}/${total}</span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;height:42px;padding:0 16px;border-radius:999px;background:rgba(254,92,43,0.10);border:1px solid rgba(254,92,43,0.30);font-size:16px;font-weight:700;color:${BRAND_ORANGE};">${index}/${total}</span>
         </div>
       </div>
 
-      <div style="position:absolute;left:52px;top:184px;width:calc(58.5% - 104px);">
-        <div style="display:inline-flex;align-items:center;gap:10px;padding:12px 20px;border-radius:999px;background:rgba(254,92,43,0.10);border:1px solid rgba(254,92,43,0.28);font-size:16px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">
+      <div style="position:absolute;left:46px;top:130px;width:calc(58.5% - 92px);">
+        <div style="display:inline-flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;background:rgba(254,92,43,0.10);border:1px solid rgba(254,92,43,0.28);font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">
           ${midiaKitDetailIcon('type', BRAND_ORANGE, 15)} ${escapeHtml(ponto.tipo || 'Formato')}
         </div>
 
-        <div style="margin-top:28px;font-family:Poppins, system-ui, sans-serif;font-size:74px;line-height:1.02;font-weight:700;letter-spacing:-0.035em;color:#111827;word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.62em;font-weight:600;letter-spacing:-0.01em;color:rgba(17,24,39,0.62);' })}</div>
+        <div style="margin-top:20px;font-family:Poppins, system-ui, sans-serif;font-size:62px;line-height:0.98;font-weight:700;letter-spacing:-0.028em;color:#111827;word-break:break-word;overflow-wrap:anywhere;hyphens:auto;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.6em;font-weight:600;letter-spacing:-0.006em;color:rgba(17,24,39,0.62);' })}</div>
 
-        <div style="margin-top:24px;display:grid;gap:14px;">
-          <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(17,24,39,0.78);font-size:24px;line-height:1.4;">
+        <div style="margin-top:20px;display:grid;gap:12px;">
+          <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(17,24,39,0.78);font-size:20px;line-height:1.35;">
             <span style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${midiaKitDetailIcon('location', BRAND_ORANGE, 18)}</span>
             <span>${escapeHtml(locationLabel || 'Endereço não informado')}</span>
           </div>
-          <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(17,24,39,0.78);font-size:24px;line-height:1.4;">
+          <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(17,24,39,0.78);font-size:20px;line-height:1.35;">
             <span style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${midiaKitDetailIcon('coordinates', BRAND_ORANGE, 18)}</span>
             <span>${escapeHtml(formatCoordinates(ponto))}</span>
           </div>
         </div>
       </div>
 
-      <div style="position:absolute;left:52px;right:calc(41.5% + 52px);top:760px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;">
+      <div style="position:absolute;left:46px;right:calc(41.5% + 46px);top:548px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;">
         ${metrics.map((item) => `
-          <div style="padding:24px 22px 20px;border-radius:22px;background:#FFFFFF;border:1px solid rgba(254,92,43,0.20);min-height:152px;box-sizing:border-box;">
+          <div style="padding:18px 18px 16px;border-radius:22px;background:#FFFFFF;border:1px solid rgba(254,92,43,0.20);min-height:122px;box-sizing:border-box;">
             <div style="display:flex;align-items:center;gap:10px;">
-              <span style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${metricIconSvg(item.key, BRAND_ORANGE, 20)}</span>
-              <span style="font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(55,65,81,0.74);">${escapeHtml(item.label)}</span>
+              <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${metricIconSvg(item.key, BRAND_ORANGE, 17)}</span>
+              <span style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(55,65,81,0.74);">${escapeHtml(item.label)}</span>
             </div>
-            <div style="margin-top:16px;font-family:Poppins, system-ui, sans-serif;font-size:40px;line-height:1.16;font-weight:700;color:#111827;word-break:break-word;">${escapeHtml(item.value)}</div>
+            <div style="margin-top:14px;font-family:Poppins, system-ui, sans-serif;font-size:30px;line-height:1.14;font-weight:700;color:#111827;word-break:break-word;">${escapeHtml(item.value)}</div>
           </div>
         `).join('')}
       </div>
 
-      <div style="position:absolute;left:52px;right:calc(41.5% + 52px);bottom:52px;padding-top:26px;border-top:1px solid rgba(17,24,39,0.16);display:grid;grid-template-columns:1fr 1fr auto;gap:18px;align-items:end;">
+      <div style="position:absolute;left:46px;right:calc(41.5% + 46px);bottom:38px;padding-top:18px;border-top:1px solid rgba(17,24,39,0.16);display:grid;grid-template-columns:1fr 1fr auto;gap:18px;align-items:end;">
         <div>
-          <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(55,65,81,0.64);">Veiculação</div>
-          <div style="margin-top:8px;font-size:28px;line-height:1.25;color:#111827;">${escapeHtml(veiculacao)}</div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(55,65,81,0.64);">Veiculação</div>
+          <div style="margin-top:8px;font-size:22px;line-height:1.24;color:#111827;">${escapeHtml(veiculacao)}</div>
         </div>
         <div>
-          <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(55,65,81,0.64);">Horário</div>
-          <div style="margin-top:8px;font-size:28px;line-height:1.25;color:#111827;">${escapeHtml(horario)}</div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(55,65,81,0.64);">Horário</div>
+          <div style="margin-top:8px;font-size:22px;line-height:1.24;color:#111827;">${escapeHtml(horario)}</div>
         </div>
         <div style="text-align:right;min-width:260px;">
-          <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(55,65,81,0.64);">${midiaKitDetailIcon('money', BRAND_ORANGE, 18)} Valor mensal</div>
-          <div style="margin-top:10px;font-family:Poppins, system-ui, sans-serif;font-size:82px;line-height:0.96;font-weight:700;color:${BRAND_ORANGE};white-space:nowrap;">${escapeHtml(formatMoney(ponto.preco))}</div>
+          <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(55,65,81,0.64);">${midiaKitDetailIcon('money', BRAND_ORANGE, 16)} Valor mensal</div>
+          <div style="margin-top:10px;font-family:Poppins, system-ui, sans-serif;font-size:62px;line-height:0.95;font-weight:700;color:${BRAND_ORANGE};white-space:nowrap;letter-spacing:-0.02em;">${escapeHtml(formatMoney(ponto.preco))}</div>
         </div>
       </div>
     </div>
