@@ -1,5 +1,13 @@
 import AutoArgumentGenerator from './AutoArgumentGenerator';
 
+function getPointTypeLabel(point) {
+  if (!point) return '';
+  if (point.tipo === 'Elevador' && point.elevador_categoria) {
+    return `Elevador - ${point.elevador_categoria}`;
+  }
+  return point.tipo || '';
+}
+
 export default function ProposalBuilder({
   clientName,
   city,
@@ -72,7 +80,7 @@ export default function ProposalBuilder({
                   )}
                 </td>
                 <td className="px-3 py-2.5 hidden md:table-cell text-brand-gray-400">{p.cidade}</td>
-                <td className="px-3 py-2.5 hidden md:table-cell text-brand-gray-400">{p.tipo}</td>
+                <td className="px-3 py-2.5 hidden md:table-cell text-brand-gray-400">{getPointTypeLabel(p)}</td>
                 <td className="px-3 py-2.5 text-right">
                   {p.discountPercent > 0 ? (
                     <div className="space-y-0.5">

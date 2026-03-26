@@ -124,6 +124,13 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function normalizeElevadorCategoria(value, fallback = 'Comercial') {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'residencial') return 'Residencial';
+  if (normalized === 'comercial') return 'Comercial';
+  return fallback;
+}
+
 function slugifyUsernamePart(value) {
   return String(value || '')
     .normalize('NFD')
@@ -185,6 +192,7 @@ function writePdfLayoutOverrides(overrides) {
 // GET all pontos (with optional filters)
 app.get('/api/pontos', (req, res) => {
   const { tipo, search } = req.query;
+  const elevadorCategoria = String(req.query.elevador_categoria || '').trim();
   const cidades = parseOptionalValues(req.query.cidade);
   const publicos = parseOptionalValues(req.query.publico);
   const sqlParts = ['SELECT * FROM pontos WHERE ativo = 1'];
@@ -196,6 +204,10 @@ app.get('/api/pontos', (req, res) => {
     params.push(tipo);
   }
   appendMultiFilter(sqlParts, params, 'publico', publicos);
+  if (elevadorCategoria) {
+    sqlParts.push(' AND tipo = ? AND elevador_categoria = ?');
+    params.push(ELEVADOR_TIPO, normalizeElevadorCategoria(elevadorCategoria));
+  }
   if (search) {
     sqlParts.push(' AND (nome LIKE ? OR endereco LIKE ? OR descricao LIKE ?)');
     const term = `%${search}%`;
@@ -287,14 +299,17 @@ app.post('/api/pontos', upload.fields([
     const arteAltura = tipo === ELEVADOR_TIPO
       ? ELEVADOR_ARTE_ALTURA
       : (parseInt(data.arte_altura, 10) || 1080);
+    const elevadorCategoria = tipo === ELEVADOR_TIPO
+      ? normalizeElevadorCategoria(data.elevador_categoria)
+      : null;
     const tipoFluxo = data.tipo_fluxo || 'pessoas';
     const imagemFocoX = Number.isFinite(Number(data.imagem_foco_x)) ? clamp(Number(data.imagem_foco_x), 0, 100) : 50;
     const imagemFocoY = Number.isFinite(Number(data.imagem_foco_y)) ? clamp(Number(data.imagem_foco_y), 0, 100) : 50;
     const imagemFocoZoom = Number.isFinite(Number(data.imagem_foco_zoom)) ? clamp(Number(data.imagem_foco_zoom), 100, 220) : 100;
 
     const stmt = db.prepare(`
-      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, tipo_fluxo, imagem_foco_x, imagem_foco_y, imagem_foco_zoom)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, tipo_fluxo, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -303,7 +318,7 @@ app.post('/api/pontos', upload.fields([
       data.horario, parseInt(data.fluxo) || 0, parseInt(data.insercoes) || 0,
       data.tempo || '15s', data.loop || '3 min', data.veiculacao || 'Vídeo sem áudio',
       data.publico || 'A/B', parseInt(data.telas) || 1, parseFloat(data.preco) || 0,
-      data.descricao, imagem, imagem2, simulacaoTela, simulacaoArte, simulacaoPreview, arteLargura, arteAltura, tipoFluxo,
+      data.descricao, imagem, imagem2, simulacaoTela, simulacaoArte, simulacaoPreview, arteLargura, arteAltura, tipoFluxo, elevadorCategoria,
       imagemFocoX, imagemFocoY, imagemFocoZoom
     );
 
@@ -339,6 +354,9 @@ app.put('/api/pontos/:id', upload.fields([
     const arteAltura = tipo === ELEVADOR_TIPO
       ? ELEVADOR_ARTE_ALTURA
       : (parseInt(data.arte_altura, 10) || existing.arte_altura || 1080);
+    const elevadorCategoria = tipo === ELEVADOR_TIPO
+      ? normalizeElevadorCategoria(data.elevador_categoria || existing.elevador_categoria || 'Comercial')
+      : null;
     const tipoFluxo = data.tipo_fluxo || existing.tipo_fluxo || 'pessoas';
     const imagemFocoX = Number.isFinite(Number(data.imagem_foco_x))
       ? clamp(Number(data.imagem_foco_x), 0, 100)
@@ -356,7 +374,7 @@ app.put('/api/pontos/:id', upload.fields([
         horario = ?, fluxo = ?, insercoes = ?, tempo = ?, loop = ?,
         veiculacao = ?, publico = ?, telas = ?, preco = ?, descricao = ?,
         imagem = ?, imagem2 = ?, simulacao_tela = ?, simulacao_arte = ?, simulacao_preview = ?,
-        arte_largura = ?, arte_altura = ?, tipo_fluxo = ?,
+        arte_largura = ?, arte_altura = ?, tipo_fluxo = ?, elevador_categoria = ?,
         imagem_foco_x = ?, imagem_foco_y = ?, imagem_foco_zoom = ?,
         updated_at = datetime('now')
       WHERE id = ?
@@ -373,7 +391,7 @@ app.put('/api/pontos/:id', upload.fields([
       parseInt(data.telas) || existing.telas, parseFloat(data.preco) || existing.preco,
       data.descricao || existing.descricao, imagem, imagem2,
       simulacaoTela, simulacaoArte, simulacaoPreview,
-      arteLargura, arteAltura, tipoFluxo,
+      arteLargura, arteAltura, tipoFluxo, elevadorCategoria,
       imagemFocoX, imagemFocoY, imagemFocoZoom,
       req.params.id
     );

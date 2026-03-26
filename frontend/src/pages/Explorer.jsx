@@ -30,7 +30,7 @@ export default function Explorer() {
   const [pontos, setPontos] = useState([]);
   const [allPontos, setAllPontos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ cidade: initialCidade, tipo: '', publico: [], search: '' });
+  const [filters, setFilters] = useState({ cidade: initialCidade, tipo: '', elevador_categoria: '', publico: [], search: '' });
   const [view, setView] = useState('grid');
   const [showMapModal, setShowMapModal] = useState(false);
   const [selected, setSelected] = useState(null);

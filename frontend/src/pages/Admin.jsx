@@ -29,6 +29,7 @@ import { parseScreen, serializeSimulationConfig } from '../lib/simulation';
 const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const DEFAULT_TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
 const ELEVADOR_TIPO = 'Elevador';
+const ELEVADOR_CATEGORIAS = ['Comercial', 'Residencial'];
 const ELEVADOR_ARTE_LARGURA = '1080';
 const ELEVADOR_ARTE_ALTURA = '1920';
 const PUBLICOS = ['A', 'B', 'A/B'];
@@ -57,16 +58,25 @@ const emptyForm = {
   publico: 'A/B', telas: '1', preco: '', descricao: '', imagem: '', imagem2: '',
   simulacao_tela: '', simulacao_arte: '', simulacao_preview: '',
   arte_largura: ELEVADOR_ARTE_LARGURA, arte_altura: ELEVADOR_ARTE_ALTURA,
+  elevador_categoria: 'Comercial',
   custo_operacional: '', tipo_fluxo: 'pessoas',
   imagem_foco_x: '50', imagem_foco_y: '50', imagem_foco_zoom: '100'
 };
 
 function enforceElevadorDimensions(nextForm) {
-  if (nextForm?.tipo !== ELEVADOR_TIPO) return nextForm;
+  if (nextForm?.tipo !== ELEVADOR_TIPO) {
+    return {
+      ...nextForm,
+      elevador_categoria: ''
+    };
+  }
   return {
     ...nextForm,
     arte_largura: ELEVADOR_ARTE_LARGURA,
-    arte_altura: ELEVADOR_ARTE_ALTURA
+    arte_altura: ELEVADOR_ARTE_ALTURA,
+    elevador_categoria: ELEVADOR_CATEGORIAS.includes(nextForm?.elevador_categoria)
+      ? nextForm.elevador_categoria
+      : 'Comercial'
   };
 }
 
@@ -292,6 +302,7 @@ export default function Admin() {
       nome: ponto.nome || '',
       cidade: ponto.cidade || 'Londrina',
       tipo: ponto.tipo || ELEVADOR_TIPO,
+      elevador_categoria: ponto.elevador_categoria || 'Comercial',
       endereco: ponto.endereco || '',
       lat: ponto.lat?.toString() || '',
       lng: ponto.lng?.toString() || '',
@@ -722,7 +733,9 @@ export default function Admin() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-brand-gray-400 hidden md:table-cell">{p.cidade}</td>
-                        <td className="px-4 py-3 text-brand-gray-400 hidden md:table-cell">{p.tipo}</td>
+                        <td className="px-4 py-3 text-brand-gray-400 hidden md:table-cell">
+                          {p.tipo}{p.tipo === ELEVADOR_TIPO && p.elevador_categoria ? ` - ${p.elevador_categoria}` : ''}
+                        </td>
                         <td className="px-4 py-3 text-brand-gray-400 hidden lg:table-cell">{p.telas}</td>
                         <td className="px-4 py-3 text-brand-gray-400 hidden lg:table-cell">{formatRatio(p.arte_largura, p.arte_altura) || '-'}</td>
                         <td className="px-4 py-3 text-brand-orange font-medium">
@@ -882,6 +895,9 @@ export default function Admin() {
                   <FormField label="Nome *" value={form.nome} onChange={v => updateField('nome', v)} required />
                   <FormSelect label="Cidade" value={form.cidade} onChange={v => updateField('cidade', v)} options={cidades} />
                   <FormSelect label="Tipo" value={form.tipo} onChange={v => updateField('tipo', v)} options={tipos} />
+                  {form.tipo === ELEVADOR_TIPO ? (
+                    <FormSelect label="Categoria do Elevador" value={form.elevador_categoria || 'Comercial'} onChange={v => updateField('elevador_categoria', v)} options={ELEVADOR_CATEGORIAS} />
+                  ) : null}
                   <FormSelect label="Público" value={form.publico} onChange={v => updateField('publico', v)} options={PUBLICOS} />
                   <FormSelect label="Tipo de fluxo" value={form.tipo_fluxo} onChange={v => updateField('tipo_fluxo', v)} options={['pessoas', 'veiculos']} />
                   <FormField label="Endereço" value={form.endereco} onChange={v => updateField('endereco', v)} className="md:col-span-2" />

@@ -49,6 +49,14 @@ function deriveFocusFromSimulation(simulacaoTela) {
   };
 }
 
+function getPointTypeLabel(ponto) {
+  if (!ponto) return '';
+  if (ponto.tipo === 'Elevador' && ponto.elevador_categoria) {
+    return `Elevador - ${ponto.elevador_categoria}`;
+  }
+  return ponto.tipo || '';
+}
+
 export default function PointModal({ ponto, onClose, isDark = true }) {
   if (!ponto) return null;
 
@@ -85,6 +93,7 @@ export default function PointModal({ ponto, onClose, isDark = true }) {
   const fluxoUnit = isVehicleFlow ? 'veículos' : 'pessoas';
 
   const details = [
+    { icon: Building2, label: 'Formato', value: getPointTypeLabel(ponto) },
     { icon: MapPin, label: 'Endereço', value: ponto.endereco },
     { icon: Clock, label: 'Horário', value: ponto.horario },
     { icon: Users, label: 'Fluxo mensal', value: formatNumber(ponto.fluxo) + ` ${fluxoUnit}` },
@@ -153,7 +162,7 @@ export default function PointModal({ ponto, onClose, isDark = true }) {
               <div className="flex items-start justify-between gap-4 mb-2">
                 <div>
                   <span className="inline-block px-2.5 py-1 rounded-lg bg-brand-orange/10 text-brand-orange text-xs font-medium mb-3">
-                    {ponto.tipo}
+                    {getPointTypeLabel(ponto)}
                   </span>
                   <h2 className={`text-2xl lg:text-3xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
                     {ponto.nome}

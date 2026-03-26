@@ -25,7 +25,7 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
   useEffect(() => {
     fetchPublicos().then(setPublicos).catch(() => setPublicos([]));
   }, []);
-  const hasFilters = filters.cidade.length || filters.tipo || filters.publico.length || filters.search;
+  const hasFilters = filters.cidade.length || filters.tipo || filters.elevador_categoria || filters.publico.length || filters.search;
 
   const updateFilter = (key, value) => {
     setFilters(prev => ({
@@ -36,8 +36,16 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
     }));
   };
 
+  const toggleTipo = (value) => {
+    setFilters((prev) => ({
+      ...prev,
+      tipo: prev.tipo === value ? '' : value,
+      elevador_categoria: (prev.tipo === value || value !== 'Elevador') ? '' : prev.elevador_categoria
+    }));
+  };
+
   const clearAll = () => {
-    setFilters({ cidade: [], tipo: '', publico: [], search: '' });
+    setFilters({ cidade: [], tipo: '', elevador_categoria: '', publico: [], search: '' });
   };
 
   const content = (
@@ -101,7 +109,7 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
           {TIPOS.map(({ value, icon: Icon }) => (
             <button
               key={value}
-              onClick={() => updateFilter('tipo', value)}
+              onClick={() => toggleTipo(value)}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
                 filters.tipo === value
                   ? 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20'
@@ -114,6 +122,32 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
           ))}
         </div>
       </div>
+
+      {filters.tipo === 'Elevador' && (
+        <div>
+          <h3 className="text-xs font-semibold text-brand-gray-400 uppercase tracking-wider mb-3">
+            Categoria do Elevador
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {['Comercial', 'Residencial'].map((categoria) => (
+              <button
+                key={categoria}
+                onClick={() => setFilters((prev) => ({
+                  ...prev,
+                  elevador_categoria: prev.elevador_categoria === categoria ? '' : categoria
+                }))}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
+                  filters.elevador_categoria === categoria
+                    ? 'bg-brand-orange text-white'
+                    : 'bg-white/5 text-brand-gray-400 hover:bg-white/10 border border-white/5'
+                }`}
+              >
+                {categoria}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Público */}
       {publicos.length > 0 && (

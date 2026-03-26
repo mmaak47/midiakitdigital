@@ -72,6 +72,7 @@ ensureColumn('pontos', 'arte_largura', 'INTEGER DEFAULT 1920');
 ensureColumn('pontos', 'arte_altura', 'INTEGER DEFAULT 1080');
 ensureColumn('pontos', 'custo_operacional', 'REAL DEFAULT 0');
 ensureColumn('pontos', 'tipo_fluxo', "TEXT DEFAULT 'pessoas'");
+ensureColumn('pontos', 'elevador_categoria', 'TEXT');
 ensureColumn('pontos', 'imagem2', 'TEXT');
 ensureColumn('pontos', 'imagem_foco_x', 'REAL DEFAULT 50');
 ensureColumn('pontos', 'imagem_foco_y', 'REAL DEFAULT 50');
@@ -174,6 +175,11 @@ db.exec(`
   SET
     arte_largura = 1080,
     arte_altura = 1920,
+    elevador_categoria = CASE
+      WHEN lower(COALESCE(elevador_categoria, '')) IN ('comercial', 'residencial') THEN elevador_categoria
+      WHEN lower(COALESCE(descricao, '')) LIKE '%residencial%' THEN 'Residencial'
+      ELSE 'Comercial'
+    END,
     updated_at = datetime('now')
   WHERE tipo = 'Elevador'
 `);

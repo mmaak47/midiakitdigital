@@ -55,6 +55,24 @@ function formatInt(value) {
   return new Intl.NumberFormat('pt-BR').format(Number(value) || 0);
 }
 
+function getElevadorCategoria(point) {
+  const normalized = String(point?.elevador_categoria || '').trim().toLowerCase();
+  if (normalized === 'residencial') return 'Residencial';
+  return 'Comercial';
+}
+
+function getPointTypeLabel(point) {
+  const tipo = String(point?.tipo || '').trim();
+  if (tipo === 'Elevador') {
+    return `Elevador - ${getElevadorCategoria(point)}`;
+  }
+  return tipo || 'Formato';
+}
+
+function getBaseTypeLabel(typeLabel) {
+  return String(typeLabel || '').split(' - ')[0].trim();
+}
+
 function formatMoney(value) {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -651,7 +669,7 @@ function buildMidiaKitManifestoPage({ assets }) {
 
 function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
   const byTipo = pontos.reduce((acc, p) => {
-    const tipo = p.tipo || 'Sem tipo';
+    const tipo = getPointTypeLabel(p);
     if (!acc[tipo]) acc[tipo] = { pontos: 0, telas: 0, fluxo: 0, preco: 0 };
     acc[tipo].pontos += 1;
     acc[tipo].telas += Number(p.telas) || 0;
@@ -887,7 +905,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
 
       <div style="position:absolute;left:46px;top:130px;width:calc(58.5% - 92px);">
         <div style="display:inline-flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;background:rgba(254,92,43,0.10);border:1px solid rgba(254,92,43,0.28);font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">
-          ${midiaKitDetailIcon('type', BRAND_ORANGE, 15)} ${escapeHtml(ponto.tipo || 'Formato')}
+          ${midiaKitDetailIcon('type', BRAND_ORANGE, 15)} ${escapeHtml(getPointTypeLabel(ponto))}
         </div>
 
         <div style="margin-top:20px;font-family:Poppins, system-ui, sans-serif;font-size:62px;line-height:0.98;font-weight:700;letter-spacing:-0.028em;color:#111827;word-break:break-word;overflow-wrap:anywhere;hyphens:auto;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.6em;font-weight:600;letter-spacing:-0.006em;color:rgba(17,24,39,0.62);' })}</div>
@@ -1196,7 +1214,7 @@ function buildProposalPointPage({ point, index, total, image, image2, segmento, 
           <div style="min-width:0;">
             <div style="font-family:Poppins, system-ui, sans-serif;font-size:34px;line-height:1.03;font-weight:700;letter-spacing:-0.03em;color:#fff;white-space:normal;word-break:break-word;">${formatPointNameHtml(point.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.66em;font-weight:600;letter-spacing:-0.01em;' })}</div>
             <div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:18px;line-height:1.3;color:rgba(255,255,255,0.68);">
-              <span>${escapeHtml(point.cidade || '-')} · ${escapeHtml(point.tipo || '-')}</span>
+              <span>${escapeHtml(point.cidade || '-')} · ${escapeHtml(getPointTypeLabel(point) || '-')}</span>
               ${coords ? `<span style="display:inline-flex;align-items:center;justify-content:center;min-height:22px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);font-size:12px;line-height:1;color:rgba(255,255,255,0.58);">${escapeHtml(coords)}</span>` : ''}
             </div>
           </div>
@@ -1542,7 +1560,7 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
           ${rows.slice(0, 3).map(({ point, totalLocais, score }) => `
             <div style="padding:14px 14px;border-radius:16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
               <div style="font-size:16px;line-height:1.2;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
-              <div style="margin-top:5px;font-size:12px;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} • ${escapeHtml(point.tipo || '-')}</div>
+              <div style="margin-top:5px;font-size:12px;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} • ${escapeHtml(getPointTypeLabel(point) || '-')}</div>
               <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
                 <div style="font-size:12px;color:rgba(255,255,255,0.62);">Locais relevantes</div>
                 <div style="font-size:20px;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(totalLocais)}</div>
@@ -1558,7 +1576,7 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
           <div style="padding:14px 16px;border-radius:18px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);display:grid;grid-template-columns:2fr 0.8fr 1.5fr;gap:14px;align-items:start;">
             <div>
               <div style="font-size:17px;line-height:1.2;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
-              <div style="margin-top:3px;font-size:12px;color:rgba(255,255,255,0.65);">${escapeHtml(point.cidade || '-')} • ${escapeHtml(point.tipo || '-')}</div>
+              <div style="margin-top:3px;font-size:12px;color:rgba(255,255,255,0.65);">${escapeHtml(point.cidade || '-')} • ${escapeHtml(getPointTypeLabel(point) || '-')}</div>
               <div style="margin-top:8px;font-size:12px;line-height:1.42;color:rgba(255,255,255,0.78);">${escapeHtml(summary.summary)}</div>
             </div>
             <div>
@@ -1730,7 +1748,7 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
             <div style="display:grid;grid-template-columns:minmax(0,1.8fr) 88px 92px minmax(0,1.2fr);gap:14px;align-items:center;padding:14px 18px;border-radius:16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);">
               <div>
                 <div style="font-size:16px;font-weight:700;color:#fff;">${escapeHtml(point.nome || 'Ponto')}</div>
-                <div style="margin-top:2px;font-size:12px;color:rgba(255,255,255,0.5);">${escapeHtml(point.cidade || '-')} · ${escapeHtml(point.tipo || '-')}</div>
+                <div style="margin-top:2px;font-size:12px;color:rgba(255,255,255,0.5);">${escapeHtml(point.cidade || '-')} · ${escapeHtml(getPointTypeLabel(point) || '-')}</div>
               </div>
               <div style="text-align:center;font-size:22px;font-weight:700;line-height:1;color:${hasData ? '#fff' : 'rgba(255,255,255,0.3)'};font-family:Poppins;">${formatInt(locais)}</div>
               <div style="text-align:center;font-size:18px;font-weight:700;line-height:1;color:${score >= 6 ? BRAND_ORANGE : 'rgba(255,255,255,0.4)'};font-family:Poppins;">${score.toFixed(1).replace('.', ',')}</div>
@@ -1828,7 +1846,7 @@ export async function generateMidiaKitPdf({ praca, pontos }) {
   ];
 
   const groupedByTipo = kitPontos.reduce((acc, ponto, index) => {
-    const tipo = ponto.tipo || 'Formato';
+    const tipo = getPointTypeLabel(ponto);
     if (!acc[tipo]) acc[tipo] = [];
     acc[tipo].push({ ponto, index });
     return acc;
@@ -1836,11 +1854,20 @@ export async function generateMidiaKitPdf({ praca, pontos }) {
 
   Object.entries(groupedByTipo)
     .sort(([tipoA], [tipoB]) => {
-      const indexA = MIDIA_KIT_TYPE_ORDER.findIndex((item) => item.toLowerCase() === String(tipoA).toLowerCase());
-      const indexB = MIDIA_KIT_TYPE_ORDER.findIndex((item) => item.toLowerCase() === String(tipoB).toLowerCase());
+      const baseA = getBaseTypeLabel(tipoA);
+      const baseB = getBaseTypeLabel(tipoB);
+      const indexA = MIDIA_KIT_TYPE_ORDER.findIndex((item) => item.toLowerCase() === String(baseA).toLowerCase());
+      const indexB = MIDIA_KIT_TYPE_ORDER.findIndex((item) => item.toLowerCase() === String(baseB).toLowerCase());
       const safeA = indexA === -1 ? Number.MAX_SAFE_INTEGER : indexA;
       const safeB = indexB === -1 ? Number.MAX_SAFE_INTEGER : indexB;
-      return safeA - safeB || String(tipoA).localeCompare(String(tipoB), 'pt-BR');
+      if (safeA !== safeB) return safeA - safeB;
+      if (baseA === 'Elevador' && baseB === 'Elevador') {
+        const rank = { Comercial: 0, Residencial: 1 };
+        const catA = String(tipoA).split(' - ')[1] || 'Comercial';
+        const catB = String(tipoB).split(' - ')[1] || 'Comercial';
+        return (rank[catA] ?? 99) - (rank[catB] ?? 99);
+      }
+      return String(tipoA).localeCompare(String(tipoB), 'pt-BR');
     })
     .forEach(([tipo, items]) => {
     const formatTelas = items.reduce((sum, { ponto }) => sum + (Number(ponto.telas) || 0), 0);

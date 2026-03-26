@@ -15,6 +15,7 @@ export async function fetchPontos(filters = {}) {
   const params = new URLSearchParams();
   appendParamValues(params, 'cidade', filters.cidade);
   if (filters.tipo) params.set('tipo', filters.tipo);
+  if (filters.elevador_categoria) params.set('elevador_categoria', filters.elevador_categoria);
   appendParamValues(params, 'publico', filters.publico);
   if (filters.search) params.set('search', filters.search);
   const query = params.toString();

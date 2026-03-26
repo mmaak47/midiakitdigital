@@ -4,6 +4,14 @@ import { useFavorites } from '../context/FavoritesContext';
 
 const typeBadgeClass = 'bg-brand-orange/12 text-brand-orange border-brand-orange/30';
 
+function getPointTypeLabel(ponto) {
+  if (!ponto) return '';
+  if (ponto.tipo === 'Elevador' && ponto.elevador_categoria) {
+    return `Elevador - ${ponto.elevador_categoria}`;
+  }
+  return ponto.tipo || '';
+}
+
 export default function PointCard({ ponto, onSelect, index = 0, isDark = true }) {
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const fav = isFavorite(ponto.id);
@@ -47,7 +55,7 @@ export default function PointCard({ ponto, onSelect, index = 0, isDark = true })
 
         {/* Type badge */}
         <div className={`absolute top-3 left-3 px-3 py-1.5 rounded-lg text-xs font-semibold border backdrop-blur-sm ${typeBadgeClass}`}>
-          {ponto.tipo}
+          {getPointTypeLabel(ponto)}
         </div>
 
         {/* Favorite button */}
