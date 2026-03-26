@@ -170,6 +170,15 @@ db.exec(`
 `);
 
 db.exec(`
+  UPDATE pontos
+  SET
+    arte_largura = 1080,
+    arte_altura = 1920,
+    updated_at = datetime('now')
+  WHERE tipo = 'Elevador'
+`);
+
+db.exec(`
   CREATE INDEX IF NOT EXISTS idx_pontos_ativo_cidade_nome
   ON pontos (ativo, cidade, nome)
 `);

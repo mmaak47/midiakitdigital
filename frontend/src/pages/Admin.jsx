@@ -28,6 +28,9 @@ import { parseScreen, serializeSimulationConfig } from '../lib/simulation';
 
 const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const DEFAULT_TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
+const ELEVADOR_TIPO = 'Elevador';
+const ELEVADOR_ARTE_LARGURA = '1080';
+const ELEVADOR_ARTE_ALTURA = '1920';
 const PUBLICOS = ['A', 'B', 'A/B'];
 const ENTORNO_SEGMENTOS = [
   'clinica', 'hospital', 'educacao', 'escola', 'faculdade',
@@ -53,10 +56,19 @@ const emptyForm = {
   insercoes: '', tempo: '15s', loop: '3 min', veiculacao: 'Vídeo sem áudio',
   publico: 'A/B', telas: '1', preco: '', descricao: '', imagem: '', imagem2: '',
   simulacao_tela: '', simulacao_arte: '', simulacao_preview: '',
-  arte_largura: '1920', arte_altura: '1080',
+  arte_largura: ELEVADOR_ARTE_LARGURA, arte_altura: ELEVADOR_ARTE_ALTURA,
   custo_operacional: '', tipo_fluxo: 'pessoas',
   imagem_foco_x: '50', imagem_foco_y: '50', imagem_foco_zoom: '100'
 };
+
+function enforceElevadorDimensions(nextForm) {
+  if (nextForm?.tipo !== ELEVADOR_TIPO) return nextForm;
+  return {
+    ...nextForm,
+    arte_largura: ELEVADOR_ARTE_LARGURA,
+    arte_altura: ELEVADOR_ARTE_ALTURA
+  };
+}
 
 export default function Admin() {
   const [isDark, setIsDark] = useState(() => {
@@ -268,7 +280,7 @@ export default function Admin() {
   }, [auth]);
 
   const openNew = () => {
-    setForm(emptyForm);
+    setForm(enforceElevadorDimensions(emptyForm));
     setImageFile(null);
     setImagem2File(null);
     setScreenSelection(null);
@@ -276,10 +288,10 @@ export default function Admin() {
   };
 
   const openEdit = (ponto) => {
-    setForm({
+    setForm(enforceElevadorDimensions({
       nome: ponto.nome || '',
       cidade: ponto.cidade || 'Londrina',
-      tipo: ponto.tipo || 'Elevador',
+      tipo: ponto.tipo || ELEVADOR_TIPO,
       endereco: ponto.endereco || '',
       lat: ponto.lat?.toString() || '',
       lng: ponto.lng?.toString() || '',
@@ -305,7 +317,7 @@ export default function Admin() {
       imagem_foco_x: (Number.isFinite(Number(ponto.imagem_foco_x)) ? Number(ponto.imagem_foco_x) : 50).toString(),
       imagem_foco_y: (Number.isFinite(Number(ponto.imagem_foco_y)) ? Number(ponto.imagem_foco_y) : 50).toString(),
       imagem_foco_zoom: (Number.isFinite(Number(ponto.imagem_foco_zoom)) ? Number(ponto.imagem_foco_zoom) : 100).toString()
-    });
+    }));
     setImageFile(null);
     setImagem2File(null);
     setScreenSelection(parseScreen(ponto.simulacao_tela));
@@ -448,7 +460,12 @@ export default function Admin() {
     }
   };
 
-  const updateField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
+  const updateField = (key, value) => {
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      return enforceElevadorDimensions(next);
+    });
+  };
 
   const filtered = pontos.filter((p) => {
     const searchTerm = search.trim().toLowerCase();

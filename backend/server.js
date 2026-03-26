@@ -27,6 +27,9 @@ const app = express();
 const PORT = process.env.PORT || 3002;
 const uploadsPath = path.join(__dirname, 'uploads');
 const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
+const ELEVADOR_TIPO = 'Elevador';
+const ELEVADOR_ARTE_LARGURA = 1080;
+const ELEVADOR_ARTE_ALTURA = 1920;
 
 // Middleware
 app.disable('x-powered-by');
@@ -277,8 +280,13 @@ app.post('/api/pontos', upload.fields([
     const simulacaoArte = pickUploadedPath(req, 'simulacao_arte') || data.simulacao_arte || null;
     const simulacaoPreview = pickUploadedPath(req, 'simulacao_preview') || data.simulacao_preview || null;
     const simulacaoTela = data.simulacao_tela || null;
-    const arteLargura = parseInt(data.arte_largura, 10) || 1920;
-    const arteAltura = parseInt(data.arte_altura, 10) || 1080;
+    const tipo = data.tipo || '';
+    const arteLargura = tipo === ELEVADOR_TIPO
+      ? ELEVADOR_ARTE_LARGURA
+      : (parseInt(data.arte_largura, 10) || 1920);
+    const arteAltura = tipo === ELEVADOR_TIPO
+      ? ELEVADOR_ARTE_ALTURA
+      : (parseInt(data.arte_altura, 10) || 1080);
     const tipoFluxo = data.tipo_fluxo || 'pessoas';
     const imagemFocoX = Number.isFinite(Number(data.imagem_foco_x)) ? clamp(Number(data.imagem_foco_x), 0, 100) : 50;
     const imagemFocoY = Number.isFinite(Number(data.imagem_foco_y)) ? clamp(Number(data.imagem_foco_y), 0, 100) : 50;
@@ -290,7 +298,7 @@ app.post('/api/pontos', upload.fields([
     `);
 
     const result = stmt.run(
-      data.nome, data.cidade, data.tipo, data.endereco,
+      data.nome, data.cidade, tipo, data.endereco,
       parseFloat(data.lat) || 0, parseFloat(data.lng) || 0,
       data.horario, parseInt(data.fluxo) || 0, parseInt(data.insercoes) || 0,
       data.tempo || '15s', data.loop || '3 min', data.veiculacao || 'Vídeo sem áudio',
@@ -324,8 +332,13 @@ app.put('/api/pontos/:id', upload.fields([
     const simulacaoArte = pickUploadedPath(req, 'simulacao_arte') || data.simulacao_arte || existing.simulacao_arte;
     const simulacaoPreview = pickUploadedPath(req, 'simulacao_preview') || data.simulacao_preview || existing.simulacao_preview;
     const simulacaoTela = data.simulacao_tela || existing.simulacao_tela;
-    const arteLargura = parseInt(data.arte_largura, 10) || existing.arte_largura || 1920;
-    const arteAltura = parseInt(data.arte_altura, 10) || existing.arte_altura || 1080;
+    const tipo = data.tipo || existing.tipo;
+    const arteLargura = tipo === ELEVADOR_TIPO
+      ? ELEVADOR_ARTE_LARGURA
+      : (parseInt(data.arte_largura, 10) || existing.arte_largura || 1920);
+    const arteAltura = tipo === ELEVADOR_TIPO
+      ? ELEVADOR_ARTE_ALTURA
+      : (parseInt(data.arte_altura, 10) || existing.arte_altura || 1080);
     const tipoFluxo = data.tipo_fluxo || existing.tipo_fluxo || 'pessoas';
     const imagemFocoX = Number.isFinite(Number(data.imagem_foco_x))
       ? clamp(Number(data.imagem_foco_x), 0, 100)
@@ -350,7 +363,7 @@ app.put('/api/pontos/:id', upload.fields([
     `);
 
     stmt.run(
-      data.nome || existing.nome, data.cidade || existing.cidade, data.tipo || existing.tipo,
+      data.nome || existing.nome, data.cidade || existing.cidade, tipo,
       data.endereco || existing.endereco,
       parseFloat(data.lat) || existing.lat, parseFloat(data.lng) || existing.lng,
       data.horario || existing.horario, parseInt(data.fluxo) || existing.fluxo,
