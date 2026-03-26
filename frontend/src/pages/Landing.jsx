@@ -448,12 +448,72 @@ export default function Landing() {
       {/* ─── AMBIENT BACKGROUND ───────────────────────────────── */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
         <div className="absolute inset-0 bg-[#050505]" />
-        <div className="absolute top-0 right-0 w-[55vw] h-[100vh] opacity-[0.04] bg-cover bg-center" style={{ backgroundImage: "url('/audience.jpg')", filter: 'blur(2px)' }} />
-        <div className="absolute top-[55vh] left-0 w-[50vw] h-[70vh] opacity-[0.035] bg-cover bg-center" style={{ backgroundImage: "url('/about-1.jpg')", filter: 'blur(3px)' }} />
-        <div className="absolute top-[130vh] right-0 w-[48vw] h-[60vh] opacity-[0.04] bg-cover bg-top" style={{ backgroundImage: "url('/showcase.png')", filter: 'blur(2px)' }} />
-        <div className="absolute top-[210vh] left-0 w-full h-[80vh] opacity-[0.025] bg-cover bg-center" style={{ backgroundImage: "url('/wallpaper.jpg')", filter: 'blur(4px)' }} />
-        <div className="absolute top-[290vh] left-0 w-[50vw] h-[60vh] opacity-[0.03] bg-cover bg-center" style={{ backgroundImage: "url('/about-2.jpg')", filter: 'blur(3px)' }} />
-        <div className="absolute top-[300vh] right-0 w-[55vw] h-[60vh] opacity-[0.025] bg-cover" style={{ backgroundImage: "url('/stock-wallpaper.jpg')", filter: 'blur(4px)' }} />
+        {/* audience.jpg — top-right, gradiente faz esmaecer da esquerda e de baixo */}
+        <div
+          className="absolute top-0 right-0 w-[55vw] h-[100vh] opacity-[0.05] bg-cover"
+          style={{
+            backgroundImage: "url('/audience.jpg')",
+            backgroundPosition: 'right top',
+            filter: 'blur(3px)',
+            WebkitMaskImage: 'radial-gradient(ellipse 70% 70% at 80% 30%, black 20%, transparent 80%)',
+            maskImage: 'radial-gradient(ellipse 70% 70% at 80% 30%, black 20%, transparent 80%)',
+          }}
+        />
+        {/* about-1.jpg — meio-esquerda, esmaecer da direita e bordas */}
+        <div
+          className="absolute top-[55vh] left-0 w-[50vw] h-[70vh] opacity-[0.045] bg-cover"
+          style={{
+            backgroundImage: "url('/about-1.jpg')",
+            backgroundPosition: 'left center',
+            filter: 'blur(3px)',
+            WebkitMaskImage: 'radial-gradient(ellipse 70% 70% at 20% 50%, black 20%, transparent 80%)',
+            maskImage: 'radial-gradient(ellipse 70% 70% at 20% 50%, black 20%, transparent 80%)',
+          }}
+        />
+        {/* showcase.png — baixo-direita */}
+        <div
+          className="absolute top-[130vh] right-0 w-[48vw] h-[60vh] opacity-[0.045] bg-cover"
+          style={{
+            backgroundImage: "url('/showcase.png')",
+            backgroundPosition: 'right center',
+            filter: 'blur(2px)',
+            WebkitMaskImage: 'radial-gradient(ellipse 70% 65% at 75% 50%, black 20%, transparent 80%)',
+            maskImage: 'radial-gradient(ellipse 70% 65% at 75% 50%, black 20%, transparent 80%)',
+          }}
+        />
+        {/* wallpaper.jpg — largura total, scroll profundo */}
+        <div
+          className="absolute top-[210vh] left-0 w-full h-[80vh] opacity-[0.03] bg-cover"
+          style={{
+            backgroundImage: "url('/wallpaper.jpg')",
+            backgroundPosition: 'center',
+            filter: 'blur(4px)',
+            WebkitMaskImage: 'radial-gradient(ellipse 80% 70% at 50% 50%, black 20%, transparent 80%)',
+            maskImage: 'radial-gradient(ellipse 80% 70% at 50% 50%, black 20%, transparent 80%)',
+          }}
+        />
+        {/* about-2.jpg — esquerda, fundo profundo */}
+        <div
+          className="absolute top-[290vh] left-0 w-[50vw] h-[60vh] opacity-[0.035] bg-cover"
+          style={{
+            backgroundImage: "url('/about-2.jpg')",
+            backgroundPosition: 'left center',
+            filter: 'blur(3px)',
+            WebkitMaskImage: 'radial-gradient(ellipse 70% 65% at 20% 50%, black 20%, transparent 80%)',
+            maskImage: 'radial-gradient(ellipse 70% 65% at 20% 50%, black 20%, transparent 80%)',
+          }}
+        />
+        {/* stock-wallpaper.jpg — direita, fundo profundo */}
+        <div
+          className="absolute top-[300vh] right-0 w-[55vw] h-[60vh] opacity-[0.03] bg-cover"
+          style={{
+            backgroundImage: "url('/stock-wallpaper.jpg')",
+            backgroundPosition: 'right center',
+            filter: 'blur(4px)',
+            WebkitMaskImage: 'radial-gradient(ellipse 70% 65% at 75% 50%, black 20%, transparent 80%)',
+            maskImage: 'radial-gradient(ellipse 70% 65% at 75% 50%, black 20%, transparent 80%)',
+          }}
+        />
         {/* Orange glow blobs */}
         <div className="absolute -top-20 -left-16 w-[500px] h-[500px] bg-[#FE5C2B]/14 rounded-full blur-[130px]" />
         <div className="absolute top-[38vh] right-[-60px] w-[420px] h-[420px] bg-[#FE5C2B]/8 rounded-full blur-[120px]" />
