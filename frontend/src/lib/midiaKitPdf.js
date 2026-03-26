@@ -2,11 +2,11 @@
 import { loadPdfLayoutConfig } from './pdfLayoutConfig';
 import { buildAudienceQualification, buildEntornoSummary, getSegmentDisplayName } from './strategy';
 
-const PAGE_WIDTH = 1600;
-const PAGE_HEIGHT = 1260;
+const PAGE_WIDTH = 2480;
+const PAGE_HEIGHT = 1754;
 export const PDF_PAGE_SIZE = { width: PAGE_WIDTH, height: PAGE_HEIGHT };
 const PDF_MM_WIDTH = 297;
-const PDF_MM_HEIGHT = Number((PDF_MM_WIDTH * (PAGE_HEIGHT / PAGE_WIDTH)).toFixed(2));
+const PDF_MM_HEIGHT = 210;
 const BRAND_ORANGE = '#FE5C2B';
 const BRAND_DARK = '#0A0A0A';
 const BRAND_PANEL = '#171717';
@@ -593,30 +593,31 @@ function buildMidiaKitManifestoPage({ assets }) {
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#050505;"></div>
-    <div style="position:absolute;left:72px;top:72px;right:72px;bottom:72px;border-radius:34px;background:linear-gradient(135deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.08);overflow:hidden;"></div>
-    <div style="position:absolute;left:72px;top:72px;bottom:72px;width:510px;overflow:hidden;border-top-left-radius:34px;border-bottom-left-radius:34px;">
-      <img src="${assets.about1 || assets.about2 || assets.showcase || ''}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:center;filter:grayscale(0.1) contrast(1.04);" />
+    <div style="position:absolute;left:110px;top:104px;right:110px;bottom:104px;border-radius:44px;background:linear-gradient(135deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.08);overflow:hidden;"></div>
+    <div style="position:absolute;left:110px;top:104px;bottom:104px;width:860px;overflow:hidden;border-top-left-radius:44px;border-bottom-left-radius:44px;background:#0b0b0b;">
+      <img src="${assets.about1 || assets.about2 || assets.showcase || ''}" alt="" style="width:100%;height:100%;object-fit:contain;object-position:center;filter:contrast(1.02);background:#0b0b0b;" />
       <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,5,5,0.02) 0%,rgba(5,5,5,0.28) 58%,rgba(5,5,5,0.76) 100%);"></div>
-      <div style="position:absolute;left:32px;right:32px;bottom:30px;">
+      <div style="position:absolute;left:54px;right:54px;bottom:52px;">
         <div style="display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 14px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.86);">Leitura do inventário</div>
-        <div style="margin-top:16px;font-family:Poppins, system-ui, sans-serif;font-size:44px;line-height:1.02;font-weight:700;color:#fff;letter-spacing:-0.035em;">Informação clara para escolher os pontos certos da sua campanha.</div>
+        <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:62px;line-height:1.02;font-weight:700;color:#fff;letter-spacing:-0.035em;">Desde 2007, a Intermidia transforma localização em resultado de marca.</div>
       </div>
     </div>
 
-    <div style="position:absolute;left:614px;right:94px;top:104px;bottom:104px;display:flex;flex-direction:column;">
-      <img src="${assets.logo || ''}" alt="" style="width:164px;height:auto;object-fit:contain;" />
-      <div style="margin-top:24px;font-size:14px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Visão do mídia kit</div>
-      <div style="margin-top:12px;font-family:Poppins, system-ui, sans-serif;font-size:54px;line-height:0.98;font-weight:700;color:#fff;letter-spacing:-0.04em;">Um panorama objetivo para visualizar alcance, formatos e investimento.</div>
-      <div style="margin-top:18px;font-size:21px;line-height:1.42;color:rgba(255,255,255,0.76);">Nas próximas páginas, você compara pontos, contexto de localização e custo mensal com leitura rápida.</div>
+    <div style="position:absolute;left:1030px;right:138px;top:148px;bottom:146px;display:flex;flex-direction:column;">
+      <img src="${assets.logo || ''}" alt="" style="width:220px;height:auto;object-fit:contain;" />
+      <div style="margin-top:34px;font-size:17px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.52);">Visão do mídia kit</div>
+      <div style="margin-top:14px;font-family:Poppins, system-ui, sans-serif;font-size:72px;line-height:0.96;font-weight:700;color:#fff;letter-spacing:-0.04em;">Planejamento com repertório, critério e experiência de mercado.</div>
+      <div style="margin-top:22px;font-size:30px;line-height:1.38;color:rgba(255,255,255,0.78);">A Intermidia atua desde 2007 no OOH e no DOOH, conectando pontos premium, dados de audiência e leitura comercial para campanhas memoráveis.</div>
+      <div style="margin-top:18px;font-size:24px;line-height:1.42;color:rgba(255,255,255,0.7);">Nas próximas páginas, você encontra cada formato explicado, com foto real, endereço, coordenadas e métricas para decidir com confiança.</div>
 
-      <div style="margin-top:30px;padding-top:8px;display:grid;grid-template-columns:1fr 1fr;column-gap:26px;row-gap:16px;">
+      <div style="margin-top:34px;padding-top:10px;display:grid;grid-template-columns:1fr 1fr;column-gap:28px;row-gap:18px;">
         ${cards.map((card) => `
-          <div style="padding:0 0 14px;border-bottom:1px solid rgba(255,255,255,0.10);">
+          <div style="padding:0 0 16px;border-bottom:1px solid rgba(255,255,255,0.12);">
             <div style="display:flex;align-items:center;gap:10px;">
               <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:999px;background:rgba(254,92,43,0.18);">${midiaKitDetailIcon('type', BRAND_ORANGE, 13)}</span>
-              <span style="font-size:16px;font-weight:700;color:#fff;line-height:1.2;">${escapeHtml(card.title)}</span>
+              <span style="font-size:18px;font-weight:700;color:#fff;line-height:1.2;">${escapeHtml(card.title)}</span>
             </div>
-            <div style="margin-top:10px;font-size:16px;line-height:1.48;color:rgba(255,255,255,0.68);">${escapeHtml(card.text)}</div>
+            <div style="margin-top:10px;font-size:18px;line-height:1.5;color:rgba(255,255,255,0.7);">${escapeHtml(card.text)}</div>
           </div>
         `).join('')}
       </div>
@@ -742,6 +743,34 @@ function splitFormatTitle(tipo) {
   return [first, second];
 }
 
+function getFormatDescription(tipo) {
+  const normalized = String(tipo || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (normalized.includes('backlight')) {
+    return 'Backlight e um painel com iluminacao interna, que mantem a arte viva dia e noite, com excelente leitura a distancia e em corredores de alto fluxo.';
+  }
+  if (normalized.includes('frontlight')) {
+    return 'Frontlight recebe iluminacao externa direcionada para a lona, entregando grande impacto em avenidas e entradas de cidade com leitura ampla da mensagem.';
+  }
+  if (normalized.includes('elevador')) {
+    return 'No elevador, a tela indoor aparece em um momento de atencao quase exclusiva, com proximidade da audiencia e alta frequencia de repeticao no dia a dia.';
+  }
+  if (normalized.includes('indoor')) {
+    return 'Indoor significa exibicao em ambiente interno, perto da decisao de compra e do tempo de permanencia do publico, com contexto comercial qualificado.';
+  }
+  if (normalized.includes('video wall') || normalized.includes('video-wall') || normalized.includes('video wall')) {
+    return 'Video Wall combina multiplos modulos para criar uma tela de grande impacto visual, ideal para storytelling de marca em pontos premium.';
+  }
+  if (normalized.includes('painel led') || normalized.includes('led posto') || normalized.includes('totem digital')) {
+    return 'Formatos digitais em LED entregam dinamismo de criacao, atualizacao agil de campanha e alta visibilidade em rotas urbanas de recorrencia.';
+  }
+
+  return 'Este formato amplia presenca de marca com leitura objetiva de imagem, localizacao e metricas para tomada de decisao comercial com mais seguranca.';
+}
+
 function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }) {
   const lines = splitFormatTitle(tipo);
   const telas = formatStats ? formatStats.telas : (cityStats.totalTelas || 0);
@@ -765,7 +794,7 @@ function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }
     <div style="position:absolute;left:82px;right:82px;bottom:84px;display:grid;grid-template-columns:1fr auto;gap:28px;align-items:end;">
       <div style="max-width:700px;">
         <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.82);">${escapeHtml(cityStats.cidade || 'Praça')}</div>
-        <div style="margin-top:18px;font-size:28px;line-height:1.38;color:rgba(255,255,255,0.78);">Cada formato entra no mídia kit com foto, posicionamento visual, métricas comerciais e localização para facilitar leitura executiva e negociação.</div>
+        <div style="margin-top:18px;font-size:28px;line-height:1.38;color:rgba(255,255,255,0.78);">${escapeHtml(getFormatDescription(tipo))}</div>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(2,minmax(0,180px));gap:16px;">
@@ -799,69 +828,68 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   const horario = ponto.horario || '-';
 
   return createPage(`
-    <div style="position:absolute;inset:0;background:#050505;"></div>
-    <div style="position:absolute;right:0;top:0;bottom:0;width:41.5%;background:#0c0c0c;"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;right:41.5%;background:linear-gradient(180deg,#080808 0%,#111111 100%);"></div>
-    <div style="position:absolute;left:56px;top:56px;right:56px;bottom:56px;border-radius:34px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;">
-      <div style="position:absolute;left:0;top:0;bottom:0;width:58.5%;padding:38px 40px 36px 40px;box-sizing:border-box;background:linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01));"></div>
-      <div style="position:absolute;right:0;top:0;bottom:0;width:41.5%;padding:18px;box-sizing:border-box;background:#080808;">
+    <div style="position:absolute;inset:0;background:#F3EEE6;"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg,#F7F2EA 0%,#EFE7DB 100%);"></div>
+    <div style="position:absolute;left:64px;top:64px;right:64px;bottom:64px;border-radius:36px;border:1px solid rgba(24,18,12,0.10);overflow:hidden;background:#FCF9F4;box-shadow:0 28px 62px rgba(72,43,18,0.12);">
+      <div style="position:absolute;left:0;top:0;bottom:0;width:58.5%;padding:44px 44px 40px 44px;box-sizing:border-box;background:linear-gradient(180deg,#FFFDFC 0%,#F8F1E8 100%);"></div>
+      <div style="position:absolute;right:0;top:0;bottom:0;width:41.5%;padding:22px;box-sizing:border-box;background:#F2E7D9;">
         ${buildHeroImageFrame(photo, { radius: 28, fit: 'cover' })}
       </div>
 
-      <div style="position:absolute;left:40px;top:36px;width:calc(58.5% - 80px);display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
+      <div style="position:absolute;left:44px;top:40px;width:calc(58.5% - 88px);display:flex;align-items:flex-start;justify-content:space-between;gap:18px;">
         <img src="${assets.logo || ''}" alt="" style="width:150px;height:auto;object-fit:contain;" />
         <div style="display:flex;align-items:center;gap:10px;">
-          <span style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 14px;border-radius:999px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);font-size:13px;font-weight:700;color:#fff;">${index}/${total}</span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 14px;border-radius:999px;background:rgba(254,92,43,0.10);border:1px solid rgba(254,92,43,0.30);font-size:13px;font-weight:700;color:${BRAND_ORANGE};">${index}/${total}</span>
         </div>
       </div>
 
-      <div style="position:absolute;left:40px;top:124px;width:calc(58.5% - 80px);">
-        <div style="display:inline-flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.84);">
+      <div style="position:absolute;left:44px;top:138px;width:calc(58.5% - 88px);">
+        <div style="display:inline-flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;background:rgba(254,92,43,0.10);border:1px solid rgba(254,92,43,0.28);font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">
           ${midiaKitDetailIcon('type', BRAND_ORANGE, 15)} ${escapeHtml(ponto.tipo || 'Formato')}
         </div>
 
-        <div style="margin-top:24px;font-family:Poppins, system-ui, sans-serif;font-size:46px;line-height:1.02;font-weight:700;letter-spacing:-0.035em;color:#fff;word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.62em;font-weight:600;letter-spacing:-0.01em;color:rgba(255,255,255,0.68);' })}</div>
+        <div style="margin-top:24px;font-family:Poppins, system-ui, sans-serif;font-size:56px;line-height:1.02;font-weight:700;letter-spacing:-0.035em;color:#1A130C;word-break:break-word;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.62em;font-weight:600;letter-spacing:-0.01em;color:rgba(26,19,12,0.64);' })}</div>
 
         <div style="margin-top:18px;display:grid;gap:12px;">
-          <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(255,255,255,0.72);font-size:18px;line-height:1.4;">
-            <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,0.05);flex:0 0 auto;">${midiaKitDetailIcon('location', BRAND_ORANGE, 16)}</span>
+          <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(26,19,12,0.78);font-size:18px;line-height:1.4;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${midiaKitDetailIcon('location', BRAND_ORANGE, 16)}</span>
             <span>${escapeHtml(locationLabel || 'Endereço não informado')}</span>
           </div>
-          <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(255,255,255,0.72);font-size:18px;line-height:1.4;">
-            <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,0.05);flex:0 0 auto;">${midiaKitDetailIcon('coordinates', BRAND_ORANGE, 16)}</span>
+          <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(26,19,12,0.78);font-size:18px;line-height:1.4;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${midiaKitDetailIcon('coordinates', BRAND_ORANGE, 16)}</span>
             <span>${escapeHtml(formatCoordinates(ponto))}</span>
           </div>
         </div>
       </div>
 
-      <div style="position:absolute;left:40px;right:calc(41.5% + 40px);top:360px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;">
+      <div style="position:absolute;left:44px;right:calc(41.5% + 44px);top:478px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;">
         ${metrics.map((item) => `
-          <div style="padding:18px 18px 16px;border-radius:22px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.10);min-height:104px;box-sizing:border-box;">
+          <div style="padding:22px 20px 18px;border-radius:22px;background:#FFFFFF;border:1px solid rgba(254,92,43,0.20);min-height:124px;box-sizing:border-box;">
             <div style="display:flex;align-items:center;gap:10px;">
-              <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);flex:0 0 auto;">${metricIconSvg(item.key, BRAND_ORANGE, 17)}</span>
-              <span style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.52);">${escapeHtml(item.label)}</span>
+              <span style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${metricIconSvg(item.key, BRAND_ORANGE, 17)}</span>
+              <span style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(74,52,37,0.72);">${escapeHtml(item.label)}</span>
             </div>
-            <div style="margin-top:14px;font-family:Poppins, system-ui, sans-serif;font-size:27px;line-height:1.16;font-weight:700;color:#fff;word-break:break-word;">${escapeHtml(item.value)}</div>
+            <div style="margin-top:14px;font-family:Poppins, system-ui, sans-serif;font-size:30px;line-height:1.16;font-weight:700;color:#1A130C;word-break:break-word;">${escapeHtml(item.value)}</div>
           </div>
         `).join('')}
       </div>
 
-      <div style="position:absolute;left:40px;right:calc(41.5% + 40px);bottom:34px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.10);display:grid;grid-template-columns:1fr 1fr auto;gap:18px;align-items:end;">
+      <div style="position:absolute;left:44px;right:calc(41.5% + 44px);bottom:42px;padding-top:24px;border-top:1px solid rgba(26,19,12,0.16);display:grid;grid-template-columns:1fr 1fr auto;gap:18px;align-items:end;">
         <div>
-          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.46);">Veiculação</div>
-          <div style="margin-top:8px;font-size:20px;line-height:1.25;color:#fff;">${escapeHtml(veiculacao)}</div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(74,52,37,0.62);">Veiculação</div>
+          <div style="margin-top:8px;font-size:22px;line-height:1.25;color:#1A130C;">${escapeHtml(veiculacao)}</div>
         </div>
         <div>
-          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.46);">Horário</div>
-          <div style="margin-top:8px;font-size:20px;line-height:1.25;color:#fff;">${escapeHtml(horario)}</div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(74,52,37,0.62);">Horário</div>
+          <div style="margin-top:8px;font-size:22px;line-height:1.25;color:#1A130C;">${escapeHtml(horario)}</div>
         </div>
         <div style="text-align:right;min-width:260px;">
-          <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.46);">${midiaKitDetailIcon('money', BRAND_ORANGE, 15)} Valor mensal</div>
-          <div style="margin-top:10px;font-family:Poppins, system-ui, sans-serif;font-size:48px;line-height:0.96;font-weight:700;color:#fff;white-space:nowrap;">${escapeHtml(formatMoney(ponto.preco))}</div>
+          <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(74,52,37,0.62);">${midiaKitDetailIcon('money', BRAND_ORANGE, 15)} Valor mensal</div>
+          <div style="margin-top:10px;font-family:Poppins, system-ui, sans-serif;font-size:56px;line-height:0.96;font-weight:700;color:${BRAND_ORANGE};white-space:nowrap;">${escapeHtml(formatMoney(ponto.preco))}</div>
         </div>
       </div>
     </div>
-  `, '#ECE7E0');
+  `, '#F3EEE6');
 }
 
 function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, pricingSummary, highlights, strategicTopics, strategicSubtitle, simulationSummary, segmento, assets }) {
