@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Check,
@@ -18,7 +18,7 @@ import {
   OBJETIVOS,
   SEGMENTOS
 } from '../lib/strategy';
-import { buildProposalImagePrompt, buildProposalPricing } from '../lib/proposal';
+import { buildProposalImagePromptsByFormat, buildProposalPricing } from '../lib/proposal';
 import { generateProposalPdf } from '../lib/midiaKitPdf';
 import {
   defaultDisplaySettings,
@@ -82,6 +82,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     rankedPoints: [],
     error: ''
   });
+  const promptTextareaRef = useRef(null);
 
   const availableCities = useMemo(() => {
     return Array.from(new Set(sourcePoints.map((point) => point.cidade).filter(Boolean)))
@@ -300,21 +301,40 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     segmento: form.segmento
   }), [proposalSourcePoints, activeCities, form.publicos, form.objetivo, form.segmento]);
 
-  const imagePrompt = useMemo(() => {
-    const arteWidth = proposalSourcePoints.length ? proposalSourcePoints[0].arte_largura || '1920' : '1920';
-    const arteHeight = proposalSourcePoints.length ? proposalSourcePoints[0].arte_altura || '1080' : '1080';
-    
-    return buildProposalImagePrompt({
+  const imagePromptGroups = useMemo(() => {
+    return buildProposalImagePromptsByFormat({
       clientName: form.clientName,
       selectedCities: activeCities,
       selectedPublicos: form.publicos,
       objetivo: form.objetivo,
       segmento: getSegmentDisplayName(form.segmento),
-      arteWidth,
-      arteHeight,
       points: proposalSourcePoints
     });
   }, [form.clientName, activeCities, form.publicos, form.objetivo, form.segmento, proposalSourcePoints]);
+
+  const imagePrompt = useMemo(() => {
+    if (!imagePromptGroups.length) return '';
+    if (imagePromptGroups.length === 1) return imagePromptGroups[0].prompt;
+
+    const header = `A campanha possui ${imagePromptGroups.length} formatos de tela. Gere uma arte por formato.`;
+    const blocks = imagePromptGroups.map((group, index) => {
+      const pointNames = group.points
+        .map((point) => point.nome)
+        .filter(Boolean)
+        .slice(0, 4)
+        .join(', ');
+      const morePoints = group.points.length > 4 ? ` (+${group.points.length - 4})` : '';
+      const ratioLabel = group.aspectRatio ? ` | ${group.aspectRatio}` : '';
+
+      return [
+        `Prompt ${index + 1} - ${group.width}x${group.height}${ratioLabel}`,
+        pointNames ? `Pontos: ${pointNames}${morePoints}` : null,
+        group.prompt
+      ].filter(Boolean).join('\n');
+    });
+
+    return [header, ...blocks].join('\n\n');
+  }, [imagePromptGroups]);
 
   const proposalPoints = useMemo(() => {
     return pricing.points.map((point) => {
@@ -388,9 +408,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       setPromptCopied(true);
       window.setTimeout(() => setPromptCopied(false), 1800);
     } catch {
-      // Fallback: seleciona o texto no textarea
-      const textarea = document.querySelector('textarea[value="' + imagePrompt.replace(/"/g, '\\"') + '"]');
+      // Fallback: seleciona o texto no textarea visível
+      const textarea = promptTextareaRef.current;
       if (textarea) {
+        textarea.focus();
         textarea.select();
         document.execCommand('copy');
         setPromptCopied(true);
@@ -686,7 +707,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Prompt da arte da campanha</h3>
-                      <p className="text-sm text-brand-gray-400">O prompt agora nasce neste modal e usa o nome do cliente para gerar a arte que entra na simulação.</p>
+                      <p className="text-sm text-brand-gray-400">O prompt agora nasce neste modal e usa o nome do cliente para gerar a arte que entra na simulação. Quando houver formatos diferentes, o sistema separa um prompt por formato.</p>
                     </div>
                     <button type="button" onClick={handleCopyPrompt} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.03] px-3 py-2 text-sm text-white hover:bg-white/[0.08]">
                       {promptCopied ? <Check size={15} /> : <Copy size={15} />}
@@ -694,7 +715,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     </button>
                   </div>
 
-                  <textarea value={imagePrompt} readOnly rows={6} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-brand-gray-200 outline-none" />
+                  <textarea ref={promptTextareaRef} value={imagePrompt} readOnly rows={Math.min(18, Math.max(6, imagePromptGroups.length * 7))} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-brand-gray-200 outline-none" />
                 </div>
 
                 <div className="space-y-3">
