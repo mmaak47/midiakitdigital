@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { LayoutGrid, Map, SlidersHorizontal } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
@@ -20,6 +20,10 @@ import { useFavorites } from '../context/FavoritesContext';
 import { calculateCampaignScore, calculateCoverageLevel, campaignTotals } from '../lib/strategy';
 
 export default function Explorer() {
+  const mainRef = useRef(null);
+  const resultsAnchorRef = useRef(null);
+  const filtersInitializedRef = useRef(false);
+  const pendingResultsScrollRef = useRef(false);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('intermidia_theme') !== 'light';
@@ -76,6 +80,34 @@ export default function Explorer() {
     localStorage.setItem('intermidia_theme', isDark ? 'dark' : 'light');
   }, [isDark]);
 
+  useEffect(() => {
+    if (!filtersInitializedRef.current) {
+      filtersInitializedRef.current = true;
+      return;
+    }
+
+    pendingResultsScrollRef.current = true;
+  }, [filters]);
+
+  useEffect(() => {
+    if (loading || !pendingResultsScrollRef.current) return;
+
+    const mainElement = mainRef.current;
+    const anchorElement = resultsAnchorRef.current;
+    if (!mainElement || !anchorElement) return;
+
+    const mainRect = mainElement.getBoundingClientRect();
+    const anchorRect = anchorElement.getBoundingClientRect();
+    const nextTop = anchorRect.top - mainRect.top + mainElement.scrollTop - 12;
+
+    mainElement.scrollTo({
+      top: Math.max(0, nextTop),
+      behavior: 'smooth'
+    });
+
+    pendingResultsScrollRef.current = false;
+  }, [loading, pontos.length]);
+
   const handleSelectPoint = (ponto) => {
     registerView(ponto);
     setSelected(ponto);
@@ -98,7 +130,7 @@ export default function Explorer() {
         />
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto pb-28">
+        <main ref={mainRef} className="flex-1 overflow-y-auto pb-28">
           <div className="px-6 pt-4 space-y-4">
             <StrategicPlanner
               pontos={allPontos}
@@ -120,7 +152,7 @@ export default function Explorer() {
           </div>
 
           {/* Toolbar */}
-          <div className={`sticky top-0 z-10 backdrop-blur-xl border-b px-6 py-3 flex items-center justify-between ${isDark ? 'bg-black/80 border-white/5' : 'bg-white/90 border-neutral-200 shadow-sm'}`}>
+          <div ref={resultsAnchorRef} className={`sticky top-0 z-10 backdrop-blur-xl border-b px-6 py-3 flex items-center justify-between ${isDark ? 'bg-black/80 border-white/5' : 'bg-white/90 border-neutral-200 shadow-sm'}`}>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setMobileFilters(true)}
