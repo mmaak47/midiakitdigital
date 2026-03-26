@@ -467,12 +467,11 @@ export default function Landing() {
 
       <section className="pt-20 pb-10 border-b border-white/5 relative overflow-visible">
         <div
-          className="absolute inset-0 opacity-28 bg-cover bg-center"
+          className="absolute inset-0 opacity-35 bg-cover bg-center"
           style={{ backgroundImage: "url('/city-bg.jpg')" }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/88 via-black/75 to-[#050505]" />
-        <div className="absolute -top-16 left-6 w-80 h-80 bg-[#FE5C2B]/28 rounded-full blur-[110px]" />
-        <div className="absolute top-0 right-[12%] w-52 h-52 bg-[#FE5C2B]/12 rounded-full blur-[90px]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/90 via-black/80 to-[#050505]" />
+        <div className="absolute -top-16 left-10 w-64 h-64 bg-brand-orange/20 rounded-full blur-[90px]" />
 
         <div className="relative max-w-7xl mx-auto px-6">
           <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0}>
