@@ -1,4 +1,66 @@
 const API_BASE = '/api';
+const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+function getAdminToken() {
+  if (typeof window === 'undefined') return null;
+  const raw = window.sessionStorage.getItem('admin_token');
+  return raw ? String(raw).trim() : null;
+}
+
+function isAdminContext() {
+  if (typeof window === 'undefined') return true;
+  return window.location.pathname.startsWith('/comercial');
+}
+
+function isAdminOrSensitivePath(pathname) {
+  return pathname.startsWith('/admin')
+    || pathname.startsWith('/propostas')
+    || pathname.startsWith('/pontos')
+    || pathname === '/entorno/analyze'
+    || pathname === '/entorno/client-address';
+}
+
+function ensureRequestPolicy(pathname, method) {
+  const normalizedMethod = String(method || 'GET').toUpperCase();
+  if (pathname === '/auth/login') return;
+
+  const token = getAdminToken();
+  const requiresToken = isAdminOrSensitivePath(pathname) || MUTATION_METHODS.has(normalizedMethod);
+
+  if (requiresToken && !token) {
+    throw new Error('Operação bloqueada no frontend: autenticação obrigatória.');
+  }
+
+  if (requiresToken && !isAdminContext()) {
+    throw new Error('Operação bloqueada no frontend fora do contexto administrativo.');
+  }
+}
+
+async function parseErrorResponse(res) {
+  const data = await res.json().catch(() => ({}));
+  return data?.error || data?.message || null;
+}
+
+async function apiRequest(pathname, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+  ensureRequestPolicy(pathname, method);
+
+  const token = getAdminToken();
+  const headers = { ...(options.headers || {}) };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const shouldSetJson = options.body && !(options.body instanceof FormData);
+  if (shouldSetJson && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  return fetch(`${API_BASE}${pathname}`, {
+    ...options,
+    method,
+    headers,
+    credentials: 'same-origin'
+  });
+}
 
 function appendParamValues(params, key, value) {
   if (Array.isArray(value)) {
@@ -19,88 +81,85 @@ export async function fetchPontos(filters = {}) {
   appendParamValues(params, 'publico', filters.publico);
   if (filters.search) params.set('search', filters.search);
   const query = params.toString();
-  const res = await fetch(`${API_BASE}/pontos${query ? `?${query}` : ''}`);
+  const res = await apiRequest(`/pontos${query ? `?${query}` : ''}`);
   if (!res.ok) throw new Error('Erro ao carregar pontos');
   return res.json();
 }
 
 export async function fetchPonto(id) {
-  const res = await fetch(`${API_BASE}/pontos/${id}`);
+  const res = await apiRequest(`/pontos/${id}`);
   if (!res.ok) throw new Error('Ponto não encontrado');
   return res.json();
 }
 
 export async function fetchStats() {
-  const res = await fetch(`${API_BASE}/stats`);
+  const res = await apiRequest('/stats');
   if (!res.ok) throw new Error('Erro ao carregar estatísticas');
   return res.json();
 }
 
 export async function fetchPublicos() {
-  const res = await fetch(`${API_BASE}/publicos`);
+  const res = await apiRequest('/publicos');
   if (!res.ok) throw new Error('Erro ao carregar públicos');
   return res.json();
 }
 
 export async function login(username, password) {
-  const res = await fetch(`${API_BASE}/auth/login`, {
+  const res = await apiRequest('/auth/login', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
   });
   if (!res.ok) {
-    const data = await res.json();
-    throw new Error(data.error || 'Erro ao fazer login');
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao fazer login');
   }
   return res.json();
 }
 
 export async function fetchAdminPontos() {
-  const res = await fetch(`${API_BASE}/admin/pontos`);
+  const res = await apiRequest('/admin/pontos');
   if (!res.ok) throw new Error('Erro ao carregar pontos');
   return res.json();
 }
 
 export async function fetchAdminUsers() {
-  const res = await fetch(`${API_BASE}/admin/users`);
+  const res = await apiRequest('/admin/users');
   if (!res.ok) throw new Error('Erro ao carregar usuários');
   return res.json();
 }
 
 export async function createAdminUser({ firstName, lastName, whatsapp, email, password, role }) {
-  const res = await fetch(`${API_BASE}/admin/users`, {
+  const res = await apiRequest('/admin/users', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ firstName, lastName, whatsapp, email, password, role })
   });
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Erro ao criar usuário');
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao criar usuário');
   }
   return res.json();
 }
 
 export async function deleteAdminUser(id) {
-  const res = await fetch(`${API_BASE}/admin/users/${id}`, {
+  const res = await apiRequest(`/admin/users/${id}`, {
     method: 'DELETE'
   });
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Erro ao remover usuário');
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao remover usuário');
   }
   return res.json();
 }
 
 export async function fetchAdminPdfLayout() {
-  const res = await fetch(`${API_BASE}/admin/pdf-layout`);
+  const res = await apiRequest('/admin/pdf-layout');
   if (!res.ok) throw new Error('Erro ao carregar layout PDF');
   return res.json();
 }
 
 export async function saveAdminPdfLayout(overrides) {
-  const res = await fetch(`${API_BASE}/admin/pdf-layout`, {
+  const res = await apiRequest('/admin/pdf-layout', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ overrides })
   });
   if (!res.ok) throw new Error('Erro ao salvar layout PDF');
@@ -108,7 +167,7 @@ export async function saveAdminPdfLayout(overrides) {
 }
 
 export async function resetAdminPdfLayout() {
-  const res = await fetch(`${API_BASE}/admin/pdf-layout`, {
+  const res = await apiRequest('/admin/pdf-layout', {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error('Erro ao resetar layout PDF');
@@ -116,7 +175,7 @@ export async function resetAdminPdfLayout() {
 }
 
 export async function createPonto(formData) {
-  const res = await fetch(`${API_BASE}/pontos`, {
+  const res = await apiRequest('/pontos', {
     method: 'POST',
     body: formData
   });
@@ -125,7 +184,7 @@ export async function createPonto(formData) {
 }
 
 export async function updatePonto(id, formData) {
-  const res = await fetch(`${API_BASE}/pontos/${id}`, {
+  const res = await apiRequest(`/pontos/${id}`, {
     method: 'PUT',
     body: formData
   });
@@ -134,7 +193,7 @@ export async function updatePonto(id, formData) {
 }
 
 export async function deletePonto(id) {
-  const res = await fetch(`${API_BASE}/pontos/${id}`, {
+  const res = await apiRequest(`/pontos/${id}`, {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error('Erro ao deletar ponto');
@@ -148,15 +207,14 @@ export async function fetchEntornoScores({ segmento, raio = 800, cidade, force =
   appendParamValues(params, 'cidade', cidade && cidade !== 'Todas' ? cidade : []);
   if (force) params.set('force', 'true');
 
-  const res = await fetch(`${API_BASE}/entorno/scores?${params.toString()}`);
+  const res = await apiRequest(`/entorno/scores?${params.toString()}`);
   if (!res.ok) throw new Error('Erro ao carregar scores de entorno');
   return res.json();
 }
 
 export async function requestEntornoAnalysis({ segmento, raio = 800, cidade }) {
-  const res = await fetch(`${API_BASE}/entorno/analyze`, {
+  const res = await apiRequest('/entorno/analyze', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ segmento, raio, cidade })
   });
   if (!res.ok) throw new Error('Erro ao enfileirar analise de entorno');
@@ -164,7 +222,7 @@ export async function requestEntornoAnalysis({ segmento, raio = 800, cidade }) {
 }
 
 export async function fetchEntornoJobStatus(jobId) {
-  const res = await fetch(`${API_BASE}/entorno/jobs/${jobId}`);
+  const res = await apiRequest(`/entorno/jobs/${jobId}`);
   if (!res.ok) throw new Error('Erro ao consultar status da analise de entorno');
   return res.json();
 }
@@ -174,7 +232,7 @@ export async function fetchEntornoCategories(segmento) {
   if (segmento) params.set('segmento', segmento);
 
   const query = params.toString();
-  const res = await fetch(`${API_BASE}/entorno/categories${query ? `?${query}` : ''}`);
+  const res = await apiRequest(`/entorno/categories${query ? `?${query}` : ''}`);
   if (!res.ok) throw new Error('Erro ao carregar categorias de entorno');
   return res.json();
 }
@@ -186,21 +244,20 @@ export async function fetchEntornoJobs({ limit = 20, status, segmento, cidade } 
   if (segmento) params.set('segmento', segmento);
   appendParamValues(params, 'cidade', cidade && cidade !== 'Todas' ? cidade : []);
 
-  const res = await fetch(`${API_BASE}/entorno/jobs?${params.toString()}`);
+  const res = await apiRequest(`/entorno/jobs?${params.toString()}`);
   if (!res.ok) throw new Error('Erro ao carregar jobs de entorno');
   return res.json();
 }
 
 export async function fetchClientAddressAnalysis({ address, pointIds = [], cidade = [] }) {
-  const res = await fetch(`${API_BASE}/entorno/client-address`, {
+  const res = await apiRequest('/entorno/client-address', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ address, pointIds, cidade })
   });
 
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Erro ao analisar endereço do cliente');
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao analisar endereço do cliente');
   }
 
   return res.json();
@@ -209,20 +266,19 @@ export async function fetchClientAddressAnalysis({ address, pointIds = [], cidad
 // ============== ADMIN SETTINGS ==============
 
 export async function fetchAdminSettings() {
-  const res = await fetch(`${API_BASE}/admin/settings`);
+  const res = await apiRequest('/admin/settings');
   if (!res.ok) throw new Error('Erro ao carregar configurações');
   return res.json();
 }
 
 export async function updateAdminSettings(settings) {
-  const res = await fetch(`${API_BASE}/admin/settings`, {
+  const res = await apiRequest('/admin/settings', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(settings)
   });
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Erro ao atualizar configurações');
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao atualizar configurações');
   }
   return res.json();
 }
@@ -235,45 +291,43 @@ export async function fetchPropostas(filters = {}) {
   if (filters.status) params.set('status', filters.status);
   if (filters.role) params.set('role', filters.role);
 
-  const res = await fetch(`${API_BASE}/propostas?${params.toString()}`);
+  const res = await apiRequest(`/propostas?${params.toString()}`);
   if (!res.ok) throw new Error('Erro ao carregar propostas');
   return res.json();
 }
 
 export async function fetchProposta(id) {
-  const res = await fetch(`${API_BASE}/propostas/${id}`);
+  const res = await apiRequest(`/propostas/${id}`);
   if (!res.ok) throw new Error('Proposta não encontrada');
   return res.json();
 }
 
 export async function createProposta(data) {
-  const res = await fetch(`${API_BASE}/propostas`, {
+  const res = await apiRequest('/propostas', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   });
   if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(error.error || 'Erro ao criar proposta');
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao criar proposta');
   }
   return res.json();
 }
 
 export async function updateProposta(id, data) {
-  const res = await fetch(`${API_BASE}/propostas/${id}`, {
+  const res = await apiRequest(`/propostas/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   });
   if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(error.error || 'Erro ao atualizar proposta');
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao atualizar proposta');
   }
   return res.json();
 }
 
 export async function deleteProposta(id) {
-  const res = await fetch(`${API_BASE}/propostas/${id}`, {
+  const res = await apiRequest(`/propostas/${id}`, {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error('Erro ao deletar proposta');
@@ -281,27 +335,25 @@ export async function deleteProposta(id) {
 }
 
 export async function aprovarProposta(id, { gerente_id, motivo }) {
-  const res = await fetch(`${API_BASE}/propostas/${id}/aprovar`, {
+  const res = await apiRequest(`/propostas/${id}/aprovar`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ gerente_id, motivo })
   });
   if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(error.error || 'Erro ao aprovar proposta');
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao aprovar proposta');
   }
   return res.json();
 }
 
 export async function rejeitarProposta(id, { gerente_id, motivo_rejeicao }) {
-  const res = await fetch(`${API_BASE}/propostas/${id}/rejeitar`, {
+  const res = await apiRequest(`/propostas/${id}/rejeitar`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ gerente_id, motivo_rejeicao })
   });
   if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(error.error || 'Erro ao rejeitar proposta');
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao rejeitar proposta');
   }
   return res.json();
 }
@@ -309,14 +361,13 @@ export async function rejeitarProposta(id, { gerente_id, motivo_rejeicao }) {
 // ============== ADMIN USERS WITH ROLES ==============
 
 export async function updateAdminUserRole(id, role) {
-  const res = await fetch(`${API_BASE}/admin/users/${id}`, {
+  const res = await apiRequest(`/admin/users/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ role })
   });
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Erro ao atualizar role do usuário');
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao atualizar role do usuário');
   }
   return res.json();
 }

@@ -1,3 +1,5 @@
+import { fetchAdminPdfLayout } from './api';
+
 export const PDF_LAYOUT = {
   midiaKit: {
     cover: {
@@ -251,11 +253,7 @@ export function getPdfLayoutConfig() {
 }
 
 export async function fetchPdfLayoutOverridesFromServer() {
-  const res = await fetch('/api/admin/pdf-layout');
-  if (!res.ok) {
-    throw new Error('Erro ao carregar layout PDF persistido');
-  }
-  return res.json();
+  return fetchAdminPdfLayout();
 }
 
 export async function loadPdfLayoutConfig() {
