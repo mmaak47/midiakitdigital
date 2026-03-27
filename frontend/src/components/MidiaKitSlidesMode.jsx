@@ -291,6 +291,10 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
   const { point, infoOnLeft } = slide;
   const img = getPrimaryPointMediaKitImage(point);
   const focusCoords = getFocusCoords(point);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const focusX = Number.isFinite(Number(point?.imagem_foco_x)) ? Number(point.imagem_foco_x) : 50;
+  const focusY = Number.isFinite(Number(point?.imagem_foco_y)) ? Number(point.imagem_foco_y) : 50;
+
   return (
     <motion.div
       key={slide.key}
@@ -302,7 +306,12 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
     >
       <div className="absolute inset-0 rounded-2xl overflow-hidden border border-white/10 bg-black/40">
         {img ? (
-          <img src={img} alt={point.nome} className="absolute inset-0 h-full w-full object-cover" />
+          <img
+            src={img}
+            alt={point.nome}
+            className="absolute inset-0 h-full w-full object-cover scale-[1.06] blur-sm opacity-35"
+            style={{ objectPosition: `${focusX}% ${focusY}%` }}
+          />
         ) : (
           <div className="absolute inset-0 bg-black/70" />
         )}
@@ -314,6 +323,29 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
           }`}
         />
       </div>
+
+      {img ? (
+        <button
+          type="button"
+          onClick={() => setShowImageModal(true)}
+          className={`absolute inset-y-4 z-[12] rounded-2xl border border-white/20 bg-black/30 backdrop-blur-sm p-3 shadow-[0_14px_42px_rgba(0,0,0,0.38)] transition-all hover:bg-black/40 hover:border-white/35 ${
+            infoOnLeft ? 'left-[31%] right-3' : 'left-3 right-[31%]'
+          }`}
+          aria-label="Ampliar imagem do ponto"
+        >
+          <div className="h-full w-full rounded-xl bg-black/20 flex items-center justify-center overflow-hidden">
+            <img
+              src={img}
+              alt={point.nome}
+              className="max-h-full max-w-full object-contain"
+              style={{ objectPosition: `${focusX}% ${focusY}%` }}
+            />
+          </div>
+          <div className="absolute right-5 top-5 rounded-full bg-black/60 px-3 py-1 text-[11px] font-medium text-white/90">
+            Ver foto em tela cheia
+          </div>
+        </button>
+      ) : null}
 
       <div
         className={`absolute bottom-3 z-20 h-[180px] w-[280px] rounded-xl border border-white/20 bg-black/75 overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.45)] ${
@@ -383,6 +415,42 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showImageModal && img ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 bg-black/90 backdrop-blur-md p-6 flex items-center justify-center"
+            onClick={() => setShowImageModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ duration: 0.2 }}
+              className="relative max-h-[90%] max-w-[94%] rounded-2xl border border-white/20 bg-black/55 p-3"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setShowImageModal(false)}
+                className="absolute -top-3 -right-3 h-9 w-9 rounded-full border border-white/30 bg-black/75 flex items-center justify-center text-white/90 hover:text-white"
+                aria-label="Fechar imagem"
+              >
+                <X size={16} />
+              </button>
+              <img
+                src={img}
+                alt={point.nome}
+                className="max-h-[82vh] max-w-[88vw] object-contain rounded-xl"
+                style={{ objectPosition: `${focusX}% ${focusY}%` }}
+              />
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </motion.div>
   );
 }
