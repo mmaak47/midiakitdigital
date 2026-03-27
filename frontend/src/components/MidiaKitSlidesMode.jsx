@@ -18,20 +18,25 @@ function getFocusCoords(point) {
   return { lat, lng };
 }
 
-function getUfSigla(point) {
-  const uf = (point?.uf || point?.estado_sigla || '').toString().trim();
-  if (uf) return uf.toUpperCase();
+function formatTipoLabel(tipo, count = 1) {
+  const normalized = String(tipo || '').trim();
+  if (!normalized) return 'Formato não informado';
 
-  const estado = (point?.estado || '').toString().trim().toLowerCase();
-  const map = {
-    parana: 'PR',
-    'santa catarina': 'SC',
-    'sao paulo': 'SP',
-    'rio de janeiro': 'RJ',
-    'rio grande do sul': 'RS',
-    'minas gerais': 'MG'
+  const labels = {
+    Elevador: { one: 'Elevador', many: 'Elevadores' },
+    'Tela Indoor': { one: 'Tela Indoor', many: 'Telas Indoor' },
+    'Painel LED': { one: 'Painel de Led', many: 'Painéis de Led' },
+    Backlight: { one: 'Backlight', many: 'Backlights' },
+    Frontlight: { one: 'Frontlight', many: 'Frontlights' },
+    'Totem Digital': { one: 'Totem Digital', many: 'Totens Digitais' },
+    'Circuito Muffato': { one: 'Circuito Muffato', many: 'Circuitos Muffato' },
+    'LED Posto': { one: 'LED Posto', many: 'LEDs de Posto' },
+    'Video Wall': { one: 'Video Wall', many: 'Video Walls' },
   };
-  return map[estado] || '--';
+
+  const entry = labels[normalized];
+  if (!entry) return count > 1 ? `${normalized}s` : normalized;
+  return count > 1 ? entry.many : entry.one;
 }
 
 // ─── Lobby: seleção de pontos ────────────────
@@ -511,14 +516,27 @@ export default function MidiaKitSlidesMode({
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
 
+  const countsByTipo = useMemo(() => {
+    const map = new Map();
+    for (const p of selectedPoints) {
+      const key = String(p?.tipo || '').trim();
+      if (!key) continue;
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return map;
+  }, [selectedPoints]);
+
   if (!open) return null;
 
   const active = slides[index] || null;
   const activePoint = active?.type === 'point' ? active.point : null;
-  const activeUf = activePoint ? getUfSigla(activePoint) : '--';
+  const activeTipoCount = activePoint ? (countsByTipo.get(String(activePoint.tipo || '').trim()) || 1) : 1;
+  const activeTipoLabel = activePoint
+    ? formatTipoLabel(activePoint.tipo, activeTipoCount)
+    : formatTipoLabel(active?.tipo, active?.count || 1);
   const topViewingText = activePoint
-    ? `Você está visualizando ${activePoint.tipo || 'Formato não informado'} de ${activePoint.cidade || 'Cidade não informada'}/${activeUf}`
-    : `Você está visualizando o formato ${active?.tipo || 'não informado'}`;
+    ? `Você está visualizando ${activeTipoLabel} de ${activePoint.cidade || 'Cidade não informada'}`
+    : `Você está visualizando o formato ${activeTipoLabel}`;
 
   const selectionLabel = selectedPracas.length
     ? selectedPracas.length === 1
@@ -562,7 +580,7 @@ export default function MidiaKitSlidesMode({
             <div className="flex items-center justify-between gap-3 mb-3">
               <div className="flex-1 rounded-xl border border-white/15 bg-black/35 px-3 py-2 md:px-4 md:py-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-brand-orange">Apresentação ativa</div>
-                <div className="text-xs md:text-sm text-white/85">{topViewingText}</div>
+                <div className="text-sm md:text-base font-extrabold tracking-tight text-white">{topViewingText}</div>
                 <div className="mt-1 grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-0.5 text-[11px] text-brand-gray-300">
                   <span>Pontos: <strong className="text-white">{fmtInt(totals.quantidade)}</strong></span>
                   <span>Telas: <strong className="text-white">{fmtInt(totals.telasTotal)}</strong></span>
