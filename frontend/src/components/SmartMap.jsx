@@ -47,6 +47,18 @@ function ViewportController({ points, focusCoords }) {
   return null;
 }
 
+function AttributionPrefixCleaner() {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map?.attributionControl) return;
+    // Remove only the default "Leaflet" prefix and keep provider credits.
+    map.attributionControl.setPrefix('');
+  }, [map]);
+
+  return null;
+}
+
 export default function SmartMap({ pontos = [], selectedId, onSelect, onOpenDetails, isDark = true, focusCoords = null }) {
   const [hoveredZone, setHoveredZone] = useState(null);
 
@@ -55,12 +67,8 @@ export default function SmartMap({ pontos = [], selectedId, onSelect, onOpenDeta
 
   return (
     <div className={`smart-map h-full w-full rounded-2xl overflow-hidden border relative ${isDark ? 'smart-map-dark border-white/10' : 'smart-map-light border-neutral-200'}`}>
-      <MapContainer
-        center={center}
-        zoom={11}
-        className="h-full w-full"
-        whenCreated={(map) => map.attributionControl.setPrefix(false)}
-      >
+      <MapContainer center={center} zoom={11} className="h-full w-full">
+        <AttributionPrefixCleaner />
         <ViewportController points={valid} focusCoords={focusCoords} />
         <TileLayer
           url={isDark ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'}
