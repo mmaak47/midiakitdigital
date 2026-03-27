@@ -115,6 +115,19 @@ function validateCoordinates(req, res, next) {
   }
 }
 
+function normalizeCoordinateForDb(value, min, max, fallback = null) {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return fallback;
+  }
+
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < min || numeric > max) {
+    throw new Error('Coordenada inválida');
+  }
+
+  return Number(numeric.toFixed(7));
+}
+
 function extensionFromMime(mimeType) {
   switch (mimeType) {
     case 'image/jpeg':
@@ -399,6 +412,8 @@ app.post('/api/pontos', upload.fields([
 ]), validateCoordinates, (req, res) => {
   try {
     const data = req.body;
+    const latDb = normalizeCoordinateForDb(data.lat, -90, 90, null);
+    const lngDb = normalizeCoordinateForDb(data.lng, -180, 180, null);
     const imagem = pickUploadedPath(req, 'imagem') || data.imagem || null;
     const imagem2 = pickUploadedPath(req, 'imagem2') || data.imagem2 || null;
     const simulacaoArte = pickUploadedPath(req, 'simulacao_arte') || data.simulacao_arte || null;
@@ -426,7 +441,7 @@ app.post('/api/pontos', upload.fields([
 
     const result = stmt.run(
       data.nome, data.cidade, tipo, data.endereco,
-      parseFloat(data.lat) || 0, parseFloat(data.lng) || 0,
+      latDb, lngDb,
       data.horario, parseInt(data.fluxo) || 0, parseInt(data.insercoes) || 0,
       data.tempo || '15s', data.loop || '3 min', data.veiculacao || 'Vídeo sem áudio',
       data.publico || 'A/B', parseInt(data.telas) || 1, parseFloat(data.preco) || 0,
@@ -453,6 +468,9 @@ app.put('/api/pontos/:id', upload.fields([
     const data = req.body;
     const existing = db.prepare('SELECT * FROM pontos WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Ponto não encontrado' });
+
+    const latDb = normalizeCoordinateForDb(data.lat, -90, 90, Number(existing.lat));
+    const lngDb = normalizeCoordinateForDb(data.lng, -180, 180, Number(existing.lng));
 
     const imagem = pickUploadedPath(req, 'imagem') || data.imagem || existing.imagem;
     const imagem2 = pickUploadedPath(req, 'imagem2') || data.imagem2 || existing.imagem2 || null;
@@ -495,7 +513,7 @@ app.put('/api/pontos/:id', upload.fields([
     stmt.run(
       data.nome || existing.nome, data.cidade || existing.cidade, tipo,
       data.endereco || existing.endereco,
-      parseFloat(data.lat) || existing.lat, parseFloat(data.lng) || existing.lng,
+      latDb, lngDb,
       data.horario || existing.horario, parseInt(data.fluxo) || existing.fluxo,
       parseInt(data.insercoes) || existing.insercoes,
       data.tempo || existing.tempo, data.loop || existing.loop,

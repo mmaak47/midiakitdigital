@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { LayoutGrid, Map, SlidersHorizontal } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
@@ -18,6 +18,7 @@ import ImpactSimulator from '../components/ImpactSimulator';
 import { fetchPontos } from '../lib/api';
 import { useFavorites } from '../context/FavoritesContext';
 import { calculateCampaignScore, calculateCoverageLevel, campaignTotals } from '../lib/strategy';
+import { computeCityBoundingBoxes } from '../lib/geo';
 
 export default function Explorer() {
   const mainRef = useRef(null);
@@ -53,6 +54,7 @@ export default function Explorer() {
 
   const publicos = Array.from(new Set(allPontos.map((p) => p.publico).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const cidades = Array.from(new Set(allPontos.map((p) => p.cidade).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const cityBounds = useMemo(() => computeCityBoundingBoxes(allPontos), [allPontos]);
 
   const loadPontos = useCallback(async () => {
     setLoading(true);
@@ -268,6 +270,8 @@ export default function Explorer() {
                 onSelect={handleSelectPoint}
                 onOpenDetails={handleSelectPoint}
                 isDark={isDark}
+                selectedCidades={filters.cidade}
+                cityBounds={cityBounds}
               />
             </motion.div>
           </motion.div>
