@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, PlusCircle, Sparkles, Target } from 'lucide-react';
 import CustomSelect from './CustomSelect';
-import { SEGMENTOS, OBJETIVOS, suggestIdealPlan } from '../lib/strategy';
+import {
+  SEGMENTOS,
+  OBJETIVOS,
+  getAudienceTagCatalog,
+  getAvailabilityPresetOptions,
+  suggestIdealPlan
+} from '../lib/strategy';
 import { fetchEntornoJobStatus, fetchEntornoScores } from '../lib/api';
 
 const DEFAULT_ENTORNO_RADIUS = 800;
@@ -12,6 +18,8 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
     objetivo: 'reconhecimento de marca',
     cidade: [],
     publico: [],
+    audienceTags: [],
+    availabilityPreference: 'all',
     investimentoMensal: 12000
   });
   const [entorno, setEntorno] = useState({
@@ -94,13 +102,19 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
 
   const suggestion = useMemo(() => suggestIdealPlan({
     pontos,
+    cityInventory: pontos,
     cidade: form.cidade,
     publico: form.publico,
+    audienceTags: form.audienceTags,
+    availabilityPreference: form.availabilityPreference,
     objetivo: form.objetivo,
     segmento: form.segmento,
     investimentoMensal: form.investimentoMensal,
     entornoByPoint: entorno.scoresByPoint
   }), [pontos, form, entorno.scoresByPoint]);
+
+  const audienceTagOptions = useMemo(() => getAudienceTagCatalog(pontos), [pontos]);
+  const availabilityOptions = useMemo(() => getAvailabilityPresetOptions(), []);
 
   const totals = suggestion.totals;
 
@@ -111,11 +125,13 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
         <h2 className="text-sm font-bold uppercase tracking-wider text-white">Sugestão de plano ideal</h2>
       </div>
 
-      <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-4 mb-5">
+      <div className="grid md:grid-cols-2 xl:grid-cols-7 gap-4 mb-5">
         <CustomSelect label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS} />
         <CustomSelect label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} allowCustom customPlaceholder="Digite um objetivo personalizado" />
         <CustomSelect label="Praça" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={cidades} multiple placeholder="Selecionar uma ou mais praças" />
         <CustomSelect label="Público" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={publicos} multiple placeholder="Selecionar um ou mais públicos" />
+        <CustomSelect label="Audience tags" value={form.audienceTags} onChange={(v) => setForm((s) => ({ ...s, audienceTags: v }))} options={audienceTagOptions} multiple placeholder="Selecionar tags de audiência" />
+        <CustomSelect label="Disponibilidade" value={form.availabilityPreference} onChange={(v) => setForm((s) => ({ ...s, availabilityPreference: v }))} options={availabilityOptions} />
         <div>
           <label className="text-[11px] uppercase tracking-wide text-brand-gray-500 font-semibold">Investimento mensal</label>
           <input
@@ -160,11 +176,15 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
               </span>
             ))}
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 text-xs">
             <Metric label="Pontos" value={totals.quantidade} />
             <Metric label="Valor total" value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totals.valorTotal)} />
             <Metric label="Fluxo total" value={new Intl.NumberFormat('pt-BR').format(totals.fluxoTotal)} />
             <Metric label="CPM estimado" value={`R$ ${totals.cpmEstimado.toFixed(2)}`} />
+            <Metric label="Reach efetivo" value={`${suggestion.reachFrequency?.effectiveReachPct?.toFixed?.(1) ?? '0.0'}%`} />
+            <Metric label="Freq média" value={`${suggestion.reachFrequency?.avgFrequency?.toFixed?.(2) ?? '0.00'}x`} />
+            <Metric label="GRPs" value={String(suggestion.reachFrequency?.grps ?? 0)} />
+            <Metric label="Uso de budget" value={`${suggestion.optimizer?.budgetUsagePct ?? 0}%`} />
           </div>
         </div>
 

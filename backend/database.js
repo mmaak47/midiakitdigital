@@ -72,6 +72,8 @@ ensureColumn('pontos', 'arte_largura', 'INTEGER DEFAULT 1920');
 ensureColumn('pontos', 'arte_altura', 'INTEGER DEFAULT 1080');
 ensureColumn('pontos', 'custo_operacional', 'REAL DEFAULT 0');
 ensureColumn('pontos', 'tipo_fluxo', "TEXT DEFAULT 'pessoas'");
+ensureColumn('pontos', 'audience_tags', "TEXT DEFAULT '[]'");
+ensureColumn('pontos', 'availability_calendar', "TEXT DEFAULT '{}'");
 ensureColumn('pontos', 'elevador_categoria', 'TEXT');
 ensureColumn('pontos', 'imagem2', 'TEXT');
 ensureColumn('pontos', 'imagem_foco_x', 'REAL DEFAULT 50');
@@ -167,7 +169,9 @@ db.exec(`
     arte_altura = COALESCE(arte_altura, 1080),
     imagem_foco_x = COALESCE(imagem_foco_x, 50),
     imagem_foco_y = COALESCE(imagem_foco_y, 50),
-    imagem_foco_zoom = COALESCE(imagem_foco_zoom, 100)
+    imagem_foco_zoom = COALESCE(imagem_foco_zoom, 100),
+    audience_tags = COALESCE(audience_tags, '[]'),
+    availability_calendar = COALESCE(availability_calendar, '{}')
 `);
 
 db.exec(`

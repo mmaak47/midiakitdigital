@@ -28,6 +28,42 @@ const SEGMENTO_LABELS = {
   outro: 'Segmento personalizado'
 };
 
+const AUDIENCE_TAG_LABELS = {
+  'classe-a': 'Classe A',
+  'classe-b': 'Classe B',
+  premium: 'Premium',
+  familias: 'Familias',
+  jovens: 'Jovens',
+  executivos: 'Executivos',
+  motoristas: 'Motoristas',
+  shopper: 'Shopper',
+  moradores: 'Moradores',
+  turistas: 'Turistas'
+};
+
+const AVAILABILITY_PRESETS = {
+  all: {
+    label: 'Todos os periodos',
+    days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
+    blocks: ['morning', 'afternoon', 'evening']
+  },
+  comercial: {
+    label: 'Horario comercial',
+    days: ['mon', 'tue', 'wed', 'thu', 'fri'],
+    blocks: ['morning', 'afternoon']
+  },
+  noturno: {
+    label: 'Faixa noturna',
+    days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
+    blocks: ['evening']
+  },
+  fim_semana: {
+    label: 'Finais de semana',
+    days: ['sat', 'sun'],
+    blocks: ['morning', 'afternoon', 'evening']
+  }
+};
+
 export const OBJETIVOS = [
   'reconhecimento de marca',
   'presenca premium',
@@ -95,6 +131,151 @@ function normalizePublicoParts(value) {
     .split('/')
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function normalizeTagKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function parseJsonLike(value, fallbackValue) {
+  if (value === null || value === undefined || value === '') return fallbackValue;
+  if (typeof value === 'object') return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallbackValue;
+  }
+}
+
+function fallbackTagsFromPublico(publico) {
+  const normalized = String(publico || '').toUpperCase();
+  const tags = [];
+
+  if (normalized.includes('A')) tags.push({ key: 'classe-a', label: 'Classe A', weight: 1.1 });
+  if (normalized.includes('B')) tags.push({ key: 'classe-b', label: 'Classe B', weight: 1 });
+
+  return tags;
+}
+
+export function normalizeAudienceTags(value, fallbackPublico = '') {
+  const parsed = parseJsonLike(value, value);
+  const list = Array.isArray(parsed)
+    ? parsed
+    : String(parsed || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const source = list.length ? list : fallbackTagsFromPublico(fallbackPublico);
+  const seen = new Set();
+  const normalized = [];
+
+  source.forEach((item) => {
+    const rawKey = typeof item === 'object' ? (item.key || item.value || item.label) : item;
+    const key = normalizeTagKey(rawKey);
+    if (!key || seen.has(key)) return;
+
+    const fallbackLabel = typeof item === 'object' ? (item.label || item.value || item.key) : item;
+    const label = AUDIENCE_TAG_LABELS[key] || String(fallbackLabel || key)
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+
+    const rawWeight = typeof item === 'object' ? Number(item.weight) : Number.NaN;
+    const weight = Number.isFinite(rawWeight) ? Math.min(2, Math.max(0.4, rawWeight)) : 1;
+
+    normalized.push({ key, label, weight: Number(weight.toFixed(2)) });
+    seen.add(key);
+  });
+
+  return normalized;
+}
+
+function defaultAvailabilityCalendar(horario = '') {
+  const is24h = String(horario || '').toLowerCase().includes('24');
+  return {
+    defaultPct: is24h ? 0.92 : 0.78,
+    dayFactors: {
+      mon: 1,
+      tue: 1,
+      wed: 1,
+      thu: 1,
+      fri: 1,
+      sat: 0.95,
+      sun: 0.9
+    },
+    blockFactors: {
+      morning: 0.95,
+      afternoon: 1,
+      evening: is24h ? 1 : 0.82
+    }
+  };
+}
+
+export function normalizeAvailabilityCalendar(value, horarioFallback = '') {
+  const base = defaultAvailabilityCalendar(horarioFallback);
+  const parsed = parseJsonLike(value, {});
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return base;
+  }
+
+  const next = {
+    defaultPct: Number.isFinite(Number(parsed.defaultPct))
+      ? Math.min(1, Math.max(0.2, Number(parsed.defaultPct)))
+      : base.defaultPct,
+    dayFactors: { ...base.dayFactors },
+    blockFactors: { ...base.blockFactors }
+  };
+
+  Object.keys(next.dayFactors).forEach((day) => {
+    if (Number.isFinite(Number(parsed.dayFactors?.[day]))) {
+      next.dayFactors[day] = Math.min(1.5, Math.max(0.2, Number(parsed.dayFactors[day])));
+    }
+  });
+
+  Object.keys(next.blockFactors).forEach((block) => {
+    if (Number.isFinite(Number(parsed.blockFactors?.[block]))) {
+      next.blockFactors[block] = Math.min(1.5, Math.max(0.2, Number(parsed.blockFactors[block])));
+    }
+  });
+
+  return next;
+}
+
+export function getAvailabilityPresetOptions() {
+  return Object.entries(AVAILABILITY_PRESETS).map(([value, preset]) => ({
+    value,
+    label: preset.label
+  }));
+}
+
+export function getAudienceTagCatalog(points = []) {
+  const map = new Map();
+
+  Object.entries(AUDIENCE_TAG_LABELS).forEach(([key, label]) => {
+    map.set(key, { value: key, label, count: 0 });
+  });
+
+  points.forEach((point) => {
+    normalizeAudienceTags(point.audience_tags, point.publico).forEach((tag) => {
+      const current = map.get(tag.key) || { value: tag.key, label: tag.label, count: 0 };
+      map.set(tag.key, {
+        value: tag.key,
+        label: tag.label,
+        count: (current.count || 0) + 1
+      });
+    });
+  });
+
+  return Array.from(map.values())
+    .filter((item) => item.count > 0)
+    .sort((a, b) => (b.count - a.count) || a.label.localeCompare(b.label, 'pt-BR'));
 }
 
 function formatList(values = [], fallback = '') {
@@ -341,6 +522,141 @@ function scorePublicoAffinity(point, publicoDesejado) {
   return Math.max(...scores);
 }
 
+function scoreAudienceTagAffinity(point, targetTags = []) {
+  const normalizedTargets = normalizeArrayInput(targetTags).map((tag) => normalizeTagKey(tag)).filter(Boolean);
+  if (!normalizedTargets.length) return 0;
+
+  const pointTags = normalizeAudienceTags(point.audience_tags, point.publico);
+  if (!pointTags.length) return -2;
+
+  const byKey = new Map(pointTags.map((tag) => [tag.key, tag]));
+  const overlapScore = normalizedTargets.reduce((acc, key) => {
+    const tag = byKey.get(key);
+    if (!tag) return acc;
+    return acc + (8 * (Number(tag.weight) || 1));
+  }, 0);
+
+  return Math.min(24, overlapScore);
+}
+
+function scoreAvailabilityFit(point, availabilityPreference = 'all') {
+  const preset = AVAILABILITY_PRESETS[availabilityPreference] || AVAILABILITY_PRESETS.all;
+  const calendar = normalizeAvailabilityCalendar(point.availability_calendar, point.horario);
+
+  const dayAvg = preset.days.reduce((acc, day) => acc + (Number(calendar.dayFactors?.[day]) || 1), 0) / Math.max(1, preset.days.length);
+  const blockAvg = preset.blocks.reduce((acc, block) => acc + (Number(calendar.blockFactors?.[block]) || 1), 0) / Math.max(1, preset.blocks.length);
+  const availabilityPct = Math.min(1, Math.max(0.2, Number(calendar.defaultPct) || 0.75));
+
+  return Math.max(-4, Math.min(22, ((dayAvg * blockAvg * availabilityPct) - 0.6) * 40));
+}
+
+export function estimateReachFrequency({ selected = [], cityInventory = [], periodWeeks = 4 }) {
+  const totals = campaignTotals(selected);
+  if (!selected.length || totals.fluxoTotal <= 0) {
+    return {
+      grossReachPct: 0,
+      effectiveReachPct: 0,
+      avgFrequency: 0,
+      grps: 0,
+      estimatedUnique: 0,
+      periodWeeks
+    };
+  }
+
+  const inventory = cityInventory.length ? cityInventory : selected;
+  const cityTotals = campaignTotals(inventory);
+  const formatDiversity = new Set(selected.map((point) => point.tipo).filter(Boolean)).size;
+  const cityDiversity = new Set(selected.map((point) => point.cidade).filter(Boolean)).size;
+
+  const shareOfVoice = totals.fluxoTotal / Math.max(1, cityTotals.fluxoTotal || totals.fluxoTotal);
+  const grossReachPct = 100 * (1 - Math.exp(-2.65 * shareOfVoice));
+  const qualityMultiplier = Math.min(1.15, 0.72 + formatDiversity * 0.055 + cityDiversity * 0.03);
+  const effectiveReachPct = Math.min(96, grossReachPct * qualityMultiplier);
+
+  const marketUniqueBase = Math.max(45000, Math.round((cityTotals.fluxoTotal || totals.fluxoTotal) / 6.8));
+  const estimatedUnique = Math.max(1, Math.round(marketUniqueBase * (effectiveReachPct / 100)));
+  const avgFrequency = totals.fluxoTotal / estimatedUnique;
+  const grps = (effectiveReachPct * avgFrequency) / 100;
+
+  return {
+    grossReachPct: Number(grossReachPct.toFixed(1)),
+    effectiveReachPct: Number(effectiveReachPct.toFixed(1)),
+    avgFrequency: Number(avgFrequency.toFixed(2)),
+    grps: Number(grps.toFixed(2)),
+    estimatedUnique,
+    periodWeeks
+  };
+}
+
+export function optimizeBudgetAllocation({
+  candidates = [],
+  budget = 0,
+  objective,
+  maxSharePerFormat = 0.48,
+  minPoints = 4
+}) {
+  const selected = [];
+  const formatSpend = new Map();
+  const sorted = [...candidates].sort((a, b) => {
+    const effA = a._preco > 0 ? a._baseScore / a._preco : a._baseScore;
+    const effB = b._preco > 0 ? b._baseScore / b._preco : b._baseScore;
+    return effB - effA;
+  });
+
+  let spend = 0;
+  let remaining = sorted;
+
+  while (remaining.length) {
+    const next = remaining.shift();
+    if (!next) break;
+
+    const projected = spend + next._preco;
+    if (budget > 0 && projected > budget && selected.length >= minPoints) {
+      continue;
+    }
+
+    const formatSpendCurrent = Number(formatSpend.get(next.tipo) || 0);
+    const formatShareProjected = budget > 0
+      ? (formatSpendCurrent + next._preco) / Math.max(1, budget)
+      : 0;
+
+    if (budget > 0 && formatShareProjected > maxSharePerFormat && selected.length >= minPoints) {
+      continue;
+    }
+
+    selected.push(next);
+    spend = projected;
+    formatSpend.set(next.tipo, formatSpendCurrent + next._preco);
+
+    if (budget > 0 && spend >= budget * 0.985) break;
+
+    // Objective-driven expansion: allow extra points for regional coverage.
+    if (objective === 'cobertura regional' && selected.length < 12) {
+      remaining = remaining.sort((a, b) => {
+        const cityBonusA = selected.some((item) => item.cidade === a.cidade) ? 0 : 10;
+        const cityBonusB = selected.some((item) => item.cidade === b.cidade) ? 0 : 10;
+        return (b._baseScore + cityBonusB) - (a._baseScore + cityBonusA);
+      });
+    }
+  }
+
+  if (!selected.length && sorted.length) {
+    selected.push(sorted[0]);
+    spend = sorted[0]._preco;
+  }
+
+  const spendByFormat = Array.from(formatSpend.entries())
+    .map(([tipo, valor]) => ({ tipo, valor, pct: budget > 0 ? Number(((valor / budget) * 100).toFixed(1)) : 0 }))
+    .sort((a, b) => b.valor - a.valor);
+
+  return {
+    selected,
+    spend,
+    spendByFormat,
+    budgetUsagePct: budget > 0 ? Number(((spend / budget) * 100).toFixed(1)) : 0
+  };
+}
+
 function scoreCostEfficiency(point) {
   const fluxo = toNumber(point.fluxo);
   const insercoes = toNumber(point.insercoes);
@@ -401,11 +717,22 @@ function scoreSegmentEnvironment(point, entornoByPoint = null) {
   return Math.min(48, score * 0.62 + total * 1.35 + categories * 2.8);
 }
 
-function buildCandidate(point, { objetivo, publico, segmento, medianPrice, maxPrice, entornoByPoint }) {
+function buildCandidate(point, {
+  objetivo,
+  publico,
+  segmento,
+  medianPrice,
+  maxPrice,
+  entornoByPoint,
+  audienceTags,
+  availabilityPreference
+}) {
   const preco = Math.max(0, toNumber(point.preco));
   const objectiveScore = scorePointByObjective(point, objetivo);
   const efficiencyScore = scoreCostEfficiency(point);
   const publicoScore = scorePublicoAffinity(point, publico);
+  const audienceTagScore = scoreAudienceTagAffinity(point, audienceTags);
+  const availabilityScore = scoreAvailabilityFit(point, availabilityPreference);
   const segmentoScore = scoreSegmentAffinity(point, segmento);
   const entornoScore = scoreSegmentEnvironment(point, entornoByPoint);
   const formatBoost = getObjectiveFormatBoost(point.tipo, objetivo);
@@ -420,6 +747,8 @@ function buildCandidate(point, { objetivo, publico, segmento, medianPrice, maxPr
       objectiveScore * 1.25 +
       efficiencyScore * 0.9 +
       publicoScore +
+      audienceTagScore +
+      availabilityScore +
       segmentoScore +
       entornoScore +
       formatBoost +
@@ -470,10 +799,14 @@ export function suggestIdealPlan({
   pontos = [],
   cidade,
   publico,
+  audienceTags = [],
+  availabilityPreference = 'all',
   objetivo,
   segmento,
+  periodWeeks = 4,
   investimentoMensal = 0,
-  entornoByPoint = null
+  entornoByPoint = null,
+  cityInventory = []
 }) {
   const budget = Math.max(0, toNumber(investimentoMensal));
   const cidadeNormalizada = normalizeFilterValue(cidade, 'Todas');
@@ -510,7 +843,9 @@ export function suggestIdealPlan({
       segmento,
       medianPrice,
       maxPrice,
-      entornoByPoint
+      entornoByPoint,
+      audienceTags,
+      availabilityPreference
     }))
     .sort((a, b) => b._baseScore - a._baseScore);
 
@@ -518,69 +853,33 @@ export function suggestIdealPlan({
     ? Math.min(14, Math.max(4, Math.round(budget / Math.max(medianPrice || 1, 900))))
     : 7;
 
-  const selected = [];
-  let spend = 0;
-  const used = new Set();
-
-  // Seed phase: guarantee at least one strong candidate per key format.
+  const seeded = [];
   for (const candidate of candidates) {
-    if (selected.length >= Math.min(3, targetCount)) break;
-    if (used.has(candidate.id)) continue;
-
-    const formatoJaExiste = selected.some((p) => p.tipo === candidate.tipo);
-    if (formatoJaExiste && selected.length > 0) continue;
-
-    if (budget > 0 && spend + candidate._preco > budget * 1.06 && selected.length > 0) continue;
-
-    selected.push(candidate);
-    used.add(candidate.id);
-    spend += candidate._preco;
+    if (seeded.length >= Math.min(3, targetCount)) break;
+    const formatoJaExiste = seeded.some((item) => item.tipo === candidate.tipo);
+    if (formatoJaExiste && seeded.length > 0) continue;
+    seeded.push(candidate);
   }
 
-  // Iterative improvement: choose point with highest marginal gain each round.
-  while (selected.length < targetCount) {
-    let best = null;
-    let bestGain = -Infinity;
+  const nonSeeded = candidates.filter((candidate) => !seeded.some((item) => item.id === candidate.id));
+  const optimized = optimizeBudgetAllocation({
+    candidates: [...seeded, ...nonSeeded],
+    budget,
+    objective: objetivo,
+    minPoints: Math.min(4, targetCount)
+  });
 
-    for (const candidate of candidates) {
-      if (used.has(candidate.id)) continue;
-
-      const gain = marginalGain(candidate, selected, budget, spend, objetivo);
-      if (gain > bestGain) {
-        bestGain = gain;
-        best = candidate;
-      }
-    }
-
-    if (!best) break;
-
-    const projectedSpend = spend + best._preco;
-    const allowOverBudget = budget > 0 && selected.length < 3 && projectedSpend <= budget * 1.12;
-    const withinBudget = budget <= 0 || projectedSpend <= budget;
-
-    if (!withinBudget && !allowOverBudget) {
-      const hasAnyAffordable = candidates.some((c) => !used.has(c.id) && (budget <= 0 || spend + c._preco <= budget));
-      if (!hasAnyAffordable) break;
-      used.add(best.id);
-      continue;
-    }
-
-    if (bestGain < 8 && selected.length >= Math.max(4, Math.floor(targetCount * 0.7))) {
-      break;
-    }
-
-    selected.push(best);
-    used.add(best.id);
-    spend = projectedSpend;
-  }
-
-  if (!selected.length && candidates.length) {
-    selected.push(candidates[0]);
-    spend = candidates[0]._preco;
-  }
+  const selected = optimized.selected.length
+    ? optimized.selected.slice(0, targetCount)
+    : [];
 
   const cleaned = selected.map(({ _baseScore, _preco, _entornoScore, ...point }) => point);
   const totals = campaignTotals(cleaned);
+  const reachFrequency = estimateReachFrequency({
+    selected: cleaned,
+    cityInventory: cityInventory.length ? cityInventory : filtered,
+    periodWeeks
+  });
   const formatos = new Set(cleaned.map((p) => p.tipo).filter(Boolean)).size;
   const orcamentoUsoPct = budget > 0 ? Math.round((totals.valorTotal / budget) * 100) : null;
   const withEntorno = selected.filter((point) => point._entornoScore > 0).length;
@@ -604,6 +903,7 @@ export function suggestIdealPlan({
     withEntorno > 0
       ? `${withEntorno} ponto${withEntorno > 1 ? 's' : ''} recebeu ganho de aderência por entorno relevante ao segmento selecionado.`
       : 'Sem dados de entorno suficientes no momento, o plano foi calculado apenas com comportamento, público e eficiência.',
+    `Reach efetivo estimado em ${reachFrequency.effectiveReachPct.toFixed(1).replace('.', ',')}% com frequência média ${reachFrequency.avgFrequency.toFixed(2).replace('.', ',')} no período de ${reachFrequency.periodWeeks} semanas (R&F).`,
     budget > 0
       ? `Uso de orçamento em ${orcamentoUsoPct}% (R$ ${new Intl.NumberFormat('pt-BR').format(totals.valorTotal)} de R$ ${new Intl.NumberFormat('pt-BR').format(budget)}), com seleção por ganho marginal para evitar pontos redundantes.`
       : 'Sem limite de orçamento informado, o motor priorizou eficiência e diversidade para um plano-base robusto.'
@@ -612,6 +912,11 @@ export function suggestIdealPlan({
   return {
     pontos: cleaned,
     totals,
+    reachFrequency,
+    optimizer: {
+      budgetUsagePct: optimized.budgetUsagePct,
+      spendByFormat: optimized.spendByFormat
+    },
     justificativa
   };
 }

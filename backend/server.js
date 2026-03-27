@@ -34,6 +34,20 @@ const ELEVADOR_TIPO = 'Elevador';
 const ELEVADOR_ARTE_LARGURA = 1080;
 const ELEVADOR_ARTE_ALTURA = 1920;
 const ALLOWED_UPLOAD_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const DEFAULT_AUDIENCE_TAGS = [
+  { key: 'classe-a', label: 'Classe A', weight: 1 },
+  { key: 'classe-b', label: 'Classe B', weight: 1 },
+  { key: 'premium', label: 'Premium', weight: 1 },
+  { key: 'familias', label: 'Familias', weight: 1 },
+  { key: 'jovens', label: 'Jovens', weight: 1 },
+  { key: 'executivos', label: 'Executivos', weight: 1 },
+  { key: 'motoristas', label: 'Motoristas', weight: 1 },
+  { key: 'shopper', label: 'Shopper', weight: 1 },
+  { key: 'moradores', label: 'Moradores', weight: 1 },
+  { key: 'turistas', label: 'Turistas', weight: 1 }
+];
+const WEEK_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const TIME_BLOCKS = ['morning', 'afternoon', 'evening'];
 
 function getAllowedOrigins() {
   const fromEnv = String(process.env.FRONTEND_ORIGINS || '')
@@ -312,6 +326,172 @@ function writePdfLayoutOverrides(overrides) {
   return readPdfLayoutOverrides();
 }
 
+function normalizeAudienceTagKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function resolveAudienceLabel(key, fallback = '') {
+  const found = DEFAULT_AUDIENCE_TAGS.find((tag) => tag.key === key);
+  if (found) return found.label;
+  return String(fallback || key)
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
+}
+
+function parseJsonLikeInput(raw, fallbackValue) {
+  if (raw === undefined || raw === null || raw === '') return fallbackValue;
+  if (typeof raw === 'object') return raw;
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return fallbackValue;
+  }
+}
+
+function audienceTagsFromPublico(publico) {
+  const normalized = String(publico || '').toUpperCase();
+  const tags = [];
+
+  if (normalized.includes('A')) {
+    tags.push({ key: 'classe-a', label: 'Classe A', weight: 1.15 });
+  }
+  if (normalized.includes('B')) {
+    tags.push({ key: 'classe-b', label: 'Classe B', weight: 1.05 });
+  }
+
+  return tags;
+}
+
+function normalizeAudienceTagsInput(raw, fallbackPublico = '') {
+  const parsed = parseJsonLikeInput(raw, raw);
+  const list = Array.isArray(parsed)
+    ? parsed
+    : String(parsed || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const normalized = [];
+  const seen = new Set();
+
+  const sourceItems = list.length ? list : audienceTagsFromPublico(fallbackPublico);
+
+  for (const item of sourceItems) {
+    const rawKey = typeof item === 'object' ? item.key || item.value || item.label : item;
+    const key = normalizeAudienceTagKey(rawKey);
+    if (!key || seen.has(key)) continue;
+
+    const rawWeight = typeof item === 'object' ? Number(item.weight) : Number.NaN;
+    const weight = Number.isFinite(rawWeight) ? clamp(rawWeight, 0.4, 2) : 1;
+    const label = resolveAudienceLabel(key, typeof item === 'object' ? item.label : item);
+
+    normalized.push({ key, label, weight: Number(weight.toFixed(2)) });
+    seen.add(key);
+
+    if (normalized.length >= 16) break;
+  }
+
+  return normalized;
+}
+
+function defaultAvailabilityForHorario(horario = '') {
+  const normalized = String(horario || '').toLowerCase();
+  const is24h = normalized.includes('24');
+  const base = is24h ? 0.92 : 0.78;
+
+  return {
+    defaultPct: base,
+    dayFactors: {
+      mon: 1,
+      tue: 1,
+      wed: 1,
+      thu: 1,
+      fri: 1,
+      sat: 0.95,
+      sun: 0.9
+    },
+    blockFactors: {
+      morning: 0.95,
+      afternoon: 1,
+      evening: is24h ? 1 : 0.82
+    }
+  };
+}
+
+function normalizeAvailabilityCalendarInput(raw, fallbackHorario = '') {
+  const baseline = defaultAvailabilityForHorario(fallbackHorario);
+  const parsed = parseJsonLikeInput(raw, {});
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return baseline;
+  }
+
+  const defaultPct = Number.isFinite(Number(parsed.defaultPct))
+    ? clamp(Number(parsed.defaultPct), 0.2, 1)
+    : baseline.defaultPct;
+
+  const dayFactors = { ...baseline.dayFactors };
+  WEEK_DAYS.forEach((day) => {
+    if (Number.isFinite(Number(parsed.dayFactors?.[day]))) {
+      dayFactors[day] = clamp(Number(parsed.dayFactors[day]), 0.2, 1.5);
+    }
+  });
+
+  const blockFactors = { ...baseline.blockFactors };
+  TIME_BLOCKS.forEach((block) => {
+    if (Number.isFinite(Number(parsed.blockFactors?.[block]))) {
+      blockFactors[block] = clamp(Number(parsed.blockFactors[block]), 0.2, 1.5);
+    }
+  });
+
+  return {
+    defaultPct: Number(defaultPct.toFixed(3)),
+    dayFactors,
+    blockFactors
+  };
+}
+
+function hydratePontoRow(row) {
+  if (!row) return row;
+
+  return {
+    ...row,
+    audience_tags: normalizeAudienceTagsInput(row.audience_tags, row.publico),
+    availability_calendar: normalizeAvailabilityCalendarInput(row.availability_calendar, row.horario)
+  };
+}
+
+function buildAudienceTagCatalog(rows = []) {
+  const map = new Map();
+
+  DEFAULT_AUDIENCE_TAGS.forEach((tag) => {
+    map.set(tag.key, { ...tag, count: 0 });
+  });
+
+  rows.forEach((row) => {
+    const tags = normalizeAudienceTagsInput(row?.audience_tags, row?.publico);
+    tags.forEach((tag) => {
+      const current = map.get(tag.key) || { key: tag.key, label: tag.label, weight: 1, count: 0 };
+      map.set(tag.key, {
+        ...current,
+        label: tag.label || current.label,
+        weight: Number(tag.weight) || current.weight,
+        count: Number(current.count || 0) + 1
+      });
+    });
+  });
+
+  return Array.from(map.values())
+    .sort((a, b) => (b.count - a.count) || a.label.localeCompare(b.label, 'pt-BR'));
+}
+
 // ==================== API ROUTES ====================
 
 // GET all pontos (with optional filters)
@@ -320,6 +500,7 @@ app.get('/api/pontos', (req, res) => {
   const elevadorCategoria = String(req.query.elevador_categoria || '').trim();
   const cidades = parseOptionalValues(req.query.cidade);
   const publicos = parseOptionalValues(req.query.publico);
+  const audienceTags = parseOptionalValues(req.query.audience_tag).map((value) => normalizeAudienceTagKey(value)).filter(Boolean);
   const sqlParts = ['SELECT * FROM pontos WHERE ativo = 1'];
   const params = [];
 
@@ -338,11 +519,15 @@ app.get('/api/pontos', (req, res) => {
     const term = `%${search}%`;
     params.push(term, term, term);
   }
+  audienceTags.forEach((tag) => {
+    sqlParts.push(' AND lower(audience_tags) LIKE ?');
+    params.push(`%"key":"${tag}"%`);
+  });
 
   sqlParts.push(' ORDER BY cidade, nome');
 
   try {
-    const pontos = db.prepare(sqlParts.join('')).all(...params);
+    const pontos = db.prepare(sqlParts.join('')).all(...params).map(hydratePontoRow);
     res.json(pontos);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -354,7 +539,16 @@ app.get('/api/pontos/:id', (req, res) => {
   try {
     const ponto = db.prepare('SELECT * FROM pontos WHERE id = ?').get(req.params.id);
     if (!ponto) return res.status(404).json({ error: 'Ponto não encontrado' });
-    res.json(ponto);
+    res.json(hydratePontoRow(ponto));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/audience-tags', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT audience_tags, publico FROM pontos WHERE ativo = 1').all();
+    res.json(buildAudienceTagCatalog(rows));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -430,13 +624,15 @@ app.post('/api/pontos', upload.fields([
       ? normalizeElevadorCategoria(data.elevador_categoria)
       : null;
     const tipoFluxo = data.tipo_fluxo || 'pessoas';
+    const audienceTags = normalizeAudienceTagsInput(data.audience_tags, data.publico || 'A/B');
+    const availabilityCalendar = normalizeAvailabilityCalendarInput(data.availability_calendar, data.horario || '');
     const imagemFocoX = Number.isFinite(Number(data.imagem_foco_x)) ? clamp(Number(data.imagem_foco_x), 0, 100) : 50;
     const imagemFocoY = Number.isFinite(Number(data.imagem_foco_y)) ? clamp(Number(data.imagem_foco_y), 0, 100) : 50;
     const imagemFocoZoom = Number.isFinite(Number(data.imagem_foco_zoom)) ? clamp(Number(data.imagem_foco_zoom), 100, 220) : 100;
 
     const stmt = db.prepare(`
-      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, tipo_fluxo, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, tipo_fluxo, audience_tags, availability_calendar, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -445,13 +641,15 @@ app.post('/api/pontos', upload.fields([
       data.horario, parseInt(data.fluxo) || 0, parseInt(data.insercoes) || 0,
       data.tempo || '15s', data.loop || '3 min', data.veiculacao || 'Vídeo sem áudio',
       data.publico || 'A/B', parseInt(data.telas) || 1, parseFloat(data.preco) || 0,
-      data.descricao, imagem, imagem2, simulacaoTela, simulacaoArte, simulacaoPreview, arteLargura, arteAltura, tipoFluxo, elevadorCategoria,
+      data.descricao, imagem, imagem2, simulacaoTela, simulacaoArte, simulacaoPreview,
+      arteLargura, arteAltura, tipoFluxo,
+      JSON.stringify(audienceTags), JSON.stringify(availabilityCalendar), elevadorCategoria,
       imagemFocoX, imagemFocoY, imagemFocoZoom
     );
 
     const ponto = db.prepare('SELECT * FROM pontos WHERE id = ?').get(result.lastInsertRowid);
     invalidatePointCache(ponto.id);
-    res.status(201).json(ponto);
+    res.status(201).json(hydratePontoRow(ponto));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -488,6 +686,14 @@ app.put('/api/pontos/:id', upload.fields([
       ? normalizeElevadorCategoria(data.elevador_categoria || existing.elevador_categoria || 'Comercial')
       : null;
     const tipoFluxo = data.tipo_fluxo || existing.tipo_fluxo || 'pessoas';
+    const audienceTags = normalizeAudienceTagsInput(
+      data.audience_tags !== undefined ? data.audience_tags : existing.audience_tags,
+      data.publico || existing.publico || 'A/B'
+    );
+    const availabilityCalendar = normalizeAvailabilityCalendarInput(
+      data.availability_calendar !== undefined ? data.availability_calendar : existing.availability_calendar,
+      data.horario || existing.horario || ''
+    );
     const imagemFocoX = Number.isFinite(Number(data.imagem_foco_x))
       ? clamp(Number(data.imagem_foco_x), 0, 100)
       : clamp(Number(existing.imagem_foco_x) || 50, 0, 100);
@@ -504,7 +710,7 @@ app.put('/api/pontos/:id', upload.fields([
         horario = ?, fluxo = ?, insercoes = ?, tempo = ?, loop = ?,
         veiculacao = ?, publico = ?, telas = ?, preco = ?, descricao = ?,
         imagem = ?, imagem2 = ?, simulacao_tela = ?, simulacao_arte = ?, simulacao_preview = ?,
-        arte_largura = ?, arte_altura = ?, tipo_fluxo = ?, elevador_categoria = ?,
+        arte_largura = ?, arte_altura = ?, tipo_fluxo = ?, audience_tags = ?, availability_calendar = ?, elevador_categoria = ?,
         imagem_foco_x = ?, imagem_foco_y = ?, imagem_foco_zoom = ?,
         updated_at = datetime('now')
       WHERE id = ?
@@ -521,7 +727,8 @@ app.put('/api/pontos/:id', upload.fields([
       parseInt(data.telas) || existing.telas, parseFloat(data.preco) || existing.preco,
       data.descricao || existing.descricao, imagem, imagem2,
       simulacaoTela, simulacaoArte, simulacaoPreview,
-      arteLargura, arteAltura, tipoFluxo, elevadorCategoria,
+      arteLargura, arteAltura, tipoFluxo,
+      JSON.stringify(audienceTags), JSON.stringify(availabilityCalendar), elevadorCategoria,
       imagemFocoX, imagemFocoY, imagemFocoZoom,
       req.params.id
     );
@@ -534,7 +741,7 @@ app.put('/api/pontos/:id', upload.fields([
     if (enderecoAlterado || coordenadasAlteradas) {
       invalidatePointCache(ponto.id);
     }
-    res.json(ponto);
+    res.json(hydratePontoRow(ponto));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -743,7 +950,7 @@ app.delete('/api/pontos/:id', (req, res) => {
 // GET all pontos for admin (including inactive)
 app.get('/api/admin/pontos', (req, res) => {
   try {
-    const pontos = db.prepare('SELECT * FROM pontos ORDER BY cidade, nome').all();
+    const pontos = db.prepare('SELECT * FROM pontos ORDER BY cidade, nome').all().map(hydratePontoRow);
     res.json(pontos);
   } catch (err) {
     res.status(500).json({ error: err.message });

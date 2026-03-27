@@ -79,6 +79,8 @@ export async function fetchPontos(filters = {}) {
   if (filters.tipo) params.set('tipo', filters.tipo);
   if (filters.elevador_categoria) params.set('elevador_categoria', filters.elevador_categoria);
   appendParamValues(params, 'publico', filters.publico);
+  appendParamValues(params, 'audience_tag', filters.audience_tag);
+  if (filters.availabilityPreference) params.set('availability_preference', filters.availabilityPreference);
   if (filters.search) params.set('search', filters.search);
   const query = params.toString();
   const res = await apiRequest(`/pontos${query ? `?${query}` : ''}`);
