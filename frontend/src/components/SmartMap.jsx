@@ -7,6 +7,33 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 const DEFAULT_CENTER = { latitude: -23.32, longitude: -51.16, zoom: 11 };
 
+function buildRasterFallbackStyle(isDark) {
+  return {
+    version: 8,
+    sources: {
+      basemap: {
+        type: 'raster',
+        tiles: [
+          isDark
+            ? 'https://{a-d}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+            : 'https://{a-d}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+        ],
+        tileSize: 256,
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+      },
+    },
+    layers: [
+      {
+        id: 'basemap-layer',
+        type: 'raster',
+        source: 'basemap',
+        minzoom: 0,
+        maxzoom: 22,
+      },
+    ],
+  };
+}
+
 const CLUSTER_LAYER = {
   id: 'clusters',
   type: 'circle',
@@ -95,7 +122,7 @@ export default function SmartMap({
     const lightStyle = import.meta.env.VITE_TILE_CDN_STYLE_LIGHT;
     if (isDark && darkStyle) return darkStyle;
     if (!isDark && lightStyle) return lightStyle;
-    return 'https://demotiles.maplibre.org/style.json';
+    return buildRasterFallbackStyle(isDark);
   }, [isDark]);
 
   const valid = useMemo(() => sanitizePoints(pontos), [pontos]);
