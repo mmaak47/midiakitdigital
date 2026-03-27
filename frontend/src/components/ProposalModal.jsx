@@ -495,6 +495,17 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       setMapBusy(true);
       setSimulationError('');
 
+      let exportClientCoords = clientAnalysis.location;
+      const cleanedClientAddress = String(form.clientAddress || '').trim();
+      if (!exportClientCoords && cleanedClientAddress) {
+        const addressResponse = await fetchClientAddressAnalysis({
+          address: cleanedClientAddress,
+          pointIds: proposalPoints.map((point) => point.id),
+          cidade: activeCities
+        });
+        exportClientCoords = addressResponse?.location || null;
+      }
+
       const slugClient = String(form.clientName || 'proposta')
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
@@ -504,8 +515,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
       await downloadSelectionMapPng(proposalPoints, {
         connectPoints: connectMapPoints,
-        clientAddress: form.clientAddress || '',
-        clientCoords: clientAnalysis.location,
+        clientAddress: cleanedClientAddress,
+        clientCoords: exportClientCoords,
         theme: 'light',
         width: 1800,
         height: 1000,
