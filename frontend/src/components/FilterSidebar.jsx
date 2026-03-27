@@ -11,12 +11,12 @@ const TIPOS = [
   { value: 'Elevador', icon: Building2 },
   { value: 'Tela Indoor', icon: Tv },
   { value: 'Painel LED', icon: Monitor },
-  { value: 'Backlight', icon: Lightbulb },
-  { value: 'Frontlight', icon: Sun },
   { value: 'Totem Digital', icon: Columns3 },
   { value: 'Circuito Muffato', icon: ShoppingCart },
   { value: 'LED Posto', icon: Fuel },
   { value: 'Video Wall', icon: Monitor },
+  { value: 'Backlight', icon: Lightbulb },
+  { value: 'Frontlight', icon: Sun },
 ];
 
 export default function FilterSidebar({ filters, setFilters, total, mobileOpen, setMobileOpen }) {

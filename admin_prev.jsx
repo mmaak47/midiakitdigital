@@ -27,7 +27,7 @@ import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
 
 const DEFAULT_CIDADES = ['Londrina', 'Maring├í', 'Balne├írio Cambori├║', 'Itaja├¡'];
-const DEFAULT_TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
+const DEFAULT_TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall', 'Backlight', 'Frontlight'];
 const ELEVADOR_TIPO = 'Elevador';
 const ELEVADOR_CATEGORIAS = ['Comercial', 'Residencial'];
 const ELEVADOR_ARTE_LARGURA = '1080';

@@ -981,3 +981,64 @@ export function generateCommercialArguments({ selected = [], city, publico, obje
     `O recorte de público (${focoPublico}) aumenta aderência comercial e potencial de conversão no território de interesse.`
   ];
 }
+
+/**
+ * Define a ordem padrão de formatos para o sistema todo
+ * @constant
+ */
+export const FORMAT_SORT_ORDER = [
+  'Elevador',
+  'Tela Indoor',
+  'Painel LED',
+  // Todos os outros formatos vão nesta posição (em ordem alfabética)
+  'Backlight',
+  'Frontlight'
+];
+
+/**
+ * Compara dois formatos de acordo com a ordem definida no sistema
+ * @param {string} formatoA - Primeiro formato
+ * @param {string} formatoB - Segundo formato
+ * @returns {number} -1 se A vem antes, 1 se B vem antes, 0 se iguais
+ */
+export function compareFormatos(formatoA, formatoB) {
+  const a = String(formatoA || 'Sem tipo').trim();
+  const b = String(formatoB || 'Sem tipo').trim();
+
+  const indexA = FORMAT_SORT_ORDER.indexOf(a);
+  const indexB = FORMAT_SORT_ORDER.indexOf(b);
+
+  // Se ambos estão na lista de ordenação conhecida
+  if (indexA !== -1 && indexB !== -1) {
+    return indexA - indexB;
+  }
+
+  // Se A está na lista mas B não (B é "outro")
+  if (indexA !== -1 && indexB === -1) {
+    return FORMAT_SORT_ORDER.indexOf('Backlight') > indexA ? -1 : 1;
+  }
+
+  // Se B está na lista mas A não (A é "outro")
+  if (indexA === -1 && indexB !== -1) {
+    return FORMAT_SORT_ORDER.indexOf('Backlight') > indexB ? 1 : -1;
+  }
+
+  // Se ambos são "outros", ordena alfabeticamente
+  return a.localeCompare(b, 'pt-BR');
+}
+
+/**
+ * Ordena um array de formatos ou objetos com propriedade 'tipo' de acordo com a ordem definida
+ * @param {Array} items - Array de strings (formatos) ou objetos com propriedade 'tipo'
+ * @param {string} [typeKey='tipo'] - Propriedade que contém o tipo (para objetos)
+ * @returns {Array} Array ordenado
+ */
+export function sortFormatos(items, typeKey = 'tipo') {
+  if (!Array.isArray(items)) return items;
+
+  return [...items].sort((a, b) => {
+    const formatoA = typeof a === 'string' ? a : a[typeKey];
+    const formatoB = typeof b === 'string' ? b : b[typeKey];
+    return compareFormatos(formatoA, formatoB);
+  });
+}

@@ -1,6 +1,6 @@
 ﻿import { jsPDF } from 'jspdf';
 import { loadPdfLayoutConfig } from './pdfLayoutConfig';
-import { buildAudienceQualification, buildEntornoSummary, getSegmentDisplayName } from './strategy';
+import { buildAudienceQualification, buildEntornoSummary, getSegmentDisplayName, sortFormatos } from './strategy';
 
 const PAGE_WIDTH = 1680;
 const PAGE_HEIGHT = 1188;
@@ -33,17 +33,6 @@ function getCityState(cidade) {
 const imageCache = new Map();
 const IMAGE_FETCH_TIMEOUT_MS = 15000;
 const IMAGE_RENDER_WAIT_TIMEOUT_MS = 8000;
-const MIDIA_KIT_TYPE_ORDER = [
-  'Elevador',
-  'Tela Indoor',
-  'Video Wall',
-  'Vídeo Wall',
-  'Painel LED',
-  'LED Posto',
-  'Totem Digital',
-  'Frontlight',
-  'Backlight'
-];
 let pdfAssetsPromise = null;
 let activePdfLayoutConfig = null;
 
@@ -1860,18 +1849,7 @@ export async function generateMidiaKitPdf({ praca, pontos }) {
     .sort(([tipoA], [tipoB]) => {
       const baseA = getBaseTypeLabel(tipoA);
       const baseB = getBaseTypeLabel(tipoB);
-      const indexA = MIDIA_KIT_TYPE_ORDER.findIndex((item) => item.toLowerCase() === String(baseA).toLowerCase());
-      const indexB = MIDIA_KIT_TYPE_ORDER.findIndex((item) => item.toLowerCase() === String(baseB).toLowerCase());
-      const safeA = indexA === -1 ? Number.MAX_SAFE_INTEGER : indexA;
-      const safeB = indexB === -1 ? Number.MAX_SAFE_INTEGER : indexB;
-      if (safeA !== safeB) return safeA - safeB;
-      if (baseA === 'Elevador' && baseB === 'Elevador') {
-        const rank = { Comercial: 0, Residencial: 1 };
-        const catA = String(tipoA).split(' - ')[1] || 'Comercial';
-        const catB = String(tipoB).split(' - ')[1] || 'Comercial';
-        return (rank[catA] ?? 99) - (rank[catB] ?? 99);
-      }
-      return String(tipoA).localeCompare(String(tipoB), 'pt-BR');
+      return sortFormatos([baseA, baseB]).indexOf(baseA) === 0 ? -1 : 1;
     })
     .forEach(([tipo, items]) => {
     const formatTelas = items.reduce((sum, { ponto }) => sum + (Number(ponto.telas) || 0), 0);

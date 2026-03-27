@@ -1,13 +1,13 @@
-import { useNavigate, Link } from 'react-router-dom';
+import os
+
+content = r"""import { useNavigate, Link } from 'react-router-dom';
 import { AnimatePresence, motion, useInView } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Navbar from '../components/Navbar';
 import CustomSelect from '../components/CustomSelect';
 import SmartMap from '../components/SmartMap';
-import MidiaKitSlidesMode from '../components/MidiaKitSlidesMode';
 import { fetchPontos } from '../lib/api';
-import { getPointDisplayImages, getPrimaryPointMediaKitImage } from '../lib/pointImages';
-import { campaignTotals, sortFormatos } from '../lib/strategy';
+import { campaignTotals } from '../lib/strategy';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -65,7 +65,7 @@ function AnimatedCounter({ value, formatter = formatInt, className = '' }) {
 }
 
 function PointImageGallery({ ponto, onExpand }) {
-  const images = getPointDisplayImages(ponto);
+  const images = [ponto.imagem, ponto.imagem2].filter(Boolean);
   const [idx, setIdx] = useState(0);
 
   useEffect(() => { setIdx(0); }, [ponto.id]);
@@ -90,8 +90,8 @@ function PointImageGallery({ ponto, onExpand }) {
         onClick={() => onExpand(ponto, idx)}
         style={{ objectPosition: `${ponto.imagem_foco_x ?? 50}% ${ponto.imagem_foco_y ?? 50}%` }}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5 pointer-events-none">
-        <span className="flex items-center gap-1 text-[11px] text-brand-orange bg-black/70 rounded-md px-2 py-1 border border-brand-orange/35 shadow-sm">
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5 pointer-events-none">
+        <span className="flex items-center gap-1 text-[11px] text-white/80 bg-black/50 rounded-md px-2 py-1">
           <i className="ri-fullscreen-line" style={{ fontSize: 11 }} /> Ampliar
         </span>
       </div>
@@ -129,7 +129,7 @@ function PointImageGallery({ ponto, onExpand }) {
 }
 
 function Lightbox({ ponto, imageIndex, onClose, onChangeIndex }) {
-  const images = ponto ? getPointDisplayImages(ponto) : [];
+  const images = ponto ? [ponto.imagem, ponto.imagem2].filter(Boolean) : [];
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -198,35 +198,7 @@ function Lightbox({ ponto, imageIndex, onClose, onChangeIndex }) {
 }
 
 function MapModal({ pontos, onClose, isDark }) {
-  const pointsWithCoords = useMemo(
-    () => pontos.filter((p) => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng))),
-    [pontos]
-  );
-  const cityOptions = useMemo(
-    () => Array.from(new Set(pointsWithCoords.map((p) => p.cidade).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
-    [pointsWithCoords]
-  );
-  const [selectedCity, setSelectedCity] = useState('');
-  const mapPoints = useMemo(
-    () => (selectedCity ? pointsWithCoords.filter((p) => p.cidade === selectedCity) : pointsWithCoords),
-    [pointsWithCoords, selectedCity]
-  );
-  const [selectedPoint, setSelectedPoint] = useState(mapPoints[0] || null);
-
-  useEffect(() => {
-    setSelectedPoint((current) => {
-      if (current && mapPoints.some((p) => p.id === current.id)) return current;
-      return mapPoints[0] || null;
-    });
-  }, [mapPoints]);
-
-  const focusCoords = useMemo(() => {
-    if (!selectedPoint) return null;
-    const lat = Number(selectedPoint.lat);
-    const lng = Number(selectedPoint.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-    return { lat, lng };
-  }, [selectedPoint]);
+  const [selectedPoint, setSelectedPoint] = useState(pontos.find((p) => p.lat && p.lng) || null);
 
   const m = {
     wrap: isDark ? 'bg-[#0a0a0a] border-white/10' : 'bg-white border-neutral-200',
@@ -262,56 +234,23 @@ function MapModal({ pontos, onClose, isDark }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex-1 min-h-[320px]">
-          <SmartMap
-            pontos={mapPoints}
-            selectedId={selectedPoint?.id}
-            onSelect={setSelectedPoint}
-            onOpenDetails={setSelectedPoint}
-            focusCoords={focusCoords}
-          />
+          <SmartMap pontos={pontos} selectedId={selectedPoint?.id} onSelect={setSelectedPoint} onOpenDetails={setSelectedPoint} />
         </div>
         <aside className={`w-full lg:w-[300px] border-t lg:border-t-0 lg:border-l flex flex-col overflow-y-auto ${m.sidePanel} ${m.sidebar}`}>
           <div className={`flex items-center justify-between px-5 py-4 shrink-0 ${m.headerBorder}`}>
             <div>
               <div className="text-xs uppercase tracking-wider text-brand-orange mb-0.5">Mapa da rede</div>
-              <h3 className={`text-sm font-semibold ${m.title}`}>{mapPoints.length} pontos no mapa</h3>
+              <h3 className={`text-sm font-semibold ${m.title}`}>{pontos.filter((p) => p.lat && p.lng).length} pontos no mapa</h3>
             </div>
             <button onClick={onClose} className={`h-8 w-8 flex items-center justify-center rounded-full border transition ${m.closeBtn}`} aria-label="Fechar mapa">
               <i className="ri-close-line" style={{ fontSize: 15 }} />
             </button>
           </div>
-          {cityOptions.length > 1 ? (
-            <div className={`px-4 pb-3 ${m.headerBorder}`}>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setSelectedCity('')}
-                  className={`px-2.5 py-1 rounded-full text-[11px] border transition-colors ${selectedCity === '' ? 'border-brand-orange bg-brand-orange/20 text-brand-orange' : 'border-white/10 text-brand-gray-400 hover:text-white'}`}
-                >
-                  Todas
-                </button>
-                {cityOptions.map((city) => (
-                  <button
-                    key={city}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCity(city);
-                      const firstCityPoint = pointsWithCoords.find((p) => p.cidade === city);
-                      if (firstCityPoint) setSelectedPoint(firstCityPoint);
-                    }}
-                    className={`px-2.5 py-1 rounded-full text-[11px] border transition-colors ${selectedCity === city ? 'border-brand-orange bg-brand-orange/20 text-brand-orange' : 'border-white/10 text-brand-gray-400 hover:text-white'}`}
-                  >
-                    {city}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
           {selectedPoint ? (
             <div className="flex-1 p-4 space-y-3">
-              {getPrimaryPointMediaKitImage(selectedPoint) && (
+              {selectedPoint.imagem && (
                 <div className={`rounded-xl overflow-hidden h-32 border ${m.imgBorder}`}>
-                  <img src={getPrimaryPointMediaKitImage(selectedPoint)} alt={selectedPoint.nome} className="w-full h-full object-cover" />
+                  <img src={selectedPoint.imagem} alt={selectedPoint.nome} className="w-full h-full object-cover" />
                 </div>
               )}
               <div>
@@ -354,14 +293,11 @@ export default function Landing() {
   const navigate = useNavigate();
   const [allPontos, setAllPontos] = useState([]);
   const [selectedPracas, setSelectedPracas] = useState([]);
-  const [selectedTipos, setSelectedTipos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
-  const [showSlidesMode, setShowSlidesMode] = useState(false);
   const [lightbox, setLightbox] = useState({ ponto: null, imageIndex: 0 });
   const [isDark, setIsDark] = useState(true);
-  const [showCommercialShortcut, setShowCommercialShortcut] = useState(false);
 
   const t = {
     bg: isDark ? 'bg-[#050505]' : 'bg-[#f4f5f7]',
@@ -389,7 +325,7 @@ export default function Landing() {
     metaRow: isDark ? 'border-t border-white/10 text-brand-gray-500' : 'border-t border-neutral-200 text-neutral-500',
     controlPanel: isDark ? 'from-white/[0.06] to-white/[0.02] border-white/10' : 'from-neutral-100 to-white border-neutral-300 shadow-sm',
     vizDisplay: isDark ? 'from-white/10 to-white/5 border-white/15' : 'from-neutral-100 to-white border-neutral-300',
-    heroOverlay: isDark ? 'from-black/90 via-black/80 to-[#050505]' : 'from-[#fff7f3]/90 via-[#ffefe8]/72 to-[#f4f5f7]',
+    heroOverlay: isDark ? 'from-black/90 via-black/80 to-[#050505]' : 'from-white/92 via-white/78 to-[#f4f5f7]',
     pdfBtn: isDark ? 'bg-white/5 border-white/15 text-white hover:bg-white/10' : 'bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50 shadow-sm',
     pracaChip: isDark ? 'bg-white/[0.03] text-brand-gray-400 border-white/10 hover:text-white' : 'bg-white text-neutral-500 border-neutral-200 hover:text-neutral-900 shadow-sm',
     toggleBtn: isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-100 shadow-sm',
@@ -416,30 +352,12 @@ export default function Landing() {
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const hasToken = !!sessionStorage.getItem('admin_token');
-    const fromManualCommercial = sessionStorage.getItem('comercial_manual_login') === '1';
-    setShowCommercialShortcut(hasToken && fromManualCommercial);
-  }, []);
-
   const pracas = useMemo(() => {
     const unique = new Set(allPontos.map((p) => p.cidade).filter(Boolean));
     return Array.from(unique).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [allPontos]);
 
   const quickPracas = useMemo(() => pracas.slice(0, 5), [pracas]);
-
-  const tiposDisponiveis = useMemo(() => {
-    const source = selectedPracas.length
-      ? allPontos.filter((point) => selectedPracas.includes(point.cidade))
-      : allPontos;
-    return Array.from(new Set(source.map((point) => point.tipo).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [allPontos, selectedPracas]);
-
-  useEffect(() => {
-    setSelectedTipos((current) => current.filter((tipo) => tiposDisponiveis.includes(tipo)));
-  }, [tiposDisponiveis]);
 
   const selectedPracaLabel = useMemo(() => {
     if (!selectedPracas.length) return 'Todas as praças';
@@ -448,15 +366,9 @@ export default function Landing() {
   }, [selectedPracas]);
 
   const pontos = useMemo(() => {
-    let result = allPontos;
-    if (selectedPracas.length) {
-      result = result.filter((point) => selectedPracas.includes(point.cidade));
-    }
-    if (selectedTipos.length) {
-      result = result.filter((point) => selectedTipos.includes(point.tipo));
-    }
-    return result;
-  }, [allPontos, selectedPracas, selectedTipos]);
+    if (!selectedPracas.length) return allPontos;
+    return allPontos.filter((p) => selectedPracas.includes(p.cidade));
+  }, [allPontos, selectedPracas]);
 
   const resumo = useMemo(() => {
     const totals = campaignTotals(pontos);
@@ -480,7 +392,7 @@ export default function Landing() {
       current.telas += Number(p.telas) || 0;
       current.fluxo += Number(p.fluxo) || 0;
     });
-    return sortFormatos(Array.from(map.values()));
+    return Array.from(map.values()).sort((a, b) => b.quantidade - a.quantidade);
   }, [pontos]);
 
   const publicos = useMemo(() => {
@@ -514,10 +426,9 @@ export default function Landing() {
   const explorerPath = useMemo(() => {
     const params = new URLSearchParams();
     selectedPracas.forEach((praca) => params.append('cidade', praca));
-    if (selectedTipos.length === 1) params.set('tipo', selectedTipos[0]);
     const query = params.toString();
     return `/explorar${query ? `?${query}` : ''}`;
-  }, [selectedPracas, selectedTipos]);
+  }, [selectedPracas]);
 
   const handleExportPdf = async () => {
     if (!pontos.length || generatingPdf) return;
@@ -568,33 +479,11 @@ export default function Landing() {
         <div className="absolute top-[310vh] right-[12%] w-[350px] h-[350px] bg-[#FE5C2B]/5 rounded-full blur-[120px]" />
       </div>
 
-      <Navbar showNav={false} isDark={isDark} />
+      <Navbar showNav={false} />
 
       {/* ── Hero ─────────────────────────────────────────────── */}
       <section className={`pt-20 pb-10 border-b relative overflow-visible ${t.sectionBorder}`}>
-        <div
-          className={`absolute inset-0 bg-cover bg-center ${isDark ? 'opacity-35' : 'opacity-[0.08] saturate-[0.75]'}`}
-          style={{
-            backgroundImage: "url('/city-bg.jpg')",
-            filter: isDark ? 'none' : 'blur(1.8px)'
-          }}
-        />
-        {!isDark && (
-          <>
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,#fff7f2_0%,#ffe8dc_46%,#fff8f3_100%)]" />
-            <div className="absolute -top-14 -left-16 w-[260px] h-[260px] rounded-full bg-brand-orange/14" />
-            <div className="absolute -top-20 right-[-42px] w-[320px] h-[320px] rounded-full bg-brand-orange/16" />
-            <div className="absolute top-[58%] right-[7%] w-[168px] h-[168px] rounded-full bg-brand-orange/12" />
-            <div className="absolute top-[68%] left-[11%] w-[118px] h-[118px] rounded-full bg-brand-orange/10" />
-            <div
-              className="absolute inset-0 bg-cover bg-center opacity-[0.055]"
-              style={{
-                backgroundImage: "url('/about-1.jpg')",
-                filter: 'blur(2.4px) saturate(0.75)'
-              }}
-            />
-          </>
-        )}
+        <div className="absolute inset-0 opacity-35 bg-cover bg-center" style={{ backgroundImage: "url('/city-bg.jpg')" }} />
         <div className={`absolute inset-0 bg-gradient-to-b ${t.heroOverlay}`} />
         <div className="absolute -top-16 left-10 w-64 h-64 bg-brand-orange/20 rounded-full blur-[90px]" />
 
@@ -645,21 +534,13 @@ export default function Landing() {
             custom={3}
             className={`grid lg:grid-cols-[1fr_auto_auto_auto] gap-4 p-6 bg-gradient-to-br ${t.controlPanel} border rounded-2xl backdrop-blur-xl shadow-xl shadow-black/30`}
           >
-            <div className="grid sm:grid-cols-3 gap-4">
+            <div className="grid sm:grid-cols-2 gap-4">
               <CustomSelect
                 label="Praça"
                 value={selectedPracas}
                 onChange={setSelectedPracas}
                 options={pracas}
                 placeholder="Selecionar uma ou mais praças"
-                multiple
-              />
-              <CustomSelect
-                label="Formato"
-                value={selectedTipos}
-                onChange={setSelectedTipos}
-                options={tiposDisponiveis}
-                placeholder="Selecionar um ou mais formatos"
                 multiple
               />
               <div>
@@ -671,16 +552,8 @@ export default function Landing() {
             </div>
 
             <button
-              onClick={() => setShowSlidesMode(true)}
-              className="landing-orange-btn group h-[50px] self-end px-6 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
-            >
-              <i className="ri-slideshow-3-line" style={{ fontSize: 16 }} />
-              Abrir slides
-            </button>
-
-            <button
               onClick={() => setShowMapModal(true)}
-              className="landing-orange-btn group h-[50px] self-end px-6 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
+              className="group h-[50px] self-end px-6 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
             >
               <i className="ri-pin-distance-line" style={{ fontSize: 16 }} />
               Abrir mapa
@@ -704,7 +577,7 @@ export default function Landing() {
                   : [...current, praca])}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                   selectedPracas.includes(praca)
-                    ? 'landing-orange-btn bg-brand-orange text-white border-brand-orange'
+                    ? 'bg-brand-orange text-white border-brand-orange'
                     : t.pracaChip
                 }`}
               >
@@ -715,25 +588,13 @@ export default function Landing() {
               onClick={() => setSelectedPracas([])}
               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                 selectedPracas.length === 0
-                  ? 'landing-orange-btn bg-brand-orange text-white border-brand-orange'
+                  ? 'bg-brand-orange text-white border-brand-orange'
                   : t.pracaChip
               }`}
             >
               Todas as praças
             </button>
           </div>
-
-          {showCommercialShortcut && (
-            <div className="mt-4">
-              <button
-                onClick={() => navigate('/comercial/explorar')}
-                className="landing-orange-btn inline-flex items-center gap-2 px-5 h-[44px] rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover hover:shadow-lg hover:shadow-brand-orange/40 transition-all duration-200"
-              >
-                <i className="ri-briefcase-4-line" style={{ fontSize: 16 }} />
-                Continuar no explorador comercial
-              </button>
-            </div>
-          )}
         </div>
       </section>
 
@@ -1005,7 +866,7 @@ export default function Landing() {
             </div>
             <button
               onClick={() => navigate(explorerPath)}
-              className="landing-orange-btn group inline-flex items-center justify-center gap-2 px-8 h-[52px] bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover hover:shadow-lg hover:shadow-brand-orange/40 transition-all duration-200"
+              className="group inline-flex items-center justify-center gap-2 px-8 h-[52px] bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover hover:shadow-lg hover:shadow-brand-orange/40 transition-all duration-200"
             >
               Explorar inventário completo
               <i className="ri-arrow-right-line group-hover:translate-x-1 transition-transform inline-block" style={{ fontSize: 18 }} />
@@ -1019,7 +880,7 @@ export default function Landing() {
         <div className={`absolute inset-0 ${t.footerBg}`} />
         <div className="relative max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <img src={isDark ? '/logo.png' : '/logo-light.png'} alt="Intermidia" className="h-6" />
+            <img src="/logo.png" alt="Intermidia" className="h-6" />
             <span className={`text-sm ${t.footerText}`}>© {new Date().getFullYear()}</span>
           </div>
           <div className={`flex items-center gap-6 text-sm ${t.footerText}`}>
@@ -1028,33 +889,13 @@ export default function Landing() {
             <span className="inline-flex items-center gap-2">
               <i className="ri-building-2-line" style={{ fontSize: 14 }} /> {formatInt(pracas.length)} praças
             </span>
-            <span className={`inline-flex items-center gap-1.5 ${t.footerText}`}>
-              <span>Desenvolvido por</span>
-              <span className="font-semibold text-brand-orange animate-pulse">Maitê Doin</span>
-            </span>
           </div>
         </div>
       </footer>
 
       <AnimatePresence>
         {showMapModal && (
-          <MapModal key="map-modal" pontos={pontos} onClose={() => setShowMapModal(false)} isDark={isDark} />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showSlidesMode && (
-          <MidiaKitSlidesMode
-            key="slides-mode"
-            open={showSlidesMode}
-            onClose={() => setShowSlidesMode(false)}
-            allPontos={allPontos}
-            selectedPracas={selectedPracas}
-            setSelectedPracas={setSelectedPracas}
-            selectedTipos={selectedTipos}
-            setSelectedTipos={setSelectedTipos}
-            isDark={isDark}
-          />
+          <MapModal key="map-modal" pontos={allPontos} onClose={() => setShowMapModal(false)} isDark={isDark} />
         )}
       </AnimatePresence>
 
@@ -1072,3 +913,9 @@ export default function Landing() {
     </div>
   );
 }
+"""
+
+dest = r'c:\midiakitdigital\midiakitdigital\frontend\src\pages\Landing.jsx'
+with open(dest, 'w', encoding='utf-8') as f:
+    f.write(content)
+print(f"Written {len(content)} chars to {dest}")
