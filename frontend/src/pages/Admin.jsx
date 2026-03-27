@@ -100,6 +100,10 @@ export default function Admin() {
   const [baseImagePreviewUrl, setBaseImagePreviewUrl] = useState('');
   const [screenSelection, setScreenSelection] = useState(null);
   const [screenStyle, setScreenStyle] = useState(defaultScreenStyle);
+  const [screenSelection2, setScreenSelection2] = useState(null);
+  const [screenStyle2, setScreenStyle2] = useState(defaultScreenStyle);
+  const [simulationFaceCount, setSimulationFaceCount] = useState(1);
+  const [activeSimulationFace, setActiveSimulationFace] = useState(0);
   const [saving, setSaving] = useState(false);
   const [focusDragging, setFocusDragging] = useState(false);
   const [search, setSearch] = useState('');
@@ -296,6 +300,10 @@ export default function Admin() {
     setImagem2File(null);
     setScreenSelection(null);
     setScreenStyle(defaultScreenStyle);
+    setScreenSelection2(null);
+    setScreenStyle2(defaultScreenStyle);
+    setSimulationFaceCount(1);
+    setActiveSimulationFace(0);
     setEditing('new');
   };
 
@@ -334,8 +342,17 @@ export default function Admin() {
     setImageFile(null);
     setImagem2File(null);
     const screenConfig = parseSimulationConfig(ponto.simulacao_tela);
-    setScreenSelection(screenConfig?.corners || parseScreen(ponto.simulacao_tela));
-    setScreenStyle(screenConfig?.style || defaultScreenStyle);
+    const parsedFaces = Array.isArray(screenConfig?.faces) && screenConfig.faces.length
+      ? screenConfig.faces
+      : (screenConfig?.corners ? [{ corners: screenConfig.corners, style: screenConfig.style }] : []);
+    const face1 = parsedFaces[0];
+    const face2 = parsedFaces[1];
+    setScreenSelection(face1?.corners || parseScreen(ponto.simulacao_tela));
+    setScreenStyle(face1?.style || defaultScreenStyle);
+    setScreenSelection2(face2?.corners || null);
+    setScreenStyle2(face2?.style || defaultScreenStyle);
+    setSimulationFaceCount(face2?.corners ? 2 : 1);
+    setActiveSimulationFace(0);
     setEditing(ponto);
   };
 
@@ -344,9 +361,16 @@ export default function Admin() {
     setSaving(true);
     try {
       const fd = new FormData();
+      const simulationFaces = [
+        { corners: screenSelection, style: screenStyle },
+        ...(simulationFaceCount === 2 && screenSelection2 ? [{ corners: screenSelection2, style: screenStyle2 }] : [])
+      ].filter((face) => face?.corners);
       const payload = {
         ...form,
-        simulacao_tela: serializeSimulationConfig({ corners: screenSelection, style: screenStyle })
+        simulacao_tela: serializeSimulationConfig({
+          faces: simulationFaces,
+          activeFaceIndex: activeSimulationFace
+        })
       };
       Object.entries(payload).forEach(([k, v]) => fd.append(k, v ?? ''));
       if (imageFile) fd.append('imagem', imageFile);
@@ -500,6 +524,10 @@ export default function Admin() {
   const previewFocoZoom = clampNumber(form.imagem_foco_zoom, 100, 220, 100);
   const imagePreviewForFocus = baseImagePreviewUrl || form.imagem;
   const simulationSuggestedFocus = useMemo(() => deriveFocusFromSimulationString(form.simulacao_tela), [form.simulacao_tela]);
+  const activeScreenSelection = activeSimulationFace === 1 ? screenSelection2 : screenSelection;
+  const activeScreenStyle = activeSimulationFace === 1 ? screenStyle2 : screenStyle;
+  const setActiveScreenSelection = activeSimulationFace === 1 ? setScreenSelection2 : setScreenSelection;
+  const setActiveScreenStyle = activeSimulationFace === 1 ? setScreenStyle2 : setScreenStyle;
 
   const autoArtPrompt = useMemo(() => {
     if (!artWidth || !artHeight || !form.nome) return '';
@@ -983,13 +1011,65 @@ export default function Admin() {
                   </div>
 
                   {form.imagem || baseImagePreviewUrl ? (
-                    <ScreenAreaEditor
-                      imageUrl={baseImagePreviewUrl || form.imagem}
-                      corners={screenSelection}
-                      style={screenStyle}
-                      onChange={setScreenSelection}
-                      onStyleChange={setScreenStyle}
-                    />
+                    <div className="space-y-3">
+                      <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Faces do painel na simulação</p>
+                          <div className="inline-flex rounded-lg border border-white/10 bg-white/5 p-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSimulationFaceCount(1);
+                                setActiveSimulationFace(0);
+                              }}
+                              className={`rounded-md px-3 py-1.5 text-xs transition-colors ${simulationFaceCount === 1 ? 'bg-brand-orange text-white' : 'text-brand-gray-300 hover:bg-white/10 hover:text-white'}`}
+                            >
+                              1 face
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSimulationFaceCount(2)}
+                              className={`rounded-md px-3 py-1.5 text-xs transition-colors ${simulationFaceCount === 2 ? 'bg-brand-orange text-white' : 'text-brand-gray-300 hover:bg-white/10 hover:text-white'}`}
+                            >
+                              2 faces
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSimulationFace(0)}
+                            className={`rounded-lg border px-3 py-2 text-xs transition-colors ${activeSimulationFace === 0 ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : 'border-white/10 bg-white/5 text-white hover:bg-white/10'}`}
+                          >
+                            Face 1
+                          </button>
+                          {simulationFaceCount === 2 ? (
+                            <button
+                              type="button"
+                              onClick={() => setActiveSimulationFace(1)}
+                              className={`rounded-lg border px-3 py-2 text-xs transition-colors ${activeSimulationFace === 1 ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : 'border-white/10 bg-white/5 text-white hover:bg-white/10'}`}
+                            >
+                              Face 2
+                            </button>
+                          ) : null}
+                        </div>
+
+                        <p className="text-[11px] text-brand-gray-500">
+                          {simulationFaceCount === 2
+                            ? 'Selecione as duas áreas da tela usando as abas Face 1 e Face 2. A simulação aplicará a arte nas duas.'
+                            : 'Use 2 faces quando o painel tiver mais de uma área visível para receber a mesma arte.'}
+                        </p>
+                      </div>
+
+                      <ScreenAreaEditor
+                        imageUrl={baseImagePreviewUrl || form.imagem}
+                        corners={activeScreenSelection}
+                        style={activeScreenStyle}
+                        onChange={setActiveScreenSelection}
+                        onStyleChange={setActiveScreenStyle}
+                      />
+                    </div>
                   ) : (
                     <div className="h-56 rounded-lg border border-dashed border-white/15 flex items-center justify-center text-xs text-brand-gray-500">
                       Envie a imagem base para habilitar a marcação da tela com o mouse
@@ -1210,7 +1290,11 @@ function deriveFocusFromSimulationString(simulacaoTela) {
 
   try {
     const parsed = typeof simulacaoTela === 'string' ? JSON.parse(simulacaoTela) : simulacaoTela;
-    const pointsSource = Array.isArray(parsed) ? parsed : parsed?.corners;
+    const pointsSource = Array.isArray(parsed)
+      ? parsed
+      : (Array.isArray(parsed?.faces) && parsed.faces.length
+        ? parsed.faces[0]?.corners
+        : parsed?.corners);
     if (!Array.isArray(pointsSource) || pointsSource.length < 4) return fallback;
     const corners = pointsSource
       .map((point) => ({ x: Number(point?.x), y: Number(point?.y) }))

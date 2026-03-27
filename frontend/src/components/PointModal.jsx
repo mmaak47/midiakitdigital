@@ -17,7 +17,11 @@ function parseSimulationCorners(simulacaoTela) {
   if (!simulacaoTela) return null;
   try {
     const parsed = typeof simulacaoTela === 'string' ? JSON.parse(simulacaoTela) : simulacaoTela;
-    const pointsSource = Array.isArray(parsed) ? parsed : parsed?.corners;
+    const pointsSource = Array.isArray(parsed)
+      ? parsed
+      : (Array.isArray(parsed?.faces) && parsed.faces.length
+        ? parsed.faces[0]?.corners
+        : parsed?.corners);
     if (!Array.isArray(pointsSource) || pointsSource.length < 4) return null;
     const corners = pointsSource
       .map((point) => ({ x: Number(point?.x), y: Number(point?.y) }))

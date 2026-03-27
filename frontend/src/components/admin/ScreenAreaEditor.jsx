@@ -249,6 +249,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
   };
 
   const startBackgroundSelection = (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
     const point = toPercentPoint(event);
     if (!point) return;
     event.preventDefault();
@@ -258,6 +259,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
   };
 
   const startCornerDrag = (event, index) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (!normalizedCorners) return;
     event.preventDefault();
     event.stopPropagation();
@@ -273,6 +275,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
   };
 
   const startEdgeDrag = (event, edge) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (!normalizedCorners) return;
     event.preventDefault();
     event.stopPropagation();
@@ -288,6 +291,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
   };
 
   const startQuadDrag = (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (!normalizedCorners) return;
     event.preventDefault();
     event.stopPropagation();

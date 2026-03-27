@@ -122,24 +122,69 @@ function rectConfigToCorners(raw) {
   return buildRectQuad(x, y, x + width, y + height);
 }
 
+function normalizeFaceConfig(inputFace, fallbackStyle = defaultScreenStyle) {
+  const corners = normalizeCorners(inputFace?.corners || inputFace);
+  if (!corners) return null;
+  return {
+    corners,
+    display: normalizeDisplaySettings(inputFace?.display),
+    style: normalizeScreenStyle({
+      ...fallbackStyle,
+      ...inputFace?.style
+    })
+  };
+}
+
 export function parseSimulationConfig(raw) {
   if (!raw) return null;
 
   try {
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    if (parsed?.corners) {
+    const topLevelStyle = normalizeScreenStyle(parsed?.style);
+
+    if (Array.isArray(parsed?.faces)) {
+      const faces = parsed.faces
+        .map((face) => normalizeFaceConfig(face, topLevelStyle))
+        .filter(Boolean);
+
+      if (!faces.length) return null;
+      const activeFaceIndex = clamp(toNumber(parsed?.activeFaceIndex, 0), 0, Math.max(0, faces.length - 1));
+      const activeFace = faces[activeFaceIndex] || faces[0];
+
       return {
-        corners: normalizeCorners(parsed.corners),
-        display: normalizeDisplaySettings(parsed.display),
-        style: normalizeScreenStyle(parsed.style)
+        corners: activeFace.corners,
+        display: activeFace.display,
+        style: activeFace.style,
+        faces,
+        activeFaceIndex
+      };
+    }
+
+    if (parsed?.corners) {
+      const face = normalizeFaceConfig(parsed, topLevelStyle);
+      if (!face) return null;
+      return {
+        corners: face.corners,
+        display: face.display,
+        style: face.style,
+        faces: [face],
+        activeFaceIndex: 0
       };
     }
 
     if (typeof parsed?.x !== 'undefined' || typeof parsed?.width !== 'undefined') {
-      return {
+      const face = normalizeFaceConfig({
         corners: rectConfigToCorners(parsed),
-        display: normalizeDisplaySettings(parsed),
-        style: normalizeScreenStyle(parsed.style)
+        display: parsed,
+        style: parsed?.style
+      }, topLevelStyle);
+      if (!face) return null;
+      return {
+        corners: face.corners,
+        display: face.display,
+        style: face.style,
+        faces: [face],
+        activeFaceIndex: 0
       };
     }
   } catch {
@@ -149,14 +194,43 @@ export function parseSimulationConfig(raw) {
   return null;
 }
 
-export function serializeSimulationConfig({ corners, display, style } = {}) {
-  const normalizedCorners = normalizeCorners(corners);
-  if (!normalizedCorners) return '';
+export function serializeSimulationConfig({ corners, display, style, faces, activeFaceIndex = 0 } = {}) {
+  const normalizedFaces = Array.isArray(faces)
+    ? faces.map((face) => normalizeFaceConfig(face, style)).filter(Boolean)
+    : [];
+
+  if (!normalizedFaces.length) {
+    const normalizedCorners = normalizeCorners(corners);
+    if (!normalizedCorners) return '';
+    return JSON.stringify({
+      version: 2,
+      corners: normalizedCorners,
+      style: normalizeScreenStyle(style),
+      ...(display ? { display: normalizeDisplaySettings(display) } : {})
+    });
+  }
+
+  if (normalizedFaces.length === 1) {
+    return JSON.stringify({
+      version: 2,
+      corners: normalizedFaces[0].corners,
+      style: normalizedFaces[0].style,
+      ...(normalizedFaces[0].display ? { display: normalizedFaces[0].display } : {})
+    });
+  }
+
+  const selectedFaceIndex = clamp(toNumber(activeFaceIndex, 0), 0, normalizedFaces.length - 1);
   return JSON.stringify({
-    version: 2,
-    corners: normalizedCorners,
-    style: normalizeScreenStyle(style),
-    ...(display ? { display: normalizeDisplaySettings(display) } : {})
+    version: 3,
+    corners: normalizedFaces[selectedFaceIndex].corners,
+    style: normalizedFaces[selectedFaceIndex].style,
+    ...(normalizedFaces[selectedFaceIndex].display ? { display: normalizedFaces[selectedFaceIndex].display } : {}),
+    activeFaceIndex: selectedFaceIndex,
+    faces: normalizedFaces.map((face) => ({
+      corners: face.corners,
+      style: face.style,
+      ...(face.display ? { display: face.display } : {})
+    }))
   });
 }
 
@@ -635,14 +709,24 @@ export async function generateSimulationPreview({
   maxWidth = 1800
 }) {
   const parsedConfig = screen?.corners ? screen : parseSimulationConfig(screen);
-  const corners = normalizeCorners(parsedConfig?.corners || screen);
-  if (!corners) throw new Error('Area da tela nao configurada');
+  const faces = Array.isArray(parsedConfig?.faces) && parsedConfig.faces.length
+    ? parsedConfig.faces
+    : [parsedConfig];
+  const normalizedFaces = faces
+    .map((face) => ({
+      corners: normalizeCorners(face?.corners || face),
+      style: normalizeScreenStyle(face?.style || parsedConfig?.style),
+      display: normalizeDisplaySettings({
+        ...parsedConfig?.display,
+        ...face?.display,
+        ...displaySettings
+      })
+    }))
+    .filter((face) => Array.isArray(face.corners));
 
-  const settings = normalizeDisplaySettings({
-    ...parsedConfig?.display,
-    ...displaySettings
-  });
-  const style = normalizeScreenStyle(parsedConfig?.style);
+  if (!normalizedFaces.length) throw new Error('Area da tela nao configurada');
+
+  const firstFace = normalizedFaces[0];
 
   const [base, creative] = await Promise.all([
     loadImage(baseImageUrl),
@@ -652,9 +736,13 @@ export async function generateSimulationPreview({
   const scale = base.width > maxWidth ? (maxWidth / base.width) : 1;
   const outW = Math.max(1, Math.round(base.width * scale));
   const outH = Math.max(1, Math.round(base.height * scale));
-  const scaledCorners = corners.map((point) => ({
-    x: (point.x / 100) * outW,
-    y: (point.y / 100) * outH
+  const scaledFaces = normalizedFaces.map((face) => ({
+    corners: face.corners.map((point) => ({
+      x: (point.x / 100) * outW,
+      y: (point.y / 100) * outH
+    })),
+    style: face.style,
+    settings: face.display
   }));
 
   const canvas = document.createElement('canvas');
@@ -667,21 +755,23 @@ export async function generateSimulationPreview({
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(base, 0, 0, outW, outH);
 
-  drawCreativeIntoQuad(ctx, creative, scaledCorners, settings, style, {
-    highQuality: isPrintedSurface(panelType)
+  scaledFaces.forEach((face) => {
+    drawCreativeIntoQuad(ctx, creative, face.corners, face.settings, face.style, {
+      highQuality: isPrintedSurface(panelType)
+    });
+    drawRoundedCornerMask(ctx, face.corners, face.style);
+    drawLightSpill(ctx, face.corners, face.settings, face.style);
+    drawScreenGlow(ctx, face.corners, face.settings, face.style, outW, outH);
+    drawReflection(ctx, face.corners, face.settings, face.style);
+
+    if (isPrintedSurface(panelType)) {
+      drawPrintedTexture(ctx, face.corners, face.settings, face.style);
+    } else {
+      drawLedPixels(ctx, face.corners, face.settings, face.style);
+    }
+
+    drawQuadOutline(ctx, face.corners, face.settings, face.style);
   });
-  drawRoundedCornerMask(ctx, scaledCorners, style);
-  drawLightSpill(ctx, scaledCorners, settings, style);
-  drawScreenGlow(ctx, scaledCorners, settings, style, outW, outH);
-  drawReflection(ctx, scaledCorners, settings, style);
-
-  if (isPrintedSurface(panelType)) {
-    drawPrintedTexture(ctx, scaledCorners, settings, style);
-  } else {
-    drawLedPixels(ctx, scaledCorners, settings, style);
-  }
-
-  drawQuadOutline(ctx, scaledCorners, settings, style);
 
   const blob = await new Promise((resolve, reject) => {
     canvas.toBlob((value) => {
@@ -698,9 +788,14 @@ export async function generateSimulationPreview({
     blob,
     previewUrl,
     screen: {
-      corners,
-      display: settings,
-      style
+      corners: firstFace.corners,
+      display: firstFace.settings,
+      style: firstFace.style,
+      faces: normalizedFaces.map((face) => ({
+        corners: face.corners,
+        display: face.settings,
+        style: face.style
+      }))
     }
   };
 }
