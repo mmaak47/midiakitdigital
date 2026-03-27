@@ -1,4 +1,4 @@
-# Intermidia — Mídia Kit Digital
+# Intermidia Mídia Kit Digital
 
 Plataforma web p/ apresentação e gestão de pontos de mídia OOH (out-of-home). Permite explorar, filtrar e montar propostas comerciais com geração de PDF, mapa interativo e modo de apresentação em slides.
 
