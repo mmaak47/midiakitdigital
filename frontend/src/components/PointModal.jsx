@@ -5,7 +5,7 @@ import {
   DollarSign, Heart, Building2
 } from 'lucide-react';
 import { useFavorites } from '../context/FavoritesContext';
-import { getPrimaryPointDisplayImage } from '../lib/pointImages';
+import { getPrimaryPointScreenImage } from '../lib/pointImages';
 
 const DEFAULT_IMAGE_FOCUS = { x: 50, y: 50, zoom: 100 };
 
@@ -77,7 +77,7 @@ export default function PointModal({ ponto, onClose, isDark = true }) {
 
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const fav = isFavorite(ponto.id);
-  const displayImage = getPrimaryPointDisplayImage(ponto);
+  const displayImage = getPrimaryPointScreenImage(ponto);
   const lat = Number(ponto.lat);
   const lng = Number(ponto.lng);
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
@@ -184,7 +184,7 @@ export default function PointModal({ ponto, onClose, isDark = true }) {
                     <iframe
                       title={`Mapa de ${ponto.nome}`}
                       src={mapEmbedUrl}
-                      className="absolute inset-0 w-full h-full border-0"
+                      className="absolute inset-0 w-full h-full border-0 [filter:grayscale(1)_invert(0.92)_hue-rotate(180deg)_saturate(0.72)_contrast(1.06)_brightness(0.9)]"
                       loading="lazy"
                       referrerPolicy="no-referrer-when-downgrade"
                     />

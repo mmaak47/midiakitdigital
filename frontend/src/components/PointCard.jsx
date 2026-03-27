@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { MapPin, Users, Monitor, Heart } from 'lucide-react';
 import { useFavorites } from '../context/FavoritesContext';
-import { getPrimaryPointDisplayImage } from '../lib/pointImages';
+import { getPrimaryPointScreenImage } from '../lib/pointImages';
 
 const typeBadgeClass = 'bg-brand-orange/12 text-brand-orange border-brand-orange/30';
 
@@ -16,7 +16,7 @@ function getPointTypeLabel(ponto) {
 export default function PointCard({ ponto, onSelect, index = 0, isDark = true }) {
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const fav = isFavorite(ponto.id);
-  const displayImage = getPrimaryPointDisplayImage(ponto);
+  const displayImage = getPrimaryPointScreenImage(ponto);
 
   const formatNumber = (n) => {
     if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;

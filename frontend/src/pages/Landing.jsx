@@ -5,7 +5,7 @@ import Navbar from '../components/Navbar';
 import CustomSelect from '../components/CustomSelect';
 import SmartMap from '../components/SmartMap';
 import { fetchPontos } from '../lib/api';
-import { getPointDisplayImages, getPrimaryPointDisplayImage } from '../lib/pointImages';
+import { getPointDisplayImages, getPrimaryPointMediaKitImage } from '../lib/pointImages';
 import { campaignTotals } from '../lib/strategy';
 
 const fadeUp = {
@@ -247,9 +247,9 @@ function MapModal({ pontos, onClose, isDark }) {
           </div>
           {selectedPoint ? (
             <div className="flex-1 p-4 space-y-3">
-              {getPrimaryPointDisplayImage(selectedPoint) && (
+              {getPrimaryPointMediaKitImage(selectedPoint) && (
                 <div className={`rounded-xl overflow-hidden h-32 border ${m.imgBorder}`}>
-                  <img src={getPrimaryPointDisplayImage(selectedPoint)} alt={selectedPoint.nome} className="w-full h-full object-cover" />
+                  <img src={getPrimaryPointMediaKitImage(selectedPoint)} alt={selectedPoint.nome} className="w-full h-full object-cover" />
                 </div>
               )}
               <div>

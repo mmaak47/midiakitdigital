@@ -172,7 +172,7 @@ function pickImageUrl(ponto) {
     if (typeof first === 'string') return first;
     if (first?.url) return first.url;
   }
-  return ponto?.imagem || '';
+  return ponto?.imagem2 || ponto?.imagem || '';
 }
 
 function pickProposalImageUrl(ponto) {

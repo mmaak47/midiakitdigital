@@ -1,9 +1,17 @@
+export function getPrimaryPointScreenImage(point) {
+  if (!point) return '';
+  return point.imagem || point.imagem2 || '';
+}
+
+export function getPrimaryPointMediaKitImage(point) {
+  if (!point) return '';
+  return point.imagem2 || point.imagem || '';
+}
+
 export function getPointDisplayImages(point) {
   if (!point) return [];
 
-  const primaryImage = point.tipo === 'Elevador' && point.imagem2
-    ? point.imagem2
-    : point.imagem;
+  const primaryImage = getPrimaryPointMediaKitImage(point);
   const secondaryImage = primaryImage === point.imagem
     ? point.imagem2
     : point.imagem;
@@ -12,5 +20,5 @@ export function getPointDisplayImages(point) {
 }
 
 export function getPrimaryPointDisplayImage(point) {
-  return getPointDisplayImages(point)[0] || '';
+  return getPrimaryPointMediaKitImage(point);
 }
