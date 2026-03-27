@@ -501,6 +501,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
       await downloadSelectionMapPng(proposalPoints, {
         connectPoints: connectMapPoints,
+        clientAddress: form.clientAddress || '',
         theme: 'light',
         width: 1800,
         height: 1000,

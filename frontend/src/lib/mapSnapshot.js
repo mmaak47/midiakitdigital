@@ -1,4 +1,24 @@
 const TILE_SIZE = 256;
+async function geocodeAddress(address) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json', 'User-Agent': 'MidiaKitDigital/1.0' }
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!Array.isArray(data) || !data.length) return null;
+    return { lat: Number(data[0].lat), lng: Number(data[0].lon) };
+  } catch {
+    clearTimeout(timeoutId);
+    return null;
+  }
+}
+
 const TILE_THEMES = {
   dark: 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
   light: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
@@ -191,6 +211,68 @@ function drawRouteLine(ctx, points) {
   ctx.restore();
 }
 
+function drawClientLines(ctx, clientPoint, points) {
+  if (!points.length) return;
+  ctx.save();
+  ctx.setLineDash([10, 7]);
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.82)';
+  ctx.lineCap = 'round';
+  points.forEach((point) => {
+    ctx.beginPath();
+    ctx.moveTo(clientPoint.x, clientPoint.y);
+    ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+function drawClientMarker(ctx, clientPoint) {
+  ctx.save();
+
+  // Halo
+  ctx.beginPath();
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
+  ctx.arc(clientPoint.x, clientPoint.y, 18, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Dot
+  ctx.beginPath();
+  ctx.fillStyle = '#38bdf8';
+  ctx.arc(clientPoint.x, clientPoint.y, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Letter
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 12px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('C', clientPoint.x, clientPoint.y);
+
+  // Label pill
+  const label = 'Cliente';
+  ctx.font = 'bold 11px Arial';
+  const textW = ctx.measureText(label).width;
+  const padX = 8;
+  const padY = 4;
+  const boxW = textW + padX * 2;
+  const boxH = 11 + padY * 2;
+  const boxX = clientPoint.x - boxW / 2;
+  const boxY = clientPoint.y + 16;
+
+  ctx.fillStyle = 'rgba(10, 20, 50, 0.82)';
+  ctx.beginPath();
+  ctx.roundRect(boxX, boxY, boxW, boxH, 4);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, clientPoint.x, boxY + boxH / 2);
+
+  ctx.restore();
+}
+
 function drawPointMarkers(ctx, points) {
   points.forEach((point, index) => {
     ctx.save();
@@ -244,13 +326,14 @@ function drawPointMarkers(ctx, points) {
   });
 }
 
-function drawLegend(ctx, width, height, withLine) {
+function drawLegend(ctx, width, height, withLine, withClient) {
   const baseX = 20;
   const baseY = height - 46;
 
   ctx.save();
+  const legendW = 200 + (withLine ? 180 : 0) + (withClient ? 180 : 0);
   ctx.fillStyle = 'rgba(5, 5, 5, 0.72)';
-  ctx.fillRect(baseX - 10, baseY - 18, withLine ? 330 : 240, 34);
+  ctx.fillRect(baseX - 10, baseY - 18, legendW, 34);
 
   ctx.fillStyle = '#fe5c2b';
   ctx.beginPath();
@@ -275,6 +358,16 @@ function drawLegend(ctx, width, height, withLine) {
     ctx.fillText('Conexao entre pontos', lineX + 32, baseY);
   }
 
+  if (withClient) {
+    const clientX = baseX + 180 + (withLine ? 180 : 0);
+    ctx.beginPath();
+    ctx.fillStyle = '#38bdf8';
+    ctx.arc(clientX, baseY, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('Endereco do cliente', clientX + 14, baseY);
+  }
+
   ctx.restore();
 }
 
@@ -283,6 +376,7 @@ export async function buildSelectionMapCanvas(points = [], options = {}) {
   const height = Math.max(360, Number(options.height) || 900);
   const theme = options.theme === 'dark' ? 'dark' : 'light';
   const connectPoints = !!options.connectPoints;
+  const clientAddress = typeof options.clientAddress === 'string' ? options.clientAddress.trim() : '';
 
   const validPoints = (Array.isArray(points) ? points : [])
     .map((point) => {
@@ -307,8 +401,15 @@ export async function buildSelectionMapCanvas(points = [], options = {}) {
   buildCanvasBackground(ctx, width, height, theme);
 
   const samples = validPoints.map((point) => ({ lat: point.lat, lng: point.lng }));
-  const zoom = pickMapZoom(samples, width, height, 54);
-  const viewport = createViewport(samples, width, height, zoom);
+
+  let clientCoords = null;
+  if (clientAddress) {
+    clientCoords = await geocodeAddress(clientAddress);
+  }
+
+  const allSamples = clientCoords ? [...samples, clientCoords] : samples;
+  const zoom = pickMapZoom(allSamples, width, height, 54);
+  const viewport = createViewport(allSamples, width, height, zoom);
 
   await drawTiles(ctx, width, height, zoom, viewport, theme);
 
@@ -321,8 +422,19 @@ export async function buildSelectionMapCanvas(points = [], options = {}) {
     drawRouteLine(ctx, projectedPoints);
   }
 
+  if (clientCoords) {
+    const projectedClient = {
+      x: projectToViewport(clientCoords.lat, clientCoords.lng, zoom, viewport).x,
+      y: projectToViewport(clientCoords.lat, clientCoords.lng, zoom, viewport).y
+    };
+    drawClientLines(ctx, projectedClient, projectedPoints);
+    drawPointMarkers(ctx, projectedPoints);
+    drawClientMarker(ctx, projectedClient);
+    drawLegend(ctx, width, height, connectPoints, true);
+  } else {
   drawPointMarkers(ctx, projectedPoints);
-  drawLegend(ctx, width, height, connectPoints);
+    drawLegend(ctx, width, height, connectPoints, false);
+  }
 
   return canvas;
 }
