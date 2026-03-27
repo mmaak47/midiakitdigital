@@ -1008,6 +1008,7 @@ export default function Landing() {
             <span className="inline-flex items-center gap-2">
               <i className="ri-building-2-line" style={{ fontSize: 14 }} /> {formatInt(pracas.length)} praças
             </span>
+            <span className={t.footerText}>Desenvolvido por Maitê Doin</span>
           </div>
         </div>
       </footer>
