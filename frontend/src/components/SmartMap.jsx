@@ -125,6 +125,7 @@ export default function SmartMap({
   const [hoveredZone, setHoveredZone] = useState(null);
   const [popupPoint, setPopupPoint] = useState(null);
   const mapRef = useRef(null);
+  const shouldAutoFitRef = useRef(true);
 
   const styleUrl = useMemo(() => {
     const darkStyle = import.meta.env.VITE_TILE_CDN_STYLE_DARK;
@@ -158,6 +159,11 @@ export default function SmartMap({
   }), [valid, selectedId]);
 
   useEffect(() => {
+    // Re-enable auto-fit only when external inputs change (new data/filter/focus).
+    shouldAutoFitRef.current = true;
+  }, [pontos, selectedCidades, cityBounds, focusCoords]);
+
+  useEffect(() => {
     if (!selectedId) {
       setPopupPoint(null);
       return;
@@ -173,8 +179,15 @@ export default function SmartMap({
 
     const focusLat = sanitizeCoordinate(focusCoords?.lat, -90, 90);
     const focusLng = sanitizeCoordinate(focusCoords?.lng, -180, 180);
+    const hasFocus = focusLat !== null && focusLng !== null;
+
+    if (!hasFocus && !shouldAutoFitRef.current) {
+      return;
+    }
+
     if (focusLat !== null && focusLng !== null) {
       map.flyTo({ center: [focusLng, focusLat], zoom: Math.max(map.getZoom(), 14), essential: true, duration: 700 });
+      shouldAutoFitRef.current = false;
       return;
     }
 
@@ -189,12 +202,14 @@ export default function SmartMap({
         [boundsFromCities[0], boundsFromCities[1]],
         [boundsFromCities[2], boundsFromCities[3]],
       ], { padding: 48, maxZoom: 13, duration: 700 });
+      shouldAutoFitRef.current = false;
       return;
     }
 
     if (!valid.length) return;
     if (valid.length === 1) {
       map.flyTo({ center: [valid[0].lng, valid[0].lat], zoom: 14, essential: true, duration: 700 });
+      shouldAutoFitRef.current = false;
       return;
     }
 
@@ -204,6 +219,7 @@ export default function SmartMap({
       [[allBounds[0], allBounds[1]], [allBounds[2], allBounds[3]]],
       { padding: 48, maxZoom: 13, duration: 700 },
     );
+    shouldAutoFitRef.current = false;
   }, [focusCoords, valid, selectedCidades, cityBounds]);
 
   const handleMapClick = useCallback((event) => {
@@ -248,6 +264,12 @@ export default function SmartMap({
         interactiveLayerIds={['clusters', 'unclustered-point', 'zones-fill']}
         attributionControl={false}
         onClick={handleMapClick}
+        onDragStart={() => {
+          shouldAutoFitRef.current = false;
+        }}
+        onZoomStart={() => {
+          shouldAutoFitRef.current = false;
+        }}
         onMouseMove={(event) => {
           const zoneFeature = event.features?.find((feature) => feature.layer?.id === 'zones-fill');
           if (!zoneFeature) {
