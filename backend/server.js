@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const { startLicenseWatcher, requireLicense, isLicensed } = require('./license');
 const compression = require('compression');
 const path = require('path');
 const multer = require('multer');
@@ -1383,6 +1384,10 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`Intermidia Mídia Kit API running on port ${PORT}`);
+  startLicenseWatcher().catch((err) => {
+    console.error('[license] Watcher failed to start:', err.message);
+    process.exit(1);
+  });
   if (String(process.env.SQLITE_BACKUP_ENABLED || 'true').toLowerCase() !== 'false') {
     createBackupScheduler(db);
   } else {
