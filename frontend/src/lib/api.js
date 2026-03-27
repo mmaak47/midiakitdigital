@@ -9,13 +9,13 @@ function getAdminToken() {
 
 function isAdminContext() {
   if (typeof window === 'undefined') return true;
-  return window.location.pathname.startsWith('/comercial');
+  const pathname = window.location.pathname;
+  return pathname === '/comercial' || pathname.startsWith('/comercial/admin');
 }
 
 function isAdminOrSensitivePath(pathname) {
   return pathname.startsWith('/admin')
     || pathname.startsWith('/propostas')
-    || pathname.startsWith('/pontos')
     || pathname === '/entorno/analyze'
     || pathname === '/entorno/client-address';
 }
