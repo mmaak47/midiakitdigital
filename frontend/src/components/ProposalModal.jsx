@@ -29,7 +29,7 @@ import {
   parseSimulationConfig
 } from '../lib/simulation';
 import { fetchClientAddressAnalysis, fetchEntornoJobStatus, fetchEntornoScores } from '../lib/api';
-import { buildSelectionMapDataUrl, downloadSelectionMapPng, geocodeAddress } from '../lib/mapSnapshot';
+import { buildSelectionMapDataUrl, downloadSelectionMapPng } from '../lib/mapSnapshot';
 import CustomSelect from './CustomSelect';
 import ProposalBuilder from './ProposalBuilder';
 import PresentationMode from './PresentationMode';
@@ -498,13 +498,25 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       setSimulationError('');
 
       // Use coordinates already geocoded by the client-address analysis (if user ran it),
-      // or geocode directly via Nominatim — never via the policy-protected POST endpoint.
+      // otherwise ask the backend to resolve the address (reliable, avoids CORS issues).
       let exportClientCoords = clientAnalysis.location || null;
       const cleanedClientAddress = String(form.clientAddress || '').trim();
 
       if (!exportClientCoords && cleanedClientAddress) {
         setMapStatus('Localizando endereço do cliente...');
-        exportClientCoords = await geocodeAddress(cleanedClientAddress);
+        try {
+          const geoResponse = await fetchClientAddressAnalysis({
+            address: cleanedClientAddress,
+            pointIds: [],
+            cidade: []
+          });
+          exportClientCoords = geoResponse?.location || null;
+        } catch {
+          exportClientCoords = null;
+        }
+        if (!exportClientCoords) {
+          setSimulationError('Endereço do cliente não localizado — o mapa será gerado sem ele.');
+        }
       }
 
       setMapStatus('Carregando tiles do mapa...');

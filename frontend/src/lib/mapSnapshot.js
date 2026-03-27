@@ -398,8 +398,7 @@ export async function buildSelectionMapCanvas(points = [], options = {}) {
   const height = Math.max(360, Number(options.height) || 900);
   const theme = options.theme === 'dark' ? 'dark' : 'light';
   const connectPoints = !!options.connectPoints;
-  const clientAddress = typeof options.clientAddress === 'string' ? options.clientAddress.trim() : '';
-  const explicitClientCoords = options.clientCoords && Number.isFinite(Number(options.clientCoords.lat)) && Number.isFinite(Number(options.clientCoords.lng))
+  const clientCoords = options.clientCoords && Number.isFinite(Number(options.clientCoords.lat)) && Number.isFinite(Number(options.clientCoords.lng))
     ? { lat: Number(options.clientCoords.lat), lng: Number(options.clientCoords.lng) }
     : null;
 
@@ -427,11 +426,6 @@ export async function buildSelectionMapCanvas(points = [], options = {}) {
 
   const samples = validPoints.map((point) => ({ lat: point.lat, lng: point.lng }));
 
-  let clientCoords = explicitClientCoords;
-  if (!clientCoords && clientAddress) {
-    clientCoords = await geocodeAddress(clientAddress);
-  }
-
   const allSamples = clientCoords ? [...samples, clientCoords] : samples;
   const zoom = pickMapZoom(allSamples, width, height, 54);
   const viewport = createViewport(allSamples, width, height, zoom);
@@ -457,7 +451,7 @@ export async function buildSelectionMapCanvas(points = [], options = {}) {
     drawClientMarker(ctx, projectedClient);
     drawLegend(ctx, width, height, connectPoints, true);
   } else {
-  drawPointMarkers(ctx, projectedPoints);
+    drawPointMarkers(ctx, projectedPoints);
     drawLegend(ctx, width, height, connectPoints, false);
   }
 
