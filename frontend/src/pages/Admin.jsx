@@ -1284,10 +1284,6 @@ export default function Admin() {
   );
 }
 
-
-      <footer className={`px-6 pb-6 text-center text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
-        Desenvolvido por Maitê Doin
-      </footer>
 function clampNumber(value, min, max, fallback) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
