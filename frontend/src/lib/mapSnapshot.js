@@ -195,21 +195,50 @@ function drawPointMarkers(ctx, points) {
   points.forEach((point, index) => {
     ctx.save();
 
+    // Halo
     ctx.beginPath();
     ctx.fillStyle = 'rgba(254, 92, 43, 0.28)';
     ctx.arc(point.x, point.y, 16, 0, Math.PI * 2);
     ctx.fill();
 
+    // Dot
     ctx.beginPath();
     ctx.fillStyle = '#fe5c2b';
     ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#050505';
+    // Number (white)
+    ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 11px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(index + 1), point.x, point.y);
+
+    // Name label
+    const rawName = point.point?.nome || point.point?.name || '';
+    if (rawName) {
+      const label = rawName.length > 24 ? rawName.slice(0, 22) + '…' : rawName;
+      ctx.font = 'bold 11px Arial';
+      ctx.textAlign = 'center';
+      const textW = ctx.measureText(label).width;
+      const padX = 8;
+      const padY = 4;
+      const boxW = textW + padX * 2;
+      const boxH = 11 + padY * 2;
+      const boxX = point.x - boxW / 2;
+      const boxY = point.y + 14;
+
+      // Pill background
+      ctx.fillStyle = 'rgba(10, 10, 10, 0.78)';
+      ctx.beginPath();
+      ctx.roundRect(boxX, boxY, boxW, boxH, 4);
+      ctx.fill();
+
+      // Label text
+      ctx.fillStyle = '#ffffff';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, point.x, boxY + boxH / 2);
+    }
 
     ctx.restore();
   });
