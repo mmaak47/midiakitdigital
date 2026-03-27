@@ -9,6 +9,7 @@ import {
   suggestIdealPlan
 } from '../lib/strategy';
 import { fetchEntornoJobStatus, fetchEntornoScores } from '../lib/api';
+import { fetchIbgeCityProfiles } from '../lib/ibge';
 
 const DEFAULT_ENTORNO_RADIUS = 800;
 
@@ -29,6 +30,11 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
     scoresByPoint: {},
     updatedAt: null,
     error: ''
+  });
+  const [ibge, setIbge] = useState({
+    loading: false,
+    profiles: {},
+    errors: {}
   });
 
   useEffect(() => {
@@ -100,6 +106,43 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
     };
   }, [form.segmento, form.cidade]);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadIbge = async () => {
+      const selectedCities = Array.isArray(form.cidade) ? form.cidade.filter(Boolean) : [];
+      if (!selectedCities.length) {
+        setIbge({ loading: false, profiles: {}, errors: {} });
+        return;
+      }
+
+      setIbge((prev) => ({ ...prev, loading: true }));
+
+      try {
+        const response = await fetchIbgeCityProfiles(selectedCities);
+        if (!active) return;
+        setIbge({
+          loading: false,
+          profiles: response.profiles || {},
+          errors: response.errors || {}
+        });
+      } catch {
+        if (!active) return;
+        setIbge({
+          loading: false,
+          profiles: {},
+          errors: { global: 'Falha ao carregar dados do IBGE.' }
+        });
+      }
+    };
+
+    loadIbge();
+
+    return () => {
+      active = false;
+    };
+  }, [form.cidade]);
+
   const suggestion = useMemo(() => suggestIdealPlan({
     pontos,
     cityInventory: pontos,
@@ -169,6 +212,34 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
             </p>
             {entorno.error && <p className="mt-1 text-red-300">{entorno.error}</p>}
           </div>
+          {form.cidade.length > 0 && (
+            <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-brand-gray-400">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold uppercase tracking-wide text-brand-gray-300">Contexto territorial</span>
+                {ibge.loading && (
+                  <span className="inline-flex items-center gap-1 text-brand-orange">
+                    <Loader2 size={12} className="animate-spin" />
+                    Consultando IBGE
+                  </span>
+                )}
+                <span className="rounded-full border border-brand-orange/30 bg-brand-orange/10 px-2 py-0.5 text-brand-orange">
+                  Fonte: IBGE
+                </span>
+              </div>
+
+              <div className="mt-2 space-y-1.5">
+                {Object.values(ibge.profiles).map((profile) => (
+                  <p key={`${profile.city}-${profile.ibgeCode || 'na'}`}>
+                    {profile.city}: cod. {profile.ibgeCode || 'N/I'} • {profile.stateCode || '-'} • {profile.region || 'Região N/I'}
+                  </p>
+                ))}
+
+                {Object.values(ibge.errors).map((error, index) => (
+                  <p key={`ibge-error-${index}`} className="text-red-300">{error}</p>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2.5 mb-4">
             {suggestion.pontos.slice(0, 8).map((p) => (
               <span key={p.id} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-orange/15 to-brand-orange/5 border border-brand-orange/30 text-xs font-medium text-brand-orange hover:border-brand-orange/60 transition-colors">

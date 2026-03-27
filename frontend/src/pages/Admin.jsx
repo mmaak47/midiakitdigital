@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
@@ -81,6 +82,7 @@ function enforceElevadorDimensions(nextForm) {
 }
 
 export default function Admin() {
+  const location = useLocation();
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('intermidia_theme') !== 'light';
@@ -256,6 +258,11 @@ export default function Admin() {
     try {
       const data = await login(username, password);
       sessionStorage.setItem('admin_token', data.token);
+      if (location.pathname === '/comercial') {
+        sessionStorage.setItem('comercial_manual_login', '1');
+      } else {
+        sessionStorage.removeItem('comercial_manual_login');
+      }
       setAuth(true);
     } catch (err) {
       setLoginError(err.message);

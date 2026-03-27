@@ -361,6 +361,7 @@ export default function Landing() {
   const [showSlidesMode, setShowSlidesMode] = useState(false);
   const [lightbox, setLightbox] = useState({ ponto: null, imageIndex: 0 });
   const [isDark, setIsDark] = useState(true);
+  const [showCommercialShortcut, setShowCommercialShortcut] = useState(false);
 
   const t = {
     bg: isDark ? 'bg-[#050505]' : 'bg-[#f4f5f7]',
@@ -413,6 +414,13 @@ export default function Landing() {
     }
     loadPontos();
     return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hasToken = !!sessionStorage.getItem('admin_token');
+    const fromManualCommercial = sessionStorage.getItem('comercial_manual_login') === '1';
+    setShowCommercialShortcut(hasToken && fromManualCommercial);
   }, []);
 
   const pracas = useMemo(() => {
@@ -714,6 +722,18 @@ export default function Landing() {
               Todas as praças
             </button>
           </div>
+
+          {showCommercialShortcut && (
+            <div className="mt-4">
+              <button
+                onClick={() => navigate('/comercial/explorar')}
+                className="landing-orange-btn inline-flex items-center gap-2 px-5 h-[44px] rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover hover:shadow-lg hover:shadow-brand-orange/40 transition-all duration-200"
+              >
+                <i className="ri-briefcase-4-line" style={{ fontSize: 16 }} />
+                Continuar no explorador comercial
+              </button>
+            </div>
+          )}
         </div>
       </section>
 

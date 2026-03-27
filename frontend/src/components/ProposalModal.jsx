@@ -6,7 +6,9 @@ import {
   Download,
   FileText,
   Image as ImageIcon,
+  MapPinned,
   Presentation,
+  Route,
   Upload,
   X
 } from 'lucide-react';
@@ -27,6 +29,7 @@ import {
   parseSimulationConfig
 } from '../lib/simulation';
 import { fetchClientAddressAnalysis, fetchEntornoJobStatus, fetchEntornoScores } from '../lib/api';
+import { buildSelectionMapDataUrl, downloadSelectionMapPng } from '../lib/mapSnapshot';
 import CustomSelect from './CustomSelect';
 import ProposalBuilder from './ProposalBuilder';
 import PresentationMode from './PresentationMode';
@@ -75,6 +78,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [activePreviewPointId, setActivePreviewPointId] = useState(null);
   const [showPreviewLightbox, setShowPreviewLightbox] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [mapBusy, setMapBusy] = useState(false);
+  const [connectMapPoints, setConnectMapPoints] = useState(false);
   const [pdfSections, setPdfSections] = useState({ methodology: true, score: true, coverage: true, impact: true });
   const [entorno, setEntorno] = useState({
     loading: false,
@@ -439,6 +444,21 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         .map((line) => line.replace(/^[-•\d.)\s]+/, '').trim())
         .filter(Boolean);
 
+      const pointMapImages = await Promise.all(
+        proposalPoints.map(async (point) => {
+          try {
+            return await buildSelectionMapDataUrl([point], {
+              width: 860,
+              height: 440,
+              theme: 'light',
+              connectPoints: false
+            });
+          } catch {
+            return null;
+          }
+        })
+      );
+
       await generateProposalPdf({
         clientName: form.clientName,
         clientAddress: form.clientAddress,
@@ -454,6 +474,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         strategicSubtitle: form.proposalSubtitle,
         simulationSummary,
         analysisMode,
+        pointMapImages,
         showMetricsMethodology: pdfSections.methodology,
         showCampaignScore: pdfSections.score,
         showCoverageLayer: pdfSections.coverage,
@@ -463,6 +484,32 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       setSimulationError(error?.message || 'Falha ao gerar o PDF da proposta.');
     } finally {
       setPdfBusy(false);
+    }
+  };
+
+  const handleExportSelectionMap = async () => {
+    try {
+      setMapBusy(true);
+      setSimulationError('');
+
+      const slugClient = String(form.clientName || 'proposta')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'proposta';
+
+      await downloadSelectionMapPng(proposalPoints, {
+        connectPoints: connectMapPoints,
+        theme: 'light',
+        width: 1800,
+        height: 1000,
+        fileName: `mapa-selecao-${slugClient}-${new Date().toISOString().slice(0, 10)}.png`
+      });
+    } catch (error) {
+      setSimulationError(error?.message || 'Falha ao gerar o print do mapa da selecao.');
+    } finally {
+      setMapBusy(false);
     }
   };
 
@@ -839,6 +886,35 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-400">Print do mapa da seleção</p>
+                    <span className="inline-flex items-center gap-1 text-[11px] text-brand-gray-500">
+                      <MapPinned size={13} />
+                      PNG de alta resolução
+                    </span>
+                  </div>
+
+                  <label className="inline-flex items-center gap-2 text-sm text-brand-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={connectMapPoints}
+                      onChange={(event) => setConnectMapPoints(event.target.checked)}
+                      className="h-4 w-4 rounded border-white/20 bg-white/5"
+                    />
+                    Desenhar linha de conexão entre os pontos
+                  </label>
+
+                  <button
+                    onClick={handleExportSelectionMap}
+                    disabled={mapBusy || !proposalPoints.length}
+                    className="h-11 px-4 rounded-xl border border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange font-medium inline-flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <Route size={16} />
+                    {mapBusy ? 'Gerando print do mapa...' : 'Baixar print do mapa'}
+                  </button>
                 </div>
 
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">

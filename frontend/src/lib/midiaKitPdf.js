@@ -1173,7 +1173,7 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
   `, BRAND_DARK);
 }
 
-function buildProposalPointPage({ point, index, total, image, segmento, assets }) {
+function buildProposalPointPage({ point, index, total, image, mapImage, segmento, assets }) {
   const layout = getActivePdfLayoutConfig().proposal.point;
   const counterMinWidth = Math.max(Number(layout.counterMinWidth) || 0, 110);
   const counterPaddingX = Math.max(Number(layout.counterPaddingX) || 0, 14);
@@ -1242,6 +1242,16 @@ function buildProposalPointPage({ point, index, total, image, segmento, assets }
             <div style="margin-top:12px;font-size:22px;line-height:1.35;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(audience.headline)}</div>
             <div style="margin-top:10px;font-size:16px;line-height:1.5;color:rgba(255,255,255,0.72);word-break:break-word;">${escapeHtml(audience.summary)}</div>
           </div>
+
+          ${mapImage ? `
+            <div style="padding:16px 18px;border-radius:22px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+              <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Localização no mapa</div>
+              <div style="margin-top:10px;height:160px;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);">
+                <img src="${mapImage}" alt="Mapa do ponto" style="width:100%;height:100%;object-fit:cover;" />
+              </div>
+              <div style="margin-top:8px;font-size:11px;line-height:1.35;color:rgba(255,255,255,0.62);">Fonte cartográfica: OpenStreetMap/Carto.</div>
+            </div>
+          ` : ''}
 
           ${hasEntornoData ? `
             <div style="padding:22px 24px;border-radius:28px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
@@ -1895,6 +1905,7 @@ export async function generateProposalPdf({
   strategicSubtitle,
   simulationSummary,
   pricingSummary,
+  pointMapImages = [],
   showMetricsMethodology = true,
   showCampaignScore = true,
   showCoverageLayer = true,
@@ -1942,6 +1953,7 @@ export async function generateProposalPdf({
       index: index + 1,
       total: proposalPoints.length,
       image: proposalImages[index],
+      mapImage: pointMapImages[index] || null,
       segmento,
       assets
     }));
