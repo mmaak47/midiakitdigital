@@ -2,12 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ChevronLeft, ChevronRight, Maximize2, Minimize2, Play, X } from 'lucide-react';
 import CustomSelect from './CustomSelect';
+import SmartMap from './SmartMap';
 import { getPrimaryPointMediaKitImage } from '../lib/pointImages';
 import { campaignTotals } from '../lib/strategy';
 
 const fmtInt = (v) => new Intl.NumberFormat('pt-BR').format(Math.round(Number(v) || 0));
 const fmtMoney = (v) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v || 0);
+
+function getFocusCoords(point) {
+  if (!point) return null;
+  const lat = Number(point.lat);
+  const lng = Number(point.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
 
 // ─── Lobby: seleção de pontos ────────────────
 function Lobby({
@@ -201,7 +210,12 @@ function Lobby({
 }
 
 // ─── Slide de transição entre formatos ───
-function DividerSlide({ tipo, count, totaisTipo }) {
+function DividerSlide({ tipo, count, totaisTipo, points }) {
+  const pointsWithCoords = useMemo(
+    () => (Array.isArray(points) ? points : []).filter((p) => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng))),
+    [points],
+  );
+
   return (
     <motion.div
       key={`divider-${tipo}`}
@@ -209,7 +223,7 @@ function DividerSlide({ tipo, count, totaisTipo }) {
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 1.03 }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className="h-full flex flex-col items-center justify-center text-center relative"
+      className="h-full flex flex-col items-center justify-center text-center relative px-4"
     >
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(254,92,43,0.2),transparent_62%)]" />
       <div className="relative z-10 flex flex-col items-center">
@@ -235,6 +249,18 @@ function DividerSlide({ tipo, count, totaisTipo }) {
             </div>
           </div>
         )}
+
+        <div className="mt-6 w-full max-w-4xl rounded-2xl border border-white/15 bg-black/40 overflow-hidden">
+          {pointsWithCoords.length ? (
+            <div className="h-[32vh] min-h-[220px]">
+              <SmartMap pontos={pointsWithCoords} isDark />
+            </div>
+          ) : (
+            <div className="h-[32vh] min-h-[220px] flex items-center justify-center text-sm text-brand-gray-400">
+              Sem coordenadas para mostrar o mapa deste formato.
+            </div>
+          )}
+        </div>
       </div>
     </motion.div>
   );
@@ -244,6 +270,7 @@ function DividerSlide({ tipo, count, totaisTipo }) {
 function PointSlide({ slide, totals, selectionLabel, typesLabel }) {
   const { point, infoOnLeft } = slide;
   const img = getPrimaryPointMediaKitImage(point);
+  const focusCoords = getFocusCoords(point);
   return (
     <motion.div
       key={slide.key}
@@ -280,6 +307,20 @@ function PointSlide({ slide, totals, selectionLabel, typesLabel }) {
               : 'bg-[linear-gradient(270deg,rgba(0,0,0,0.93)_0%,rgba(0,0,0,0.65)_35%,rgba(0,0,0,0.18)_72%,rgba(0,0,0,0.04)_100%)]'
           }`}
         />
+      </div>
+
+      <div
+        className={`absolute bottom-3 z-20 h-[180px] w-[280px] rounded-xl border border-white/20 bg-black/75 overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.45)] ${
+          infoOnLeft ? 'right-3' : 'left-3'
+        }`}
+      >
+        {focusCoords ? (
+          <SmartMap pontos={[point]} isDark focusCoords={focusCoords} />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center text-xs text-brand-gray-400 px-4 text-center">
+            Sem coordenadas para mostrar este ponto no mapa.
+          </div>
+        )}
       </div>
 
       <div
@@ -430,7 +471,7 @@ export default function MidiaKitSlidesMode({
         }),
         { telas: 0, fluxo: 0, valor: 0 },
       );
-      result.push({ type: 'divider', key: `divider-${tipo}`, tipo, count: pts.length, totaisTipo });
+      result.push({ type: 'divider', key: `divider-${tipo}`, tipo, count: pts.length, totaisTipo, points: pts });
       for (const point of pts) {
         result.push({
           type: 'point',
@@ -551,6 +592,7 @@ export default function MidiaKitSlidesMode({
                       tipo={active.tipo}
                       count={active.count}
                       totaisTipo={active.totaisTipo}
+                      points={active.points}
                     />
                   ) : (
                     <PointSlide
