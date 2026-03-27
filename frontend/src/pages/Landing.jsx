@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Navbar from '../components/Navbar';
 import CustomSelect from '../components/CustomSelect';
 import SmartMap from '../components/SmartMap';
+import MidiaKitSlidesMode from '../components/MidiaKitSlidesMode';
 import { fetchPontos } from '../lib/api';
 import { getPointDisplayImages, getPrimaryPointMediaKitImage } from '../lib/pointImages';
 import { campaignTotals } from '../lib/strategy';
@@ -197,7 +198,35 @@ function Lightbox({ ponto, imageIndex, onClose, onChangeIndex }) {
 }
 
 function MapModal({ pontos, onClose, isDark }) {
-  const [selectedPoint, setSelectedPoint] = useState(pontos.find((p) => p.lat && p.lng) || null);
+  const pointsWithCoords = useMemo(
+    () => pontos.filter((p) => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng))),
+    [pontos]
+  );
+  const cityOptions = useMemo(
+    () => Array.from(new Set(pointsWithCoords.map((p) => p.cidade).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [pointsWithCoords]
+  );
+  const [selectedCity, setSelectedCity] = useState('');
+  const mapPoints = useMemo(
+    () => (selectedCity ? pointsWithCoords.filter((p) => p.cidade === selectedCity) : pointsWithCoords),
+    [pointsWithCoords, selectedCity]
+  );
+  const [selectedPoint, setSelectedPoint] = useState(mapPoints[0] || null);
+
+  useEffect(() => {
+    setSelectedPoint((current) => {
+      if (current && mapPoints.some((p) => p.id === current.id)) return current;
+      return mapPoints[0] || null;
+    });
+  }, [mapPoints]);
+
+  const focusCoords = useMemo(() => {
+    if (!selectedPoint) return null;
+    const lat = Number(selectedPoint.lat);
+    const lng = Number(selectedPoint.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat, lng };
+  }, [selectedPoint]);
 
   const m = {
     wrap: isDark ? 'bg-[#0a0a0a] border-white/10' : 'bg-white border-neutral-200',
@@ -233,18 +262,51 @@ function MapModal({ pontos, onClose, isDark }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex-1 min-h-[320px]">
-          <SmartMap pontos={pontos} selectedId={selectedPoint?.id} onSelect={setSelectedPoint} onOpenDetails={setSelectedPoint} />
+          <SmartMap
+            pontos={mapPoints}
+            selectedId={selectedPoint?.id}
+            onSelect={setSelectedPoint}
+            onOpenDetails={setSelectedPoint}
+            focusCoords={focusCoords}
+          />
         </div>
         <aside className={`w-full lg:w-[300px] border-t lg:border-t-0 lg:border-l flex flex-col overflow-y-auto ${m.sidePanel} ${m.sidebar}`}>
           <div className={`flex items-center justify-between px-5 py-4 shrink-0 ${m.headerBorder}`}>
             <div>
               <div className="text-xs uppercase tracking-wider text-brand-orange mb-0.5">Mapa da rede</div>
-              <h3 className={`text-sm font-semibold ${m.title}`}>{pontos.filter((p) => p.lat && p.lng).length} pontos no mapa</h3>
+              <h3 className={`text-sm font-semibold ${m.title}`}>{mapPoints.length} pontos no mapa</h3>
             </div>
             <button onClick={onClose} className={`h-8 w-8 flex items-center justify-center rounded-full border transition ${m.closeBtn}`} aria-label="Fechar mapa">
               <i className="ri-close-line" style={{ fontSize: 15 }} />
             </button>
           </div>
+          {cityOptions.length > 1 ? (
+            <div className={`px-4 pb-3 ${m.headerBorder}`}>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCity('')}
+                  className={`px-2.5 py-1 rounded-full text-[11px] border transition-colors ${selectedCity === '' ? 'border-brand-orange bg-brand-orange/20 text-brand-orange' : 'border-white/10 text-brand-gray-400 hover:text-white'}`}
+                >
+                  Todas
+                </button>
+                {cityOptions.map((city) => (
+                  <button
+                    key={city}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCity(city);
+                      const firstCityPoint = pointsWithCoords.find((p) => p.cidade === city);
+                      if (firstCityPoint) setSelectedPoint(firstCityPoint);
+                    }}
+                    className={`px-2.5 py-1 rounded-full text-[11px] border transition-colors ${selectedCity === city ? 'border-brand-orange bg-brand-orange/20 text-brand-orange' : 'border-white/10 text-brand-gray-400 hover:text-white'}`}
+                  >
+                    {city}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {selectedPoint ? (
             <div className="flex-1 p-4 space-y-3">
               {getPrimaryPointMediaKitImage(selectedPoint) && (
@@ -292,9 +354,11 @@ export default function Landing() {
   const navigate = useNavigate();
   const [allPontos, setAllPontos] = useState([]);
   const [selectedPracas, setSelectedPracas] = useState([]);
+  const [selectedTipos, setSelectedTipos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
+  const [showSlidesMode, setShowSlidesMode] = useState(false);
   const [lightbox, setLightbox] = useState({ ponto: null, imageIndex: 0 });
   const [isDark, setIsDark] = useState(true);
 
@@ -358,6 +422,17 @@ export default function Landing() {
 
   const quickPracas = useMemo(() => pracas.slice(0, 5), [pracas]);
 
+  const tiposDisponiveis = useMemo(() => {
+    const source = selectedPracas.length
+      ? allPontos.filter((point) => selectedPracas.includes(point.cidade))
+      : allPontos;
+    return Array.from(new Set(source.map((point) => point.tipo).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [allPontos, selectedPracas]);
+
+  useEffect(() => {
+    setSelectedTipos((current) => current.filter((tipo) => tiposDisponiveis.includes(tipo)));
+  }, [tiposDisponiveis]);
+
   const selectedPracaLabel = useMemo(() => {
     if (!selectedPracas.length) return 'Todas as praças';
     if (selectedPracas.length === 1) return selectedPracas[0];
@@ -365,9 +440,15 @@ export default function Landing() {
   }, [selectedPracas]);
 
   const pontos = useMemo(() => {
-    if (!selectedPracas.length) return allPontos;
-    return allPontos.filter((p) => selectedPracas.includes(p.cidade));
-  }, [allPontos, selectedPracas]);
+    let result = allPontos;
+    if (selectedPracas.length) {
+      result = result.filter((point) => selectedPracas.includes(point.cidade));
+    }
+    if (selectedTipos.length) {
+      result = result.filter((point) => selectedTipos.includes(point.tipo));
+    }
+    return result;
+  }, [allPontos, selectedPracas, selectedTipos]);
 
   const resumo = useMemo(() => {
     const totals = campaignTotals(pontos);
@@ -425,9 +506,10 @@ export default function Landing() {
   const explorerPath = useMemo(() => {
     const params = new URLSearchParams();
     selectedPracas.forEach((praca) => params.append('cidade', praca));
+    if (selectedTipos.length === 1) params.set('tipo', selectedTipos[0]);
     const query = params.toString();
     return `/explorar${query ? `?${query}` : ''}`;
-  }, [selectedPracas]);
+  }, [selectedPracas, selectedTipos]);
 
   const handleExportPdf = async () => {
     if (!pontos.length || generatingPdf) return;
@@ -555,13 +637,21 @@ export default function Landing() {
             custom={3}
             className={`grid lg:grid-cols-[1fr_auto_auto_auto] gap-4 p-6 bg-gradient-to-br ${t.controlPanel} border rounded-2xl backdrop-blur-xl shadow-xl shadow-black/30`}
           >
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid sm:grid-cols-3 gap-4">
               <CustomSelect
                 label="Praça"
                 value={selectedPracas}
                 onChange={setSelectedPracas}
                 options={pracas}
                 placeholder="Selecionar uma ou mais praças"
+                multiple
+              />
+              <CustomSelect
+                label="Formato"
+                value={selectedTipos}
+                onChange={setSelectedTipos}
+                options={tiposDisponiveis}
+                placeholder="Selecionar um ou mais formatos"
                 multiple
               />
               <div>
@@ -571,6 +661,14 @@ export default function Landing() {
                 </div>
               </div>
             </div>
+
+            <button
+              onClick={() => setShowSlidesMode(true)}
+              className="landing-orange-btn group h-[50px] self-end px-6 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
+            >
+              <i className="ri-slideshow-3-line" style={{ fontSize: 16 }} />
+              Abrir slides
+            </button>
 
             <button
               onClick={() => setShowMapModal(true)}
@@ -916,7 +1014,23 @@ export default function Landing() {
 
       <AnimatePresence>
         {showMapModal && (
-          <MapModal key="map-modal" pontos={allPontos} onClose={() => setShowMapModal(false)} isDark={isDark} />
+          <MapModal key="map-modal" pontos={pontos} onClose={() => setShowMapModal(false)} isDark={isDark} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showSlidesMode && (
+          <MidiaKitSlidesMode
+            key="slides-mode"
+            open={showSlidesMode}
+            onClose={() => setShowSlidesMode(false)}
+            allPontos={allPontos}
+            selectedPracas={selectedPracas}
+            setSelectedPracas={setSelectedPracas}
+            selectedTipos={selectedTipos}
+            setSelectedTipos={setSelectedTipos}
+            isDark={isDark}
+          />
         )}
       </AnimatePresence>
 

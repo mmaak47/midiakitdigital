@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle, Tooltip } from 'react-leaflet';
+import { useEffect, useMemo, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Circle, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { ZONAS_ESTRATEGICAS } from '../lib/strategy';
 import 'leaflet/dist/leaflet.css';
@@ -12,15 +12,51 @@ const markerIcon = L.divIcon({
   popupAnchor: [0, -24]
 });
 
-export default function SmartMap({ pontos = [], selectedId, onSelect, onOpenDetails, isDark = true }) {
+function ViewportController({ points, focusCoords }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return undefined;
+
+    if (focusCoords && Number.isFinite(Number(focusCoords.lat)) && Number.isFinite(Number(focusCoords.lng))) {
+      map.setView([Number(focusCoords.lat), Number(focusCoords.lng)], Math.max(map.getZoom(), 14), {
+        animate: true,
+        duration: 0.7
+      });
+      return undefined;
+    }
+
+    const validPoints = (Array.isArray(points) ? points : [])
+      .filter((point) => Number.isFinite(Number(point?.lat)) && Number.isFinite(Number(point?.lng)));
+
+    if (!validPoints.length) return undefined;
+
+    if (validPoints.length === 1) {
+      map.setView([Number(validPoints[0].lat), Number(validPoints[0].lng)], 14, {
+        animate: true,
+        duration: 0.7
+      });
+      return undefined;
+    }
+
+    const bounds = L.latLngBounds(validPoints.map((point) => [Number(point.lat), Number(point.lng)]));
+    map.fitBounds(bounds, { padding: [36, 36], maxZoom: 14, animate: true, duration: 0.7 });
+    return undefined;
+  }, [map, points, focusCoords]);
+
+  return null;
+}
+
+export default function SmartMap({ pontos = [], selectedId, onSelect, onOpenDetails, isDark = true, focusCoords = null }) {
   const [hoveredZone, setHoveredZone] = useState(null);
 
-  const valid = useMemo(() => pontos.filter((p) => p.lat && p.lng), [pontos]);
-  const center = valid.length ? [valid[0].lat, valid[0].lng] : [-23.32, -51.16];
+  const valid = useMemo(() => pontos.filter((p) => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng))), [pontos]);
+  const center = valid.length ? [Number(valid[0].lat), Number(valid[0].lng)] : [-23.32, -51.16];
 
   return (
     <div className={`smart-map h-full w-full rounded-2xl overflow-hidden border relative ${isDark ? 'smart-map-dark border-white/10' : 'smart-map-light border-neutral-200'}`}>
       <MapContainer center={center} zoom={11} className="h-full w-full">
+        <ViewportController points={valid} focusCoords={focusCoords} />
         <TileLayer
           url={isDark ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'}
           attribution='&copy; CARTO'
@@ -42,7 +78,7 @@ export default function SmartMap({ pontos = [], selectedId, onSelect, onOpenDeta
         ))}
 
         {valid.map((p) => (
-          <Marker key={p.id} position={[p.lat, p.lng]} icon={markerIcon} eventHandlers={{ click: () => onSelect?.(p) }}>
+          <Marker key={p.id} position={[Number(p.lat), Number(p.lng)]} icon={markerIcon} eventHandlers={{ click: () => onSelect?.(p) }}>
             <Popup>
               <div style={{ minWidth: 190, fontFamily: 'Montserrat, sans-serif' }}>
                 <div style={{ fontWeight: 700, marginBottom: 4 }}>{p.nome}</div>
