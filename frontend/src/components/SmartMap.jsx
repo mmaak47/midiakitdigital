@@ -8,16 +8,25 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 const DEFAULT_CENTER = { latitude: -23.32, longitude: -51.16, zoom: 11 };
 
 function buildRasterFallbackStyle(isDark) {
+  const darkTiles = [
+    'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  ];
+  const lightTiles = [
+    'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    'https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  ];
+
   return {
     version: 8,
     sources: {
       basemap: {
         type: 'raster',
-        tiles: [
-          isDark
-            ? 'https://{a-d}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-            : 'https://{a-d}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-        ],
+        tiles: isDark ? darkTiles : lightTiles,
         tileSize: 256,
         attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
       },
