@@ -91,6 +91,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   });
   const [clientAnalysis, setClientAnalysis] = useState({
     loading: false,
+    location: null,
     byPoint: {},
     rankedPoints: [],
     error: ''
@@ -262,12 +263,12 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
   useEffect(() => {
     if (analysisMode !== 'client-address') {
-      setClientAnalysis({ loading: false, byPoint: {}, rankedPoints: [], error: '' });
+      setClientAnalysis({ loading: false, location: null, byPoint: {}, rankedPoints: [], error: '' });
       return;
     }
 
     if (!form.clientAddress.trim() || !proposalSourcePoints.length) {
-      setClientAnalysis((current) => ({ ...current, loading: false, byPoint: {}, rankedPoints: [], error: '' }));
+      setClientAnalysis((current) => ({ ...current, loading: false, location: null, byPoint: {}, rankedPoints: [], error: '' }));
       return;
     }
 
@@ -285,6 +286,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
         setClientAnalysis({
           loading: false,
+          location: response.location || null,
           byPoint: response.byPoint || {},
           rankedPoints: Array.isArray(response.rankedPoints) ? response.rankedPoints : [],
           error: ''
@@ -293,6 +295,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         if (!active) return;
         setClientAnalysis({
           loading: false,
+          location: null,
           byPoint: {},
           rankedPoints: [],
           error: error.message || 'Falha ao analisar o endereço do cliente.'
@@ -502,6 +505,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       await downloadSelectionMapPng(proposalPoints, {
         connectPoints: connectMapPoints,
         clientAddress: form.clientAddress || '',
+        clientCoords: clientAnalysis.location,
         theme: 'light',
         width: 1800,
         height: 1000,

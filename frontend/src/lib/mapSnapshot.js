@@ -1,4 +1,26 @@
 const TILE_SIZE = 256;
+
+function shortenSegment(from, to, startPadding = 0, endPadding = 0) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  const minLength = startPadding + endPadding + 2;
+
+  if (!Number.isFinite(length) || length <= minLength) {
+    return null;
+  }
+
+  const ux = dx / length;
+  const uy = dy / length;
+
+  return {
+    startX: from.x + ux * startPadding,
+    startY: from.y + uy * startPadding,
+    endX: to.x - ux * endPadding,
+    endY: to.y - uy * endPadding
+  };
+}
+
 async function geocodeAddress(address) {
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
   const controller = new AbortController();
@@ -6,7 +28,7 @@ async function geocodeAddress(address) {
   try {
     const response = await fetch(url, {
       signal: controller.signal,
-      headers: { Accept: 'application/json', 'User-Agent': 'MidiaKitDigital/1.0' }
+      headers: { Accept: 'application/json' }
     });
     clearTimeout(timeoutId);
     if (!response.ok) return null;
@@ -193,21 +215,23 @@ function drawRouteLine(ctx, points) {
   if (points.length < 2) return;
 
   ctx.save();
-  ctx.beginPath();
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 3;
   ctx.strokeStyle = 'rgba(254, 92, 43, 0.9)';
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
   points.forEach((point, index) => {
-    if (index === 0) {
-      ctx.moveTo(point.x, point.y);
-      return;
-    }
-    ctx.lineTo(point.x, point.y);
-  });
+    if (index === 0) return;
 
-  ctx.stroke();
+    const previous = points[index - 1];
+    const segment = shortenSegment(previous, point, 14, 14);
+    if (!segment) return;
+
+    ctx.beginPath();
+    ctx.moveTo(segment.startX, segment.startY);
+    ctx.lineTo(segment.endX, segment.endY);
+    ctx.stroke();
+  });
   ctx.restore();
 }
 
@@ -215,13 +239,16 @@ function drawClientLines(ctx, clientPoint, points) {
   if (!points.length) return;
   ctx.save();
   ctx.setLineDash([10, 7]);
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = 2;
   ctx.strokeStyle = 'rgba(56, 189, 248, 0.82)';
   ctx.lineCap = 'round';
   points.forEach((point) => {
+    const segment = shortenSegment(clientPoint, point, 16, 14);
+    if (!segment) return;
+
     ctx.beginPath();
-    ctx.moveTo(clientPoint.x, clientPoint.y);
-    ctx.lineTo(point.x, point.y);
+    ctx.moveTo(segment.startX, segment.startY);
+    ctx.lineTo(segment.endX, segment.endY);
     ctx.stroke();
   });
   ctx.restore();
@@ -377,6 +404,9 @@ export async function buildSelectionMapCanvas(points = [], options = {}) {
   const theme = options.theme === 'dark' ? 'dark' : 'light';
   const connectPoints = !!options.connectPoints;
   const clientAddress = typeof options.clientAddress === 'string' ? options.clientAddress.trim() : '';
+  const explicitClientCoords = options.clientCoords && Number.isFinite(Number(options.clientCoords.lat)) && Number.isFinite(Number(options.clientCoords.lng))
+    ? { lat: Number(options.clientCoords.lat), lng: Number(options.clientCoords.lng) }
+    : null;
 
   const validPoints = (Array.isArray(points) ? points : [])
     .map((point) => {
@@ -402,8 +432,8 @@ export async function buildSelectionMapCanvas(points = [], options = {}) {
 
   const samples = validPoints.map((point) => ({ lat: point.lat, lng: point.lng }));
 
-  let clientCoords = null;
-  if (clientAddress) {
+  let clientCoords = explicitClientCoords;
+  if (!clientCoords && clientAddress) {
     clientCoords = await geocodeAddress(clientAddress);
   }
 
