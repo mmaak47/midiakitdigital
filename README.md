@@ -168,3 +168,10 @@ Todas prefixadas em `/api/`.
 ---
 
 ## Desenvolvido por Maitê Doin
+
+---
+
+## Documentacao Tecnica do Planner
+
+- Origem, normalizacao e uso de Audience Tags, Disponibilidade, Otimizador e Reach & Frequency:
+  - `docs/PLANNER_DADOS.md`
