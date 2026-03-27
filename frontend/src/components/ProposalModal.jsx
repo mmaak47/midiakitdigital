@@ -29,7 +29,7 @@ import {
   parseSimulationConfig
 } from '../lib/simulation';
 import { fetchClientAddressAnalysis, fetchEntornoJobStatus, fetchEntornoScores } from '../lib/api';
-import { buildSelectionMapDataUrl, downloadSelectionMapPng } from '../lib/mapSnapshot';
+import { buildSelectionMapDataUrl, downloadSelectionMapPng, geocodeAddress } from '../lib/mapSnapshot';
 import CustomSelect from './CustomSelect';
 import ProposalBuilder from './ProposalBuilder';
 import PresentationMode from './PresentationMode';
@@ -79,6 +79,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [showPreviewLightbox, setShowPreviewLightbox] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [mapBusy, setMapBusy] = useState(false);
+  const [mapStatus, setMapStatus] = useState('');
   const [connectMapPoints, setConnectMapPoints] = useState(false);
   const [pdfSections, setPdfSections] = useState({ methodology: true, score: true, coverage: true, impact: true });
   const [entorno, setEntorno] = useState({
@@ -493,18 +494,20 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const handleExportSelectionMap = async () => {
     try {
       setMapBusy(true);
+      setMapStatus('');
       setSimulationError('');
 
-      let exportClientCoords = clientAnalysis.location;
+      // Use coordinates already geocoded by the client-address analysis (if user ran it),
+      // or geocode directly via Nominatim — never via the policy-protected POST endpoint.
+      let exportClientCoords = clientAnalysis.location || null;
       const cleanedClientAddress = String(form.clientAddress || '').trim();
+
       if (!exportClientCoords && cleanedClientAddress) {
-        const addressResponse = await fetchClientAddressAnalysis({
-          address: cleanedClientAddress,
-          pointIds: proposalPoints.map((point) => point.id),
-          cidade: activeCities
-        });
-        exportClientCoords = addressResponse?.location || null;
+        setMapStatus('Localizando endereço do cliente...');
+        exportClientCoords = await geocodeAddress(cleanedClientAddress);
       }
+
+      setMapStatus('Carregando tiles do mapa...');
 
       const slugClient = String(form.clientName || 'proposta')
         .normalize('NFD')
@@ -515,15 +518,17 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
       await downloadSelectionMapPng(proposalPoints, {
         connectPoints: connectMapPoints,
-        clientAddress: cleanedClientAddress,
         clientCoords: exportClientCoords,
         theme: 'light',
         width: 1800,
         height: 1000,
         fileName: `mapa-selecao-${slugClient}-${new Date().toISOString().slice(0, 10)}.png`
       });
+
+      setMapStatus('');
     } catch (error) {
       setSimulationError(error?.message || 'Falha ao gerar o print do mapa da selecao.');
+      setMapStatus('');
     } finally {
       setMapBusy(false);
     }
@@ -929,8 +934,15 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     className="h-11 px-4 rounded-xl border border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange font-medium inline-flex items-center gap-2 disabled:opacity-50"
                   >
                     <Route size={16} />
-                    {mapBusy ? 'Gerando print do mapa...' : 'Baixar print do mapa'}
+                    {mapBusy ? 'Aguarde...' : 'Baixar print do mapa'}
                   </button>
+
+                  {mapBusy && mapStatus && (
+                    <p className="text-xs text-brand-orange/80 flex items-center gap-1.5">
+                      <span className="inline-block w-2.5 h-2.5 rounded-full border-2 border-brand-orange/60 border-t-brand-orange animate-spin" />
+                      {mapStatus}
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">

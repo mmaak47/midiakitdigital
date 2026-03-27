@@ -21,7 +21,7 @@ function shortenSegment(from, to, startPadding = 0, endPadding = 0) {
   };
 }
 
-async function geocodeAddress(address) {
+export async function geocodeAddress(address) {
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000);
@@ -215,40 +215,35 @@ function drawRouteLine(ctx, points) {
   if (points.length < 2) return;
 
   ctx.save();
-  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.lineWidth = 1.5;
   ctx.strokeStyle = 'rgba(254, 92, 43, 0.9)';
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
   points.forEach((point, index) => {
-    if (index === 0) return;
-
-    const previous = points[index - 1];
-    const segment = shortenSegment(previous, point, 14, 14);
-    if (!segment) return;
-
-    ctx.beginPath();
-    ctx.moveTo(segment.startX, segment.startY);
-    ctx.lineTo(segment.endX, segment.endY);
-    ctx.stroke();
+    if (index === 0) {
+      ctx.moveTo(point.x, point.y);
+      return;
+    }
+    ctx.lineTo(point.x, point.y);
   });
+
+  ctx.stroke();
   ctx.restore();
 }
 
 function drawClientLines(ctx, clientPoint, points) {
   if (!points.length) return;
   ctx.save();
-  ctx.setLineDash([10, 7]);
-  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 6]);
+  ctx.lineWidth = 1.5;
   ctx.strokeStyle = 'rgba(56, 189, 248, 0.82)';
   ctx.lineCap = 'round';
   points.forEach((point) => {
-    const segment = shortenSegment(clientPoint, point, 16, 14);
-    if (!segment) return;
-
     ctx.beginPath();
-    ctx.moveTo(segment.startX, segment.startY);
-    ctx.lineTo(segment.endX, segment.endY);
+    ctx.moveTo(clientPoint.x, clientPoint.y);
+    ctx.lineTo(point.x, point.y);
     ctx.stroke();
   });
   ctx.restore();
