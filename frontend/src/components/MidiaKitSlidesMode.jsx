@@ -18,6 +18,22 @@ function getFocusCoords(point) {
   return { lat, lng };
 }
 
+function getUfSigla(point) {
+  const uf = (point?.uf || point?.estado_sigla || '').toString().trim();
+  if (uf) return uf.toUpperCase();
+
+  const estado = (point?.estado || '').toString().trim().toLowerCase();
+  const map = {
+    parana: 'PR',
+    'santa catarina': 'SC',
+    'sao paulo': 'SP',
+    'rio de janeiro': 'RJ',
+    'rio grande do sul': 'RS',
+    'minas gerais': 'MG'
+  };
+  return map[estado] || '--';
+}
+
 // ─── Lobby: seleção de pontos ────────────────
 function Lobby({
   filteredPoints,
@@ -227,7 +243,6 @@ function DividerSlide({ tipo, count, totaisTipo, points }) {
     >
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(254,92,43,0.2),transparent_62%)]" />
       <div className="relative z-10 flex flex-col items-center">
-        <img src="/logo.png" alt="Intermidia" className="h-8 mb-4 opacity-60" />
         <div className="text-[11px] uppercase tracking-[0.22em] text-brand-orange">Formato</div>
         <h2 className="mt-3 text-5xl md:text-7xl font-black tracking-tight leading-none">{tipo}</h2>
         <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-brand-orange/35 bg-brand-orange/15 px-6 py-2.5 text-xl font-bold text-brand-orange">
@@ -267,7 +282,7 @@ function DividerSlide({ tipo, count, totaisTipo, points }) {
 }
 
 // ─── Slide por ponto ───
-function PointSlide({ slide, totals, selectionLabel, typesLabel }) {
+function PointSlide({ slide, selectionLabel, typesLabel }) {
   const { point, infoOnLeft } = slide;
   const img = getPrimaryPointMediaKitImage(point);
   const focusCoords = getFocusCoords(point);
@@ -280,20 +295,6 @@ function PointSlide({ slide, totals, selectionLabel, typesLabel }) {
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       className="h-full relative"
     >
-      <div
-        className={`absolute top-3 z-20 rounded-xl border border-brand-orange/30 bg-black/70 px-3 py-2 backdrop-blur-sm ${
-          infoOnLeft ? 'right-3' : 'left-3'
-        }`}
-      >
-        <div className="text-[10px] uppercase tracking-wide text-brand-orange mb-1">Totais da seleção</div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-brand-gray-200">
-          <span>Pontos: <strong className="text-white">{fmtInt(totals.quantidade)}</strong></span>
-          <span>Telas: <strong className="text-white">{fmtInt(totals.telasTotal)}</strong></span>
-          <span>Fluxo: <strong className="text-white">{fmtInt(totals.fluxoTotal)}</strong></span>
-          <span>Invest.: <strong className="text-white">{fmtMoney(totals.valorTotal)}</strong></span>
-        </div>
-      </div>
-
       <div className="absolute inset-0 rounded-2xl overflow-hidden border border-white/10 bg-black/40">
         {img ? (
           <img src={img} alt={point.nome} className="absolute inset-0 h-full w-full object-cover" />
@@ -513,6 +514,11 @@ export default function MidiaKitSlidesMode({
   if (!open) return null;
 
   const active = slides[index] || null;
+  const activePoint = active?.type === 'point' ? active.point : null;
+  const activeUf = activePoint ? getUfSigla(activePoint) : '--';
+  const topViewingText = activePoint
+    ? `Você está visualizando ${activePoint.tipo || 'Formato não informado'} de ${activePoint.cidade || 'Cidade não informada'}/${activeUf}`
+    : `Você está visualizando o formato ${active?.tipo || 'não informado'}`;
 
   const selectionLabel = selectedPracas.length
     ? selectedPracas.length === 1
@@ -554,7 +560,16 @@ export default function MidiaKitSlidesMode({
         ) : (
           <div className="h-full flex flex-col px-4 py-3 md:px-6 md:py-4">
             <div className="flex items-center justify-between gap-3 mb-3">
-              <img src="/logo.png" alt="Intermidia" className="h-7 opacity-70" />
+              <div className="flex-1 rounded-xl border border-white/15 bg-black/35 px-3 py-2 md:px-4 md:py-2.5">
+                <div className="text-[10px] uppercase tracking-wide text-brand-orange">Apresentação ativa</div>
+                <div className="text-xs md:text-sm text-white/85">{topViewingText}</div>
+                <div className="mt-1 grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-0.5 text-[11px] text-brand-gray-300">
+                  <span>Pontos: <strong className="text-white">{fmtInt(totals.quantidade)}</strong></span>
+                  <span>Telas: <strong className="text-white">{fmtInt(totals.telasTotal)}</strong></span>
+                  <span>Fluxo: <strong className="text-white">{fmtInt(totals.fluxoTotal)}</strong></span>
+                  <span>Invest.: <strong className="text-white">{fmtMoney(totals.valorTotal)}</strong></span>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -598,7 +613,6 @@ export default function MidiaKitSlidesMode({
                     <PointSlide
                       key={active.key}
                       slide={active}
-                      totals={totals}
                       selectionLabel={selectionLabel}
                       typesLabel={typesLabel}
                     />
