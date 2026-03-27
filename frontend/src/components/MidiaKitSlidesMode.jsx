@@ -142,27 +142,27 @@ function Lobby({
                         key={id}
                         type="button"
                         onClick={() => togglePoint(id)}
-                        className={`relative flex text-left rounded-xl border overflow-hidden transition-all ${
+                        className={`relative h-[88px] flex text-left rounded-xl border overflow-hidden transition-all ${
                           selected
                             ? 'border-brand-orange bg-brand-orange/[0.06] ring-1 ring-brand-orange/30'
                             : 'border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
                         }`}
                       >
-                        <div className="w-24 shrink-0 bg-black/50 self-stretch min-h-[72px]">
+                        <div className="w-24 h-full shrink-0 bg-black/50">
                           {img ? (
                             <img src={img} alt="" className="h-full w-full object-cover" />
                           ) : (
                             <div className="h-full w-full bg-white/5" />
                           )}
                         </div>
-                        <div className="flex-1 px-3 py-2.5 min-w-0">
+                        <div className="flex-1 px-3 py-2.5 min-w-0 overflow-hidden">
                           <div className="text-sm font-semibold line-clamp-1 leading-tight pr-5">
                             {point.nome}
                           </div>
                           <div className="mt-0.5 text-[11px] text-brand-gray-400 line-clamp-1">
                             {point.cidade}
                           </div>
-                          <div className="mt-1.5 text-[11px] text-brand-gray-300">
+                          <div className="mt-1.5 text-[11px] text-brand-gray-300 line-clamp-1">
                             Fluxo: {fmtInt(Number(point.fluxo) || 0)} &bull;{' '}
                             {fmtMoney(Number(point.preco) || 0)}/mês
                           </div>
