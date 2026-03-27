@@ -16,6 +16,7 @@ function isAdminContext() {
 function isAdminOrSensitivePath(pathname) {
   return pathname.startsWith('/admin')
     || pathname.startsWith('/propostas')
+    || pathname.startsWith('/geocode')
     || pathname === '/entorno/analyze'
     || pathname === '/entorno/client-address';
 }
@@ -263,6 +264,15 @@ export async function fetchClientAddressAnalysis({ address, pointIds = [], cidad
   }
 
   return res.json();
+}
+
+export async function geocodePoint(address) {
+  const res = await apiRequest(`/geocode?q=${encodeURIComponent(address)}`);
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Endereço não encontrado');
+  }
+  return res.json(); // { lat, lng }
 }
 
 // ============== ADMIN SETTINGS ==============

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
   Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings,
-  Copy, Check
+  Copy, Check, MapPin
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import {
@@ -22,7 +22,8 @@ import {
   deleteAdminUser,
   updateAdminUserRole,
   fetchAdminSettings,
-  updateAdminSettings
+  updateAdminSettings,
+  geocodePoint
 } from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
@@ -99,6 +100,8 @@ export default function Admin() {
   const [form, setForm] = useState(emptyForm);
   const [imageFile, setImageFile] = useState(null);
   const [imagem2File, setImagem2File] = useState(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState('');
   const [baseImagePreviewUrl, setBaseImagePreviewUrl] = useState('');
   const [screenSelection, setScreenSelection] = useState(null);
   const [screenStyle, setScreenStyle] = useState(defaultScreenStyle);
@@ -305,13 +308,9 @@ export default function Admin() {
     setForm(enforceElevadorDimensions(emptyForm));
     setImageFile(null);
     setImagem2File(null);
+    setGeoLoading(false);
+    setGeoError('');
     setScreenSelection(null);
-    setScreenStyle(defaultScreenStyle);
-    setScreenSelection2(null);
-    setScreenStyle2(defaultScreenStyle);
-    setSimulationFaceCount(1);
-    setActiveSimulationFace(0);
-    setEditing('new');
   };
 
   const openEdit = (ponto) => {
@@ -348,6 +347,8 @@ export default function Admin() {
     }));
     setImageFile(null);
     setImagem2File(null);
+    setGeoLoading(false);
+    setGeoError('');
     const screenConfig = parseSimulationConfig(ponto.simulacao_tela);
     const parsedFaces = Array.isArray(screenConfig?.faces) && screenConfig.faces.length
       ? screenConfig.faces
@@ -945,7 +946,40 @@ export default function Admin() {
                   ) : null}
                   <FormSelect label="Público" value={form.publico} onChange={v => updateField('publico', v)} options={PUBLICOS} />
                   <FormSelect label="Tipo de fluxo" value={form.tipo_fluxo} onChange={v => updateField('tipo_fluxo', v)} options={['pessoas', 'veiculos']} />
-                  <FormField label="Endereço" value={form.endereco} onChange={v => updateField('endereco', v)} className="md:col-span-2" />
+                  <div className="md:col-span-2">
+                    <label className="block text-xs text-brand-gray-400 mb-1.5">Endereço</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={form.endereco}
+                        onChange={e => updateField('endereco', e.target.value)}
+                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-brand-purple/50"
+                        placeholder="Ex: Av. Higienópolis, 1234, Londrina"
+                      />
+                      <button
+                        type="button"
+                        disabled={!form.endereco.trim() || geoLoading}
+                        onClick={async () => {
+                          setGeoLoading(true);
+                          setGeoError('');
+                          try {
+                            const { lat, lng } = await geocodePoint(form.endereco);
+                            updateField('lat', String(lat));
+                            updateField('lng', String(lng));
+                          } catch (err) {
+                            setGeoError(err.message);
+                          } finally {
+                            setGeoLoading(false);
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-2.5 bg-brand-purple/80 hover:bg-brand-purple disabled:opacity-40 text-white text-xs rounded-xl transition-colors shrink-0"
+                      >
+                        {geoLoading ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
+                        Localizar
+                      </button>
+                    </div>
+                    {geoError && <p className="text-xs text-red-400 mt-1">{geoError}</p>}
+                  </div>
                   <FormField label="Latitude" value={form.lat} onChange={v => updateField('lat', v)} type="number" step="any" />
                   <FormField label="Longitude" value={form.lng} onChange={v => updateField('lng', v)} type="number" step="any" />
                   <FormField label="Horário" value={form.horario} onChange={v => updateField('horario', v)} />

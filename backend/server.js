@@ -748,6 +748,19 @@ app.put('/api/pontos/:id', upload.fields([
   }
 });
 
+// Simple geocoding endpoint for admin use
+app.get('/api/geocode', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (!q) return res.status(400).json({ error: 'Parâmetro q obrigatório' });
+  try {
+    const location = await geocodeAddress(q);
+    if (!location) return res.status(404).json({ error: 'Endereço não encontrado' });
+    res.json({ lat: location.lat, lng: location.lng });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // List available segment categories for entorno analysis
 app.get('/api/entorno/categories', (req, res) => {
   const requested = req.query.segmento;
