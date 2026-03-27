@@ -42,11 +42,16 @@ export default function Explorer() {
   const [mobileFilters, setMobileFilters] = useState(false);
   const { favorites, addFavorites, history, registerView } = useFavorites();
 
+  const selectedForMetrics = useMemo(() => {
+    if (favorites.length) return favorites;
+    return selected ? [selected] : [];
+  }, [favorites, selected]);
+
   const cityInventory = allPontos.filter((p) => !filters.cidade.length || filters.cidade.includes(p.cidade));
-  const coverage = calculateCoverageLevel(favorites, cityInventory);
-  const totals = campaignTotals(favorites);
+  const coverage = calculateCoverageLevel(selectedForMetrics, cityInventory);
+  const totals = campaignTotals(selectedForMetrics);
   const scoreInfo = calculateCampaignScore({
-    selected: favorites,
+    selected: selectedForMetrics,
     objective: 'cobertura regional',
     desiredPublico: filters.publico,
     cityInventory

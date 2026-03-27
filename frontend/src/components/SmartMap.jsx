@@ -306,9 +306,16 @@ export default function SmartMap({
             onClose={() => setPopupPoint(null)}
             offset={18}
           >
-            <div style={{ minWidth: 190, fontFamily: 'Montserrat, sans-serif' }}>
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>{popupPoint.nome}</div>
-              <div style={{ fontSize: 12, marginBottom: 6 }}>{popupPoint.tipo} • {popupPoint.cidade}</div>
+            <div
+              style={{
+                minWidth: 210,
+                fontFamily: 'Montserrat, sans-serif',
+                color: '#101010',
+                lineHeight: 1.35,
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 4, color: '#101010' }}>{popupPoint.nome}</div>
+              <div style={{ fontSize: 12, marginBottom: 8, color: '#404040' }}>{popupPoint.tipo} • {popupPoint.cidade}</div>
               <button
                 style={{
                   border: 'none',
