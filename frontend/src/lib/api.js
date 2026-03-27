@@ -10,7 +10,7 @@ function getAdminToken() {
 function isAdminContext() {
   if (typeof window === 'undefined') return true;
   const pathname = window.location.pathname;
-  return pathname === '/comercial' || pathname.startsWith('/comercial/admin');
+  return pathname === '/comercial' || pathname.startsWith('/comercial/');
 }
 
 function isAdminOrSensitivePath(pathname) {
