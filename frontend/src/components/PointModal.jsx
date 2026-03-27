@@ -63,12 +63,25 @@ function getPointTypeLabel(ponto) {
   return ponto.tipo || '';
 }
 
+function buildMapEmbedUrl(lat, lng) {
+  const delta = 0.005;
+  const minLon = (lng - delta).toFixed(6);
+  const minLat = (lat - delta).toFixed(6);
+  const maxLon = (lng + delta).toFixed(6);
+  const maxLat = (lat + delta).toFixed(6);
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${minLon}%2C${minLat}%2C${maxLon}%2C${maxLat}&layer=mapnik&marker=${lat.toFixed(6)}%2C${lng.toFixed(6)}`;
+}
+
 export default function PointModal({ ponto, onClose, isDark = true }) {
   if (!ponto) return null;
 
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const fav = isFavorite(ponto.id);
   const displayImage = getPrimaryPointDisplayImage(ponto);
+  const lat = Number(ponto.lat);
+  const lng = Number(ponto.lng);
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+  const mapEmbedUrl = hasCoords ? buildMapEmbedUrl(lat, lng) : '';
   const imageFocus = useMemo(() => {
     const simulationFocus = deriveFocusFromSimulation(ponto.simulacao_tela);
     const hasX = Number.isFinite(Number(ponto.imagem_foco_x));
@@ -142,26 +155,49 @@ export default function PointModal({ ponto, onClose, isDark = true }) {
           </button>
 
           <div className="flex flex-col lg:flex-row">
-            {/* Image */}
-            <div className={`lg:w-1/2 relative h-[44vh] min-h-[260px] max-h-[430px] sm:h-[52vh] lg:h-auto lg:min-h-[500px] ${isDark ? 'bg-brand-gray-900' : 'bg-[#eef1f5]'}`}>
-              {displayImage ? (
-                <div className="absolute inset-0 overflow-hidden">
-                  <img
-                    src={displayImage}
-                    alt={ponto.nome}
-                    className="w-full h-full object-cover"
-                    style={{
-                      objectPosition: `${imageFocus.x}% ${imageFocus.y}%`,
-                      transform: `scale(${imageFocus.zoom / 100})`,
-                      transformOrigin: `${imageFocus.x}% ${imageFocus.y}%`
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-brand-gray-900 to-brand-gray-800' : 'bg-gradient-to-br from-[#f4f6f9] to-[#eceff3]'}`}>
-                  <Building2 size={64} className={isDark ? 'text-brand-gray-700' : 'text-neutral-400'} />
-                </div>
-              )}
+            {/* Image + map */}
+            <div className={`lg:w-1/2 flex flex-col ${isDark ? 'bg-brand-gray-900' : 'bg-[#eef1f5]'}`}>
+              <div className="relative h-[38vh] min-h-[240px] max-h-[380px] sm:h-[44vh] lg:h-[60%] lg:min-h-[340px]">
+                {displayImage ? (
+                  <div className="absolute inset-0 overflow-hidden">
+                    <img
+                      src={displayImage}
+                      alt={ponto.nome}
+                      className="w-full h-full object-cover"
+                      style={{
+                        objectPosition: `${imageFocus.x}% ${imageFocus.y}%`,
+                        transform: `scale(${imageFocus.zoom / 100})`,
+                        transformOrigin: `${imageFocus.x}% ${imageFocus.y}%`
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-brand-gray-900 to-brand-gray-800' : 'bg-gradient-to-br from-[#f4f6f9] to-[#eceff3]'}`}>
+                    <Building2 size={64} className={isDark ? 'text-brand-gray-700' : 'text-neutral-400'} />
+                  </div>
+                )}
+              </div>
+
+              <div className={`relative h-[190px] lg:flex-1 border-t ${isDark ? 'border-white/10 bg-black/25' : 'border-neutral-200 bg-white/75'}`}>
+                {hasCoords ? (
+                  <>
+                    <iframe
+                      title={`Mapa de ${ponto.nome}`}
+                      src={mapEmbedUrl}
+                      className="absolute inset-0 w-full h-full border-0"
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                    <div className="absolute left-3 top-3 rounded-lg bg-black/65 px-2 py-1 text-[11px] text-white/85 pointer-events-none">
+                      Localização do ponto
+                    </div>
+                  </>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-xs text-brand-gray-500">
+                    Sem coordenadas para exibir o mapa deste ponto.
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Info */}
