@@ -1,5 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
@@ -27,7 +26,7 @@ import {
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
 
-const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
+const DEFAULT_CIDADES = ['Londrina', 'Maring├í', 'Balne├írio Cambori├║', 'Itaja├¡'];
 const DEFAULT_TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
 const ELEVADOR_TIPO = 'Elevador';
 const ELEVADOR_CATEGORIAS = ['Comercial', 'Residencial'];
@@ -47,15 +46,15 @@ const USER_ROLES = [
 
 const ADMIN_TABS = [
   { key: 'pontos', label: 'Pontos', icon: PanelsTopLeft },
-  { key: 'entorno', label: 'Análise de entorno', icon: MapPinned },
-  { key: 'usuarios', label: 'Usuários', icon: Users },
-  { key: 'configuracoes', label: 'Configurações', icon: Settings }
+  { key: 'entorno', label: 'An├ílise de entorno', icon: MapPinned },
+  { key: 'usuarios', label: 'Usu├írios', icon: Users },
+  { key: 'configuracoes', label: 'Configura├º├Áes', icon: Settings }
 ];
 
 const emptyForm = {
   nome: '', cidade: 'Londrina', tipo: 'Elevador', endereco: '',
-  lat: '', lng: '', horario: '06:00 às 22:00', fluxo: '',
-  insercoes: '', tempo: '15s', loop: '3 min', veiculacao: 'Vídeo sem áudio',
+  lat: '', lng: '', horario: '06:00 ├ás 22:00', fluxo: '',
+  insercoes: '', tempo: '15s', loop: '3 min', veiculacao: 'V├¡deo sem ├íudio',
   publico: 'A/B', telas: '1', preco: '', descricao: '', imagem: '', imagem2: '',
   simulacao_tela: '', simulacao_arte: '', simulacao_preview: '',
   arte_largura: ELEVADOR_ARTE_LARGURA, arte_altura: ELEVADOR_ARTE_ALTURA,
@@ -82,7 +81,6 @@ function enforceElevadorDimensions(nextForm) {
 }
 
 export default function Admin() {
-  const location = useLocation();
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('intermidia_theme') !== 'light';
@@ -258,11 +256,6 @@ export default function Admin() {
     try {
       const data = await login(username, password);
       sessionStorage.setItem('admin_token', data.token);
-      if (location.pathname === '/comercial') {
-        sessionStorage.setItem('comercial_manual_login', '1');
-      } else {
-        sessionStorage.removeItem('comercial_manual_login');
-      }
       setAuth(true);
     } catch (err) {
       setLoginError(err.message);
@@ -288,7 +281,7 @@ export default function Admin() {
       const data = await fetchAdminUsers();
       setUsers(Array.isArray(data) ? data : []);
     } catch (err) {
-      setUsersError(err.message || 'Falha ao carregar usuários');
+      setUsersError(err.message || 'Falha ao carregar usu├írios');
     } finally {
       setUsersLoading(false);
     }
@@ -328,7 +321,7 @@ export default function Admin() {
       insercoes: ponto.insercoes?.toString() || '',
       tempo: ponto.tempo || '15s',
       loop: ponto.loop || '3 min',
-      veiculacao: ponto.veiculacao || 'Vídeo sem áudio',
+      veiculacao: ponto.veiculacao || 'V├¡deo sem ├íudio',
       publico: ponto.publico || 'A/B',
       telas: ponto.telas?.toString() || '1',
       preco: ponto.preco?.toString() || '',
@@ -424,20 +417,20 @@ export default function Admin() {
       setNewUser({ firstName: '', lastName: '', whatsapp: '', email: '', password: '', role: 'vendedor' });
       await loadUsers();
     } catch (err) {
-      setUsersError(err.message || 'Falha ao criar usuário');
+      setUsersError(err.message || 'Falha ao criar usu├írio');
     } finally {
       setCreatingUser(false);
     }
   };
 
   const handleDeleteUser = async (id, usernameValue) => {
-    if (!confirm(`Deseja remover o usuário ${usernameValue}?`)) return;
+    if (!confirm(`Deseja remover o usu├írio ${usernameValue}?`)) return;
     setUsersError('');
     try {
       await deleteAdminUser(id);
       await loadUsers();
     } catch (err) {
-      setUsersError(err.message || 'Falha ao remover usuário');
+      setUsersError(err.message || 'Falha ao remover usu├írio');
     }
   };
 
@@ -449,7 +442,7 @@ export default function Admin() {
       setEditingRole(null);
       await loadUsers();
     } catch (err) {
-      setUsersError(err.message || 'Falha ao atualizar role do usuário');
+      setUsersError(err.message || 'Falha ao atualizar role do usu├írio');
     } finally {
       setUpdatingRole(false);
     }
@@ -463,7 +456,7 @@ export default function Admin() {
       setSettings(data);
       setLucroMinimoValue(data.lucro_minimo_percentual || 15);
     } catch (err) {
-      setSettingsError(err.message || 'Falha ao carregar configurações');
+      setSettingsError(err.message || 'Falha ao carregar configura├º├Áes');
     } finally {
       setSettingsLoading(false);
     }
@@ -477,7 +470,7 @@ export default function Admin() {
       await updateAdminSettings({ lucro_minimo_percentual: Number(lucroMinimoValue) });
       await loadSettings();
     } catch (err) {
-      setSettingsError(err.message || 'Falha ao salvar configurações');
+      setSettingsError(err.message || 'Falha ao salvar configura├º├Áes');
     } finally {
       setSavingSettings(false);
     }
@@ -500,7 +493,7 @@ export default function Admin() {
       const jobsResponse = await fetchEntornoJobs({ limit: 15 });
       setEntornoJobs(Array.isArray(jobsResponse.jobs) ? jobsResponse.jobs : []);
     } catch (err) {
-      setEntornoError(err.message || 'Falha ao enfileirar análise de entorno');
+      setEntornoError(err.message || 'Falha ao enfileirar an├ílise de entorno');
     } finally {
       setEntornoBusy(false);
     }
@@ -539,7 +532,7 @@ export default function Admin() {
   const autoArtPrompt = useMemo(() => {
     if (!artWidth || !artHeight || !form.nome) return '';
     const ratio = artRatioText || `${artWidth}x${artHeight}`;
-    return `Crie uma arte visual atraente com dimensões ${artWidth}x${artHeight}px (proporção ${ratio}) para ${form.tipo} localizado em ${form.cidade}. Ponto: "${form.nome}". ${form.descricao ? `Contexto: ${form.descricao}` : ''}. A arte deve chamar atenção e ser compatível com mídia digital outdoor.`;
+    return `Crie uma arte visual atraente com dimens├Áes ${artWidth}x${artHeight}px (propor├º├úo ${ratio}) para ${form.tipo} localizado em ${form.cidade}. Ponto: "${form.nome}". ${form.descricao ? `Contexto: ${form.descricao}` : ''}. A arte deve chamar aten├º├úo e ser compat├¡vel com m├¡dia digital outdoor.`;
   }, [artWidth, artHeight, artRatioText, form.nome, form.tipo, form.cidade, form.descricao]);
 
   const handleCopyPrompt = async () => {
@@ -596,13 +589,13 @@ export default function Admin() {
               </div>
               <div>
                 <h1 className="text-xl font-semibold">Acesso administrativo</h1>
-                <p className="text-sm text-brand-gray-400">Entre para gerenciar pontos, análises e usuários.</p>
+                <p className="text-sm text-brand-gray-400">Entre para gerenciar pontos, an├ílises e usu├írios.</p>
               </div>
             </div>
 
             <form className="space-y-5" onSubmit={handleLogin}>
               <div>
-                <label className="mb-1.5 block text-xs text-brand-gray-400">Usuário ou e-mail</label>
+                <label className="mb-1.5 block text-xs text-brand-gray-400">Usu├írio ou e-mail</label>
                 <input
                   type="text"
                   value={username}
@@ -622,7 +615,7 @@ export default function Admin() {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 pr-10 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
-                    placeholder="••••••••"
+                    placeholder="ÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇó"
                     required
                     autoComplete="current-password"
                   />
@@ -647,12 +640,6 @@ export default function Admin() {
             </form>
           </motion.div>
         </div>
-        <footer className={`px-6 pb-6 text-center text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
-          <span className="inline-flex items-center gap-1.5">
-            <span>Desenvolvido por</span>
-            <span className="font-semibold text-brand-orange animate-pulse">Maitê Doin</span>
-          </span>
-        </footer>
       </div>
     );
   }
@@ -668,7 +655,7 @@ export default function Admin() {
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold">Painel Administrativo</h1>
-            <p className="text-sm text-brand-gray-500 mt-1">Pontos, entorno, calibração de PDF e usuários em menus separados.</p>
+            <p className="text-sm text-brand-gray-500 mt-1">Pontos, entorno, calibra├º├úo de PDF e usu├írios em menus separados.</p>
           </div>
           {activeTab === 'pontos' ? (
             <button
@@ -750,10 +737,10 @@ export default function Admin() {
                       <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden md:table-cell">Cidade</th>
                       <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden md:table-cell">Tipo</th>
                       <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Telas</th>
-                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Proporção</th>
-                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs">Preço</th>
+                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Propor├º├úo</th>
+                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs">Pre├ºo</th>
                       <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Status</th>
-                      <th className="text-right px-4 py-3 text-brand-gray-400 font-medium text-xs">Ações</th>
+                      <th className="text-right px-4 py-3 text-brand-gray-400 font-medium text-xs">A├º├Áes</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -859,8 +846,8 @@ export default function Admin() {
         {activeTab === 'configuracoes' ? (
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Configurações do sistema</h3>
-              <p className="text-xs text-brand-gray-500 mt-1">Configure parâmetros globais para propostas e vendas.</p>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Configura├º├Áes do sistema</h3>
+              <p className="text-xs text-brand-gray-500 mt-1">Configure par├ómetros globais para propostas e vendas.</p>
             </div>
 
             {settingsError && <p className="mt-3 text-xs text-red-300">{settingsError}</p>}
@@ -868,10 +855,10 @@ export default function Admin() {
             <form onSubmit={handleSaveSettings} className="mt-6 space-y-4 max-w-md">
               <div>
                 <label className="block text-xs text-brand-gray-400 mb-2">
-                  Lucro Mínimo Obrigatório (%)
+                  Lucro M├¡nimo Obrigat├│rio (%)
                 </label>
                 <p className="text-xs text-brand-gray-500 mb-2">
-                  Vendedores precisarão de aprovação do Gerente Comercial se aplicarem desconto acima desse percentual.
+                  Vendedores precisar├úo de aprova├º├úo do Gerente Comercial se aplicarem desconto acima desse percentual.
                 </p>
                 <div className="flex items-end gap-2">
                   <input
@@ -897,7 +884,7 @@ export default function Admin() {
 
             <div className="mt-6 p-4 bg-brand-orange/5 border border-brand-orange/20 rounded-xl">
               <p className="text-xs text-brand-orange leading-relaxed">
-                <strong>ℹ️ Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro mínimo obrigatório (desconto acima do valor configurado aqui), a proposta fica aguardando aprovação de um Gerente Comercial antes de poder ser finalizada.
+                <strong>Ôä╣´©Å Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro m├¡nimo obrigat├│rio (desconto acima do valor configurado aqui), a proposta fica aguardando aprova├º├úo de um Gerente Comercial antes de poder ser finalizada.
               </p>
             </div>
           </section>
@@ -943,26 +930,26 @@ export default function Admin() {
                   {form.tipo === ELEVADOR_TIPO ? (
                     <FormSelect label="Categoria do Elevador" value={form.elevador_categoria || 'Comercial'} onChange={v => updateField('elevador_categoria', v)} options={ELEVADOR_CATEGORIAS} />
                   ) : null}
-                  <FormSelect label="Público" value={form.publico} onChange={v => updateField('publico', v)} options={PUBLICOS} />
+                  <FormSelect label="P├║blico" value={form.publico} onChange={v => updateField('publico', v)} options={PUBLICOS} />
                   <FormSelect label="Tipo de fluxo" value={form.tipo_fluxo} onChange={v => updateField('tipo_fluxo', v)} options={['pessoas', 'veiculos']} />
-                  <FormField label="Endereço" value={form.endereco} onChange={v => updateField('endereco', v)} className="md:col-span-2" />
+                  <FormField label="Endere├ºo" value={form.endereco} onChange={v => updateField('endereco', v)} className="md:col-span-2" />
                   <FormField label="Latitude" value={form.lat} onChange={v => updateField('lat', v)} type="number" step="any" />
                   <FormField label="Longitude" value={form.lng} onChange={v => updateField('lng', v)} type="number" step="any" />
-                  <FormField label="Horário" value={form.horario} onChange={v => updateField('horario', v)} />
+                  <FormField label="Hor├írio" value={form.horario} onChange={v => updateField('horario', v)} />
                   <FormField label="Fluxo mensal" value={form.fluxo} onChange={v => updateField('fluxo', v)} type="number" />
-                  <FormField label="Inserções mensais" value={form.insercoes} onChange={v => updateField('insercoes', v)} type="number" />
+                  <FormField label="Inser├º├Áes mensais" value={form.insercoes} onChange={v => updateField('insercoes', v)} type="number" />
                   <FormField label="Tempo" value={form.tempo} onChange={v => updateField('tempo', v)} />
                   <FormField label="Looping" value={form.loop} onChange={v => updateField('loop', v)} />
-                  <FormField label="Veiculação" value={form.veiculacao} onChange={v => updateField('veiculacao', v)} />
+                  <FormField label="Veicula├º├úo" value={form.veiculacao} onChange={v => updateField('veiculacao', v)} />
                   <FormField label="Telas" value={form.telas} onChange={v => updateField('telas', v)} type="number" />
-                  <FormField label="Preço (R$)" value={form.preco} onChange={v => updateField('preco', v)} type="number" step="0.01" />
+                  <FormField label="Pre├ºo (R$)" value={form.preco} onChange={v => updateField('preco', v)} type="number" step="0.01" />
                   <FormField label="Custo Operacional (R$)" value={form.custo_operacional} onChange={v => updateField('custo_operacional', v)} type="number" step="0.01" />
                   <FormField label="Arte largura (px)" value={form.arte_largura} onChange={v => updateField('arte_largura', v)} type="number" min="1" />
                   <FormField label="Arte altura (px)" value={form.arte_altura} onChange={v => updateField('arte_altura', v)} type="number" min="1" />
                 </div>
 
                 <div>
-                  <label className="block text-xs text-brand-gray-400 mb-1.5">Descrição</label>
+                  <label className="block text-xs text-brand-gray-400 mb-1.5">Descri├º├úo</label>
                   <textarea
                     value={form.descricao}
                     onChange={e => updateField('descricao', e.target.value)}
@@ -980,7 +967,7 @@ export default function Admin() {
                       {imageFile ? imageFile.name : 'Upload de imagem'}
                       <input
                         type="file"
-                        accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                        accept="image/*"
                         onChange={e => setImageFile(e.target.files[0] || null)}
                         className="hidden"
                       />
@@ -993,16 +980,16 @@ export default function Admin() {
                   </div>
                 </div>
 
-                {/* Imagem 2 upload (Elevador — segunda foto) */}
+                {/* Imagem 2 upload (Elevador ÔÇö segunda foto) */}
                 <div>
-                  <label className="block text-xs text-brand-gray-400 mb-1.5">Imagem 2 <span className="text-brand-gray-600">(opcional — segunda foto para Elevador)</span></label>
+                  <label className="block text-xs text-brand-gray-400 mb-1.5">Imagem 2 <span className="text-brand-gray-600">(opcional ÔÇö segunda foto para Elevador)</span></label>
                   <div className="flex items-center gap-4">
                     <label className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-brand-gray-300 hover:bg-white/10 cursor-pointer transition-colors">
                       <Upload size={16} />
-                      {imagem2File ? imagem2File.name : 'Upload de 2ª imagem'}
+                      {imagem2File ? imagem2File.name : 'Upload de 2┬¬ imagem'}
                       <input
                         type="file"
-                        accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                        accept="image/*"
                         onChange={e => setImagem2File(e.target.files[0] || null)}
                         className="hidden"
                       />
@@ -1017,9 +1004,9 @@ export default function Admin() {
 
                 <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-4">
                   <div>
-                    <h3 className="text-sm font-semibold">Simulação do ponto</h3>
+                    <h3 className="text-sm font-semibold">Simula├º├úo do ponto</h3>
                     <p className="text-xs text-brand-gray-500 mt-1">
-                      Defina aqui apenas a área útil da tela. A arte da campanha será enviada no modal de proposta.
+                      Defina aqui apenas a ├írea ├║til da tela. A arte da campanha ser├í enviada no modal de proposta.
                     </p>
                   </div>
 
@@ -1027,7 +1014,7 @@ export default function Admin() {
                     <div className="space-y-3">
                       <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Faces do painel na simulação</p>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Faces do painel na simula├º├úo</p>
                           <div className="inline-flex rounded-lg border border-white/10 bg-white/5 p-1">
                             <button
                               type="button"
@@ -1070,8 +1057,8 @@ export default function Admin() {
 
                         <p className="text-[11px] text-brand-gray-500">
                           {simulationFaceCount === 2
-                            ? 'Selecione as duas áreas da tela usando as abas Face 1 e Face 2. A simulação aplicará a arte nas duas.'
-                            : 'Use 2 faces quando o painel tiver mais de uma área visível para receber a mesma arte.'}
+                            ? 'Selecione as duas ├íreas da tela usando as abas Face 1 e Face 2. A simula├º├úo aplicar├í a arte nas duas.'
+                            : 'Use 2 faces quando o painel tiver mais de uma ├írea vis├¡vel para receber a mesma arte.'}
                         </p>
                       </div>
 
@@ -1085,17 +1072,17 @@ export default function Admin() {
                     </div>
                   ) : (
                     <div className="h-56 rounded-lg border border-dashed border-white/15 flex items-center justify-center text-xs text-brand-gray-500">
-                      Envie a imagem base para habilitar a marcação da tela com o mouse
+                      Envie a imagem base para habilitar a marca├º├úo da tela com o mouse
                     </div>
                   )}
 
                   <p className="text-[11px] text-brand-gray-500">
-                    O preview final será gerado no modal de proposta com a arte da campanha selecionada.
+                    O preview final ser├í gerado no modal de proposta com a arte da campanha selecionada.
                   </p>
 
                   <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Enquadramento padrão no Explorar</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Enquadramento padr├úo no Explorar</p>
                       <span className="text-[11px] text-brand-gray-500">Salvo junto do ponto</span>
                     </div>
 
@@ -1166,7 +1153,7 @@ export default function Admin() {
                         }}
                         className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-xs text-white transition-colors"
                       >
-                        Usar foco automático da tela marcada
+                        Usar foco autom├ítico da tela marcada
                       </button>
                       <button
                         type="button"
@@ -1228,7 +1215,7 @@ export default function Admin() {
                         </>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xs text-brand-gray-500">
-                          Envie a imagem base para pré-visualizar o enquadramento
+                          Envie a imagem base para pr├®-visualizar o enquadramento
                         </div>
                       )}
                     </div>
@@ -1236,14 +1223,14 @@ export default function Admin() {
 
                   <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Proporção da arte para este ponto</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Propor├º├úo da arte para este ponto</p>
                       <span className="px-2.5 py-1 rounded-full bg-brand-orange/15 text-brand-orange text-xs font-semibold">
                         {artRatioText || 'Defina largura e altura'}
                       </span>
                     </div>
 
                     <div>
-                      <label className="block text-xs text-brand-gray-400 mb-1.5">Prompt automático para IA generativa</label>
+                      <label className="block text-xs text-brand-gray-400 mb-1.5">Prompt autom├ítico para IA generativa</label>
                       <textarea
                         value={autoArtPrompt}
                         readOnly
@@ -1385,8 +1372,8 @@ function EntornoAdminPanel({
     <section className="mb-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Análise de entorno</h3>
-          <p className="text-xs text-brand-gray-500 mt-1">Reprocessamento manual por segmento e cidade, com fila assíncrona e monitoramento de jobs.</p>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-white">An├ílise de entorno</h3>
+          <p className="text-xs text-brand-gray-500 mt-1">Reprocessamento manual por segmento e cidade, com fila ass├¡ncrona e monitoramento de jobs.</p>
         </div>
         <button
           type="button"
@@ -1444,11 +1431,11 @@ function EntornoAdminPanel({
           <p className="font-semibold uppercase tracking-wide text-brand-gray-400 mb-1">Provedores</p>
           {providers ? (
             <>
-              <p>Ordem: {Array.isArray(providers.providerOrder) ? providers.providerOrder.join(' → ') : '-'}</p>
-              <p className="mt-1">Disponíveis: {Object.entries(providers.availableProviders || {}).filter(([, ok]) => !!ok).map(([name]) => name).join(', ') || 'nenhum'}</p>
+              <p>Ordem: {Array.isArray(providers.providerOrder) ? providers.providerOrder.join(' ÔåÆ ') : '-'}</p>
+              <p className="mt-1">Dispon├¡veis: {Object.entries(providers.availableProviders || {}).filter(([, ok]) => !!ok).map(([name]) => name).join(', ') || 'nenhum'}</p>
             </>
           ) : (
-            <p>Carregando configuração...</p>
+            <p>Carregando configura├º├úo...</p>
           )}
         </div>
       </div>
@@ -1466,8 +1453,8 @@ function EntornoAdminPanel({
         <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-brand-gray-300">
           <p className="font-semibold uppercase tracking-wide text-brand-gray-400">Job atual #{currentJob.id}</p>
           <p className="mt-1">Status: <span className={processing ? 'text-brand-orange' : currentStatus === 'failed' ? 'text-red-300' : 'text-green-300'}>{currentJob.status}</span></p>
-          <p className="mt-1">Processados: {currentJob.processed_points || 0}/{currentJob.total_points || 0} • Erros: {currentJob.error_count || 0}</p>
-          {currentJob.last_error && <p className="mt-1 text-red-300">Último erro: {currentJob.last_error}</p>}
+          <p className="mt-1">Processados: {currentJob.processed_points || 0}/{currentJob.total_points || 0} ÔÇó Erros: {currentJob.error_count || 0}</p>
+          {currentJob.last_error && <p className="mt-1 text-red-300">├Ültimo erro: {currentJob.last_error}</p>}
         </div>
       )}
 
@@ -1529,8 +1516,8 @@ function UsersAdminPanel({
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Cadastro de usuários admin</h3>
-          <p className="text-xs text-brand-gray-500 mt-1">Gerencie quem pode acessar o painel administrativo e defina permissões.</p>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Cadastro de usu├írios admin</h3>
+          <p className="text-xs text-brand-gray-500 mt-1">Gerencie quem pode acessar o painel administrativo e defina permiss├Áes.</p>
         </div>
         <button
           type="button"
@@ -1578,7 +1565,7 @@ function UsersAdminPanel({
           type="password"
           value={newUser.password}
           onChange={(event) => setNewUser((prev) => ({ ...prev, password: event.target.value }))}
-          placeholder="Senha (mínimo 6)"
+          placeholder="Senha (m├¡nimo 6)"
           className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
           required
           minLength={6}
@@ -1607,20 +1594,20 @@ function UsersAdminPanel({
           <thead>
             <tr className="bg-white/[0.03] text-left text-brand-gray-400">
               <th className="px-3 py-2">Nome</th>
-              <th className="px-3 py-2">Usuário</th>
+              <th className="px-3 py-2">Usu├írio</th>
               <th className="px-3 py-2">Contato</th>
               <th className="px-3 py-2">Role</th>
-              <th className="px-3 py-2 text-right">Ações</th>
+              <th className="px-3 py-2 text-right">A├º├Áes</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-center text-brand-gray-500">Carregando usuários...</td>
+                <td colSpan={5} className="px-3 py-4 text-center text-brand-gray-500">Carregando usu├írios...</td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-center text-brand-gray-500">Nenhum usuário cadastrado.</td>
+                <td colSpan={5} className="px-3 py-4 text-center text-brand-gray-500">Nenhum usu├írio cadastrado.</td>
               </tr>
             ) : users.map((user) => (
               <tr key={user.id} className="border-t border-white/5 text-brand-gray-300">
@@ -1700,11 +1687,11 @@ function UsersAdminPanel({
       </div>
 
       <div className="mt-4 p-4 bg-brand-orange/5 border border-brand-orange/20 rounded-xl text-xs text-brand-gray-300">
-        <p><strong>Permissões por Role:</strong></p>
+        <p><strong>Permiss├Áes por Role:</strong></p>
         <ul className="list-disc list-inside mt-2 space-y-1">
           <li><strong>Admin:</strong> Acesso total ao painel administrativo</li>
-          <li><strong>Gerente Comercial:</strong> Pode visualizar e aprovar propostas que excedem lucro mínimo</li>
-          <li><strong>Vendedor:</strong> Pode criar propostas, mas propostas precisam de aprovação se excederem limite de lucro</li>
+          <li><strong>Gerente Comercial:</strong> Pode visualizar e aprovar propostas que excedem lucro m├¡nimo</li>
+          <li><strong>Vendedor:</strong> Pode criar propostas, mas propostas precisam de aprova├º├úo se excederem limite de lucro</li>
         </ul>
       </div>
     </section>

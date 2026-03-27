@@ -204,7 +204,7 @@ const upload = multer({
     cb(null, true);
   },
   limits: {
-    fileSize: 5 * 1024 * 1024,
+    fileSize: 50 * 1024 * 1024,
     files: 4,
     fields: 30
   }
@@ -1365,7 +1365,7 @@ app.get('*', (req, res) => {
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'Arquivo excede o limite de 5MB.' });
+      return res.status(400).json({ error: 'Arquivo excede o limite de 50MB.' });
     }
     return res.status(400).json({ error: 'Erro de upload.', details: err.message });
   }

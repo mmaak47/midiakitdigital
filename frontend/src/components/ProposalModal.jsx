@@ -819,7 +819,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       {simulationArtFile ? simulationArtFile.name : 'Escolher arte da campanha'}
                       <input
                         type="file"
-                        accept="image/*"
+                        accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                         onChange={(e) => {
                           setSimulationArtFile(e.target.files?.[0] || null);
                           setSimulationError('');
