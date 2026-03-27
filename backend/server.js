@@ -3,6 +3,9 @@ const cors = require('cors');
 const compression = require('compression');
 const path = require('path');
 const multer = require('multer');
+const rateLimit = require('express-rate-limit');
+const { z } = require('zod');
+const { randomUUID } = require('crypto');
 const db = require('./database');
 const { createBackupScheduler } = require('./backupService');
 const {
@@ -30,16 +33,118 @@ const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
 const ELEVADOR_TIPO = 'Elevador';
 const ELEVADOR_ARTE_LARGURA = 1080;
 const ELEVADOR_ARTE_ALTURA = 1920;
+const ALLOWED_UPLOAD_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+function getAllowedOrigins() {
+  const fromEnv = String(process.env.FRONTEND_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (fromEnv.length) {
+    return new Set(fromEnv);
+  }
+
+  return new Set([
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://REDACTED_OLD_VPS_IP',
+    'http://REDACTED_OLD_VPS_IP'
+  ]);
+}
+
+const allowedOrigins = getAllowedOrigins();
+
+function corsOriginValidator(origin, callback) {
+  if (!origin || allowedOrigins.has(origin)) {
+    callback(null, true);
+    return;
+  }
+
+  callback(new Error('Origem não permitida pelo CORS'));
+}
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.API_RATE_LIMIT_MAX || 100),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' }
+});
+
+const loginSchema = z.object({
+  username: z.string().trim().min(1).optional(),
+  email: z.string().trim().min(1).optional(),
+  password: z.string().min(1)
+}).refine((value) => value.username || value.email, {
+  message: 'Usuário ou e-mail é obrigatório',
+  path: ['username']
+});
+
+function validateLoginPayload(req, res, next) {
+  const parsed = loginSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Payload inválido',
+      details: parsed.error.flatten()
+    });
+  }
+
+  req.body = parsed.data;
+  next();
+}
+
+function ensureValidCoordinate(value, min, max, fieldName) {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+    throw new Error(`${fieldName} inválido`);
+  }
+}
+
+function validateCoordinates(req, res, next) {
+  try {
+    ensureValidCoordinate(req.body?.lat, -90, 90, 'lat');
+    ensureValidCoordinate(req.body?.lng, -180, 180, 'lng');
+    next();
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+}
+
+function extensionFromMime(mimeType) {
+  switch (mimeType) {
+    case 'image/jpeg':
+      return '.jpg';
+    case 'image/png':
+      return '.png';
+    case 'image/webp':
+      return '.webp';
+    default:
+      return '';
+  }
+}
 
 // Middleware
 app.disable('x-powered-by');
-app.use(cors());
+app.set('trust proxy', 1);
+app.use(cors({ origin: corsOriginValidator }));
 app.use(express.json({ limit: '1mb' }));
 app.use(compression({ threshold: 1024 }));
+app.use('/api', apiLimiter);
 app.use('/uploads', express.static(uploadsPath, {
   maxAge: '7d',
   etag: true,
-  lastModified: true
+  lastModified: true,
+  setHeaders: (res) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (String(process.env.UPLOADS_FORCE_ATTACHMENT || 'false').toLowerCase() === 'true') {
+      res.setHeader('Content-Disposition', 'attachment');
+    }
+  }
 }));
 
 // Serve frontend build
@@ -54,19 +159,26 @@ app.use(express.static(frontendDistPath, {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsPath),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const allowed = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
-    if (!allowed.includes(ext.toLowerCase())) {
-      return cb(new Error('Tipo de arquivo não permitido'));
+    const ext = extensionFromMime(file.mimetype);
+    if (!ext) {
+      return cb(new multer.MulterError('LIMIT_UNEXPECTED_FILE', file.fieldname));
     }
-    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+
+    cb(null, `${randomUUID()}${ext}`);
   }
 });
 const upload = multer({
   storage,
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_UPLOAD_MIME.has(file.mimetype)) {
+      cb(new Error('Tipo de arquivo não permitido. Use JPEG, PNG ou WEBP.'));
+      return;
+    }
+    cb(null, true);
+  },
   limits: {
     fileSize: 5 * 1024 * 1024,
-    files: 3,
+    files: 4,
     fields: 30
   }
 });
@@ -259,7 +371,7 @@ app.get('/api/stats', (req, res) => {
 });
 
 // Admin auth
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', validateLoginPayload, (req, res) => {
   const credential = String(req.body?.username || req.body?.email || '').trim();
   const password = String(req.body?.password || '');
   if (!credential || !password) {
@@ -284,7 +396,7 @@ app.post('/api/pontos', upload.fields([
   { name: 'imagem2', maxCount: 1 },
   { name: 'simulacao_arte', maxCount: 1 },
   { name: 'simulacao_preview', maxCount: 1 }
-]), (req, res) => {
+]), validateCoordinates, (req, res) => {
   try {
     const data = req.body;
     const imagem = pickUploadedPath(req, 'imagem') || data.imagem || null;
@@ -336,7 +448,7 @@ app.put('/api/pontos/:id', upload.fields([
   { name: 'imagem2', maxCount: 1 },
   { name: 'simulacao_arte', maxCount: 1 },
   { name: 'simulacao_preview', maxCount: 1 }
-]), (req, res) => {
+]), validateCoordinates, (req, res) => {
   try {
     const data = req.body;
     const existing = db.prepare('SELECT * FROM pontos WHERE id = ?').get(req.params.id);
@@ -1023,6 +1135,25 @@ app.delete('/api/admin/pdf-layout', (req, res) => {
 app.get('*', (req, res) => {
   res.set('Cache-Control', 'no-cache');
   res.sendFile(path.join(frontendDistPath, 'index.html'));
+});
+
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Arquivo excede o limite de 5MB.' });
+    }
+    return res.status(400).json({ error: 'Erro de upload.', details: err.message });
+  }
+
+  if (err?.message === 'Origem não permitida pelo CORS') {
+    return res.status(403).json({ error: err.message });
+  }
+
+  if (err?.message) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  next(err);
 });
 
 app.listen(PORT, () => {
