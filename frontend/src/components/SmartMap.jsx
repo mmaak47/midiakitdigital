@@ -55,11 +55,16 @@ export default function SmartMap({ pontos = [], selectedId, onSelect, onOpenDeta
 
   return (
     <div className={`smart-map h-full w-full rounded-2xl overflow-hidden border relative ${isDark ? 'smart-map-dark border-white/10' : 'smart-map-light border-neutral-200'}`}>
-      <MapContainer center={center} zoom={11} className="h-full w-full">
+      <MapContainer
+        center={center}
+        zoom={11}
+        className="h-full w-full"
+        whenCreated={(map) => map.attributionControl.setPrefix(false)}
+      >
         <ViewportController points={valid} focusCoords={focusCoords} />
         <TileLayer
           url={isDark ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'}
-          attribution='&copy; CARTO'
+          attribution='&copy; OpenStreetMap contributors &copy; CARTO'
         />
 
         {ZONAS_ESTRATEGICAS.map((zona) => (
