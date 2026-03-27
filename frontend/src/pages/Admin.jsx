@@ -641,7 +641,10 @@ export default function Admin() {
           </motion.div>
         </div>
         <footer className={`px-6 pb-6 text-center text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
-          Desenvolvido por Maitê Doin
+          <span className="inline-flex items-center gap-1.5">
+            <span>Desenvolvido por</span>
+            <span className="font-semibold text-brand-orange animate-pulse">Maitê Doin</span>
+          </span>
         </footer>
       </div>
     );
