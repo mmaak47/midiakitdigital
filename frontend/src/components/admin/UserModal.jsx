@@ -71,30 +71,30 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm"
       onClick={onClose}
       role="presentation"
     >
       <div
-        className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
+        className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#121212] p-6 text-white shadow-2xl shadow-black/40"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
       >
         <div className="mb-5 flex items-start justify-between">
           <div className="flex items-center gap-2">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-orange-100 text-[#E8591A]">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brand-orange/15 text-brand-orange">
               <UserRound size={18} />
             </span>
             <div>
-              <h3 className="text-lg font-bold text-gray-900">Novo Usuário</h3>
-              <p className="text-xs text-gray-500">Preencha os dados e confirme para salvar.</p>
+              <h3 className="text-lg font-bold text-white">{isEdit ? 'Editar Usuário' : 'Novo Usuário'}</h3>
+              <p className="text-xs text-brand-gray-500">Preencha os dados e confirme para salvar.</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+            className="rounded-lg p-1.5 text-brand-gray-500 transition-colors hover:bg-white/10 hover:text-white"
             aria-label="Fechar modal"
           >
             <X size={16} />
@@ -107,7 +107,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
               <select
                 value={form.tipoUsuario}
                 onChange={(event) => setForm((prev) => ({ ...prev, tipoUsuario: event.target.value }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-orange/40"
               >
                 <option value="admin">Admin</option>
                 <option value="gerente_comercial">Gerente Comercial</option>
@@ -119,7 +119,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
               <select
                 value={form.status}
                 onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-orange/40"
               >
                 <option value="ativo">Ativo</option>
                 <option value="inativo">Inativo</option>
@@ -133,7 +133,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
                 type="text"
                 value={form.nome}
                 onChange={(event) => setForm((prev) => ({ ...prev, nome: event.target.value }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
               />
             </Field>
 
@@ -142,7 +142,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
                 type="email"
                 value={form.email}
                 onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
               />
             </Field>
           </div>
@@ -153,7 +153,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
                 type="text"
                 value={form.login}
                 onChange={(event) => setForm((prev) => ({ ...prev, login: event.target.value }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
               />
             </Field>
 
@@ -163,7 +163,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
                 value={form.senha}
                 onChange={(event) => setForm((prev) => ({ ...prev, senha: event.target.value }))}
                 placeholder="Deixe em branco para manter"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
               />
             </Field>
           </div>
@@ -172,13 +172,13 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+              className="rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/10"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700"
+              className="inline-flex items-center gap-2 rounded-lg bg-brand-orange px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-orange-hover"
             >
               <Save size={14} />
               Salvar
@@ -193,11 +193,11 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
 function Field({ label, required = false, error, children }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-        {label} {required ? <span className="text-red-500">*</span> : null}
+      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-brand-gray-400">
+        {label} {required ? <span className="text-brand-orange">*</span> : null}
       </span>
       {children}
-      {error ? <span className="mt-1 block text-xs text-red-500">{error}</span> : null}
+      {error ? <span className="mt-1 block text-xs text-red-300">{error}</span> : null}
     </label>
   );
 }
