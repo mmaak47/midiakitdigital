@@ -352,11 +352,13 @@ function buildCalibrationPreviewPage(previewKey, assets) {
 }
 
 async function renderPagesToPdf(pages, fileName) {
+  const origin = window.location.origin;
   const pageHtmlParts = pages.map((p) => p.outerHTML).join('\n');
   const fullHtml = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
+<base href="${origin}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -1562,50 +1564,20 @@ async function loadPdfAssets() {
     return pdfAssetsPromise;
   }
 
-  pdfAssetsPromise = (async () => {
-    const [
-      logo,
-      logoLight,
-      logoHorizontal,
-      logo07,
-      heroBg,
-      cityBg,
-      about1,
-      about2,
-      audience,
-      showcase,
-      wallpaper,
-      pattern
-    ] = await Promise.all([
-      imageToDataUrl(assetUrl('/logo.png')),
-      imageToDataUrl(assetUrl('/logo-light.png')),
-      imageToDataUrl(assetUrl('/logo-deitado.png')),
-      imageToDataUrl(assetUrl('/logo-07.png')),
-      imageToDataUrl(assetUrl('/hero-bg.jpg')),
-      imageToDataUrl(assetUrl('/city-bg.jpg')),
-      imageToDataUrl(assetUrl('/about-1.jpg')),
-      imageToDataUrl(assetUrl('/about-2.jpg')),
-      imageToDataUrl(assetUrl('/audience.jpg')),
-      imageToDataUrl(assetUrl('/showcase.png')),
-      imageToDataUrl(assetUrl('/wallpaper.jpg')),
-      imageToDataUrl(assetUrl('/patterns/INTERMIDIA_PATTERN_ID.VISUAL_2024_INTERMIDIA_PATTERN_ID.VISUAL-4.png'))
-    ]);
-
-    return {
-      logo,
-      logoLight,
-      logoHorizontal,
-      logo07,
-      heroBg,
-      cityBg,
-      about1,
-      about2,
-      audience,
-      showcase,
-      wallpaper,
-      pattern
-    };
-  })();
+  pdfAssetsPromise = Promise.resolve({
+    logo: '/logo.png',
+    logoLight: '/logo-light.png',
+    logoHorizontal: '/logo-deitado.png',
+    logo07: '/logo-07.png',
+    heroBg: '/hero-bg.jpg',
+    cityBg: '/city-bg.jpg',
+    about1: '/about-1.jpg',
+    about2: '/about-2.jpg',
+    audience: '/audience.jpg',
+    showcase: '/showcase.png',
+    wallpaper: '/wallpaper.jpg',
+    pattern: '/patterns/INTERMIDIA_PATTERN_ID.VISUAL_2024_INTERMIDIA_PATTERN_ID.VISUAL-4.png'
+  });
 
   return pdfAssetsPromise;
 }
@@ -1799,7 +1771,7 @@ export async function generateMidiaKitPdf({ praca, pontos }) {
     totalEnderecos: new Set(kitPontos.map((p) => `${p.cidade || ''}-${p.endereco || ''}`.trim())).size
   };
 
-  const pointImages = await Promise.all(kitPontos.map((ponto) => imageToDataUrl(pickImageUrl(ponto))));
+  const pointImages = kitPontos.map((ponto) => pickImageUrl(ponto));
   const pages = [
     buildMidiaKitCoverPage({ cidade, pontos: kitPontos, resumo, assets }),
     buildMidiaKitManifestoPage({ assets }),
@@ -1866,7 +1838,7 @@ export async function generateProposalPdf({
   const strategicTopicsList = normalizeLines(strategicTopics, 6);
   const hasEntornoData = proposalPoints.some((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0);
   const assets = await loadPdfAssets();
-  const proposalImages = await Promise.all(proposalPoints.map((point) => imageToDataUrl(pickProposalImageUrl(point))));
+  const proposalImages = proposalPoints.map((point) => pickProposalImageUrl(point));
   const pages = [
     buildProposalCoverPage({
       proposalClient,
