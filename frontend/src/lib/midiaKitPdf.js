@@ -159,11 +159,21 @@ function formatPointAddress(address) {
 }
 
 function pickImageUrl(ponto) {
+  const preferred = String(ponto?.pdf_image_source || 'imagem2').trim().toLowerCase();
+  if (preferred === 'imagem' && (ponto?.imagem || ponto?.imagem2)) {
+    return ponto?.imagem || ponto?.imagem2 || '';
+  }
+  if (preferred === 'imagem2' && (ponto?.imagem2 || ponto?.imagem)) {
+    return ponto?.imagem2 || ponto?.imagem || '';
+  }
+
   if (Array.isArray(ponto?.imagens) && ponto.imagens.length > 0) {
     const first = ponto.imagens[0];
     if (typeof first === 'string') return first;
     if (first?.url) return first.url;
   }
+
+  // Legacy fallback keeps the previous PDF behavior when no explicit source is set.
   return ponto?.imagem2 || ponto?.imagem || '';
 }
 

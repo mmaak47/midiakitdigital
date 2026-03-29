@@ -65,7 +65,8 @@ const emptyForm = {
   elevador_categoria: 'Comercial',
   custo_operacional: '', tipo_fluxo: 'pessoas',
   imagem_foco_x: '50', imagem_foco_y: '50', imagem_foco_zoom: '100',
-  foto_focal_point: 'center center'
+  foto_focal_point: 'center center',
+  pdf_image_source: 'imagem2'
 };
 
 function enforceElevadorDimensions(nextForm) {
@@ -106,6 +107,7 @@ export default function Admin() {
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState('');
   const [baseImagePreviewUrl, setBaseImagePreviewUrl] = useState('');
+  const [secondImagePreviewUrl, setSecondImagePreviewUrl] = useState('');
   const [screenSelection, setScreenSelection] = useState(null);
   const [screenStyle, setScreenStyle] = useState(defaultScreenStyle);
   const [screenSelection2, setScreenSelection2] = useState(null);
@@ -172,6 +174,16 @@ export default function Admin() {
     setBaseImagePreviewUrl(blobUrl);
     return () => URL.revokeObjectURL(blobUrl);
   }, [imageFile]);
+
+  useEffect(() => {
+    if (!imagem2File) {
+      setSecondImagePreviewUrl('');
+      return;
+    }
+    const blobUrl = URL.createObjectURL(imagem2File);
+    setSecondImagePreviewUrl(blobUrl);
+    return () => URL.revokeObjectURL(blobUrl);
+  }, [imagem2File]);
 
   useEffect(() => {
     if (!auth) return;
@@ -345,7 +357,8 @@ export default function Admin() {
       imagem_foco_x: (Number.isFinite(Number(ponto.imagem_foco_x)) ? Number(ponto.imagem_foco_x) : 50).toString(),
       imagem_foco_y: (Number.isFinite(Number(ponto.imagem_foco_y)) ? Number(ponto.imagem_foco_y) : 50).toString(),
       imagem_foco_zoom: (Number.isFinite(Number(ponto.imagem_foco_zoom)) ? Number(ponto.imagem_foco_zoom) : 100).toString(),
-      foto_focal_point: ponto.foto_focal_point || 'center center'
+      foto_focal_point: ponto.foto_focal_point || 'center center',
+      pdf_image_source: ponto.pdf_image_source || 'imagem2'
     }));
     setImageFile(null);
     setImagem2File(null);
@@ -546,6 +559,10 @@ export default function Admin() {
   const previewFocoY = clampNumber(form.imagem_foco_y, 0, 100, 50);
   const previewFocoZoom = clampNumber(form.imagem_foco_zoom, 100, 220, 100);
   const imagePreviewForFocus = baseImagePreviewUrl || form.imagem;
+  const hasBothImagesForPdf = Boolean(baseImagePreviewUrl || form.imagem) && Boolean(secondImagePreviewUrl || form.imagem2);
+  const selectedPdfPreviewImage = (form.pdf_image_source === 'imagem2'
+    ? (secondImagePreviewUrl || form.imagem2 || baseImagePreviewUrl || form.imagem || '')
+    : (baseImagePreviewUrl || form.imagem || secondImagePreviewUrl || form.imagem2 || ''));
   const simulationSuggestedFocus = useMemo(() => deriveFocusFromSimulationString(form.simulacao_tela), [form.simulacao_tela]);
   const activeScreenSelection = activeSimulationFace === 1 ? screenSelection2 : screenSelection;
   const activeScreenStyle = activeSimulationFace === 1 ? screenStyle2 : screenStyle;
@@ -1068,10 +1085,34 @@ export default function Admin() {
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-white/95 p-3">
+                  {hasBothImagesForPdf ? (
+                    <div className="mb-3">
+                      <label className="mb-2 block text-sm font-medium text-gray-700">Imagem usada no PDF</label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateField('pdf_image_source', 'imagem')}
+                          className={`rounded-lg border px-3 py-1.5 text-xs transition-colors ${form.pdf_image_source === 'imagem' ? 'border-[#E8591A] bg-[#E8591A] text-white' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}
+                        >
+                          Imagem 1
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateField('pdf_image_source', 'imagem2')}
+                          className={`rounded-lg border px-3 py-1.5 text-xs transition-colors ${form.pdf_image_source === 'imagem2' ? 'border-[#E8591A] bg-[#E8591A] text-white' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}
+                        >
+                          Imagem 2
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mb-3 text-xs text-gray-500">A seleção da imagem do PDF aparece quando as duas imagens estiverem preenchidas.</p>
+                  )}
+
                   <FocalPointSelector
                     value={form.foto_focal_point || 'center center'}
                     onChange={(next) => updateField('foto_focal_point', next)}
-                    imageUrl={baseImagePreviewUrl || form.imagem || ''}
+                    imageUrl={selectedPdfPreviewImage}
                   />
                 </div>
 

@@ -313,6 +313,14 @@ function normalizeFotoFocalPoint(value) {
   return 'center center';
 }
 
+const VALID_PDF_IMAGE_SOURCES = new Set(['imagem', 'imagem2']);
+
+function normalizePdfImageSource(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (VALID_PDF_IMAGE_SOURCES.has(normalized)) return normalized;
+  return 'imagem2';
+}
+
 function slugifyUsernamePart(value) {
   return String(value || '')
     .normalize('NFD')
@@ -507,6 +515,7 @@ function hydratePontoRow(row) {
   return {
     ...row,
     foto_focal_point: normalizeFotoFocalPoint(row.foto_focal_point),
+    pdf_image_source: normalizePdfImageSource(row.pdf_image_source),
     audience_tags: normalizeAudienceTagsInput(row.audience_tags, row.publico),
     availability_calendar: normalizeAvailabilityCalendarInput(row.availability_calendar, row.horario)
   };
@@ -674,10 +683,11 @@ app.post('/api/pontos', upload.fields([
     const imagemFocoY = Number.isFinite(Number(data.imagem_foco_y)) ? clamp(Number(data.imagem_foco_y), 0, 100) : 50;
     const imagemFocoZoom = Number.isFinite(Number(data.imagem_foco_zoom)) ? clamp(Number(data.imagem_foco_zoom), 100, 220) : 100;
     const fotoFocalPoint = normalizeFotoFocalPoint(data.foto_focal_point);
+    const pdfImageSource = normalizePdfImageSource(data.pdf_image_source);
 
     const stmt = db.prepare(`
-      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, tipo_fluxo, audience_tags, availability_calendar, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom, foto_focal_point)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, tipo_fluxo, audience_tags, availability_calendar, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom, foto_focal_point, pdf_image_source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -690,7 +700,7 @@ app.post('/api/pontos', upload.fields([
       arteLargura, arteAltura, tipoFluxo,
       JSON.stringify(audienceTags), JSON.stringify(availabilityCalendar), elevadorCategoria,
       imagemFocoX, imagemFocoY, imagemFocoZoom,
-      fotoFocalPoint
+      fotoFocalPoint, pdfImageSource
     );
 
     const ponto = db.prepare('SELECT * FROM pontos WHERE id = ?').get(result.lastInsertRowid);
@@ -750,6 +760,7 @@ app.put('/api/pontos/:id', upload.fields([
       ? clamp(Number(data.imagem_foco_zoom), 100, 220)
       : clamp(Number(existing.imagem_foco_zoom) || 100, 100, 220);
     const fotoFocalPoint = normalizeFotoFocalPoint(data.foto_focal_point || existing.foto_focal_point);
+    const pdfImageSource = normalizePdfImageSource(data.pdf_image_source || existing.pdf_image_source);
 
     const stmt = db.prepare(`
       UPDATE pontos SET
@@ -760,6 +771,7 @@ app.put('/api/pontos/:id', upload.fields([
         arte_largura = ?, arte_altura = ?, tipo_fluxo = ?, audience_tags = ?, availability_calendar = ?, elevador_categoria = ?,
         imagem_foco_x = ?, imagem_foco_y = ?, imagem_foco_zoom = ?,
         foto_focal_point = ?,
+        pdf_image_source = ?,
         updated_at = datetime('now')
       WHERE id = ?
     `);
@@ -777,7 +789,7 @@ app.put('/api/pontos/:id', upload.fields([
       simulacaoTela, simulacaoArte, simulacaoPreview,
       arteLargura, arteAltura, tipoFluxo,
       JSON.stringify(audienceTags), JSON.stringify(availabilityCalendar), elevadorCategoria,
-      imagemFocoX, imagemFocoY, imagemFocoZoom, fotoFocalPoint,
+      imagemFocoX, imagemFocoY, imagemFocoZoom, fotoFocalPoint, pdfImageSource,
       req.params.id
     );
 

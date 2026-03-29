@@ -84,6 +84,11 @@ try {
 } catch (error) {
   console.warn('[db] Nao foi possivel aplicar migracao da coluna foto_focal_point:', error?.message || error);
 }
+try {
+  ensureColumn('pontos', 'pdf_image_source', "TEXT DEFAULT 'imagem2'");
+} catch (error) {
+  console.warn('[db] Nao foi possivel aplicar migracao da coluna pdf_image_source:', error?.message || error);
+}
 ensureColumn('admin_users', 'role', 'TEXT DEFAULT "vendedor"');
 ensureColumn('admin_users', 'first_name', 'TEXT');
 ensureColumn('admin_users', 'last_name', 'TEXT');
