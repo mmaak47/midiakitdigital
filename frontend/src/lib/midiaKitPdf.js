@@ -745,7 +745,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
                 <div style="margin-top:8px;display:flex;align-items:flex-start;gap:10px;color:rgba(255,255,255,0.66);font-size:12px;line-height:1.35;">${midiaKitDetailIcon('location', BRAND_ORANGE, 15)}<span>${escapeHtml(formatPointAddress(ponto.endereco) || 'Endereço não informado')}</span></div>
                 <div style="margin-top:8px;display:flex;align-items:flex-start;gap:10px;color:rgba(255,255,255,0.66);font-size:12px;line-height:1.35;">${midiaKitDetailIcon('coordinates', BRAND_ORANGE, 15)}<span>${escapeHtml(formatCoordinates(ponto))}</span></div>
               </div>
-            `).join('')
+            `).join('')}
           </div>
         </div>
       </div>
