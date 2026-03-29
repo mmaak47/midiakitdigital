@@ -482,8 +482,9 @@ function buildHeroImageFrame(image, options = {}) {
     `;
   }
 
+  const focalPoint = String(options.focalPoint || 'center center').trim() || 'center center';
   const mainImageStyle = options.fit === 'cover'
-    ? 'display:block;width:100%;height:100%;object-fit:cover;object-position:center;'
+    ? `display:block;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(focalPoint)};`
     : 'display:block;max-width:100%;max-height:100%;width:auto;height:auto;';
 
   return `
@@ -874,6 +875,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
     { key: 'loop', label: 'Loop', value: ponto.loop ? `Mín. ${ponto.loop}` : '-' }
   ];
   const photo = image || assets.showcase || assets.about1 || '';
+  const focalPoint = String(ponto?.foto_focal_point || 'center center').trim() || 'center center';
   const locationLabel = formatPointAddress(ponto.endereco);
   const veiculacao = ponto.veiculacao || 'Vídeo sem áudio';
   const horario = ponto.horario || '-';
@@ -885,7 +887,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
       <div style="position:absolute;left:0;top:0;bottom:0;width:58.5%;background:linear-gradient(180deg,#FFFFFF 0%,#F1F5F9 100%);display:flex;flex-direction:column;padding:36px 40px 28px 40px;box-sizing:border-box;"></div>
       <div style="position:absolute;left:0;top:0;width:58.5%;height:8px;background:${BRAND_ORANGE};z-index:2;"></div>
       <div style="position:absolute;right:0;top:0;bottom:0;width:41.5%;background:#111;overflow:hidden;">
-        ${photo ? `<img src="${photo}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;" />` : `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.4);font-size:20px;">Imagem indisponível</div>`}
+        ${photo ? `<img src="${photo}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(focalPoint)};display:block;" />` : `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.4);font-size:20px;">Imagem indisponível</div>`}
       </div>
 
       <div style="position:absolute;left:0;top:8px;bottom:0;width:58.5%;display:flex;flex-direction:column;padding:28px 40px 24px 40px;box-sizing:border-box;">
@@ -1180,7 +1182,8 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
     { label: 'Valor Negociado', value: formatMoney(point.preco) }
   ];
 
-  const imageFrameHtml = buildHeroImageFrame(image, { fit: 'contain', radius: 28 });
+  const focalPoint = String(point?.foto_focal_point || 'center center').trim() || 'center center';
+  const imageFrameHtml = buildHeroImageFrame(image, { fit: 'contain', radius: 28, focalPoint });
 
   return createPage(`
     <div style="position:absolute;inset:0;background:linear-gradient(135deg,#000000 0%,#050505 38%,#101010 100%);"></div>

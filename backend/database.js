@@ -79,6 +79,11 @@ ensureColumn('pontos', 'imagem2', 'TEXT');
 ensureColumn('pontos', 'imagem_foco_x', 'REAL DEFAULT 50');
 ensureColumn('pontos', 'imagem_foco_y', 'REAL DEFAULT 50');
 ensureColumn('pontos', 'imagem_foco_zoom', 'REAL DEFAULT 100');
+try {
+  ensureColumn('pontos', 'foto_focal_point', "TEXT DEFAULT 'center center'");
+} catch (error) {
+  console.warn('[db] Nao foi possivel aplicar migracao da coluna foto_focal_point:', error?.message || error);
+}
 ensureColumn('admin_users', 'role', 'TEXT DEFAULT "vendedor"');
 ensureColumn('admin_users', 'first_name', 'TEXT');
 ensureColumn('admin_users', 'last_name', 'TEXT');

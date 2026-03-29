@@ -26,6 +26,7 @@ import {
   geocodePoint
 } from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
+import FocalPointSelector from '../components/admin/FocalPointSelector';
 import UserModal from '../components/admin/UserModal';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
 
@@ -63,7 +64,8 @@ const emptyForm = {
   arte_largura: ELEVADOR_ARTE_LARGURA, arte_altura: ELEVADOR_ARTE_ALTURA,
   elevador_categoria: 'Comercial',
   custo_operacional: '', tipo_fluxo: 'pessoas',
-  imagem_foco_x: '50', imagem_foco_y: '50', imagem_foco_zoom: '100'
+  imagem_foco_x: '50', imagem_foco_y: '50', imagem_foco_zoom: '100',
+  foto_focal_point: 'center center'
 };
 
 function enforceElevadorDimensions(nextForm) {
@@ -342,7 +344,8 @@ export default function Admin() {
       tipo_fluxo: ponto.tipo_fluxo || 'pessoas',
       imagem_foco_x: (Number.isFinite(Number(ponto.imagem_foco_x)) ? Number(ponto.imagem_foco_x) : 50).toString(),
       imagem_foco_y: (Number.isFinite(Number(ponto.imagem_foco_y)) ? Number(ponto.imagem_foco_y) : 50).toString(),
-      imagem_foco_zoom: (Number.isFinite(Number(ponto.imagem_foco_zoom)) ? Number(ponto.imagem_foco_zoom) : 100).toString()
+      imagem_foco_zoom: (Number.isFinite(Number(ponto.imagem_foco_zoom)) ? Number(ponto.imagem_foco_zoom) : 100).toString(),
+      foto_focal_point: ponto.foto_focal_point || 'center center'
     }));
     setImageFile(null);
     setImagem2File(null);
@@ -1062,6 +1065,14 @@ export default function Admin() {
                       </span>
                     )}
                   </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/95 p-3">
+                  <FocalPointSelector
+                    value={form.foto_focal_point || 'center center'}
+                    onChange={(next) => updateField('foto_focal_point', next)}
+                    imageUrl={baseImagePreviewUrl || form.imagem || ''}
+                  />
                 </div>
 
                 <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-4">
