@@ -1,8 +1,8 @@
 ﻿import { loadPdfLayoutConfig } from './pdfLayoutConfig';
 import { buildAudienceQualification, buildEntornoSummary, getSegmentDisplayName, sortFormatos } from './strategy';
 
-const PAGE_WIDTH = 1680;
-const PAGE_HEIGHT = 1188;
+const PAGE_WIDTH = 1366;
+const PAGE_HEIGHT = 768;
 export const PDF_PAGE_SIZE = { width: PAGE_WIDTH, height: PAGE_HEIGHT };
 const BRAND_ORANGE = '#E8591A';
 const BRAND_DARK = '#0A0A0A';
@@ -242,7 +242,7 @@ function createPage(content, background = '#050505') {
     overflow: 'hidden',
     background,
     color: '#ffffff',
-    fontFamily: 'Montserrat, system-ui, sans-serif',
+    fontFamily: 'Poppins, system-ui, sans-serif',
     boxSizing: 'border-box'
   });
   page.innerHTML = content;
@@ -354,23 +354,33 @@ function buildCalibrationPreviewPage(previewKey, assets) {
 async function renderPagesToPdf(pages, fileName) {
   const origin = window.location.origin;
   const pageHtmlParts = pages.map((p) => p.outerHTML).join('\n');
-  const fullHtml = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
+  const fullHtml = `<!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="utf-8">
 <base href="${origin}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; }
 html, body { margin: 0; padding: 0; background: #000; }
-@page { size: 1680px 1188px; margin: 0; }
-section { display: block; page-break-after: always; break-after: page; }
+@page { size: 1366px 768px; margin: 0; }
+section {
+  display: block;
+  width: 1366px !important;
+  height: 768px !important;
+  overflow: hidden !important;
+  page-break-after: always;
+  break-after: page;
+}
+@media print {
+  html, body {
+    width: 1366px;
+    height: 768px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+}
 </style>
 </head>
-<body>${pageHtmlParts}</body>
-</html>`;
+<body>${pageHtmlParts}</body></html>`;
 
   const res = await fetch('/api/pdf/render', {
     method: 'POST',
@@ -816,21 +826,26 @@ function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }
 
 function buildMidiaKitEndingPage({ assets }) {
   return createPage(`
-    <div style="position:absolute;inset:0;background:#040404;"></div>
-    <div style="position:absolute;inset:0;background:radial-gradient(circle at 18% 20%, rgba(254,92,43,0.22) 0%, rgba(254,92,43,0.06) 28%, rgba(0,0,0,0) 56%);"></div>
-    <div style="position:absolute;inset:0;background:linear-gradient(145deg,#040404 0%,#080808 56%,#050505 100%);"></div>
+    <div style="position:absolute;inset:0;background:#0A0A0A;"></div>
+    <div style="position:absolute;left:80px;top:0;width:6px;height:100%;background:${BRAND_ORANGE};"></div>
+    <div style="position:absolute;bottom:-60px;right:-20px;font-family:Poppins,sans-serif;font-size:320px;font-weight:900;line-height:1;letter-spacing:-0.05em;color:rgba(255,255,255,0.03);user-select:none;pointer-events:none;white-space:nowrap;">OOH</div>
 
-    <div style="position:absolute;left:110px;right:110px;top:110px;bottom:110px;border-radius:40px;border:1px solid rgba(255,255,255,0.10);background:linear-gradient(180deg,rgba(255,255,255,0.04) 0%,rgba(255,255,255,0.01) 100%);"></div>
-
-    <div style="position:absolute;left:0;right:0;top:230px;display:flex;justify-content:center;">
-      <img src="${assets.logo07 || assets.logo || ''}" alt="" style="width:280px;height:auto;object-fit:contain;" />
+    <div style="position:absolute;left:120px;top:50%;transform:translateY(-50%);">
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:${BRAND_ORANGE};margin-bottom:32px;">INTERMIDIA OOH + DOOH</div>
+      <div style="font-family:Poppins,sans-serif;font-size:72px;font-weight:900;line-height:1.0;letter-spacing:-0.02em;color:#fff;">
+        <div>O mundo</div>
+        <div>acontece lá fora<span style="color:${BRAND_ORANGE};">.</span></div>
+      </div>
+      <div style="width:280px;height:1px;background:rgba(255,255,255,0.15);margin:32px 0;"></div>
+      <div style="font-size:14px;font-weight:500;color:#fff;">redeintermidia.com</div>
+      <div style="margin-top:6px;font-size:12px;color:rgba(255,255,255,0.45);">Planejamento OOH + DOOH desde 2007</div>
     </div>
 
-    <div style="position:absolute;left:190px;right:190px;top:500px;text-align:center;">
-      <div style="font-size:18px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.52);">Intermidia OOH + DOOH</div>
-      <div style="margin-top:22px;font-family:Poppins, system-ui, sans-serif;font-size:108px;line-height:0.94;font-weight:700;letter-spacing:-0.045em;color:#fff;">O mundo acontece lá fora!</div>
+    <div style="position:absolute;bottom:60px;right:60px;text-align:right;">
+      <img src="${assets.logo07 || assets.logo || ''}" alt="" style="width:120px;height:auto;object-fit:contain;" />
+      <div style="margin-top:8px;font-size:11px;color:rgba(255,255,255,0.25);">© 2026</div>
     </div>
-  `, '#040404');
+  `, '#0A0A0A');
 }
 
 function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
@@ -873,11 +888,11 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
         <div style="margin-top:20px;font-family:Poppins, system-ui, sans-serif;font-size:62px;line-height:0.98;font-weight:700;letter-spacing:-0.028em;color:#111827;word-break:break-word;overflow-wrap:anywhere;hyphens:auto;">${formatPointNameHtml(ponto.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.6em;font-weight:600;letter-spacing:-0.006em;color:rgba(17,24,39,0.62);' })}</div>
 
         <div style="margin-top:20px;display:grid;gap:12px;">
-          <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(17,24,39,0.78);font-size:20px;line-height:1.35;">
+          <div style="display:flex;align-items:center;gap:12px;color:rgba(17,24,39,0.78);font-size:20px;line-height:1.35;">
             <span style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${midiaKitDetailIcon('location', BRAND_ORANGE, 18)}</span>
             <span>${escapeHtml(locationLabel || 'Endereço não informado')}</span>
           </div>
-          <div style="display:flex;align-items:flex-start;gap:12px;color:rgba(17,24,39,0.78);font-size:20px;line-height:1.35;">
+          <div style="display:flex;align-items:center;gap:12px;color:rgba(17,24,39,0.78);font-size:20px;line-height:1.35;">
             <span style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:#FFF7ED;border:1px solid rgba(254,92,43,0.24);flex:0 0 auto;">${midiaKitDetailIcon('coordinates', BRAND_ORANGE, 18)}</span>
             <span>${escapeHtml(formatCoordinates(ponto))}</span>
           </div>
@@ -887,7 +902,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
       <div style="position:absolute;left:46px;right:calc(41.5% + 46px);top:508px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;">
         ${metrics.map((item) => `
           <div style="padding:16px 16px 14px;background:#F7F6F3;border:1px solid #E8E8E8;box-sizing:border-box;">
-            <div style="font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#888;">${escapeHtml(item.label)}</div>
+            <div style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#888;">${metricIconSvg(item.key, '#888', 14)}${escapeHtml(item.label)}</div>
             <div style="margin-top:10px;font-family:Poppins, system-ui, sans-serif;font-size:22px;line-height:1.1;font-weight:700;color:#1A1A1A;word-break:break-word;">${escapeHtml(item.value)}</div>
           </div>
         `).join('')}
