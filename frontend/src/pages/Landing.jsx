@@ -648,9 +648,9 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={3}
-            className={`grid lg:grid-cols-[1fr_auto_auto_auto] gap-4 p-6 bg-gradient-to-br ${t.controlPanel} border rounded-2xl backdrop-blur-xl shadow-xl shadow-black/30`}
+            className={`grid lg:grid-cols-[1fr_auto_auto_auto] items-end gap-4 p-6 bg-gradient-to-br ${t.controlPanel} border rounded-2xl backdrop-blur-xl shadow-xl shadow-black/30`}
           >
-            <div className="grid sm:grid-cols-3 gap-4">
+            <div className="grid sm:grid-cols-3 gap-4 lg:col-span-4">
               <CustomSelect
                 label="Praça"
                 value={selectedPracas}
@@ -684,19 +684,19 @@ export default function Landing() {
                 ]
               }}
               transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-              className="self-end rounded-2xl border border-[#E8591A]/25 bg-black/35 p-3"
+              className="w-full self-end rounded-2xl border border-[#E8591A]/25 bg-black/35 p-3 lg:w-auto lg:max-w-[360px]"
             >
               <div className="mb-2 inline-flex rounded-full border border-[#E8591A]/35 bg-[#E8591A]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#E8591A]">
                 ✦ Ver apresentação
               </div>
               <button
                 onClick={() => setShowSlidesMode(true)}
-                className="inline-flex h-[54px] w-full items-center justify-center gap-2 rounded-xl bg-[#E8591A] px-6 text-base font-bold text-white transition-colors hover:bg-brand-orange-hover lg:w-auto"
+                className="inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#E8591A] px-5 text-sm font-bold text-white transition-colors hover:bg-brand-orange-hover"
               >
                 <Play size={16} />
                 Abrir apresentação em slides
               </button>
-              <p className="mt-2 text-sm text-gray-400">Apresentação visual dos pontos selecionados</p>
+              <p className="mt-1.5 text-xs leading-tight text-gray-400">Apresentação visual dos pontos selecionados</p>
             </motion.div>
 
             <button
