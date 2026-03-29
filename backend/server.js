@@ -9,6 +9,7 @@ const { z } = require('zod');
 const { randomUUID } = require('crypto');
 const db = require('./database');
 const { createBackupScheduler } = require('./backupService');
+const { renderHtmlToPdf } = require('./pdfService');
 const {
   DEFAULT_RADIUS,
   getSegmentCategories,
@@ -160,6 +161,37 @@ function extensionFromMime(mimeType) {
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(cors({ origin: corsOriginValidator }));
+
+// PDF render endpoint — must be registered before global express.json (own 55mb body parser)
+const pdfRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas requisições de PDF. Tente novamente em um minuto.' }
+});
+
+app.post('/api/pdf/render', pdfRateLimiter, express.json({ limit: '55mb' }), async (req, res) => {
+  const { html, fileName } = req.body || {};
+  if (!html || typeof html !== 'string' || html.length < 10) {
+    return res.status(400).json({ error: 'Parâmetro html obrigatório.' });
+  }
+  try {
+    const pdfBuffer = await renderHtmlToPdf(html);
+    const safeName = String(fileName || 'documento.pdf').replace(/[^a-zA-Z0-9\-_.]/g, '_');
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${safeName}"`,
+      'Content-Length': pdfBuffer.length,
+      'Cache-Control': 'no-store',
+    });
+    return res.end(pdfBuffer);
+  } catch (err) {
+    console.error('[pdf/render] Erro:', err.message || err);
+    return res.status(500).json({ error: 'Erro ao gerar PDF.' });
+  }
+});
+
 app.use(express.json({ limit: '1mb' }));
 app.use(compression({ threshold: 1024 }));
 app.use('/api', apiLimiter);

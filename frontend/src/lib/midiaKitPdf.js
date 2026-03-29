@@ -1,12 +1,9 @@
-﻿import { jsPDF } from 'jspdf';
-import { loadPdfLayoutConfig } from './pdfLayoutConfig';
+﻿import { loadPdfLayoutConfig } from './pdfLayoutConfig';
 import { buildAudienceQualification, buildEntornoSummary, getSegmentDisplayName, sortFormatos } from './strategy';
 
 const PAGE_WIDTH = 1680;
 const PAGE_HEIGHT = 1188;
 export const PDF_PAGE_SIZE = { width: PAGE_WIDTH, height: PAGE_HEIGHT };
-const PDF_MM_WIDTH = 297;
-const PDF_MM_HEIGHT = 210;
 const BRAND_ORANGE = '#E8591A';
 const BRAND_DARK = '#0A0A0A';
 const BRAND_PANEL = '#171717';
@@ -32,7 +29,6 @@ function getCityState(cidade) {
 
 const imageCache = new Map();
 const IMAGE_FETCH_TIMEOUT_MS = 15000;
-const IMAGE_RENDER_WAIT_TIMEOUT_MS = 8000;
 let pdfAssetsPromise = null;
 let activePdfLayoutConfig = null;
 
@@ -237,20 +233,6 @@ async function imageToDataUrl(url) {
   return promise;
 }
 
-function createStage() {
-  const stage = document.createElement('div');
-  Object.assign(stage.style, {
-    position: 'fixed',
-    left: '-20000px',
-    top: '0',
-    width: `${PAGE_WIDTH}px`,
-    zIndex: '-1',
-    pointerEvents: 'none'
-  });
-  document.body.appendChild(stage);
-  return stage;
-}
-
 function createPage(content, background = '#050505') {
   const page = document.createElement('section');
   Object.assign(page.style, {
@@ -369,65 +351,46 @@ function buildCalibrationPreviewPage(previewKey, assets) {
   }
 }
 
-async function waitForImages(node) {
-  const images = Array.from(node.querySelectorAll('img'));
-  await Promise.all(images.map((img) => {
-    if (img.complete) return Promise.resolve();
-    return new Promise((resolve) => {
-      let finished = false;
-      const done = () => {
-        if (finished) return;
-        finished = true;
-        clearTimeout(timeout);
-        resolve();
-      };
-      const timeout = setTimeout(done, IMAGE_RENDER_WAIT_TIMEOUT_MS);
-      img.onload = done;
-      img.onerror = done;
-      img.decode?.().then(done).catch(done);
-    });
-  }));
-}
-
 async function renderPagesToPdf(pages, fileName) {
-  if (document.fonts?.ready) {
-    await document.fonts.ready;
+  const pageHtmlParts = pages.map((p) => p.outerHTML).join('\n');
+  const fullHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #000; }
+@page { size: 1680px 1188px; margin: 0; }
+section { display: block; page-break-after: always; break-after: page; }
+</style>
+</head>
+<body>${pageHtmlParts}</body>
+</html>`;
+
+  const res = await fetch('/api/pdf/render', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ html: fullHtml, fileName }),
+    credentials: 'same-origin',
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Erro ao gerar PDF no servidor');
   }
 
-  const { default: html2canvas } = await import('html2canvas');
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [PDF_MM_WIDTH, PDF_MM_HEIGHT] });
-  const stage = createStage();
-
-  try {
-    for (let index = 0; index < pages.length; index += 1) {
-      const page = pages[index];
-      stage.appendChild(page);
-      await waitForImages(page);
-
-      const canvas = await html2canvas(page, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#050505',
-        logging: false,
-        width: PAGE_WIDTH,
-        height: PAGE_HEIGHT,
-        windowWidth: PAGE_WIDTH,
-        windowHeight: PAGE_HEIGHT
-      });
-
-      if (index > 0) {
-        doc.addPage([PDF_MM_WIDTH, PDF_MM_HEIGHT], 'landscape');
-      }
-
-      const image = canvas.toDataURL('image/jpeg', 0.92);
-      doc.addImage(image, 'JPEG', 0, 0, PDF_MM_WIDTH, PDF_MM_HEIGHT, undefined, 'FAST');
-      stage.removeChild(page);
-    }
-  } finally {
-    stage.remove();
-  }
-
-  doc.save(fileName);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function buildMetricCards(cards, options = {}) {
