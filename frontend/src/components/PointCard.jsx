@@ -48,6 +48,8 @@ export default function PointCard({ ponto, onSelect, index = 0, isDark = true })
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             style={{ objectPosition: `${focusX}% ${focusY}%` }}
             loading="lazy"
+            width="640"
+            height="360"
           />
         ) : (
           <div className={`point-no-image w-full h-full flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-brand-gray-900 to-brand-gray-800' : 'bg-gradient-to-br from-[#f4f6f9] to-[#eceff3]'}`}>

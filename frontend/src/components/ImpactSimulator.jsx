@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import { Wand2 } from 'lucide-react';
 
-export default function ImpactSimulator({ points = [], onAdd }) {
+const ImpactSimulator = memo(function ImpactSimulator({ points = [], onAdd }) {
   const sorted = [...points]
     .sort((a, b) => (Number(b.fluxo) || 0) - (Number(a.fluxo) || 0))
     .slice(0, 2);
@@ -36,4 +37,6 @@ export default function ImpactSimulator({ points = [], onAdd }) {
       )}
     </section>
   );
-}
+});
+
+export default ImpactSimulator;

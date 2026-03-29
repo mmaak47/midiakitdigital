@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Map, { Layer, NavigationControl, Popup, Source } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
 import { mergeBounds, sanitizeCoordinate, sanitizePoints } from '../lib/geo';
@@ -54,7 +54,7 @@ const UNCLUSTERED_LAYER = {
   },
 };
 
-export default function SmartMap({
+function SmartMap({
   pontos = [],
   selectedId,
   onSelect,
@@ -247,3 +247,15 @@ export default function SmartMap({
     </div>
   );
 }
+
+export default memo(SmartMap, (prevProps, nextProps) => {
+  return prevProps.pontos === nextProps.pontos
+    && prevProps.selectedId === nextProps.selectedId
+    && prevProps.onSelect === nextProps.onSelect
+    && prevProps.onOpenDetails === nextProps.onOpenDetails
+    && prevProps.isDark === nextProps.isDark
+    && prevProps.focusCoords?.lat === nextProps.focusCoords?.lat
+    && prevProps.focusCoords?.lng === nextProps.focusCoords?.lng
+    && prevProps.selectedCidades === nextProps.selectedCidades
+    && prevProps.cityBounds === nextProps.cityBounds;
+});

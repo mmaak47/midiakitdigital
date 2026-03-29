@@ -17,8 +17,10 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-leaflet": "^4.2.1",
+    "react-leaflet-cluster": "^3.1.1",
     "react-map-gl": "^8.1.0",
     "react-router-dom": "^7.1.1",
+    "react-window": "^1.8.9",
     "remixicon": "^4.9.1"
   },
   "devDependencies": {

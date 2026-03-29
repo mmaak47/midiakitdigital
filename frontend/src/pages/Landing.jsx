@@ -1,13 +1,15 @@
 import { useNavigate, Link } from 'react-router-dom';
 import { AnimatePresence, motion, useInView } from 'framer-motion';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Play } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import CustomSelect from '../components/CustomSelect';
 import SmartMap from '../components/SmartMap';
-import MidiaKitSlidesMode from '../components/MidiaKitSlidesMode';
 import { fetchPontos } from '../lib/api';
 import { getPointDisplayImages, getPrimaryPointMediaKitImage } from '../lib/pointImages';
 import { campaignTotals, sortFormatos } from '../lib/strategy';
+
+const MidiaKitSlidesMode = lazy(() => import('../components/MidiaKitSlidesMode'));
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -89,6 +91,9 @@ function PointImageGallery({ ponto, onExpand }) {
         className="w-full h-full object-cover min-h-[180px] transition-transform duration-500 group-hover:scale-[1.03] cursor-pointer"
         onClick={() => onExpand(ponto, idx)}
         style={{ objectPosition: `${ponto.imagem_foco_x ?? 50}% ${ponto.imagem_foco_y ?? 50}%` }}
+        loading="lazy"
+        width="640"
+        height="360"
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5 pointer-events-none">
         <span className="flex items-center gap-1 text-[11px] text-brand-orange bg-black/70 rounded-md px-2 py-1 border border-brand-orange/35 shadow-sm">
@@ -173,7 +178,7 @@ function Lightbox({ ponto, imageIndex, onClose, onChangeIndex }) {
           </button>
         </div>
         <div className="relative rounded-2xl overflow-hidden bg-[#0d0d0d] border border-white/10 shadow-[0_20px_80px_rgba(0,0,0,0.8)]">
-          <img src={current} alt={ponto.nome} className="w-full max-h-[72vh] object-contain" />
+          <img src={current} alt={ponto.nome} className="w-full max-h-[72vh] object-contain" loading="lazy" width="1280" height="720" />
           {hasMultiple && (
             <>
               <button onClick={() => onChangeIndex((imageIndex - 1 + images.length) % images.length)} className="absolute left-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-black/70 border border-white/20 flex items-center justify-center text-white hover:bg-black transition" aria-label="Imagem anterior">
@@ -311,7 +316,7 @@ function MapModal({ pontos, onClose, isDark }) {
             <div className="flex-1 p-4 space-y-3">
               {getPrimaryPointMediaKitImage(selectedPoint) && (
                 <div className={`rounded-xl overflow-hidden h-32 border ${m.imgBorder}`}>
-                  <img src={getPrimaryPointMediaKitImage(selectedPoint)} alt={selectedPoint.nome} className="w-full h-full object-cover" />
+                  <img src={getPrimaryPointMediaKitImage(selectedPoint)} alt={selectedPoint.nome} className="w-full h-full object-cover" loading="lazy" width="640" height="360" />
                 </div>
               )}
               <div>
@@ -670,13 +675,29 @@ export default function Landing() {
               </div>
             </div>
 
-            <button
-              onClick={() => setShowSlidesMode(true)}
-              className="landing-orange-btn group h-[50px] self-end px-6 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
+            <motion.div
+              animate={{
+                boxShadow: [
+                  '0 0 0px #E8591A',
+                  '0 0 18px rgba(232,89,26,0.5)',
+                  '0 0 0px #E8591A'
+                ]
+              }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              className="self-end rounded-2xl border border-[#E8591A]/25 bg-black/35 p-3"
             >
-              <i className="ri-slideshow-3-line" style={{ fontSize: 16 }} />
-              Abrir slides
-            </button>
+              <div className="mb-2 inline-flex rounded-full border border-[#E8591A]/35 bg-[#E8591A]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#E8591A]">
+                ✦ Ver apresentação
+              </div>
+              <button
+                onClick={() => setShowSlidesMode(true)}
+                className="inline-flex h-[54px] w-full items-center justify-center gap-2 rounded-xl bg-[#E8591A] px-6 text-base font-bold text-white transition-colors hover:bg-brand-orange-hover lg:w-auto"
+              >
+                <Play size={16} />
+                Abrir apresentação em slides
+              </button>
+              <p className="mt-2 text-sm text-gray-400">Apresentação visual dos pontos selecionados</p>
+            </motion.div>
 
             <button
               onClick={() => setShowMapModal(true)}
@@ -1044,17 +1065,19 @@ export default function Landing() {
 
       <AnimatePresence>
         {showSlidesMode && (
-          <MidiaKitSlidesMode
-            key="slides-mode"
-            open={showSlidesMode}
-            onClose={() => setShowSlidesMode(false)}
-            allPontos={allPontos}
-            selectedPracas={selectedPracas}
-            setSelectedPracas={setSelectedPracas}
-            selectedTipos={selectedTipos}
-            setSelectedTipos={setSelectedTipos}
-            isDark={isDark}
-          />
+          <Suspense fallback={null}>
+            <MidiaKitSlidesMode
+              key="slides-mode"
+              open={showSlidesMode}
+              onClose={() => setShowSlidesMode(false)}
+              allPontos={allPontos}
+              selectedPracas={selectedPracas}
+              setSelectedPracas={setSelectedPracas}
+              selectedTipos={selectedTipos}
+              setSelectedTipos={setSelectedTipos}
+              isDark={isDark}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
 

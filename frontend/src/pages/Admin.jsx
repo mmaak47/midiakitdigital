@@ -26,6 +26,7 @@ import {
   geocodePoint
 } from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
+import UserModal from '../components/admin/UserModal';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
 
 const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
@@ -119,11 +120,9 @@ export default function Admin() {
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState('');
-  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', whatsapp: '', email: '', password: '', role: 'vendedor' });
-  const [creatingUser, setCreatingUser] = useState(false);
-  const [editingRole, setEditingRole] = useState(null);
-  const [selectedRole, setSelectedRole] = useState('vendedor');
-  const [updatingRole, setUpdatingRole] = useState(false);
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [userModalInitialData, setUserModalInitialData] = useState(null);
+  const [savingUser, setSavingUser] = useState(false);
 
   const [settings, setSettings] = useState({ lucro_minimo_percentual: 15 });
   const [settingsLoading, setSettingsLoading] = useState(false);
@@ -409,25 +408,42 @@ export default function Admin() {
     }
   };
 
-  const handleCreateUser = async (event) => {
-    event.preventDefault();
-    setCreatingUser(true);
+  const splitName = (fullName, login) => {
+    const normalized = String(fullName || '').trim().replace(/\s+/g, ' ');
+    if (!normalized) return { firstName: login, lastName: '-' };
+    const parts = normalized.split(' ');
+    if (parts.length === 1) return { firstName: parts[0], lastName: login || '-' };
+    return {
+      firstName: parts[0],
+      lastName: parts.slice(1).join(' ') || (login || '-')
+    };
+  };
+
+  const handleSaveUser = async (formData) => {
+    setSavingUser(true);
     setUsersError('');
     try {
-      await createAdminUser({
-        firstName: newUser.firstName.trim(),
-        lastName: newUser.lastName.trim(),
-        whatsapp: newUser.whatsapp.trim(),
-        email: newUser.email.trim(),
-        password: newUser.password,
-        role: newUser.role || 'vendedor'
-      });
-      setNewUser({ firstName: '', lastName: '', whatsapp: '', email: '', password: '', role: 'vendedor' });
+      if (userModalInitialData?.id) {
+        await updateAdminUserRole(userModalInitialData.id, formData.tipoUsuario || 'vendedor');
+      } else {
+        const parsed = splitName(formData.nome, formData.login);
+        const normalizedEmail = String(formData.email || '').trim() || `${String(formData.login || '').trim()}@intermidia.local`;
+        await createAdminUser({
+          firstName: parsed.firstName,
+          lastName: parsed.lastName,
+          whatsapp: '',
+          email: normalizedEmail,
+          password: String(formData.senha || '').trim(),
+          role: formData.tipoUsuario || 'vendedor'
+        });
+      }
       await loadUsers();
+      setUserModalOpen(false);
+      setUserModalInitialData(null);
     } catch (err) {
       setUsersError(err.message || 'Falha ao criar usuário');
     } finally {
-      setCreatingUser(false);
+      setSavingUser(false);
     }
   };
 
@@ -442,18 +458,14 @@ export default function Admin() {
     }
   };
 
-  const handleUpdateUserRole = async (userId, newRole) => {
-    setUpdatingRole(true);
-    setUsersError('');
-    try {
-      await updateAdminUserRole(userId, newRole);
-      setEditingRole(null);
-      await loadUsers();
-    } catch (err) {
-      setUsersError(err.message || 'Falha ao atualizar role do usuário');
-    } finally {
-      setUpdatingRole(false);
-    }
+  const handleOpenNewUserModal = () => {
+    setUserModalInitialData(null);
+    setUserModalOpen(true);
+  };
+
+  const handleOpenEditUserModal = (user) => {
+    setUserModalInitialData(user);
+    setUserModalOpen(true);
   };
 
   const loadSettings = async () => {
@@ -841,17 +853,9 @@ export default function Admin() {
             users={users}
             loading={usersLoading}
             error={usersError}
-            newUser={newUser}
-            setNewUser={setNewUser}
-            creating={creatingUser}
-            onCreate={handleCreateUser}
+            onOpenNew={handleOpenNewUserModal}
+            onOpenEdit={handleOpenEditUserModal}
             onDelete={handleDeleteUser}
-            onUpdateRole={handleUpdateUserRole}
-            editingRole={editingRole}
-            setEditingRole={setEditingRole}
-            selectedRole={selectedRole}
-            setSelectedRole={setSelectedRole}
-            updatingRole={updatingRole}
             userRoles={USER_ROLES}
             onReload={loadUsers}
           />
@@ -904,6 +908,17 @@ export default function Admin() {
           </section>
         ) : null}
       </div>
+
+      <UserModal
+        isOpen={userModalOpen}
+        onClose={() => {
+          if (savingUser) return;
+          setUserModalOpen(false);
+          setUserModalInitialData(null);
+        }}
+        onSave={handleSaveUser}
+        initialData={userModalInitialData}
+      />
 
       {/* Edit / Create Modal */}
       <AnimatePresence>
@@ -1545,17 +1560,9 @@ function UsersAdminPanel({
   users,
   loading,
   error,
-  newUser,
-  setNewUser,
-  creating,
-  onCreate,
+  onOpenNew,
+  onOpenEdit,
   onDelete,
-  onUpdateRole,
-  editingRole,
-  setEditingRole,
-  selectedRole,
-  setSelectedRole,
-  updatingRole,
   userRoles,
   onReload
 }) {
@@ -1566,73 +1573,25 @@ function UsersAdminPanel({
           <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Cadastro de usuários admin</h3>
           <p className="text-xs text-brand-gray-500 mt-1">Gerencie quem pode acessar o painel administrativo e defina permissões.</p>
         </div>
-        <button
-          type="button"
-          onClick={onReload}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
-        >
-          <RefreshCcw size={15} />
-          Atualizar lista
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenNew}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#E8591A]/40 bg-[#E8591A]/15 px-4 py-2 text-sm font-semibold text-[#E8591A] hover:bg-[#E8591A]/25"
+          >
+            <UserPlus size={15} />
+            Adicionar Usuário
+          </button>
+          <button
+            type="button"
+            onClick={onReload}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+          >
+            <RefreshCcw size={15} />
+            Atualizar lista
+          </button>
+        </div>
       </div>
-
-      <form onSubmit={onCreate} className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto]">
-        <input
-          type="text"
-          value={newUser.firstName}
-          onChange={(event) => setNewUser((prev) => ({ ...prev, firstName: event.target.value }))}
-          placeholder="Nome"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
-          required
-        />
-        <input
-          type="text"
-          value={newUser.lastName}
-          onChange={(event) => setNewUser((prev) => ({ ...prev, lastName: event.target.value }))}
-          placeholder="Sobrenome"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
-          required
-        />
-        <input
-          type="text"
-          value={newUser.whatsapp}
-          onChange={(event) => setNewUser((prev) => ({ ...prev, whatsapp: event.target.value }))}
-          placeholder="WhatsApp"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
-        />
-        <input
-          type="email"
-          value={newUser.email}
-          onChange={(event) => setNewUser((prev) => ({ ...prev, email: event.target.value }))}
-          placeholder="E-mail"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
-          required
-        />
-        <input
-          type="password"
-          value={newUser.password}
-          onChange={(event) => setNewUser((prev) => ({ ...prev, password: event.target.value }))}
-          placeholder="Senha (mínimo 6)"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
-          required
-          minLength={6}
-        />
-        <select
-          value={newUser.role || 'vendedor'}
-          onChange={(event) => setNewUser((prev) => ({ ...prev, role: event.target.value }))}
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white appearance-none focus:outline-none focus:border-brand-orange/40"
-        >
-          {userRoles.map(r => <option key={r.value} value={r.value} className="bg-brand-dark">{r.label}</option>)}
-        </select>
-        <button
-          type="submit"
-          disabled={creating}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
-        >
-          <UserPlus size={15} />
-          {creating ? 'Criando...' : 'Criar'}
-        </button>
-      </form>
 
       {error ? <p className="mt-3 text-xs text-red-300">{error}</p> : null}
 
@@ -1669,63 +1628,27 @@ function UsersAdminPanel({
                   <div>{user.whatsapp || '-'}</div>
                 </td>
                 <td className="px-3 py-2">
-                  {editingRole === user.id ? (
-                    <select
-                      value={selectedRole}
-                      onChange={(e) => setSelectedRole(e.target.value)}
-                      className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white appearance-none"
-                    >
-                      {userRoles.map(r => <option key={r.value} value={r.value} className="bg-brand-dark">{r.label}</option>)}
-                    </select>
-                  ) : (
-                    <span className="inline-block px-2 py-1 rounded-lg bg-brand-orange/10 text-brand-orange text-xs">
-                      {userRoles.find(r => r.value === user.role)?.label || user.role}
-                    </span>
-                  )}
+                  <span className="inline-block px-2 py-1 rounded-lg bg-brand-orange/10 text-brand-orange text-xs">
+                    {userRoles.find(r => r.value === user.role)?.label || user.role}
+                  </span>
                 </td>
                 <td className="px-3 py-2 text-right space-x-2">
-                  {editingRole === user.id ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => onUpdateRole(user.id, selectedRole)}
-                        disabled={updatingRole}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-brand-orange hover:bg-brand-orange/10 disabled:opacity-50"
-                      >
-                        <Save size={12} />
-                        Salvar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingRole(null)}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-brand-gray-400 hover:bg-white/10"
-                      >
-                        Cancelar
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingRole(user.id);
-                          setSelectedRole(user.role || 'vendedor');
-                        }}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-brand-gray-400 hover:bg-white/10"
-                      >
-                        <Pencil size={12} />
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(user.id, user.username)}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-red-300 hover:bg-red-400/10"
-                      >
-                        <Trash2 size={12} />
-                        Remover
-                      </button>
-                    </>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => onOpenEdit(user)}
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-brand-gray-400 hover:bg-white/10"
+                  >
+                    <Pencil size={12} />
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(user.id, user.username)}
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-red-300 hover:bg-red-400/10"
+                  >
+                    <Trash2 size={12} />
+                    Remover
+                  </button>
                 </td>
               </tr>
             ))}

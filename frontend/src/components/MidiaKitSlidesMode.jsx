@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ChevronLeft, ChevronRight, Maximize2, Minimize2, Play, X } from 'lucide-react';
+import { FixedSizeList } from 'react-window';
 import CustomSelect from './CustomSelect';
 import SmartMap from './SmartMap';
-import { getPrimaryPointMediaKitImage } from '../lib/pointImages';
+import { getPointDisplayImages, getPrimaryPointMediaKitImage } from '../lib/pointImages';
 import { campaignTotals } from '../lib/strategy';
 
 const fmtInt = (v) => new Intl.NumberFormat('pt-BR').format(Math.round(Number(v) || 0));
@@ -80,6 +81,52 @@ function Lobby({
       if (allGroupSelected ? selectedPointIds.has(id) : !selectedPointIds.has(id)) togglePoint(id);
     });
   };
+
+  const renderPointOption = useCallback((point) => {
+    const id = point.id || point._id;
+    const selected = selectedPointIds.has(id);
+    const img = getPrimaryPointMediaKitImage(point);
+
+    return (
+      <button
+        key={id}
+        type="button"
+        onClick={() => togglePoint(id)}
+        className={`relative h-[88px] flex text-left rounded-xl border overflow-hidden transition-all w-full ${
+          selected
+            ? 'border-brand-orange bg-brand-orange/[0.06] ring-1 ring-brand-orange/30'
+            : 'border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
+        }`}
+      >
+        <div className="w-24 h-full shrink-0 bg-black/50">
+          {img ? (
+            <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" width="160" height="120" />
+          ) : (
+            <div className="h-full w-full bg-white/5" />
+          )}
+        </div>
+        <div className="flex-1 px-3 py-2.5 min-w-0 overflow-hidden">
+          <div className="text-sm font-semibold line-clamp-1 leading-tight pr-5">
+            {point.nome}
+          </div>
+          <div className="mt-0.5 text-[11px] text-brand-gray-400 line-clamp-1">
+            {point.cidade}
+          </div>
+          <div className="mt-1.5 text-[11px] text-brand-gray-300 line-clamp-1">
+            Fluxo: {fmtInt(Number(point.fluxo) || 0)} &bull;{' '}
+            {fmtMoney(Number(point.preco) || 0)}/mês
+          </div>
+        </div>
+        <div
+          className={`absolute top-2 right-2 w-[18px] h-[18px] rounded-full flex items-center justify-center transition-all shrink-0 ${
+            selected ? 'bg-brand-orange' : 'bg-black/40 border border-white/30'
+          }`}
+        >
+          {selected && <Check size={9} strokeWidth={3} />}
+        </div>
+      </button>
+    );
+  }, [selectedPointIds, togglePoint]);
 
   return (
     <div className="h-full flex flex-col px-6 py-5 md:px-10 md:py-7">
@@ -163,50 +210,24 @@ function Lobby({
                   </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {points.map((point) => {
-                    const id = point.id || point._id;
-                    const selected = selectedPointIds.has(id);
-                    const img = getPrimaryPointMediaKitImage(point);
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() => togglePoint(id)}
-                        className={`relative h-[88px] flex text-left rounded-xl border overflow-hidden transition-all ${
-                          selected
-                            ? 'border-brand-orange bg-brand-orange/[0.06] ring-1 ring-brand-orange/30'
-                            : 'border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
-                        }`}
+                  {points.length > 30 ? (
+                    <div className="col-span-full">
+                      <FixedSizeList
+                        height={Math.min(430, points.length * 94)}
+                        itemCount={points.length}
+                        itemSize={94}
+                        width="100%"
                       >
-                        <div className="w-24 h-full shrink-0 bg-black/50">
-                          {img ? (
-                            <img src={img} alt="" className="h-full w-full object-cover" />
-                          ) : (
-                            <div className="h-full w-full bg-white/5" />
-                          )}
-                        </div>
-                        <div className="flex-1 px-3 py-2.5 min-w-0 overflow-hidden">
-                          <div className="text-sm font-semibold line-clamp-1 leading-tight pr-5">
-                            {point.nome}
+                        {({ index, style }) => (
+                          <div style={style} className="px-0.5">
+                            {renderPointOption(points[index])}
                           </div>
-                          <div className="mt-0.5 text-[11px] text-brand-gray-400 line-clamp-1">
-                            {point.cidade}
-                          </div>
-                          <div className="mt-1.5 text-[11px] text-brand-gray-300 line-clamp-1">
-                            Fluxo: {fmtInt(Number(point.fluxo) || 0)} &bull;{' '}
-                            {fmtMoney(Number(point.preco) || 0)}/mês
-                          </div>
-                        </div>
-                        <div
-                          className={`absolute top-2 right-2 w-[18px] h-[18px] rounded-full flex items-center justify-center transition-all shrink-0 ${
-                            selected ? 'bg-brand-orange' : 'bg-black/40 border border-white/30'
-                          }`}
-                        >
-                          {selected && <Check size={9} strokeWidth={3} />}
-                        </div>
-                      </button>
-                    );
-                  })}
+                        )}
+                      </FixedSizeList>
+                    </div>
+                  ) : (
+                    points.map((point) => renderPointOption(point))
+                  )}
                 </div>
               </div>
             );
@@ -289,11 +310,18 @@ function DividerSlide({ tipo, count, totaisTipo, points }) {
 // ─── Slide por ponto ───
 function PointSlide({ slide, selectionLabel, typesLabel }) {
   const { point, infoOnLeft } = slide;
-  const img = getPrimaryPointMediaKitImage(point);
+  const images = getPointDisplayImages(point);
+  const [imageIndex, setImageIndex] = useState(0);
+  const img = images[imageIndex] || getPrimaryPointMediaKitImage(point);
+  const hasMultipleImages = images.length > 1;
   const focusCoords = getFocusCoords(point);
   const [showImageModal, setShowImageModal] = useState(false);
   const focusX = Number.isFinite(Number(point?.imagem_foco_x)) ? Number(point.imagem_foco_x) : 50;
   const focusY = Number.isFinite(Number(point?.imagem_foco_y)) ? Number(point.imagem_foco_y) : 50;
+
+  useEffect(() => {
+    setImageIndex(0);
+  }, [point?.id, point?._id]);
 
   return (
     <motion.div
@@ -311,6 +339,9 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
             alt={point.nome}
             className="absolute inset-0 h-full w-full object-cover scale-[1.06] blur-sm opacity-35"
             style={{ objectPosition: `${focusX}% ${focusY}%` }}
+            loading="lazy"
+            width="1280"
+            height="720"
           />
         ) : (
           <div className="absolute inset-0 bg-black/70" />
@@ -325,26 +356,69 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
       </div>
 
       {img ? (
-        <button
-          type="button"
-          onClick={() => setShowImageModal(true)}
+        <div
           className={`absolute inset-y-4 z-[12] rounded-2xl border border-white/20 bg-black/30 backdrop-blur-sm p-3 shadow-[0_14px_42px_rgba(0,0,0,0.38)] transition-all hover:bg-black/40 hover:border-white/35 ${
             infoOnLeft ? 'left-[31%] right-3' : 'left-3 right-[31%]'
           }`}
-          aria-label="Ampliar imagem do ponto"
         >
-          <div className="h-full w-full rounded-xl bg-black/20 flex items-center justify-center overflow-hidden">
+          <div
+            className="h-full w-full rounded-xl bg-black/20 flex items-center justify-center overflow-hidden"
+            role="button"
+            tabIndex={0}
+            onClick={() => setShowImageModal(true)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                setShowImageModal(true);
+              }
+            }}
+          >
             <img
               src={img}
               alt={point.nome}
-              className="max-h-full max-w-full object-contain"
+              className="h-full w-full object-cover"
               style={{ objectPosition: `${focusX}% ${focusY}%` }}
+              loading="lazy"
+              width="1280"
+              height="720"
             />
           </div>
           <div className="absolute right-5 top-5 rounded-full bg-black/60 px-3 py-1 text-[11px] font-medium text-white/90">
             Ver foto em tela cheia
           </div>
-        </button>
+
+          {hasMultipleImages ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setImageIndex((prev) => (prev - 1 + images.length) % images.length)}
+                className="absolute left-5 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white transition-colors hover:bg-black/60"
+                aria-label="Foto anterior"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setImageIndex((prev) => (prev + 1) % images.length)}
+                className="absolute right-5 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white transition-colors hover:bg-black/60"
+                aria-label="Próxima foto"
+              >
+                <ChevronRight size={18} />
+              </button>
+              <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
+                {images.map((_, idx) => (
+                  <button
+                    key={`dot-${point.id || point._id || 'point'}-${idx}`}
+                    type="button"
+                    onClick={() => setImageIndex(idx)}
+                    className={`h-2.5 w-2.5 rounded-full transition-all ${idx === imageIndex ? 'bg-[#E8591A]' : 'bg-gray-300/40'}`}
+                    aria-label={`Ir para foto ${idx + 1}`}
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
+        </div>
       ) : null}
 
       <div
@@ -446,6 +520,9 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
                 alt={point.nome}
                 className="max-h-[82vh] max-w-[88vw] object-contain rounded-xl"
                 style={{ objectPosition: `${focusX}% ${focusY}%` }}
+                loading="lazy"
+                width="1600"
+                height="900"
               />
             </motion.div>
           </motion.div>

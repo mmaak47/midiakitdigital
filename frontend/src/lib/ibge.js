@@ -1,3 +1,10 @@
+// AUDITORIA IBGE
+// Endpoint utilizado neste arquivo:
+// - https://servicodados.ibge.gov.br/api/v1/localidades/municipios?nome={cidade}&orderBy=nome
+// Dados retornados: codigo do municipio, UF, regiao, micro e mesorregiao.
+// Consumo atual: StrategicPlanner (contexto territorial basico por cidade selecionada).
+// Este arquivo nao consulta populacao nem PIB per capita.
+
 const IBGE_BASE_URL = 'https://servicodados.ibge.gov.br/api/v1/localidades/municipios';
 const IBGE_TIMEOUT_MS = 10000;
 

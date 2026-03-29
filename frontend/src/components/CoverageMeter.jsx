@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import { Gauge } from 'lucide-react';
 
-export default function CoverageMeter({ coverage }) {
+const CoverageMeter = memo(function CoverageMeter({ coverage }) {
   if (!coverage) return null;
 
   return (
@@ -24,9 +25,9 @@ export default function CoverageMeter({ coverage }) {
       </div>
     </section>
   );
-}
+});
 
-function ProgressCard({ title, value }) {
+const ProgressCard = memo(function ProgressCard({ title, value }) {
   const pct = Math.max(0, Math.min(100, value || 0));
   return (
     <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.01] p-4 shadow-md shadow-black/10">
@@ -37,4 +38,6 @@ function ProgressCard({ title, value }) {
       <div className="text-2xl font-bold text-white">{pct.toFixed(1)}<span className="text-xs text-brand-gray-500 font-medium">%</span></div>
     </div>
   );
-}
+});
+
+export default CoverageMeter;
