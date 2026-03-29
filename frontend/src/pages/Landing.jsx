@@ -20,6 +20,13 @@ const fadeUp = {
   })
 };
 
+const PDF_TIPS = [
+  'Renderizando as paginas do kit...',
+  'Carregando imagens dos pontos...',
+  'Aplicando tipografia e layout...',
+  'Quase pronto, aguarde...'
+];
+
 function formatInt(value) {
   return new Intl.NumberFormat('pt-BR').format(Math.round(Number(value) || 0));
 }
@@ -361,7 +368,9 @@ export default function Landing() {
   const [selectedPracas, setSelectedPracas] = useState([]);
   const [selectedTipos, setSelectedTipos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [pdfStatus, setPdfStatus] = useState(null);
+  const [pdfTipIndex, setPdfTipIndex] = useState(0);
+  const [pdfToast, setPdfToast] = useState(null);
   const [showMapModal, setShowMapModal] = useState(false);
   const [showSlidesMode, setShowSlidesMode] = useState(false);
   const [lightbox, setLightbox] = useState({ ponto: null, imageIndex: 0 });
@@ -427,6 +436,21 @@ export default function Landing() {
     const fromManualCommercial = sessionStorage.getItem('comercial_manual_login') === '1';
     setShowCommercialShortcut(hasToken && fromManualCommercial);
   }, []);
+
+  useEffect(() => {
+    if (pdfStatus !== 'generating') return undefined;
+    setPdfTipIndex(0);
+    const timer = setInterval(() => {
+      setPdfTipIndex((current) => (current + 1) % PDF_TIPS.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [pdfStatus]);
+
+  useEffect(() => {
+    if (!pdfToast) return undefined;
+    const timer = setTimeout(() => setPdfToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [pdfToast]);
 
   const pracas = useMemo(() => {
     const unique = new Set(allPontos.map((p) => p.cidade).filter(Boolean));
@@ -525,16 +549,19 @@ export default function Landing() {
   }, [selectedPracas, selectedTipos]);
 
   const handleExportPdf = async () => {
-    if (!pontos.length || generatingPdf) return;
-    setGeneratingPdf(true);
+    if (!pontos.length || pdfStatus === 'generating') return;
+    setPdfStatus('generating');
     try {
       const { generateMidiaKitPdf } = await import('../lib/midiaKitPdf');
       await generateMidiaKitPdf({ praca: selectedPracaLabel, pracas: selectedPracas, pontos });
+      setPdfStatus('ready');
+      setPdfToast({ type: 'success', message: 'PDF gerado com sucesso ✓' });
+      setTimeout(() => setPdfStatus(null), 120);
     } catch (err) {
       console.error(err);
-      window.alert('Não foi possível gerar o PDF agora. Tente novamente.');
-    } finally {
-      setGeneratingPdf(false);
+      setPdfStatus('error');
+      setPdfToast({ type: 'error', message: 'Erro ao gerar PDF. Tente novamente.' });
+      setTimeout(() => setPdfStatus(null), 120);
     }
   };
 
@@ -709,10 +736,10 @@ export default function Landing() {
 
             <button
               onClick={handleExportPdf}
-              disabled={generatingPdf || pontos.length === 0}
+              disabled={pdfStatus === 'generating' || pontos.length === 0}
               className={`h-[50px] self-end px-6 border font-semibold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${t.pdfBtn}`}
             >
-              {generatingPdf ? 'Gerando PDF...' : 'Gerar PDF da praça'}
+              {pdfStatus === 'generating' ? 'Gerando PDF...' : 'Gerar PDF da praça'}
             </button>
           </motion.div>
 
@@ -1091,6 +1118,51 @@ export default function Landing() {
             onChangeIndex={(i) => setLightbox((prev) => ({ ...prev, imageIndex: i }))}
           />
         )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pdfStatus === 'generating' ? (
+          <motion.div
+            key="pdf-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-sm"
+          >
+            <div className="relative flex flex-col items-center px-6 text-center">
+              <div className="h-12 w-12 rounded-full border-[3px] border-white/20 border-t-[#E8591A] animate-spin" />
+              <p className="mt-4 text-[18px] font-semibold text-white">Gerando PDF...</p>
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={pdfTipIndex}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.4 }}
+                  className="mt-2 text-[13px] text-white/55"
+                >
+                  {PDF_TIPS[pdfTipIndex]}
+                </motion.p>
+              </AnimatePresence>
+            </div>
+
+            <p className="absolute bottom-8 text-[11px] text-white/30">A geração leva entre 15 e 30 segundos</p>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pdfToast ? (
+          <motion.div
+            key="pdf-toast"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            className={`fixed bottom-6 right-6 z-[10000] rounded-xl border px-4 py-3 text-sm font-medium shadow-xl ${pdfToast.type === 'success' ? 'border-green-500/40 bg-green-600/20 text-green-100' : 'border-red-500/40 bg-red-600/20 text-red-100'}`}
+          >
+            {pdfToast.message}
+          </motion.div>
+        ) : null}
       </AnimatePresence>
     </div>
   );

@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { startLicenseWatcher, requireLicense, isLicensed } = require('./license');
 const compression = require('compression');
+const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
@@ -10,6 +11,14 @@ const { randomUUID } = require('crypto');
 const db = require('./database');
 const { createBackupScheduler } = require('./backupService');
 const { renderHtmlToPdf } = require('./pdfService');
+const {
+  slugifyCity,
+  normalizeCitySlugs,
+  getCombinationKey,
+  findValidCache,
+  saveCache,
+  invalidateCityCaches
+} = require('./services/pdfCacheService');
 const {
   DEFAULT_RADIUS,
   getSegmentCategories,
@@ -31,6 +40,7 @@ const {
 const app = express();
 const PORT = process.env.PORT || 3002;
 const uploadsPath = path.join(__dirname, 'uploads');
+const pdfCachePath = path.join(__dirname, 'pdf-cache');
 const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
 const ELEVADOR_TIPO = 'Elevador';
 const ELEVADOR_ARTE_LARGURA = 1080;
@@ -168,14 +178,47 @@ app.post('/api/pdf/render', express.json({ limit: '55mb' }), async (req, res) =>
   if (!html || typeof html !== 'string' || html.length < 10) {
     return res.status(400).json({ error: 'Parâmetro html obrigatório.' });
   }
+
+  const citySlugs = normalizeCitySlugs(
+    req.body?.citySlugs
+    || req.body?.cities
+    || req.body?.pracas
+    || req.body?.cidades
+    || []
+  );
+  const cacheableCities = citySlugs.length ? citySlugs : ['consolidado'];
+  const combinationKey = getCombinationKey(cacheableCities);
+  const safeName = String(fileName || `midia-kit-${combinationKey}.pdf`).replace(/[^a-zA-Z0-9\-_.]/g, '_');
+
   try {
+    if (!fs.existsSync(pdfCachePath)) {
+      fs.mkdirSync(pdfCachePath, { recursive: true });
+    }
+
+    const cached = await findValidCache(combinationKey, cacheableCities, db);
+    if (cached) {
+      db.prepare('UPDATE pdf_cache SET download_count = download_count + 1 WHERE id = ?').run(cached.id);
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${safeName}"`,
+        'Cache-Control': 'no-store',
+        'X-PDF-Cache': 'HIT',
+      });
+      return fs.createReadStream(cached.file_path).pipe(res);
+    }
+
     const pdfBuffer = await renderHtmlToPdf(html);
-    const safeName = String(fileName || 'documento.pdf').replace(/[^a-zA-Z0-9\-_.]/g, '_');
+    const outputPath = path.join(pdfCachePath, `${combinationKey}.pdf`);
+    fs.writeFileSync(outputPath, pdfBuffer);
+    const fileSizeKb = Math.round(fs.statSync(outputPath).size / 1024);
+    await saveCache(combinationKey, cacheableCities, outputPath, fileSizeKb, db);
+
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${safeName}"`,
       'Content-Length': pdfBuffer.length,
       'Cache-Control': 'no-store',
+      'X-PDF-Cache': 'MISS',
     });
     return res.end(pdfBuffer);
   } catch (err) {
@@ -705,6 +748,7 @@ app.post('/api/pontos', upload.fields([
 
     const ponto = db.prepare('SELECT * FROM pontos WHERE id = ?').get(result.lastInsertRowid);
     invalidatePointCache(ponto.id);
+    invalidateCityCaches(ponto.cidade, db);
     res.status(201).json(hydratePontoRow(ponto));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -801,6 +845,10 @@ app.put('/api/pontos/:id', upload.fields([
     if (enderecoAlterado || coordenadasAlteradas) {
       invalidatePointCache(ponto.id);
     }
+    const previousCity = slugifyCity(existing.cidade);
+    const currentCity = slugifyCity(ponto.cidade);
+    if (previousCity) invalidateCityCaches(previousCity, db);
+    if (currentCity && currentCity !== previousCity) invalidateCityCaches(currentCity, db);
     res.json(hydratePontoRow(ponto));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1012,8 +1060,11 @@ app.post('/api/entorno/client-address', async (req, res) => {
 // DELETE ponto (soft delete)
 app.delete('/api/pontos/:id', (req, res) => {
   try {
+    const existing = db.prepare('SELECT id, cidade FROM pontos WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Ponto não encontrado' });
     const result = db.prepare('UPDATE pontos SET ativo = 0 WHERE id = ?').run(req.params.id);
     if (result.changes === 0) return res.status(404).json({ error: 'Ponto não encontrado' });
+    invalidateCityCaches(existing.cidade, db);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1148,6 +1199,39 @@ app.get('/api/admin/settings', (req, res) => {
       result[s.key] = isNaN(s.value) ? s.value : Number(s.value);
     });
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/pdf-cache', (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT
+        id,
+        combination_key,
+        city_slugs,
+        file_size_kb,
+        generated_at,
+        download_count,
+        is_valid
+      FROM pdf_cache
+      ORDER BY generated_at DESC
+    `).all();
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/pdf-cache/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+    db.prepare('UPDATE pdf_cache SET is_valid = 0 WHERE id = ?').run(id);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

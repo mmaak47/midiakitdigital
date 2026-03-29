@@ -22,6 +22,8 @@ import {
   deleteAdminUser,
   updateAdminUserRole,
   fetchAdminSettings,
+  fetchAdminPdfCache,
+  invalidateAdminPdfCache,
   updateAdminSettings,
   geocodePoint
 } from '../lib/api';
@@ -133,6 +135,10 @@ export default function Admin() {
   const [settingsError, setSettingsError] = useState('');
   const [lucroMinimoValue, setLucroMinimoValue] = useState(15);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [pdfCacheRows, setPdfCacheRows] = useState([]);
+  const [pdfCacheLoading, setPdfCacheLoading] = useState(false);
+  const [pdfCacheError, setPdfCacheError] = useState('');
+  const [invalidatingCacheId, setInvalidatingCacheId] = useState(null);
 
   const [entornoForm, setEntornoForm] = useState({
     segmento: 'clinica',
@@ -260,6 +266,7 @@ export default function Admin() {
   useEffect(() => {
     if (activeTab === 'configuracoes' && auth) {
       loadSettings();
+      loadPdfCache();
     }
   }, [activeTab, auth]);
 
@@ -509,6 +516,33 @@ export default function Admin() {
       setSettingsError(err.message || 'Falha ao salvar configurações');
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const loadPdfCache = async () => {
+    setPdfCacheLoading(true);
+    setPdfCacheError('');
+    try {
+      const rows = await fetchAdminPdfCache();
+      setPdfCacheRows(Array.isArray(rows) ? rows : []);
+    } catch (err) {
+      setPdfCacheRows([]);
+      setPdfCacheError(err.message || 'Falha ao carregar cache de PDFs');
+    } finally {
+      setPdfCacheLoading(false);
+    }
+  };
+
+  const handleInvalidatePdfCache = async (id) => {
+    setInvalidatingCacheId(id);
+    setPdfCacheError('');
+    try {
+      await invalidateAdminPdfCache(id);
+      await loadPdfCache();
+    } catch (err) {
+      setPdfCacheError(err.message || 'Falha ao invalidar cache');
+    } finally {
+      setInvalidatingCacheId(null);
     }
   };
 
@@ -882,50 +916,131 @@ export default function Admin() {
         ) : null}
 
         {activeTab === 'configuracoes' ? (
-          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Configurações do sistema</h3>
-              <p className="text-xs text-brand-gray-500 mt-1">Configure parâmetros globais para propostas e vendas.</p>
-            </div>
-
-            {settingsError && <p className="mt-3 text-xs text-red-300">{settingsError}</p>}
-
-            <form onSubmit={handleSaveSettings} className="mt-6 space-y-4 max-w-md">
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
               <div>
-                <label className="block text-xs text-brand-gray-400 mb-2">
-                  Lucro Mínimo Obrigatório (%)
-                </label>
-                <p className="text-xs text-brand-gray-500 mb-2">
-                  Vendedores precisarão de aprovação do Gerente Comercial se aplicarem desconto acima desse percentual.
-                </p>
-                <div className="flex items-end gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={lucroMinimoValue}
-                    onChange={e => setLucroMinimoValue(Number(e.target.value))}
-                    className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
-                  />
-                  <button
-                    type="submit"
-                    disabled={savingSettings || settingsLoading}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2.5 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
-                  >
-                    <Save size={15} />
-                    {savingSettings ? 'Salvando...' : 'Salvar'}
-                  </button>
-                </div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Configurações do sistema</h3>
+                <p className="text-xs text-brand-gray-500 mt-1">Configure parâmetros globais para propostas e vendas.</p>
               </div>
-            </form>
 
-            <div className="mt-6 p-4 bg-brand-orange/5 border border-brand-orange/20 rounded-xl">
-              <p className="text-xs text-brand-orange leading-relaxed">
-                <strong>ℹ️ Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro mínimo obrigatório (desconto acima do valor configurado aqui), a proposta fica aguardando aprovação de um Gerente Comercial antes de poder ser finalizada.
-              </p>
-            </div>
-          </section>
+              {settingsError && <p className="mt-3 text-xs text-red-300">{settingsError}</p>}
+
+              <form onSubmit={handleSaveSettings} className="mt-6 space-y-4 max-w-md">
+                <div>
+                  <label className="block text-xs text-brand-gray-400 mb-2">
+                    Lucro Mínimo Obrigatório (%)
+                  </label>
+                  <p className="text-xs text-brand-gray-500 mb-2">
+                    Vendedores precisarão de aprovação do Gerente Comercial se aplicarem desconto acima desse percentual.
+                  </p>
+                  <div className="flex items-end gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={lucroMinimoValue}
+                      onChange={e => setLucroMinimoValue(Number(e.target.value))}
+                      className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                    />
+                    <button
+                      type="submit"
+                      disabled={savingSettings || settingsLoading}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2.5 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
+                    >
+                      <Save size={15} />
+                      {savingSettings ? 'Salvando...' : 'Salvar'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              <div className="mt-6 p-4 bg-brand-orange/5 border border-brand-orange/20 rounded-xl">
+                <p className="text-xs text-brand-orange leading-relaxed">
+                  <strong>ℹ️ Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro mínimo obrigatório (desconto acima do valor configurado aqui), a proposta fica aguardando aprovação de um Gerente Comercial antes de poder ser finalizada.
+                </p>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Cache de PDFs</h3>
+                  <p className="text-xs text-brand-gray-500 mt-1">Controle de combinações de cidades e validade dos PDFs em cache.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadPdfCache}
+                  disabled={pdfCacheLoading}
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10 disabled:opacity-50"
+                >
+                  <RefreshCcw size={14} className={pdfCacheLoading ? 'animate-spin' : ''} />
+                  Atualizar
+                </button>
+              </div>
+
+              {pdfCacheError ? <p className="mt-3 text-xs text-red-300">{pdfCacheError}</p> : null}
+
+              <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+                <table className="w-full text-sm">
+                  <thead className="bg-white/[0.04] text-brand-gray-400">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Combinação</th>
+                      <th className="px-3 py-2 text-left font-medium">Cidades</th>
+                      <th className="px-3 py-2 text-left font-medium">Tamanho</th>
+                      <th className="px-3 py-2 text-left font-medium">Gerado em</th>
+                      <th className="px-3 py-2 text-left font-medium">Downloads</th>
+                      <th className="px-3 py-2 text-left font-medium">Status</th>
+                      <th className="px-3 py-2 text-left font-medium">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pdfCacheLoading ? (
+                      <tr>
+                        <td colSpan={7} className="px-3 py-6 text-center text-brand-gray-500">Carregando cache...</td>
+                      </tr>
+                    ) : !pdfCacheRows.length ? (
+                      <tr>
+                        <td colSpan={7} className="px-3 py-6 text-center text-brand-gray-500">Nenhum PDF em cache.</td>
+                      </tr>
+                    ) : (
+                      pdfCacheRows.map((row) => {
+                        const valid = Number(row.is_valid) === 1;
+                        return (
+                          <tr key={row.id} className="border-t border-white/10 text-white/90">
+                            <td className="px-3 py-2 font-mono text-xs">{row.combination_key}</td>
+                            <td className="px-3 py-2 text-xs text-brand-gray-300">{formatCityList(row.city_slugs)}</td>
+                            <td className="px-3 py-2 text-xs">{formatCacheSize(row.file_size_kb)}</td>
+                            <td className="px-3 py-2 text-xs">{formatDateBr(row.generated_at)}</td>
+                            <td className="px-3 py-2 text-xs">{Number(row.download_count || 0)}</td>
+                            <td className="px-3 py-2 text-xs">
+                              <span className={`inline-flex rounded-full border px-2 py-0.5 ${valid ? 'border-green-500/30 bg-green-500/10 text-green-300' : 'border-white/15 bg-white/5 text-brand-gray-400'}`}>
+                                {valid ? 'Valido' : 'Invalido'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-xs">
+                              {valid ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleInvalidatePdfCache(row.id)}
+                                  disabled={invalidatingCacheId === row.id}
+                                  className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-white hover:bg-white/10 disabled:opacity-50"
+                                >
+                                  {invalidatingCacheId === row.id ? 'Invalidando...' : 'Invalidar'}
+                                </button>
+                              ) : (
+                                <span className="text-brand-gray-500">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
         ) : null}
       </div>
 
@@ -1396,6 +1511,40 @@ function clampNumber(value, min, max, fallback) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
   return Math.min(max, Math.max(min, numeric));
+}
+
+function formatCacheSize(valueKb) {
+  const kb = Number(valueKb);
+  if (!Number.isFinite(kb) || kb <= 0) return '-';
+  if (kb > 1024) return `${(kb / 1024).toFixed(1)} MB`;
+  return `${Math.round(kb)} KB`;
+}
+
+function formatDateBr(value) {
+  if (!value) return '-';
+  const date = new Date(String(value).replace(' ', 'T'));
+  if (Number.isNaN(date.getTime())) return '-';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
+function formatCityList(citySlugsRaw) {
+  try {
+    const parsed = JSON.parse(citySlugsRaw || '[]');
+    if (!Array.isArray(parsed) || !parsed.length) return '-';
+    return parsed
+      .map((city) => String(city || ''))
+      .filter(Boolean)
+      .map((city) => city.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '))
+      .join(', ');
+  } catch {
+    return '-';
+  }
 }
 
 function deriveFocusFromSimulationString(simulacaoTela) {

@@ -283,6 +283,23 @@ export async function fetchAdminSettings() {
   return res.json();
 }
 
+export async function fetchAdminPdfCache() {
+  const res = await apiRequest('/admin/pdf-cache');
+  if (!res.ok) throw new Error('Erro ao carregar cache de PDFs');
+  return res.json();
+}
+
+export async function invalidateAdminPdfCache(id) {
+  const res = await apiRequest(`/admin/pdf-cache/${id}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao invalidar cache de PDF');
+  }
+  return res.json();
+}
+
 export async function updateAdminSettings(settings) {
   const res = await apiRequest('/admin/settings', {
     method: 'PUT',

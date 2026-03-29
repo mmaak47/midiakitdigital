@@ -173,6 +173,31 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS pdf_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    combination_key TEXT NOT NULL UNIQUE,
+    city_slugs TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size_kb INTEGER,
+    generated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    generated_by TEXT,
+    download_count INTEGER NOT NULL DEFAULT 0,
+    is_valid INTEGER NOT NULL DEFAULT 1
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS pdf_cache_snapshot (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cache_id INTEGER NOT NULL,
+    snapshot_type TEXT NOT NULL,
+    city_slug TEXT NOT NULL,
+    snapshot_value TEXT NOT NULL,
+    FOREIGN KEY (cache_id) REFERENCES pdf_cache(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
   UPDATE pontos
   SET
     arte_largura = COALESCE(arte_largura, 1920),
@@ -241,6 +266,16 @@ db.exec(`
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_propostas_aprovacoes_status
   ON propostas_aprovacoes (status, gerente_id)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_pdf_cache_valid_generated
+  ON pdf_cache (is_valid, generated_at)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_pdf_cache_snapshot_cache_id
+  ON pdf_cache_snapshot (cache_id)
 `);
 
 // Seed data if empty

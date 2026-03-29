@@ -373,7 +373,7 @@ function buildCalibrationPreviewPage(previewKey, assets) {
   }
 }
 
-async function renderPagesToPdf(pages, fileName) {
+async function renderPagesToPdf(pages, fileName, options = {}) {
   const origin = window.location.origin;
   const pageHtmlParts = pages.map((p) => p.outerHTML).join('\n');
   const fullHtml = `<!DOCTYPE html><html lang="pt-BR"><head>
@@ -411,7 +411,11 @@ section:last-child {
   const res = await fetch('/api/pdf/render', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ html: fullHtml, fileName }),
+    body: JSON.stringify({
+      html: fullHtml,
+      fileName,
+      citySlugs: Array.isArray(options.citySlugs) ? options.citySlugs : []
+    }),
     credentials: 'same-origin',
   });
 
@@ -1791,7 +1795,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
   `, BRAND_DARK);
 }
 
-export async function generateMidiaKitPdf({ praca, pontos }) {
+export async function generateMidiaKitPdf({ praca, pracas, pontos }) {
   activePdfLayoutConfig = await loadPdfLayoutConfig();
   const cidade = praca && praca !== 'Todas as praças' ? praca : 'Consolidado';
   const kitPontos = Array.isArray(pontos) ? pontos : [];
@@ -1841,7 +1845,15 @@ export async function generateMidiaKitPdf({ praca, pontos }) {
   pages.push(buildMidiaKitEndingPage({ assets }));
 
   const fileName = `midia-kit-${slugify(cidade)}-${new Date().toISOString().slice(0, 10)}.pdf`;
-  await renderPagesToPdf(pages, fileName);
+  const citySlugs = Array.from(new Set(
+    [
+      ...(Array.isArray(pracas) ? pracas : []),
+      ...kitPontos.map((point) => point?.cidade).filter(Boolean)
+    ]
+      .map((cityName) => slugify(cityName))
+      .filter(Boolean)
+  ));
+  await renderPagesToPdf(pages, fileName, { citySlugs });
 }
 
 export async function generateProposalPdf({
@@ -1931,5 +1943,10 @@ export async function generateProposalPdf({
   }
 
   const fileName = `proposta-${slugify(proposalClient)}-${new Date().toISOString().slice(0, 10)}.pdf`;
-  await renderPagesToPdf(pages, fileName);
+  const citySlugs = Array.from(new Set(
+    proposalPoints
+      .map((point) => slugify(point?.cidade || proposalCity))
+      .filter(Boolean)
+  ));
+  await renderPagesToPdf(pages, fileName, { citySlugs });
 }
