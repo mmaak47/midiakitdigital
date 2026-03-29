@@ -381,10 +381,10 @@ section:last-child {
 @media print {
   html, body {
     width: 1366px;
-    height: 768px;
+    height: auto;
     margin: 0;
     padding: 0;
-    overflow: hidden;
+    overflow: visible;
   }
 }
 </style>
