@@ -124,20 +124,36 @@ async function findValidCache(combinationKey, citySlugs, db) {
 }
 
 async function saveCache(combinationKey, citySlugs, filePath, fileSize, db) {
-  db.prepare('UPDATE pdf_cache SET is_valid = 0 WHERE combination_key = ?').run(combinationKey);
-
   const citySlugsNormalized = normalizeCitySlugs(citySlugs);
-  const result = db.prepare(`
-    INSERT INTO pdf_cache (combination_key, city_slugs, file_path, file_size_kb, generated_at, is_valid)
-    VALUES (?, ?, ?, ?, datetime('now'), 1)
-  `).run(
-    combinationKey,
-    JSON.stringify(citySlugsNormalized),
-    filePath,
-    Number.isFinite(Number(fileSize)) ? Math.round(Number(fileSize)) : null
-  );
+  const fileSizeKb = Number.isFinite(Number(fileSize)) ? Math.round(Number(fileSize)) : null;
+  const existing = db.prepare('SELECT id FROM pdf_cache WHERE combination_key = ?').get(combinationKey);
 
-  const cacheId = result.lastInsertRowid;
+  let cacheId;
+  if (existing?.id) {
+    cacheId = existing.id;
+    db.prepare(`
+      UPDATE pdf_cache
+      SET city_slugs = ?,
+          file_path = ?,
+          file_size_kb = ?,
+          generated_at = datetime('now'),
+          is_valid = 1
+      WHERE id = ?
+    `).run(JSON.stringify(citySlugsNormalized), filePath, fileSizeKb, cacheId);
+    db.prepare('DELETE FROM pdf_cache_snapshot WHERE cache_id = ?').run(cacheId);
+  } else {
+    const result = db.prepare(`
+      INSERT INTO pdf_cache (combination_key, city_slugs, file_path, file_size_kb, generated_at, is_valid)
+      VALUES (?, ?, ?, ?, datetime('now'), 1)
+    `).run(
+      combinationKey,
+      JSON.stringify(citySlugsNormalized),
+      filePath,
+      fileSizeKb
+    );
+    cacheId = result.lastInsertRowid;
+  }
+
   const snapshot = await getCurrentSnapshot(citySlugsNormalized, db);
   const snapshotRows = buildSnapshotRows(snapshot);
   const insertSnapshot = db.prepare(`
