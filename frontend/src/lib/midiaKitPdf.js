@@ -35,8 +35,8 @@ function getCityState(cidade) {
 }
 
 const imageCache = new Map();
+const pdfAssetsPromiseByCity = new Map();
 const IMAGE_FETCH_TIMEOUT_MS = 15000;
-let pdfAssetsPromise = null;
 let activePdfLayoutConfig = null;
 
 function getActivePdfLayoutConfig() {
@@ -589,46 +589,40 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
   ];
 
   return createPage(`
-    <div style="position:absolute;inset:0;background:#050505;"></div>
-    <div style="position:absolute;inset:0;background:url('${heroImage}') center/cover no-repeat;opacity:0.22;"></div>
-    <div style="position:absolute;inset:0;background:linear-gradient(135deg,#050505 12%,rgba(5,5,5,0.9) 48%,rgba(5,5,5,0.96) 100%);"></div>
+    <div style="position:absolute;inset:0;background:#000;"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:50%;background:linear-gradient(145deg,#060606 0%,#0e0e0e 65%,#121212 100%);"></div>
+    <div style="position:absolute;right:0;top:0;bottom:0;width:50%;overflow:hidden;background:#080808;">
+      <img src="${heroImage}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;" />
+      <div style="position:absolute;inset:0;background:linear-gradient(to left,rgba(0,0,0,0.18),rgba(0,0,0,0.55));"></div>
+    </div>
+    <div style="position:absolute;left:50%;top:0;bottom:0;width:180px;background:linear-gradient(to right,#0c0c0c 0%,rgba(12,12,12,0.96) 45%,rgba(12,12,12,0) 100%);"></div>
 
-    <div style="position:absolute;left:76px;top:72px;right:76px;display:flex;align-items:flex-start;justify-content:space-between;gap:24px;">
-      <img src="${assets.logo || ''}" alt="" style="width:178px;height:auto;object-fit:contain;" />
-      <span style="display:inline-flex;align-items:center;justify-content:center;height:42px;padding:0 18px;border-radius:999px;background:${BRAND_ORANGE};font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#fff;">OOH + DOOH 2026</span>
+    <div style="position:absolute;left:72px;top:68px;right:54%;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;">
+      <img src="${assets.logo || ''}" alt="" style="width:172px;height:auto;object-fit:contain;" />
+      <span style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border-radius:999px;background:${BRAND_ORANGE};font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#fff;">MIDIA KIT</span>
     </div>
 
-    <div style="position:absolute;left:76px;top:148px;width:640px;max-height:310px;overflow:hidden;">
-      <div style="font-size:11px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND_ORANGE};">Cobertura estratégica por praça</div>
-      <div style="margin-top:18px;font-family:Poppins, system-ui, sans-serif;font-size:68px;line-height:0.94;font-weight:700;letter-spacing:-0.05em;color:#fff;text-transform:uppercase;">${escapeHtml(cidade)}</div>
-      ${estado ? `<div style="margin-top:10px;font-size:20px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.72);">${escapeHtml(estado)}</div>` : ''}
-      <div style="margin-top:16px;max-width:640px;font-size:18px;line-height:1.32;color:rgba(255,255,255,0.84);">Inventário premium para planejar presença urbana com escala, frequência e impacto visual na praça.</div>
+    <div style="position:absolute;left:72px;top:170px;right:56%;">
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:${BRAND_ORANGE};">Cobertura estratégica</div>
+      <div style="margin-top:14px;font-family:Poppins, system-ui, sans-serif;font-size:72px;line-height:0.92;font-weight:700;letter-spacing:-0.05em;text-transform:uppercase;color:#fff;word-break:break-word;">${escapeHtml(cidade)}</div>
+      ${estado ? `<div style="margin-top:12px;font-size:20px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.7);">${escapeHtml(estado)}</div>` : ''}
+      <div style="margin-top:16px;max-width:540px;font-size:18px;line-height:1.34;color:rgba(255,255,255,0.82);">Inventário premium para planejar presença urbana com escala, frequência e impacto visual na praça.</div>
     </div>
 
-    <div style="position:absolute;left:76px;right:76px;bottom:52px;display:flex;flex-direction:column;gap:0;">
-      <div style="display:grid;grid-template-columns:1.15fr 0.85fr;gap:34px;align-items:end;">
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;column-gap:36px;">
-          ${cards.map((card) => `
-            <div style="padding:28px 0 24px 0;border-top:1px solid ${BRAND_ORANGE};">
-              <div style="font-size:11px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.56);">${escapeHtml(card.label)}</div>
-              <div style="margin-top:14px;font-family:Poppins, system-ui, sans-serif;font-size:40px;line-height:0.96;font-weight:700;color:#fff;letter-spacing:-0.03em;">${escapeHtml(card.value)}</div>
-            </div>
-          `).join('')}
+    <div style="position:absolute;left:72px;right:56%;bottom:56px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:28px;row-gap:12px;">
+      ${cards.map((card) => `
+        <div style="padding-top:16px;border-top:2px solid ${BRAND_ORANGE};">
+          <div style="font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.52);">${escapeHtml(card.label)}</div>
+          <div style="margin-top:10px;font-family:Poppins, system-ui, sans-serif;font-size:38px;line-height:0.98;font-weight:700;letter-spacing:-0.03em;color:#fff;">${escapeHtml(card.value)}</div>
         </div>
-        <div style="height:360px;">
-          <div style="position:relative;height:100%;overflow:hidden;border-radius:24px;">
-            <img src="${heroImage}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;" />
-            <div style="position:absolute;left:0;top:0;width:100px;height:100%;background:linear-gradient(to right,#030303,transparent);"></div>
-            <div style="position:absolute;inset:0;background:rgba(0,0,0,0.12);"></div>
-          </div>
-        </div>
-      </div>
-      <div style="margin-top:20px;display:flex;flex-wrap:wrap;gap:14px;">
-        <span style="display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);font-size:14px;line-height:1;color:#fff;">${midiaKitDetailIcon('location', BRAND_ORANGE, 16)} ${formatInt(totalEnderecos)} endereços mapeados</span>
-        <span style="display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);font-size:14px;line-height:1;color:#fff;">${midiaKitDetailIcon('city', BRAND_ORANGE, 16)} ${formatInt(totalPublicos)} públicos em foco</span>
-      </div>
+      `).join('')}
     </div>
-  `, '#030303');
+
+    <div style="position:absolute;left:72px;right:56%;bottom:16px;display:flex;flex-wrap:wrap;gap:10px;">
+      <span style="display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);font-size:12px;line-height:1;color:#fff;">${midiaKitDetailIcon('location', BRAND_ORANGE, 14)} ${formatInt(totalEnderecos)} endereços</span>
+      <span style="display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);font-size:12px;line-height:1;color:#fff;">${midiaKitDetailIcon('city', BRAND_ORANGE, 14)} ${formatInt(totalPublicos)} públicos</span>
+    </div>
+  `, '#050505');
 }
 
 function buildMidiaKitManifestoPage({ assets }) {
@@ -1620,27 +1614,50 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
   `, BRAND_DARK);
 }
 
-async function loadPdfAssets() {
-  if (pdfAssetsPromise) {
-    return pdfAssetsPromise;
+async function loadPdfAssets(cidade = '') {
+  const citySlug = slugify(cidade || '');
+  const cacheKey = citySlug || '__default__';
+  if (pdfAssetsPromiseByCity.has(cacheKey)) {
+    return pdfAssetsPromiseByCity.get(cacheKey);
   }
 
-  pdfAssetsPromise = Promise.resolve({
-    logo: '/logo.png',
-    logoLight: '/logo-light.png',
-    logoHorizontal: '/logo-deitado.png',
-    logo07: '/logo-07.png',
-    heroBg: '/hero-bg.jpg',
-    cityBg: '/city-bg.jpg',
-    about1: '/about-1.jpg',
-    about2: '/about-2.jpg',
-    audience: '/audience.jpg',
-    showcase: '/showcase.png',
-    wallpaper: '/wallpaper.jpg',
-    pattern: '/patterns/INTERMIDIA_PATTERN_ID.VISUAL_2024_INTERMIDIA_PATTERN_ID.VISUAL-4.png'
-  });
+  const promise = (async () => {
+    const baseAssets = {
+      logo: '/logo.png',
+      logoLight: '/logo-light.png',
+      logoHorizontal: '/logo-deitado.png',
+      logo07: '/logo-07.png',
+      heroBg: '/hero-bg.jpg',
+      cityBg: '/city-bg.jpg',
+      about1: '/about-1.jpg',
+      about2: '/about-2.jpg',
+      audience: '/audience.jpg',
+      showcase: '/showcase.png',
+      wallpaper: '/wallpaper.jpg',
+      pattern: '/patterns/INTERMIDIA_PATTERN_ID.VISUAL_2024_INTERMIDIA_PATTERN_ID.VISUAL-4.png'
+    };
 
-  return pdfAssetsPromise;
+    if (!citySlug) {
+      return baseAssets;
+    }
+
+    try {
+      const response = await fetch(`/api/cidade-fotos/${encodeURIComponent(citySlug)}`);
+      if (!response.ok) {
+        return baseAssets;
+      }
+      const cityPhoto = await response.json();
+      if (cityPhoto?.imagem_url) {
+        return { ...baseAssets, cityBg: cityPhoto.imagem_url };
+      }
+      return baseAssets;
+    } catch {
+      return baseAssets;
+    }
+  })();
+
+  pdfAssetsPromiseByCity.set(cacheKey, promise);
+  return promise;
 }
 
 function buildCampaignScorePage({ proposalPoints, segmento, assets }) {
@@ -1825,7 +1842,7 @@ export async function generateMidiaKitPdf({ praca, pracas, pontos }) {
   const cidade = praca && praca !== 'Todas as praças' ? praca : 'Consolidado';
   const kitPontos = Array.isArray(pontos) ? pontos : [];
   const resumo = buildResumo(kitPontos);
-  const assets = await loadPdfAssets();
+  const assets = await loadPdfAssets(cidade);
   const cityStats = {
     cidade,
     totalTelas: resumo.telas,

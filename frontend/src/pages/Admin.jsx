@@ -29,6 +29,7 @@ import {
 } from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
 import FocalPointSelector from '../components/admin/FocalPointSelector';
+import CidadeFotosAdmin from '../components/admin/CidadeFotosAdmin';
 import UserModal from '../components/admin/UserModal';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
 
@@ -917,6 +918,8 @@ export default function Admin() {
 
         {activeTab === 'configuracoes' ? (
           <div className="space-y-5">
+            <CidadeFotosAdmin />
+
             <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Configurações do sistema</h3>

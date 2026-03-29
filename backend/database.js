@@ -198,6 +198,20 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS cidade_fotos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cidade TEXT NOT NULL,
+    cidade_slug TEXT NOT NULL UNIQUE,
+    imagem_path TEXT NOT NULL,
+    original_name TEXT,
+    mime_type TEXT,
+    size_bytes INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+db.exec(`
   UPDATE pontos
   SET
     arte_largura = COALESCE(arte_largura, 1920),
@@ -276,6 +290,11 @@ db.exec(`
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_pdf_cache_snapshot_cache_id
   ON pdf_cache_snapshot (cache_id)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_cidade_fotos_slug
+  ON cidade_fotos (cidade_slug)
 `);
 
 // Seed data if empty

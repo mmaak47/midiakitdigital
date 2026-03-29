@@ -4,6 +4,7 @@ dist/
 *.db
 backend/uploads/*
 !backend/uploads/.gitkeep
+backend/uploads/cidades/
 *.ps1
 *.txt
 *.log

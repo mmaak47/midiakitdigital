@@ -9,6 +9,7 @@ const rateLimit = require('express-rate-limit');
 const { z } = require('zod');
 const { randomUUID } = require('crypto');
 const db = require('./database');
+const cidadeFotosRouter = require('./routes/cidadeFotos');
 const { createBackupScheduler } = require('./backupService');
 const { renderHtmlToPdf } = require('./pdfService');
 const {
@@ -286,6 +287,8 @@ function pickUploadedPath(req, fieldName) {
   const file = req.files?.[fieldName]?.[0];
   return file ? `/uploads/${file.filename}` : null;
 }
+
+app.use('/api', cidadeFotosRouter);
 
 function parseOptionalCity(value) {
   if (Array.isArray(value)) {

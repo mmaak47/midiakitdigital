@@ -321,6 +321,43 @@ export async function updateAdminSettings(settings) {
   return res.json();
 }
 
+export async function fetchCidadeFotos() {
+  const res = await apiRequest('/cidade-fotos');
+  if (!res.ok) throw new Error('Erro ao carregar fotos das cidades');
+  return res.json();
+}
+
+export async function uploadCidadeFoto(cidade, imageFile) {
+  const body = new FormData();
+  body.append('cidade', cidade);
+  body.append('image', imageFile);
+
+  const res = await apiRequest('/cidade-fotos/upload', {
+    method: 'POST',
+    body
+  });
+
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao fazer upload da foto da cidade');
+  }
+
+  return res.json();
+}
+
+export async function deleteCidadeFoto(slug) {
+  const res = await apiRequest(`/cidade-fotos/${encodeURIComponent(slug)}`, {
+    method: 'DELETE'
+  });
+
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao remover foto da cidade');
+  }
+
+  return res.json();
+}
+
 // ============== PROPOSTAS ==============
 
 export async function fetchPropostas(filters = {}) {
