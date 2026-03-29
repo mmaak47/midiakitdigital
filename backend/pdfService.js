@@ -5,6 +5,12 @@ const fs = require('fs');
 const path = require('path');
 
 let _browser = null;
+const ALLOWED_HOSTS = new Set(
+  String(process.env.PDF_ALLOWED_HOSTS || 'localhost,127.0.0.1,REDACTED_OLD_VPS_IP,REDACTED_OLD_VPS_IP')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+);
 
 // Load Poppins fonts as base64 once at module startup for PDF injection
 const _fontsDir = path.join(__dirname, 'fonts');
@@ -67,6 +73,30 @@ async function renderHtmlToPdf(htmlContent) {
 
   try {
     await page.setViewport({ width: 1366, height: 768, deviceScaleFactor: 1 });
+    await page.setJavaScriptEnabled(false);
+    await page.setRequestInterception(true);
+    page.on('request', (request) => {
+      const url = String(request.url() || '');
+
+      if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('about:')) {
+        request.continue();
+        return;
+      }
+
+      try {
+        const parsed = new URL(url);
+        const host = String(parsed.hostname || '').toLowerCase();
+        if (ALLOWED_HOSTS.has(host)) {
+          request.continue();
+          return;
+        }
+      } catch {
+        // Fall through to abort on malformed URL.
+      }
+
+      request.abort();
+    });
+
     const htmlWithFonts = _fontCssInjection
       ? htmlContent.replace('<head>', `<head>${_fontCssInjection}`)
       : htmlContent;

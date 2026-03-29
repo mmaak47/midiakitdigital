@@ -163,7 +163,7 @@ Todas prefixadas em `/api/`.
 | Campo  | Valor           |
 |--------|-----------------|
 | Usuário | `admin`        |
-| Senha   | `intermidia2025` |
+| Senha   | Definida no bootstrap local; altere no primeiro login |
 
 ---
 

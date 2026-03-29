@@ -10,6 +10,14 @@ const { z } = require('zod');
 const { randomUUID } = require('crypto');
 const db = require('./database');
 const cidadeFotosRouter = require('./routes/cidadeFotos');
+const {
+  createAuthToken,
+  parseAuthToken,
+  extractBearerToken,
+  hashPassword,
+  verifyPassword,
+  isPasswordHash
+} = require('./auth');
 const { createBackupScheduler } = require('./backupService');
 const { renderHtmlToPdf } = require('./pdfService');
 const {
@@ -99,6 +107,22 @@ const apiLimiter = rateLimit({
   message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' }
 });
 
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.LOGIN_RATE_LIMIT_MAX || 8),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de login. Tente novamente em alguns minutos.' }
+});
+
+const pdfRenderLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.PDF_RENDER_RATE_LIMIT_MAX || 25),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Limite de geração de PDF atingido. Tente novamente em alguns minutos.' }
+});
+
 const loginSchema = z.object({
   username: z.string().trim().min(1).optional(),
   email: z.string().trim().min(1).optional(),
@@ -172,12 +196,25 @@ function extensionFromMime(mimeType) {
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(cors({ origin: corsOriginValidator }));
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  if (req.secure || String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
 
 // PDF render endpoint — must be registered before global express.json (own 55mb body parser)
-app.post('/api/pdf/render', express.json({ limit: '55mb' }), async (req, res) => {
+app.post('/api/pdf/render', pdfRenderLimiter, express.json({ limit: '55mb' }), async (req, res) => {
   const { html, fileName } = req.body || {};
   if (!html || typeof html !== 'string' || html.length < 10) {
     return res.status(400).json({ error: 'Parâmetro html obrigatório.' });
+  }
+  if (html.length > 5_000_000) {
+    return res.status(400).json({ error: 'Conteúdo HTML excede o limite permitido.' });
   }
 
   const citySlugs = normalizeCitySlugs(
@@ -235,6 +272,67 @@ app.post('/api/pdf/render', express.json({ limit: '55mb' }), async (req, res) =>
 app.use(express.json({ limit: '1mb' }));
 app.use(compression({ threshold: 1024 }));
 app.use('/api', apiLimiter);
+
+function resolveAuthenticatedUser(req, res, next) {
+  try {
+    const token = extractBearerToken(req.headers.authorization);
+    if (!token) {
+      return res.status(401).json({ error: 'Token de autenticação obrigatório.' });
+    }
+
+    const claims = parseAuthToken(token);
+    const user = db.prepare(`
+      SELECT id, first_name, last_name, username, email, whatsapp, role
+      FROM admin_users
+      WHERE id = ? AND lower(username) = lower(?)
+      LIMIT 1
+    `).get(Number(claims.sub), String(claims.username || ''));
+
+    if (!user) {
+      return res.status(401).json({ error: 'Sessão inválida.' });
+    }
+
+    req.authUser = user;
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Token inválido ou expirado.' });
+  }
+}
+
+function requireRoles(roles = []) {
+  return (req, res, next) => {
+    if (!req.authUser) {
+      return res.status(401).json({ error: 'Autenticação obrigatória.' });
+    }
+    if (!roles.includes(req.authUser.role)) {
+      return res.status(403).json({ error: 'Acesso negado para este perfil.' });
+    }
+    next();
+  };
+}
+
+function authenticateSensitiveApi(req, res, next) {
+  const method = String(req.method || 'GET').toUpperCase();
+  const routePath = String(req.path || '');
+
+  if (routePath === '/auth/login') return next();
+
+  const publicGetPrefixes = [
+    '/pontos',
+    '/publicos',
+    '/stats',
+    '/audience-tags',
+    '/cidade-fotos'
+  ];
+
+  if (method === 'GET' && publicGetPrefixes.some((prefix) => routePath === prefix || routePath.startsWith(`${prefix}/`))) {
+    return next();
+  }
+
+  return resolveAuthenticatedUser(req, res, next);
+}
+
+app.use('/api', authenticateSensitiveApi);
 app.use('/uploads', express.static(uploadsPath, {
   maxAge: '7d',
   etag: true,
@@ -681,22 +779,34 @@ app.get('/api/stats', (req, res) => {
 });
 
 // Admin auth
-app.post('/api/auth/login', validateLoginPayload, (req, res) => {
+app.post('/api/auth/login', loginLimiter, validateLoginPayload, (req, res) => {
   const credential = String(req.body?.username || req.body?.email || '').trim();
   const password = String(req.body?.password || '');
   if (!credential || !password) {
     return res.status(400).json({ error: 'Usuário/e-mail e senha são obrigatórios' });
   }
   const user = db.prepare(`
-    SELECT id, first_name, last_name, username, email, whatsapp, role
+    SELECT id, first_name, last_name, username, email, whatsapp, role, password
     FROM admin_users
-    WHERE (lower(username) = lower(?) OR lower(email) = lower(?)) AND password = ?
-  `).get(credential, credential, password);
-  if (!user) return res.status(401).json({ error: 'Credenciais inválidas' });
+    WHERE (lower(username) = lower(?) OR lower(email) = lower(?))
+    LIMIT 1
+  `).get(credential, credential);
+
+  if (!user || !verifyPassword(password, user.password)) {
+    return res.status(401).json({ error: 'Credenciais inválidas' });
+  }
+
+  if (!isPasswordHash(user.password)) {
+    const upgradedHash = hashPassword(password);
+    db.prepare("UPDATE admin_users SET password = ?, updated_at = datetime('now') WHERE id = ?").run(upgradedHash, user.id);
+  }
+
+  const { password: _password, ...safeUser } = user;
+
   res.json({ 
     success: true, 
-    token: Buffer.from(`${user.username}:${Date.now()}`).toString('base64'),
-    user
+    token: createAuthToken(safeUser),
+    user: safeUser
   });
 });
 
@@ -706,7 +816,7 @@ app.post('/api/pontos', upload.fields([
   { name: 'imagem2', maxCount: 1 },
   { name: 'simulacao_arte', maxCount: 1 },
   { name: 'simulacao_preview', maxCount: 1 }
-]), validateCoordinates, (req, res) => {
+]), requireRoles(['admin', 'gerente_comercial']), validateCoordinates, (req, res) => {
   try {
     const data = req.body;
     const latDb = normalizeCoordinateForDb(data.lat, -90, 90, null);
@@ -768,7 +878,7 @@ app.put('/api/pontos/:id', upload.fields([
   { name: 'imagem2', maxCount: 1 },
   { name: 'simulacao_arte', maxCount: 1 },
   { name: 'simulacao_preview', maxCount: 1 }
-]), validateCoordinates, (req, res) => {
+]), requireRoles(['admin', 'gerente_comercial']), validateCoordinates, (req, res) => {
   try {
     const data = req.body;
     const existing = db.prepare('SELECT * FROM pontos WHERE id = ?').get(req.params.id);
@@ -863,7 +973,7 @@ app.put('/api/pontos/:id', upload.fields([
 });
 
 // Simple geocoding endpoint for admin use
-app.get('/api/geocode', async (req, res) => {
+app.get('/api/geocode', requireRoles(['admin', 'gerente_comercial', 'vendedor']), async (req, res) => {
   const q = String(req.query.q || '').trim();
   if (!q) return res.status(400).json({ error: 'Parâmetro q obrigatório' });
   try {
@@ -888,7 +998,7 @@ app.get('/api/entorno/categories', (req, res) => {
 });
 
 // Queue async entorno analysis job
-app.post('/api/entorno/analyze', (req, res) => {
+app.post('/api/entorno/analyze', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
   try {
     const segmento = normalizeSegment(req.body?.segmento || req.query.segmento);
     const raio = normalizeRadius(req.body?.raio || req.query.raio || DEFAULT_RADIUS);
@@ -908,7 +1018,7 @@ app.post('/api/entorno/analyze', (req, res) => {
 });
 
 // Get job status
-app.get('/api/entorno/jobs/:id', (req, res) => {
+app.get('/api/entorno/jobs/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
   try {
     const jobId = Number(req.params.id);
     if (!Number.isFinite(jobId)) {
@@ -925,7 +1035,7 @@ app.get('/api/entorno/jobs/:id', (req, res) => {
 });
 
 // List recent jobs for monitoring in admin
-app.get('/api/entorno/jobs', (req, res) => {
+app.get('/api/entorno/jobs', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
   try {
     const cidade = parseOptionalCity(req.query.cidade);
     const jobs = listJobs({
@@ -941,7 +1051,7 @@ app.get('/api/entorno/jobs', (req, res) => {
 });
 
 // Auto-refresh scheduler status and config
-app.get('/api/entorno/auto', (req, res) => {
+app.get('/api/entorno/auto', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
   try {
     res.json({
       config: getAutoRefreshConfig(),
@@ -953,7 +1063,7 @@ app.get('/api/entorno/auto', (req, res) => {
 });
 
 // Trigger one immediate auto-refresh cycle manually
-app.post('/api/entorno/auto/run-now', (req, res) => {
+app.post('/api/entorno/auto/run-now', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
   try {
     runAutoRefreshCycle();
     res.json({ success: true, state: getAutoRefreshState() });
@@ -963,7 +1073,7 @@ app.post('/api/entorno/auto/run-now', (req, res) => {
 });
 
 // Read cached entorno scores and optionally auto-queue refresh
-app.get('/api/entorno/scores', (req, res) => {
+app.get('/api/entorno/scores', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
     const segmento = normalizeSegment(req.query.segmento);
     const raio = normalizeRadius(req.query.raio || DEFAULT_RADIUS);
@@ -993,7 +1103,7 @@ app.get('/api/entorno/scores', (req, res) => {
   }
 });
 
-app.post('/api/entorno/client-address', async (req, res) => {
+app.post('/api/entorno/client-address', requireRoles(['admin', 'gerente_comercial', 'vendedor']), async (req, res) => {
   try {
     const address = String(req.body?.address || '').trim();
     const requestedCities = parseOptionalValues(req.body?.cidade);
@@ -1065,7 +1175,7 @@ app.post('/api/entorno/client-address', async (req, res) => {
 });
 
 // DELETE ponto (soft delete)
-app.delete('/api/pontos/:id', (req, res) => {
+app.delete('/api/pontos/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
   try {
     const existing = db.prepare('SELECT id, cidade FROM pontos WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Ponto não encontrado' });
@@ -1079,7 +1189,7 @@ app.delete('/api/pontos/:id', (req, res) => {
 });
 
 // GET all pontos for admin (including inactive)
-app.get('/api/admin/pontos', (req, res) => {
+app.get('/api/admin/pontos', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
   try {
     const pontos = db.prepare('SELECT * FROM pontos ORDER BY cidade, nome').all().map(hydratePontoRow);
     res.json(pontos);
@@ -1088,7 +1198,7 @@ app.get('/api/admin/pontos', (req, res) => {
   }
 });
 
-app.get('/api/admin/users', (req, res) => {
+app.get('/api/admin/users', requireRoles(['admin']), (req, res) => {
   try {
     const users = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, created_at FROM admin_users ORDER BY first_name ASC, last_name ASC, username ASC').all();
     res.json(users);
@@ -1097,7 +1207,7 @@ app.get('/api/admin/users', (req, res) => {
   }
 });
 
-app.post('/api/admin/users', (req, res) => {
+app.post('/api/admin/users', requireRoles(['admin']), (req, res) => {
   try {
     const firstName = String(req.body?.firstName || req.body?.first_name || '').trim();
     const lastName = String(req.body?.lastName || req.body?.last_name || '').trim();
@@ -1130,10 +1240,12 @@ app.post('/api/admin/users', (req, res) => {
       return res.status(409).json({ error: 'E-mail já cadastrado' });
     }
 
+    const passwordHash = hashPassword(password);
+
     const result = db.prepare(`
       INSERT INTO admin_users (first_name, last_name, username, email, whatsapp, password, role, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    `).run(firstName, lastName, username, email, whatsapp, password, role);
+    `).run(firstName, lastName, username, email, whatsapp, passwordHash, role);
     const created = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, created_at FROM admin_users WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(created);
   } catch (err) {
@@ -1141,7 +1253,7 @@ app.post('/api/admin/users', (req, res) => {
   }
 });
 
-app.delete('/api/admin/users/:id', (req, res) => {
+app.delete('/api/admin/users/:id', requireRoles(['admin']), (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) {
@@ -1164,7 +1276,7 @@ app.delete('/api/admin/users/:id', (req, res) => {
   }
 });
 
-app.put('/api/admin/users/:id', (req, res) => {
+app.put('/api/admin/users/:id', requireRoles(['admin']), (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) {
@@ -1190,7 +1302,7 @@ app.put('/api/admin/users/:id', (req, res) => {
   }
 });
 
-app.get('/api/admin/pdf-layout', (req, res) => {
+app.get('/api/admin/pdf-layout', requireRoles(['admin']), (req, res) => {
   try {
     res.json(readPdfLayoutOverrides());
   } catch (err) {
@@ -1198,7 +1310,7 @@ app.get('/api/admin/pdf-layout', (req, res) => {
   }
 });
 
-app.get('/api/admin/settings', (req, res) => {
+app.get('/api/admin/settings', requireRoles(['admin']), (req, res) => {
   try {
     const settings = db.prepare('SELECT key, value FROM app_settings').all();
     const result = {};
@@ -1211,7 +1323,7 @@ app.get('/api/admin/settings', (req, res) => {
   }
 });
 
-app.get('/api/admin/pdf-cache', (req, res) => {
+app.get('/api/admin/pdf-cache', requireRoles(['admin']), (req, res) => {
   try {
     const rows = db.prepare(`
       SELECT
@@ -1231,7 +1343,7 @@ app.get('/api/admin/pdf-cache', (req, res) => {
   }
 });
 
-app.delete('/api/admin/pdf-cache/:id', (req, res) => {
+app.delete('/api/admin/pdf-cache/:id', requireRoles(['admin']), (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) {
@@ -1244,7 +1356,7 @@ app.delete('/api/admin/pdf-cache/:id', (req, res) => {
   }
 });
 
-app.put('/api/admin/settings', (req, res) => {
+app.put('/api/admin/settings', requireRoles(['admin']), (req, res) => {
   try {
     const { lucro_minimo_percentual } = req.body;
     
@@ -1274,23 +1386,20 @@ app.put('/api/admin/settings', (req, res) => {
 // ============== PROPOSTAS ENDPOINTS ==============
 
 // GET todas as propostas (com filtro por role)
-app.get('/api/propostas', (req, res) => {
+app.get('/api/propostas', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
-    const usuarioId = req.query.usuario_id;
     const status = req.query.status;
-    const role = req.query.role;
+    const role = req.authUser.role;
+    const usuarioId = req.authUser.id;
 
     let query = 'SELECT p.*, u.username as usuario_nome FROM propostas p LEFT JOIN admin_users u ON p.usuario_id = u.id';
     const params = [];
 
-    if (role === 'vendedor' && usuarioId) {
+    if (role === 'vendedor') {
       query += ' WHERE p.usuario_id = ?';
       params.push(usuarioId);
     } else if (role === 'gerente_comercial' || role === 'admin') {
       // Gerente comercial e admin veem todas as propostas
-    } else if (usuarioId) {
-      query += ' WHERE p.usuario_id = ?';
-      params.push(usuarioId);
     }
 
     if (status) {
@@ -1307,13 +1416,17 @@ app.get('/api/propostas', (req, res) => {
 });
 
 // GET uma proposta específica
-app.get('/api/propostas/:id', (req, res) => {
+app.get('/api/propostas/:id', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
     const id = Number(req.params.id);
     const proposta = db.prepare('SELECT p.*, u.username as usuario_nome FROM propostas p LEFT JOIN admin_users u ON p.usuario_id = u.id WHERE p.id = ?').get(id);
     
     if (!proposta) {
       return res.status(404).json({ error: 'Proposta não encontrada' });
+    }
+
+    if (req.authUser.role === 'vendedor' && Number(proposta.usuario_id) !== Number(req.authUser.id)) {
+      return res.status(403).json({ error: 'Acesso negado à proposta solicitada.' });
     }
 
     proposta.pontos = JSON.parse(proposta.pontos_json || '[]');
@@ -1326,9 +1439,10 @@ app.get('/api/propostas/:id', (req, res) => {
 });
 
 // POST criar nova proposta
-app.post('/api/propostas', (req, res) => {
+app.post('/api/propostas', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
-    const { usuario_id, titulo, descricao, pontos, desconto_percentual, desconto_tipo, valor_total_original } = req.body;
+    const { titulo, descricao, pontos, desconto_percentual, desconto_tipo, valor_total_original } = req.body;
+    const usuario_id = req.authUser.id;
 
     if (!usuario_id || !titulo || !Array.isArray(pontos) || !desconto_tipo) {
       return res.status(400).json({ error: 'Campos obrigatórios: usuario_id, titulo, pontos (array), desconto_tipo' });
@@ -1372,7 +1486,7 @@ app.post('/api/propostas', (req, res) => {
 });
 
 // PUT atualizar proposta
-app.put('/api/propostas/:id', (req, res) => {
+app.put('/api/propostas/:id', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
     const id = Number(req.params.id);
     const { titulo, descricao, pontos, desconto_percentual, desconto_tipo, valor_total_original } = req.body;
@@ -1380,6 +1494,10 @@ app.put('/api/propostas/:id', (req, res) => {
     const proposta = db.prepare('SELECT * FROM propostas WHERE id = ?').get(id);
     if (!proposta) {
       return res.status(404).json({ error: 'Proposta não encontrada' });
+    }
+
+    if (req.authUser.role === 'vendedor' && Number(proposta.usuario_id) !== Number(req.authUser.id)) {
+      return res.status(403).json({ error: 'Acesso negado à proposta solicitada.' });
     }
 
     const lucroMinimo = Number(db.prepare('SELECT value FROM app_settings WHERE key = "lucro_minimo_percentual"').get()?.value || 15);
@@ -1420,11 +1538,19 @@ app.put('/api/propostas/:id', (req, res) => {
 });
 
 // DELETE proposta
-app.delete('/api/propostas/:id', (req, res) => {
+app.delete('/api/propostas/:id', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
     const id = Number(req.params.id);
+    const existing = db.prepare('SELECT usuario_id FROM propostas WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Proposta não encontrada' });
+    }
+    if (req.authUser.role === 'vendedor' && Number(existing.usuario_id) !== Number(req.authUser.id)) {
+      return res.status(403).json({ error: 'Acesso negado à proposta solicitada.' });
+    }
+
     const result = db.prepare('DELETE FROM propostas WHERE id = ?').run(id);
-    
+
     if (!result.changes) {
       return res.status(404).json({ error: 'Proposta não encontrada' });
     }
@@ -1436,10 +1562,11 @@ app.delete('/api/propostas/:id', (req, res) => {
 });
 
 // POST aprovar proposta (apenas gerente comercial e admin)
-app.post('/api/propostas/:id/aprovar', (req, res) => {
+app.post('/api/propostas/:id/aprovar', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { gerente_id, motivo } = req.body;
+    const { motivo } = req.body;
+    const gerente_id = req.authUser.id;
 
     const proposta = db.prepare('SELECT * FROM propostas WHERE id = ?').get(id);
     if (!proposta) {
@@ -1466,10 +1593,11 @@ app.post('/api/propostas/:id/aprovar', (req, res) => {
 });
 
 // POST rejeitar proposta (apenas gerente comercial e admin)
-app.post('/api/propostas/:id/rejeitar', (req, res) => {
+app.post('/api/propostas/:id/rejeitar', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { gerente_id, motivo_rejeicao } = req.body;
+    const { motivo_rejeicao } = req.body;
+    const gerente_id = req.authUser.id;
 
     const proposta = db.prepare('SELECT * FROM propostas WHERE id = ?').get(id);
     if (!proposta) {
@@ -1499,7 +1627,7 @@ app.post('/api/propostas/:id/rejeitar', (req, res) => {
   }
 });
 
-app.put('/api/admin/pdf-layout', (req, res) => {
+app.put('/api/admin/pdf-layout', requireRoles(['admin']), (req, res) => {
   try {
     const overrides = req.body?.overrides;
     if (overrides && (typeof overrides !== 'object' || Array.isArray(overrides))) {
@@ -1511,7 +1639,7 @@ app.put('/api/admin/pdf-layout', (req, res) => {
   }
 });
 
-app.delete('/api/admin/pdf-layout', (req, res) => {
+app.delete('/api/admin/pdf-layout', requireRoles(['admin']), (req, res) => {
   try {
     db.prepare('DELETE FROM app_settings WHERE key = ?').run(PDF_LAYOUT_SETTINGS_KEY);
     res.json({ success: true, overrides: {}, updatedAt: null });

@@ -1,5 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const crypto = require('crypto');
+const { hashPassword, isPasswordHash } = require('./auth');
 
 const db = new Database(path.join(__dirname, 'midiakit.db'));
 
@@ -454,16 +456,33 @@ if (count.c === 0) {
 // Seed admin if empty
 const adminCount = db.prepare('SELECT COUNT(*) as c FROM admin_users').get();
 if (adminCount.c === 0) {
+  const bootstrapPassword = String(process.env.ADMIN_BOOTSTRAP_PASSWORD || '').trim() || crypto.randomBytes(12).toString('base64url');
   db.prepare('INSERT INTO admin_users (first_name, last_name, username, email, whatsapp, password, role) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
     'Admin',
     'Intermidia',
     'admin',
     'admin@intermidia.local',
     '',
-    'intermidia2025',
+    hashPassword(bootstrapPassword),
     'admin'
   );
-  console.log('Admin user created: admin / intermidia2025 (role: admin)');
+  if (process.env.ADMIN_BOOTSTRAP_PASSWORD) {
+    console.log('Admin bootstrap user created using ADMIN_BOOTSTRAP_PASSWORD.');
+  } else {
+    console.warn(`Admin bootstrap user created with generated password. Configure ADMIN_BOOTSTRAP_PASSWORD to control it. Temporary password: ${bootstrapPassword}`);
+  }
+}
+
+try {
+  const users = db.prepare('SELECT id, password FROM admin_users').all();
+  const updateStmt = db.prepare("UPDATE admin_users SET password = ?, updated_at = datetime('now') WHERE id = ?");
+  for (const user of users) {
+    if (!isPasswordHash(user.password)) {
+      updateStmt.run(hashPassword(String(user.password || '')), user.id);
+    }
+  }
+} catch (error) {
+  console.warn('[db] Nao foi possivel migrar senhas legadas para hash:', error?.message || error);
 }
 
 db.exec(`

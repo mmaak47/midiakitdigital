@@ -4,6 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const { randomUUID } = require('crypto');
 const db = require('../database');
+const { extractBearerToken, parseAuthToken } = require('../auth');
 const { slugifyCity, invalidateCityCaches } = require('../services/pdfCacheService');
 
 const router = express.Router();
@@ -30,32 +31,27 @@ function buildPublicUrl(filePath) {
   return fileName ? `/uploads/cidades/${fileName}` : null;
 }
 
-function parseAdminFromToken(token) {
-  try {
-    const decoded = Buffer.from(String(token || ''), 'base64').toString('utf8');
-    const username = decoded.split(':')[0]?.trim();
-    if (!username) return null;
-    const user = db.prepare(`
-      SELECT id, username, role
-      FROM admin_users
-      WHERE lower(username) = lower(?)
-      LIMIT 1
-    `).get(username);
-    return user || null;
-  } catch {
-    return null;
-  }
-}
-
 function requireAdminAuth(req, res, next) {
-  const header = String(req.headers.authorization || '').trim();
-  if (!header.toLowerCase().startsWith('bearer ')) {
+  const token = extractBearerToken(req.headers.authorization);
+  if (!token) {
     return res.status(401).json({ error: 'Token de autenticação obrigatório.' });
   }
 
-  const token = header.slice(7).trim();
-  const user = parseAdminFromToken(token);
-  if (!user) {
+  let claims;
+  try {
+    claims = parseAuthToken(token);
+  } catch {
+    return res.status(401).json({ error: 'Token inválido.' });
+  }
+
+  const user = db.prepare(`
+    SELECT id, username, role
+    FROM admin_users
+    WHERE id = ? AND lower(username) = lower(?)
+    LIMIT 1
+  `).get(Number(claims.sub), String(claims.username || ''));
+
+  if (!user || !['admin', 'gerente_comercial'].includes(user.role)) {
     return res.status(401).json({ error: 'Token inválido.' });
   }
 
