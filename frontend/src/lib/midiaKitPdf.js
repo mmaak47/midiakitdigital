@@ -1208,7 +1208,7 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
           </div>
         </div>
 
-        <div style="display:flex;flex-direction:column;gap:12px;min-width:0;overflow:hidden;">
+        <div style="display:flex;flex-direction:column;gap:10px;min-width:0;overflow:hidden;">
           ${hasEntornoData ? `
             <div data-calibration-id="proposal.point.addressBox" style="padding:16px 18px;border-radius:22px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);">
               <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Entorno relevante</div>
@@ -1217,36 +1217,28 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
             </div>
           ` : ''}
 
-          <div style="padding:16px 18px;border-radius:22px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+          <div style="padding:14px 16px;border-radius:20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
             <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Qualificação do público</div>
             <div style="margin-top:8px;display:inline-flex;align-items:center;justify-content:center;min-height:30px;padding:0 12px;border-radius:999px;background:rgba(254,92,43,0.16);border:1px solid rgba(254,92,43,0.24);font-size:13px;font-weight:700;color:${BRAND_ORANGE};">${escapeHtml(audience.badge)}</div>
             <div style="margin-top:8px;font-size:18px;line-height:1.3;color:#fff;font-weight:700;word-break:break-word;max-height:2.7em;overflow:hidden;">${escapeHtml(audience.headline)}</div>
-            <div style="margin-top:8px;font-size:13px;line-height:1.35;color:rgba(255,255,255,0.72);word-break:break-word;max-height:4.1em;overflow:hidden;">${escapeHtml(audience.summary)}</div>
+            <div style="margin-top:6px;font-size:12px;line-height:1.35;color:rgba(255,255,255,0.72);word-break:break-word;max-height:2.8em;overflow:hidden;">${escapeHtml(audience.summary)}</div>
           </div>
 
           ${mapImage ? `
-            <div style="padding:12px 14px;border-radius:18px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+            <div style="padding:10px 12px;border-radius:16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
               <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Localização no mapa</div>
-              <div style="margin-top:8px;height:120px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);">
+              <div style="margin-top:6px;height:96px;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);">
                 <img src="${mapImage}" alt="Mapa do ponto" style="width:100%;height:100%;object-fit:cover;" />
               </div>
-              <div style="margin-top:6px;font-size:10px;line-height:1.3;color:rgba(255,255,255,0.62);">Fonte cartográfica: OpenStreetMap/Carto.</div>
+              <div style="margin-top:4px;font-size:10px;line-height:1.2;color:rgba(255,255,255,0.62);">Fonte cartográfica: OpenStreetMap/Carto.</div>
             </div>
           ` : ''}
 
-          ${hasEntornoData ? `
-            <div style="padding:14px 16px;border-radius:20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
-              <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND_ORANGE};">Entorno relevante</div>
-              <div style="margin-top:8px;font-size:16px;line-height:1.3;color:#fff;font-weight:700;word-break:break-word;max-height:2.7em;overflow:hidden;">${escapeHtml(environment.headline)}</div>
-              <div style="margin-top:6px;font-size:12px;line-height:1.35;color:rgba(255,255,255,0.68);word-break:break-word;max-height:4.1em;overflow:hidden;">${escapeHtml(environment.summary)}</div>
-            </div>
-          ` : ''}
-
-          <div data-calibration-id="proposal.point.statsList" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+          <div data-calibration-id="proposal.point.statsList" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
             ${stats.map((item) => `
-              <div style="padding:12px 14px;border-radius:16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);">
+              <div style="padding:10px 12px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);">
                 <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">${escapeHtml(item.label)}</div>
-                <div style="margin-top:6px;font-size:20px;line-height:1.2;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(item.value)}</div>
+                <div style="margin-top:4px;font-size:18px;line-height:1.2;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(item.value)}</div>
               </div>
             `).join('')}
           </div>
