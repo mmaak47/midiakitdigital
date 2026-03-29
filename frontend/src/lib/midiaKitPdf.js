@@ -575,12 +575,19 @@ function formatCoordinates(ponto) {
   return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 }
 
-function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
+function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets, selectedCities = [] }) {
   const estado = getCityState(cidade);
   const totalFormatos = new Set(pontos.map((ponto) => ponto.tipo).filter(Boolean)).size;
   const totalPublicos = new Set(pontos.map((ponto) => ponto.publico).filter(Boolean)).size;
   const totalEnderecos = new Set(pontos.map((ponto) => `${ponto.cidade || ''}-${ponto.endereco || ''}`.trim()).filter(Boolean)).size;
   const heroImage = assets.cityBg || assets.heroBg || assets.showcase || '';
+  const normalizedSelectedCities = Array.from(new Set(
+    (Array.isArray(selectedCities) ? selectedCities : [])
+      .map((cityName) => String(cityName || '').trim())
+      .filter(Boolean)
+  ));
+  const selectedCitiesLabel = normalizedSelectedCities.join(' · ');
+  const isMultiCity = normalizedSelectedCities.length > 1;
   const cards = [
     { label: 'Pontos ativos', value: formatInt(pontos.length), icon: 'type' },
     { label: 'Telas disponíveis', value: formatInt(resumo.telas), icon: 'type' },
@@ -590,12 +597,12 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#000;"></div>
-    <div style="position:absolute;left:0;top:0;bottom:0;width:50%;background:linear-gradient(145deg,#060606 0%,#0e0e0e 65%,#121212 100%);"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:50%;background:#07090b;"></div>
     <div style="position:absolute;right:0;top:0;bottom:0;width:50%;overflow:hidden;background:#080808;">
       <img src="${heroImage}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;" />
-      <div style="position:absolute;inset:0;background:linear-gradient(to left,rgba(0,0,0,0.18),rgba(0,0,0,0.55));"></div>
+      <div style="position:absolute;inset:0;background:linear-gradient(to left,rgba(0,0,0,0.16) 0%,rgba(0,0,0,0.42) 45%,rgba(0,0,0,0.58) 100%);"></div>
     </div>
-    <div style="position:absolute;left:50%;top:0;bottom:0;width:180px;background:linear-gradient(to right,#0c0c0c 0%,rgba(12,12,12,0.96) 45%,rgba(12,12,12,0) 100%);"></div>
+    <div style="position:absolute;left:50%;top:0;bottom:0;width:160px;background:linear-gradient(to right,#07090b 0%,rgba(7,9,11,0.92) 36%,rgba(7,9,11,0.5) 72%,rgba(7,9,11,0) 100%);"></div>
 
     <div style="position:absolute;left:72px;top:68px;right:54%;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;">
       <img src="${assets.logo || ''}" alt="" style="width:172px;height:auto;object-fit:contain;" />
@@ -606,6 +613,7 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
       <div style="font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:${BRAND_ORANGE};">Cobertura estratégica</div>
       <div style="margin-top:14px;font-family:Poppins, system-ui, sans-serif;font-size:72px;line-height:0.92;font-weight:700;letter-spacing:-0.05em;text-transform:uppercase;color:#fff;word-break:break-word;">${escapeHtml(cidade)}</div>
       ${estado ? `<div style="margin-top:12px;font-size:20px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.7);">${escapeHtml(estado)}</div>` : ''}
+      ${isMultiCity ? `<div style="margin-top:12px;max-width:560px;font-size:14px;line-height:1.35;color:rgba(255,255,255,0.72);"><span style="font-weight:700;color:rgba(255,255,255,0.9);">Praças selecionadas:</span> ${escapeHtml(selectedCitiesLabel)}</div>` : ''}
       <div style="margin-top:16px;max-width:540px;font-size:18px;line-height:1.34;color:rgba(255,255,255,0.82);">Inventário premium para planejar presença urbana com escala, frequência e impacto visual na praça.</div>
     </div>
 
@@ -1840,6 +1848,11 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
 export async function generateMidiaKitPdf({ praca, pracas, pontos }) {
   activePdfLayoutConfig = await loadPdfLayoutConfig();
   const cidade = praca && praca !== 'Todas as praças' ? praca : 'Consolidado';
+  const selectedCities = Array.from(new Set(
+    (Array.isArray(pracas) ? pracas : [])
+      .map((cityName) => String(cityName || '').trim())
+      .filter(Boolean)
+  ));
   const kitPontos = Array.isArray(pontos) ? pontos : [];
   const resumo = buildResumo(kitPontos);
   const assets = await loadPdfAssets(cidade);
@@ -1851,7 +1864,7 @@ export async function generateMidiaKitPdf({ praca, pracas, pontos }) {
 
   const pointImages = kitPontos.map((ponto) => pickImageUrl(ponto));
   const pages = [
-    buildMidiaKitCoverPage({ cidade, pontos: kitPontos, resumo, assets }),
+    buildMidiaKitCoverPage({ cidade, pontos: kitPontos, resumo, assets, selectedCities }),
     buildMidiaKitManifestoPage({ assets }),
     buildMidiaKitSummaryPage({ cidade, pontos: kitPontos, assets })
   ];
