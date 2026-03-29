@@ -236,14 +236,19 @@ async function imageToDataUrl(url) {
 function createPage(content, background = '#050505') {
   const page = document.createElement('section');
   Object.assign(page.style, {
+    display: 'block',
     width: `${PAGE_WIDTH}px`,
     height: `${PAGE_HEIGHT}px`,
+    minHeight: `${PAGE_HEIGHT}px`,
+    maxHeight: `${PAGE_HEIGHT}px`,
     position: 'relative',
     overflow: 'hidden',
     background,
     color: '#ffffff',
     fontFamily: 'Poppins, system-ui, sans-serif',
-    boxSizing: 'border-box'
+    boxSizing: 'border-box',
+    pageBreakAfter: 'always',
+    breakAfter: 'page',
   });
   page.innerHTML = content;
   return page;

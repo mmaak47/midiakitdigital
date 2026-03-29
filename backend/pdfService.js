@@ -71,10 +71,6 @@ async function renderHtmlToPdf(htmlContent) {
       ? htmlContent.replace('<head>', `<head>${_fontCssInjection}`)
       : htmlContent;
 
-    // DEBUG — remove after diagnosis
-    fs.writeFileSync('/tmp/debug-pdf.html', htmlWithFonts);
-    console.log('[pdf] HTML salvo em /tmp/debug-pdf.html, tamanho:', htmlWithFonts.length, 'bytes');
-
     await page.setContent(htmlWithFonts, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
     // Wait for fonts (always embedded base64 — always fast)
