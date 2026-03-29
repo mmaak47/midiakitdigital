@@ -163,15 +163,7 @@ app.set('trust proxy', 1);
 app.use(cors({ origin: corsOriginValidator }));
 
 // PDF render endpoint — must be registered before global express.json (own 55mb body parser)
-const pdfRateLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 8,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Muitas requisições de PDF. Tente novamente em um minuto.' }
-});
-
-app.post('/api/pdf/render', pdfRateLimiter, express.json({ limit: '55mb' }), async (req, res) => {
+app.post('/api/pdf/render', express.json({ limit: '55mb' }), async (req, res) => {
   const { html, fileName } = req.body || {};
   if (!html || typeof html !== 'string' || html.length < 10) {
     return res.status(400).json({ error: 'Parâmetro html obrigatório.' });
