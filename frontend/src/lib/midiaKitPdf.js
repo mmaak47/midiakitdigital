@@ -206,6 +206,20 @@ function buildResumo(pontos) {
   return { ...totals, ticketMedio };
 }
 
+function getAudienceQualityScore(point) {
+  const tags = Array.isArray(point?.audience_tags) ? point.audience_tags : [];
+  if (tags.length) {
+    const avgWeight = tags.reduce((sum, tag) => sum + (Number(tag?.weight) || 1), 0) / tags.length;
+    return Math.min(1.35, Math.max(0.85, avgWeight));
+  }
+
+  const publico = String(point?.publico || '').toUpperCase();
+  if (publico.includes('A') && publico.includes('B')) return 1.05;
+  if (publico.includes('A')) return 1.15;
+  if (publico.includes('B')) return 0.95;
+  return 1;
+}
+
 function normalizeLines(input, limit = 6) {
   const values = Array.isArray(input)
     ? input
@@ -684,9 +698,12 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
   const totalEnderecos = new Set(pontos.map((p) => `${p.cidade || ''}-${p.endereco || ''}`.trim())).size;
   const totalPontos = pontos.length;
   const resumo = buildResumo(pontos);
-  const featuredPoints = [...pontos]
-    .sort((a, b) => (Number(b.fluxo) || 0) - (Number(a.fluxo) || 0))
-    .slice(0, 3);
+  const featuredPoint = [...pontos]
+    .map((point) => ({
+      ...point,
+      __featuredScore: (Number(point?.fluxo) || 0) * getAudienceQualityScore(point)
+    }))
+    .sort((a, b) => (Number(b.__featuredScore) || 0) - (Number(a.__featuredScore) || 0))[0] || null;
 
   const cards = [
     { label: 'Endereços', value: formatInt(totalEnderecos), icon: 'location' },
@@ -757,19 +774,19 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
         </div>
 
         <div style="padding:14px 16px;border-radius:24px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.10);min-height:0;overflow:hidden;">
-          <div style="font-size:11px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND_ORANGE};">Pontos em destaque</div>
-          <div style="margin-top:12px;display:grid;gap:6px;">
-            ${featuredPoints.map((ponto, index) => `
-              <div style="padding:8px 12px;border-left:3px solid ${BRAND_ORANGE};border-bottom:1px solid rgba(255,255,255,0.08);">
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;">
-                  <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#fff;line-height:1.2;"><span style="display:block;width:6px;height:6px;border-radius:999px;background:${BRAND_ORANGE};flex:0 0 auto;"></span>${escapeHtml(ponto.nome || `Ponto ${index + 1}`)}</div>
-                  <span style="display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 8px;border-radius:999px;background:${BRAND_ORANGE};font-size:10px;font-weight:700;color:#fff;">${index + 1}</span>
-                </div>
-                <div style="margin-top:6px;display:flex;align-items:flex-start;gap:8px;color:rgba(255,255,255,0.66);font-size:11px;line-height:1.35;">${midiaKitDetailIcon('location', BRAND_ORANGE, 12)}<span>${escapeHtml(formatPointAddress(ponto.endereco) || 'Endereço não informado')}</span></div>
-                <div style="margin-top:4px;display:flex;align-items:flex-start;gap:8px;color:rgba(255,255,255,0.62);font-size:11px;line-height:1.35;">${midiaKitDetailIcon('coordinates', BRAND_ORANGE, 12)}<span>${escapeHtml(formatCoordinates(ponto))}</span></div>
+          <div style="font-size:11px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND_ORANGE};">Ponto em destaque</div>
+          <div style="margin-top:6px;font-size:10px;color:rgba(255,255,255,0.5);letter-spacing:0.05em;text-transform:uppercase;">Critério: fluxo x qualificação de público</div>
+          ${featuredPoint ? `
+            <div style="margin-top:10px;padding:10px 12px;border-left:3px solid ${BRAND_ORANGE};border-bottom:1px solid rgba(255,255,255,0.08);">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;">
+                <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#fff;line-height:1.2;"><span style="display:block;width:6px;height:6px;border-radius:999px;background:${BRAND_ORANGE};flex:0 0 auto;"></span>${escapeHtml(featuredPoint.nome || 'Ponto destaque')}</div>
+                <span style="display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 8px;border-radius:999px;background:${BRAND_ORANGE};font-size:10px;font-weight:700;color:#fff;">1</span>
               </div>
-            `).join('')}
-          </div>
+              <div style="margin-top:7px;display:flex;align-items:flex-start;gap:8px;color:rgba(255,255,255,0.66);font-size:11px;line-height:1.35;">${midiaKitDetailIcon('location', BRAND_ORANGE, 12)}<span>${escapeHtml(formatPointAddress(featuredPoint.endereco) || 'Endereço não informado')}</span></div>
+              <div style="margin-top:4px;display:flex;align-items:flex-start;gap:8px;color:rgba(255,255,255,0.62);font-size:11px;line-height:1.35;">${midiaKitDetailIcon('coordinates', BRAND_ORANGE, 12)}<span>${escapeHtml(formatCoordinates(featuredPoint))}</span></div>
+              <div style="margin-top:6px;font-size:11px;color:rgba(255,255,255,0.72);">Fluxo estimado: <strong style="color:#fff;">${escapeHtml(formatInt(featuredPoint.fluxo))}</strong> / mês</div>
+            </div>
+          ` : `<div style="margin-top:10px;font-size:12px;color:rgba(255,255,255,0.6);">Sem ponto disponível para destaque.</div>`}
         </div>
       </div>
     </div>
