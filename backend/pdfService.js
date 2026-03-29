@@ -21,14 +21,21 @@ const _fonts = [
 const _fontCssInjection = (() => {
   const faces = _fonts
     .filter(([, b64]) => b64)
-    .map(([w, b64]) => `@font-face{font-family:'Poppins';font-style:normal;font-weight:${w};src:url('data:font/woff2;base64,${b64}') format('woff2');}`)
+    .map(([w, b64]) => `@font-face{font-family:'Poppins';font-style:normal;font-weight:${w};font-display:block;src:url('data:font/woff2;base64,${b64}') format('woff2');}`)
     .join('');
   if (!faces) return '';
-  return `<style>${faces}*{font-family:'Poppins',sans-serif!important;}</style>`;
+  return `<style>${faces}html,body,*{font-family:'Poppins',system-ui,sans-serif!important;}</style>`;
 })();
 
 async function getBrowser() {
-  if (_browser && _browser.isConnected()) return _browser;
+  if (_browser) {
+    try {
+      await _browser.version();
+      return _browser;
+    } catch {
+      _browser = null;
+    }
+  }
 
   _browser = await puppeteer.launch({
     headless: true,
@@ -51,13 +58,42 @@ async function renderHtmlToPdf(htmlContent) {
   const browser = await getBrowser();
   const page = await browser.newPage();
 
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') console.error('[puppeteer:console]', msg.text());
+  });
+  page.on('pageerror', (err) => {
+    console.error('[puppeteer:pageerror]', err.message);
+  });
+
   try {
     await page.setViewport({ width: 1366, height: 768, deviceScaleFactor: 1 });
     const htmlWithFonts = _fontCssInjection
       ? htmlContent.replace('<head>', `<head>${_fontCssInjection}`)
       : htmlContent;
-    await page.setContent(htmlWithFonts, { waitUntil: 'networkidle0', timeout: 90000 });
+
+    await page.setContent(htmlWithFonts, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+    // Wait for fonts (always embedded base64 — always fast)
     await page.evaluateHandle(() => document.fonts.ready);
+
+    // Wait for images without blocking on failures
+    await page.evaluate(() => {
+      const imgs = Array.from(document.images);
+      if (!imgs.length) return Promise.resolve();
+      return Promise.allSettled(
+        imgs.map((img) => {
+          if (img.complete) return Promise.resolve();
+          return new Promise((resolve) => {
+            img.addEventListener('load', resolve);
+            img.addEventListener('error', resolve);
+            setTimeout(resolve, 8000);
+          });
+        })
+      );
+    });
+
+    // Let layout settle
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     return await page.pdf({
       width: '1366px',

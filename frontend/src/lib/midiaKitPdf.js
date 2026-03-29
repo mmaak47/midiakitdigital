@@ -369,6 +369,10 @@ section {
   page-break-after: always;
   break-after: page;
 }
+section:last-child {
+  page-break-after: avoid;
+  break-after: avoid;
+}
 @media print {
   html, body {
     width: 1366px;
