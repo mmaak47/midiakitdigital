@@ -389,10 +389,12 @@ function buildCalibrationPreviewPage(previewKey, assets) {
 
 async function renderPagesToPdf(pages, fileName, options = {}) {
   const origin = window.location.origin;
+  const pdfTitle = String(fileName || 'documento.pdf').replace(/\.pdf$/i, '').trim() || 'Documento';
   const pageHtmlParts = pages.map((p) => p.outerHTML).join('\n');
   const fullHtml = `<!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="utf-8">
 <base href="${origin}">
+<title>${escapeHtml(pdfTitle)}</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; }
 html, body { margin: 0; padding: 0; background: #000; }
@@ -438,11 +440,15 @@ section:last-child {
     throw new Error(err.error || 'Erro ao gerar PDF no servidor');
   }
 
+  const disposition = String(res.headers.get('Content-Disposition') || '');
+  const fileNameMatch = disposition.match(/filename\*?=(?:UTF-8''|\")?([^\";]+)/i);
+  const resolvedFileName = decodeURIComponent((fileNameMatch?.[1] || fileName).replace(/\"/g, '').trim());
+
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = fileName;
+  a.download = resolvedFileName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

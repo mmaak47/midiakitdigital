@@ -202,6 +202,8 @@ app.post('/api/pdf/render', express.json({ limit: '55mb' }), async (req, res) =>
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${safeName}"`,
         'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Download-Options': 'noopen',
         'X-PDF-Cache': 'HIT',
       });
       return fs.createReadStream(cached.file_path).pipe(res);
@@ -218,6 +220,8 @@ app.post('/api/pdf/render', express.json({ limit: '55mb' }), async (req, res) =>
       'Content-Disposition': `attachment; filename="${safeName}"`,
       'Content-Length': pdfBuffer.length,
       'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Download-Options': 'noopen',
       'X-PDF-Cache': 'MISS',
     });
     return res.end(pdfBuffer);
