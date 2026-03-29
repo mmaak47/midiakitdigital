@@ -182,7 +182,10 @@ export async function createPonto(formData) {
     method: 'POST',
     body: formData
   });
-  if (!res.ok) throw new Error('Erro ao criar ponto');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao criar ponto');
+  }
   return res.json();
 }
 
@@ -191,7 +194,10 @@ export async function updatePonto(id, formData) {
     method: 'PUT',
     body: formData
   });
-  if (!res.ok) throw new Error('Erro ao atualizar ponto');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao atualizar ponto');
+  }
   return res.json();
 }
 
@@ -199,7 +205,10 @@ export async function deletePonto(id) {
   const res = await apiRequest(`/pontos/${id}`, {
     method: 'DELETE'
   });
-  if (!res.ok) throw new Error('Erro ao deletar ponto');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao deletar ponto');
+  }
   return res.json();
 }
 

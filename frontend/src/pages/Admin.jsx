@@ -192,7 +192,7 @@ export default function Admin() {
   }, [imagem2File]);
 
   useEffect(() => {
-    if (!auth) return;
+    if (!auth || activeTab !== 'entorno') return;
 
     let cancelled = false;
 
@@ -236,7 +236,7 @@ export default function Admin() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [auth]);
+  }, [auth, activeTab]);
 
   useEffect(() => {
     if (!entornoCurrentJob?.id) return;
