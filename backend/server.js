@@ -274,7 +274,7 @@ const upload = multer({
   limits: {
     fileSize: 50 * 1024 * 1024,
     files: 4,
-    fields: 30
+    fields: 60
   }
 });
 
@@ -1523,6 +1523,9 @@ app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: 'Arquivo excede o limite de 50MB.' });
+    }
+    if (err.code === 'LIMIT_FIELD_COUNT') {
+      return res.status(400).json({ error: 'Quantidade de campos do formulário excedeu o limite permitido.' });
     }
     return res.status(400).json({ error: 'Erro de upload.', details: err.message });
   }
