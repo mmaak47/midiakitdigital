@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@chenglou/pretext": "^0.0.3",
     "framer-motion": "^11.18.0",
     "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",

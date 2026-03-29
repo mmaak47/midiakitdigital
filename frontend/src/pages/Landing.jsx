@@ -5,6 +5,7 @@ import { Play } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import CustomSelect from '../components/CustomSelect';
 import SmartMap from '../components/SmartMap';
+import PretextSection from '../components/PretextSection';
 import { fetchPontos } from '../lib/api';
 import { getPointDisplayImages, getPrimaryPointMediaKitImage } from '../lib/pointImages';
 import { campaignTotals, sortFormatos } from '../lib/strategy';
@@ -819,6 +820,8 @@ export default function Landing() {
           )}
         </div>
       </section>
+
+      <PretextSection />
 
       {/* ── Inventário + Público ──────────────────────────────── */}
       <section className={`py-12 border-b relative ${t.sectionBorder}`}>
