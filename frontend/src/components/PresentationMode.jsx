@@ -172,8 +172,8 @@ export default function PresentationMode({ points = [], totals, segmento, client
                       </div>
                     )}
 
-                    <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-brand-gray-300 backdrop-blur-sm">
-                      <Sparkles size={12} className="text-brand-orange" />
+                    <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] leading-none text-brand-gray-300 backdrop-blur-sm">
+                      <Sparkles size={12} className="text-brand-orange shrink-0" />
                       Visual principal da proposta
                     </div>
                   </div>
@@ -316,8 +316,8 @@ function MetricCard({ icon: Icon, label, value, accent = 'white' }) {
 
   return (
     <motion.div layout className="rounded-2xl border border-white/10 bg-black/20 p-3.5">
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-brand-gray-500">
-        <Icon size={12} className={accentClass} />
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] leading-none text-brand-gray-500">
+        <Icon size={12} className={`shrink-0 ${accentClass}`} />
         {label}
       </div>
       <div className="mt-1.5 text-lg font-semibold text-white">{value}</div>

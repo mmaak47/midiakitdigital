@@ -133,7 +133,7 @@ export default function CustomSelect({
             return (
               <span
                 key={selected}
-                className="inline-flex items-center gap-1.5 rounded-full border border-brand-orange/25 bg-brand-orange/10 px-2.5 py-1 text-[11px] font-medium text-brand-orange"
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand-orange/25 bg-brand-orange/10 px-2.5 py-1 text-[11px] font-medium leading-none text-brand-orange"
               >
                 {chipLabel}
                 <button

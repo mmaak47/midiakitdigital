@@ -462,19 +462,20 @@ function buildMetricCards(cards, options = {}) {
 }
 
 function proposalIcon(kind) {
+  const blk = `style="display:block;flex-shrink:0;"`;
   if (kind === 'target') {
-    return `<span style="position:relative;display:inline-flex;width:16px;height:16px;align-items:center;justify-content:center;"><span style="position:absolute;inset:0;border:2px solid ${BRAND_ORANGE};border-radius:999px;opacity:0.85;"></span><span style="position:absolute;width:6px;height:6px;border-radius:999px;background:${BRAND_ORANGE};"></span></span>`;
+    return `<span style="display:block;flex-shrink:0;width:16px;height:16px;position:relative;"><span style="position:absolute;inset:0;border:2px solid ${BRAND_ORANGE};border-radius:999px;opacity:0.85;"></span><span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:6px;height:6px;border-radius:999px;background:${BRAND_ORANGE};"></span></span>`;
   }
   if (kind === 'flow') {
-    return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7a8 8 0 0 0-13.7-2.5"></path><path d="M17 7h3V4"></path><path d="M4 17a8 8 0 0 0 13.7 2.5"></path><path d="M7 17H4v3"></path></svg>`;
+    return `<svg viewBox="0 0 24 24" width="16" height="16" ${blk} fill="none" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7a8 8 0 0 0-13.7-2.5"></path><path d="M17 7h3V4"></path><path d="M4 17a8 8 0 0 0 13.7 2.5"></path><path d="M7 17H4v3"></path></svg>`;
   }
   if (kind === 'money') {
-    return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"></circle><path d="M9.2 10.2c0-1.1 1-2 2.2-2h1.2c1.1 0 2 .8 2 1.9 0 .9-.6 1.6-1.5 1.9l-2.1.6c-.9.3-1.5 1-1.5 1.9 0 1.1.9 1.9 2 1.9h1.3c1.2 0 2.2-.9 2.2-2"></path></svg>`;
+    return `<svg viewBox="0 0 24 24" width="16" height="16" ${blk} fill="none" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"></circle><path d="M9.2 10.2c0-1.1 1-2 2.2-2h1.2c1.1 0 2 .8 2 1.9 0 .9-.6 1.6-1.5 1.9l-2.1.6c-.9.3-1.5 1-1.5 1.9 0 1.1.9 1.9 2 1.9h1.3c1.2 0 2.2-.9 2.2-2"></path></svg>`;
   }
   if (kind === 'cpm') {
-    return `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15a7 7 0 1 1 14 0"></path><path d="M12 11.5 15.8 9"></path><circle cx="12" cy="15" r="1.3" fill="${BRAND_ORANGE}" stroke="none"></circle><path d="M7.5 17h9"></path></svg>`;
+    return `<svg viewBox="0 0 24 24" width="16" height="16" ${blk} fill="none" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15a7 7 0 1 1 14 0"></path><path d="M12 11.5 15.8 9"></path><circle cx="12" cy="15" r="1.3" fill="${BRAND_ORANGE}" stroke="none"></circle><path d="M7.5 17h9"></path></svg>`;
   }
-  return `<span style="display:block;width:8px;height:8px;border-radius:999px;background:${BRAND_ORANGE};"></span>`;
+  return `<span style="display:block;flex-shrink:0;width:8px;height:8px;border-radius:999px;background:${BRAND_ORANGE};"></span>`;
 }
 
 function formatPointCountLabel(count) {
@@ -525,12 +526,13 @@ function metricIconSvg(kind, color = '#111111', size = 20) {
 function midiaKitDetailIcon(kind, color = BRAND_ORANGE, size = 18) {
   const common = `fill="none" stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"`;
   const wh = `width="${size}" height="${size}"`;
+  const blk = `style="display:block;flex-shrink:0;"`;
   const icons = {
-    location: `<svg viewBox="0 0 24 24" ${wh} ${common}><path d="M12 21s6-4.6 6-10a6 6 0 1 0-12 0c0 5.4 6 10 6 10Z"></path><circle cx="12" cy="11" r="2.3"></circle></svg>`,
-    coordinates: `<svg viewBox="0 0 24 24" ${wh} ${common}><path d="M12 3v4"></path><path d="M12 17v4"></path><path d="M3 12h4"></path><path d="M17 12h4"></path><circle cx="12" cy="12" r="4.5"></circle></svg>`,
-    type: `<svg viewBox="0 0 24 24" ${wh} ${common}><rect x="3" y="5" width="18" height="12" rx="2"></rect><path d="M9 20h6"></path><path d="M12 17v3"></path></svg>`,
-    city: `<svg viewBox="0 0 24 24" ${wh} ${common}><path d="M4 20V8l6-3v15"></path><path d="M10 20V4l6 2v14"></path><path d="M16 20v-9l4 2v7"></path></svg>`,
-    money: `<svg viewBox="0 0 24 24" ${wh} ${common}><circle cx="12" cy="12" r="8"></circle><path d="M9.3 10.2c0-1 1-1.9 2.2-1.9h1.1c1.1 0 2 .7 2 1.8 0 .9-.6 1.6-1.5 1.9l-2 .6c-.9.3-1.5 1-1.5 1.8 0 1.1.9 1.9 2 1.9h1.4c1.2 0 2.2-.9 2.2-2"></path></svg>`
+    location: `<svg viewBox="0 0 24 24" ${wh} ${blk} ${common}><path d="M12 21s6-4.6 6-10a6 6 0 1 0-12 0c0 5.4 6 10 6 10Z"></path><circle cx="12" cy="11" r="2.3"></circle></svg>`,
+    coordinates: `<svg viewBox="0 0 24 24" ${wh} ${blk} ${common}><path d="M12 3v4"></path><path d="M12 17v4"></path><path d="M3 12h4"></path><path d="M17 12h4"></path><circle cx="12" cy="12" r="4.5"></circle></svg>`,
+    type: `<svg viewBox="0 0 24 24" ${wh} ${blk} ${common}><rect x="3" y="5" width="18" height="12" rx="2"></rect><path d="M9 20h6"></path><path d="M12 17v3"></path></svg>`,
+    city: `<svg viewBox="0 0 24 24" ${wh} ${blk} ${common}><path d="M4 20V8l6-3v15"></path><path d="M10 20V4l6 2v14"></path><path d="M16 20v-9l4 2v7"></path></svg>`,
+    money: `<svg viewBox="0 0 24 24" ${wh} ${blk} ${common}><circle cx="12" cy="12" r="8"></circle><path d="M9.3 10.2c0-1 1-1.9 2.2-1.9h1.1c1.1 0 2 .7 2 1.8 0 .9-.6 1.6-1.5 1.9l-2 .6c-.9.3-1.5 1-1.5 1.8 0 1.1.9 1.9 2 1.9h1.4c1.2 0 2.2-.9 2.2-2"></path></svg>`
   };
 
   return icons[kind] || icons.location;
@@ -591,8 +593,8 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets }) {
           `).join('')}
         </div>
         <div style="margin-top:20px;display:flex;flex-wrap:wrap;gap:14px;">
-          <span style="display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);font-size:14px;color:#fff;">${midiaKitDetailIcon('location', BRAND_ORANGE, 16)} ${formatInt(totalEnderecos)} endereços mapeados</span>
-          <span style="display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);font-size:14px;color:#fff;">${midiaKitDetailIcon('city', BRAND_ORANGE, 16)} ${formatInt(totalPublicos)} públicos em foco</span>
+          <span style="display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);font-size:14px;line-height:1;color:#fff;">${midiaKitDetailIcon('location', BRAND_ORANGE, 16)} ${formatInt(totalEnderecos)} endereços mapeados</span>
+          <span style="display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:999px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);font-size:14px;line-height:1;color:#fff;">${midiaKitDetailIcon('city', BRAND_ORANGE, 16)} ${formatInt(totalPublicos)} públicos em foco</span>
         </div>
       </div>
       <div style="height:420px;">
