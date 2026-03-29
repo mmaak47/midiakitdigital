@@ -678,13 +678,15 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
 
   const rows = Object.entries(byTipo)
     .map(([tipo, data]) => ({ tipo, ...data }))
-    .sort((a, b) => b.pontos - a.pontos)
+    .sort((a, b) => (b.fluxo - a.fluxo) || (b.pontos - a.pontos))
     .slice(0, 5);
 
   const totalEnderecos = new Set(pontos.map((p) => `${p.cidade || ''}-${p.endereco || ''}`.trim())).size;
   const totalPontos = pontos.length;
   const resumo = buildResumo(pontos);
-  const featuredPoints = pontos.slice(0, 3);
+  const featuredPoints = [...pontos]
+    .sort((a, b) => (Number(b.fluxo) || 0) - (Number(a.fluxo) || 0))
+    .slice(0, 3);
 
   const cards = [
     { label: 'Endereços', value: formatInt(totalEnderecos), icon: 'location' },
@@ -708,7 +710,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
       <img src="${assets.logo || ''}" alt="" style="width:170px;height:auto;object-fit:contain;opacity:0.98;" />
     </div>
 
-    <div style="position:absolute;left:70px;right:70px;top:188px;bottom:66px;display:grid;grid-template-columns:1.05fr 0.95fr;gap:28px;align-items:stretch;">
+    <div style="position:absolute;left:70px;right:70px;top:206px;bottom:44px;display:grid;grid-template-columns:1.05fr 0.95fr;gap:24px;align-items:stretch;">
       <div>
         <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
           ${cards.map((card) => `
@@ -728,43 +730,43 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
         </div>
       </div>
 
-      <div style="display:grid;grid-template-rows:auto 1fr;gap:18px;">
-        <div style="padding:18px 22px;border-radius:28px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.10);">
+        <div style="display:grid;grid-template-rows:auto 1fr;gap:12px;min-height:0;">
+        <div style="padding:16px 20px;border-radius:24px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.10);">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
             <div style="font-size:11px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND_ORANGE};">Mix de formatos</div>
             <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.44);">Top ${rows.length}</div>
           </div>
-          <div style="margin-top:18px;display:grid;gap:0;">
+          <div style="margin-top:12px;display:grid;gap:0;">
             ${rows.map((row) => `
-              <div style="display:grid;grid-template-columns:minmax(0,1fr) 92px 150px;gap:16px;align-items:center;padding:10px 4px 10px 16px;border-left:3px solid ${BRAND_ORANGE};border-bottom:1px solid rgba(255,255,255,0.08);">
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) 88px 138px;gap:12px;align-items:center;padding:8px 2px 8px 12px;border-left:3px solid ${BRAND_ORANGE};border-bottom:1px solid rgba(255,255,255,0.08);">
                 <div>
-                  <div style="font-size:15px;font-weight:700;color:#fff;line-height:1.2;">${escapeHtml(row.tipo)}</div>
-                  <div style="margin-top:4px;font-size:11px;color:rgba(255,255,255,0.5);">${formatInt(row.telas)} telas disponíveis</div>
+                  <div style="font-size:14px;font-weight:700;color:#fff;line-height:1.2;">${escapeHtml(row.tipo)}</div>
+                  <div style="margin-top:3px;font-size:10px;color:rgba(255,255,255,0.5);">${formatInt(row.telas)} telas disponíveis</div>
                 </div>
                 <div style="text-align:right;">
-                  <div style="font-family:Poppins, system-ui, sans-serif;font-size:22px;line-height:1;font-weight:700;color:#fff;">${formatInt(row.pontos)}</div>
-                  <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.46);">pontos</div>
+                  <div style="font-family:Poppins, system-ui, sans-serif;font-size:20px;line-height:1;font-weight:700;color:#fff;">${formatInt(row.pontos)}</div>
+                  <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.46);">pontos</div>
                 </div>
                 <div style="text-align:right;">
-                  <div style="font-size:11px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.48);">Fluxo mensal</div>
-                  <div style="margin-top:4px;font-size:16px;font-weight:700;color:${BRAND_ORANGE};">${formatInt(row.fluxo)}</div>
+                  <div style="font-size:10px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.48);">Fluxo mensal</div>
+                  <div style="margin-top:3px;font-size:15px;font-weight:700;color:${BRAND_ORANGE};">${formatInt(row.fluxo)}</div>
                 </div>
               </div>
             `).join('')}
           </div>
         </div>
 
-        <div style="padding:16px 18px;border-radius:28px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.10);">
+        <div style="padding:14px 16px;border-radius:24px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.10);min-height:0;overflow:hidden;">
           <div style="font-size:11px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND_ORANGE};">Pontos em destaque</div>
-          <div style="margin-top:18px;display:grid;gap:8px;">
+          <div style="margin-top:12px;display:grid;gap:6px;">
             ${featuredPoints.map((ponto, index) => `
-              <div style="padding:10px 14px;border-left:3px solid ${BRAND_ORANGE};border-bottom:1px solid rgba(255,255,255,0.08);">
+              <div style="padding:8px 12px;border-left:3px solid ${BRAND_ORANGE};border-bottom:1px solid rgba(255,255,255,0.08);">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;">
-                  <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#fff;line-height:1.2;"><span style="display:block;width:6px;height:6px;border-radius:999px;background:${BRAND_ORANGE};flex:0 0 auto;"></span>${escapeHtml(ponto.nome || `Ponto ${index + 1}`)}</div>
-                  <span style="display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 10px;border-radius:999px;background:${BRAND_ORANGE};font-size:11px;font-weight:700;color:#fff;">${index + 1}</span>
+                  <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#fff;line-height:1.2;"><span style="display:block;width:6px;height:6px;border-radius:999px;background:${BRAND_ORANGE};flex:0 0 auto;"></span>${escapeHtml(ponto.nome || `Ponto ${index + 1}`)}</div>
+                  <span style="display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 8px;border-radius:999px;background:${BRAND_ORANGE};font-size:10px;font-weight:700;color:#fff;">${index + 1}</span>
                 </div>
-                <div style="margin-top:8px;display:flex;align-items:flex-start;gap:10px;color:rgba(255,255,255,0.66);font-size:12px;line-height:1.35;">${midiaKitDetailIcon('location', BRAND_ORANGE, 13)}<span>${escapeHtml(formatPointAddress(ponto.endereco) || 'Endereço não informado')}</span></div>
-                <div style="margin-top:8px;display:flex;align-items:flex-start;gap:10px;color:rgba(255,255,255,0.66);font-size:12px;line-height:1.35;">${midiaKitDetailIcon('coordinates', BRAND_ORANGE, 13)}<span>${escapeHtml(formatCoordinates(ponto))}</span></div>
+                <div style="margin-top:6px;display:flex;align-items:flex-start;gap:8px;color:rgba(255,255,255,0.66);font-size:11px;line-height:1.35;">${midiaKitDetailIcon('location', BRAND_ORANGE, 12)}<span>${escapeHtml(formatPointAddress(ponto.endereco) || 'Endereço não informado')}</span></div>
+                <div style="margin-top:4px;display:flex;align-items:flex-start;gap:8px;color:rgba(255,255,255,0.62);font-size:11px;line-height:1.35;">${midiaKitDetailIcon('coordinates', BRAND_ORANGE, 12)}<span>${escapeHtml(formatCoordinates(ponto))}</span></div>
               </div>
             `).join('')}
           </div>
