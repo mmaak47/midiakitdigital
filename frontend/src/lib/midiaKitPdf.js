@@ -1107,12 +1107,12 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
       </div>
 
       <div style="display:grid;grid-template-columns:1.06fr 0.94fr;gap:12px;min-height:0;">
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-content:start;">
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));gap:10px;align-content:stretch;">
           ${metrics.map((item) => `
-            <div style="padding:12px 12px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};display:flex;flex-direction:column;gap:6px;">
+            <div style="padding:12px 12px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};display:grid;grid-template-rows:auto auto auto 1fr auto;gap:6px;height:100%;box-sizing:border-box;">
               <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(item.name)}</div>
-              <div style="font-size:12px;line-height:1.32;color:${PROPOSAL_TEXT_SECONDARY};max-height:2.7em;overflow:hidden;">${escapeHtml(item.meaning)}</div>
-              <div style="padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid ${PROPOSAL_BORDER};font-size:10px;line-height:1.3;color:rgba(255,255,255,0.85);word-break:break-word;max-height:2.7em;overflow:hidden;">${escapeHtml(item.howToRead)}</div>
+              <div style="font-size:12px;line-height:1.32;color:${PROPOSAL_TEXT_SECONDARY};word-break:break-word;">${escapeHtml(item.meaning)}</div>
+              <div style="padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid ${PROPOSAL_BORDER};font-size:10px;line-height:1.3;color:rgba(255,255,255,0.85);word-break:break-word;">${escapeHtml(item.howToRead)}</div>
               <div style="margin-top:4px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Resultado</div>
               <div style="font-family:Poppins, system-ui, sans-serif;font-size:30px;line-height:1.02;font-weight:800;color:#fff;word-break:break-word;">${escapeHtml(item.value)}</div>
             </div>
