@@ -53,6 +53,8 @@ async function getBrowser() {
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
+      '--single-process=false',
+      '--memory-pressure-off',
       '--disable-background-networking',
       '--disable-backgroundtimer-throttling',
       '--disable-breakpad',
