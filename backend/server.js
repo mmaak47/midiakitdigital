@@ -227,7 +227,14 @@ app.post('/api/pdf/render', pdfRenderLimiter, express.json({ limit: '55mb' }), a
   );
   const cacheableCities = citySlugs.length ? citySlugs : ['consolidado'];
   const combinationKey = getCombinationKey(cacheableCities);
-  const safeName = String(fileName || `midia-kit-${combinationKey}.pdf`).replace(/[^a-zA-Z0-9\-_.]/g, '_');
+  const requestedName = String(fileName || `midia-kit-${combinationKey}.pdf`).trim() || `midia-kit-${combinationKey}.pdf`;
+  const fallbackName = requestedName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\-_. ]/g, '_');
+  const safeName = fallbackName || `midia-kit-${combinationKey}.pdf`;
+  const encodedName = encodeURIComponent(requestedName);
+  const contentDisposition = `attachment; filename="${safeName}"; filename*=UTF-8''${encodedName}`;
 
   try {
     if (!fs.existsSync(pdfCachePath)) {
@@ -240,7 +247,7 @@ app.post('/api/pdf/render', pdfRenderLimiter, express.json({ limit: '55mb' }), a
         db.prepare('UPDATE pdf_cache SET download_count = download_count + 1 WHERE id = ?').run(cached.id);
         res.set({
           'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${safeName}"`,
+          'Content-Disposition': contentDisposition,
           'Cache-Control': 'no-store',
           'X-Content-Type-Options': 'nosniff',
           'X-Download-Options': 'noopen',
@@ -260,7 +267,7 @@ app.post('/api/pdf/render', pdfRenderLimiter, express.json({ limit: '55mb' }), a
 
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${safeName}"`,
+      'Content-Disposition': contentDisposition,
       'Content-Length': pdfBuffer.length,
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff',
