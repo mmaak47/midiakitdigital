@@ -1,5 +1,5 @@
 const PAGE_WIDTH = 1366;
-const PAGE_HEIGHT = 768;
+const PAGE_HEIGHT = 900;
 
 const BRAND_ORANGE = '#E8591A';
 const BRAND_BLACK = '#0B0B0B';
@@ -122,7 +122,7 @@ function buildFooter() {
   return `
     <div style="margin-top:auto;border:1px solid rgba(232,89,26,0.34);border-radius:20px;background:linear-gradient(120deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03));padding:18px 20px;display:grid;grid-template-columns:1fr auto;align-items:center;gap:16px;">
       <div>
-        <p style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:${BRAND_ORANGE};font-weight:700;">Atendimento Comercial</p>
+        <p style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:${BRAND_ORANGE};font-weight:700;">Atendimento</p>
         <p style="margin-top:6px;font-size:28px;font-weight:800;line-height:1.05;color:#fff;">Ficou em dúvida?</p>
         <p style="margin-top:6px;color:${BRAND_MUTED};font-size:16px;">Fale com nosso time de criação para validar formato, margem e arquivos de entrega.</p>
       </div>
@@ -130,12 +130,17 @@ function buildFooter() {
         <span style="font-size:17px;font-weight:700;color:#fff;">Maite Doin</span>
         <span style="display:inline-flex;align-items:center;gap:8px;color:#fff;font-size:16px;">
           <svg viewBox="0 0 24 24" width="19" height="19" fill="none" aria-hidden="true">
-            <path d="M20.5 3.5A11 11 0 0 0 3.17 16.74L2 22l5.45-1.13A11 11 0 1 0 20.5 3.5Z" stroke="#25D366" stroke-width="1.8" fill="none"/>
-            <path d="M9.2 7.4h.01M16.98 13.9c-.25-.13-1.5-.74-1.73-.82-.23-.08-.4-.12-.57.12-.17.25-.65.82-.8.98-.15.17-.3.19-.55.06-.25-.13-1.07-.39-2.03-1.25-.75-.67-1.25-1.49-1.4-1.75-.15-.25-.02-.39.11-.52.11-.11.25-.3.38-.44.12-.15.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.57-1.38-.78-1.89-.2-.49-.4-.43-.57-.44h-.49c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.24.9 2.44 1.03 2.61.12.17 1.77 2.7 4.29 3.79.6.26 1.06.42 1.42.54.6.19 1.15.16 1.58.1.48-.07 1.5-.61 1.71-1.2.21-.58.21-1.08.15-1.2-.06-.12-.23-.19-.48-.32Z" stroke="#25D366" stroke-width="1.1" fill="none"/>
+            <path d="M6.2 4.3 3.9 6.6a2.3 2.3 0 0 0-.5 2.5c2.1 5.7 6.7 10.3 12.4 12.4a2.3 2.3 0 0 0 2.5-.5l2.3-2.3a1.8 1.8 0 0 0-.5-2.9l-2.8-1.4a1.8 1.8 0 0 0-2.1.4l-1.2 1.2a14.1 14.1 0 0 1-6-6l1.2-1.2a1.8 1.8 0 0 0 .4-2.1L9.1 4.8a1.8 1.8 0 0 0-2.9-.5Z" stroke="#E8591A" stroke-width="1.8" stroke-linejoin="round"/>
           </svg>
-          WhatsApp: 43 8800-5719
+          Telefone: 43 8800-5719
         </span>
-        <span style="font-size:15px;color:${BRAND_MUTED};">criacao@redeintermidia.com</span>
+        <span style="display:inline-flex;align-items:center;gap:8px;font-size:15px;color:${BRAND_MUTED};">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="14" rx="2.5" stroke="#E8591A" stroke-width="1.8"/>
+            <path d="m5 7 7 6 7-6" stroke="#E8591A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          criacao@redeintermidia.com
+        </span>
       </div>
     </div>
   `;
