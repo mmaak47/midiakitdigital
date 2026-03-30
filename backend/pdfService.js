@@ -5,6 +5,8 @@ const fs = require('fs');
 const path = require('path');
 
 let _browser = null;
+let _renderQueue = [];
+let _isRendering = false;
 const ALLOWED_HOSTS = new Set(
   String(process.env.PDF_ALLOWED_HOSTS || 'localhost,127.0.0.1,REDACTED_OLD_VPS_IP,REDACTED_OLD_VPS_IP')
     .split(',')
@@ -50,6 +52,16 @@ async function getBrowser() {
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
+      '--single-process=false',
+      '--memory-pressure-off',
+      '--disable-background-networking',
+      '--disable-backgroundtimer-throttling',
+      '--disable-breakpad',
+      '--disable-client-side-phishing-detection',
+      '--disable-component-extensions-with-background-pages',
+      '--disable-extensions',
+      '--disable-features=InterestFeedContentSuggestions',
+      '--disable-sync',
     ],
   });
 
@@ -60,81 +72,118 @@ async function getBrowser() {
   return _browser;
 }
 
-async function renderHtmlToPdf(htmlContent) {
-  const browser = await getBrowser();
-  const page = await browser.newPage();
+async function _processRenderQueue() {
+  if (_isRendering || _renderQueue.length === 0) {
+    return;
+  }
 
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') console.error('[puppeteer:console]', msg.text());
-  });
-  page.on('pageerror', (err) => {
-    console.error('[puppeteer:pageerror]', err.message);
-  });
+  _isRendering = true;
 
   try {
-    await page.setViewport({ width: 1366, height: 768, deviceScaleFactor: 1 });
-    await page.setJavaScriptEnabled(false);
-    await page.setRequestInterception(true);
-    page.on('request', (request) => {
-      const url = String(request.url() || '');
-
-      if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('about:')) {
-        request.continue();
-        return;
-      }
-
+    while (_renderQueue.length > 0) {
+      const task = _renderQueue.shift();
       try {
-        const parsed = new URL(url);
-        const host = String(parsed.hostname || '').toLowerCase();
-        if (ALLOWED_HOSTS.has(host)) {
+        const result = await task.fn();
+        task.resolve(result);
+      } catch (err) {
+        task.reject(err);
+      }
+      // Small delay between renders to allow memory cleanup
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  } finally {
+    _isRendering = false;
+  }
+}
+
+function _queueRender(fn) {
+  return new Promise((resolve, reject) => {
+    _renderQueue.push({ fn, resolve, reject });
+    _processRenderQueue().catch((err) => {
+      console.error('[pdf-queue] Error:', err);
+    });
+  });
+}
+
+async function renderHtmlToPdf(htmlContent) {
+  return _queueRender(async () => {
+    const browser = await getBrowser();
+    const page = await browser.newPage();
+
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') console.error('[puppeteer:console]', msg.text());
+    });
+    page.on('pageerror', (err) => {
+      console.error('[puppeteer:pageerror]', err.message);
+    });
+
+    try {
+      await page.setViewport({ width: 1366, height: 768, deviceScaleFactor: 1 });
+      await page.setJavaScriptEnabled(false);
+      await page.setRequestInterception(true);
+      page.on('request', (request) => {
+        const url = String(request.url() || '');
+
+        if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('about:')) {
           request.continue();
           return;
         }
-      } catch {
-        // Fall through to abort on malformed URL.
-      }
 
-      request.abort();
-    });
+        try {
+          const parsed = new URL(url);
+          const host = String(parsed.hostname || '').toLowerCase();
+          if (ALLOWED_HOSTS.has(host)) {
+            request.continue();
+            return;
+          }
+        } catch {
+          // Fall through to abort on malformed URL.
+        }
 
-    const htmlWithFonts = _fontCssInjection
-      ? htmlContent.replace('<head>', `<head>${_fontCssInjection}`)
-      : htmlContent;
+        request.abort();
+      });
 
-    await page.setContent(htmlWithFonts, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      const htmlWithFonts = _fontCssInjection
+        ? htmlContent.replace('<head>', `<head>${_fontCssInjection}`)
+        : htmlContent;
 
-    // Wait for fonts (always embedded base64 — always fast)
-    await page.evaluateHandle(() => document.fonts.ready);
+      await page.setContent(htmlWithFonts, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    // Wait for images without blocking on failures
-    await page.evaluate(() => {
-      const imgs = Array.from(document.images);
-      if (!imgs.length) return Promise.resolve();
-      return Promise.allSettled(
-        imgs.map((img) => {
-          if (img.complete) return Promise.resolve();
-          return new Promise((resolve) => {
-            img.addEventListener('load', resolve);
-            img.addEventListener('error', resolve);
-            setTimeout(resolve, 8000);
-          });
-        })
-      );
-    });
+      // Wait for fonts (always embedded base64 — always fast)
+      await page.evaluateHandle(() => document.fonts.ready);
 
-    // Let layout settle
-    await new Promise((resolve) => setTimeout(resolve, 800));
+      // Wait for images without blocking on failures
+      await page.evaluate(() => {
+        const imgs = Array.from(document.images);
+        if (!imgs.length) return Promise.resolve();
+        return Promise.allSettled(
+          imgs.map((img) => {
+            if (img.complete) return Promise.resolve();
+            return new Promise((resolve) => {
+              img.addEventListener('load', resolve);
+              img.addEventListener('error', resolve);
+              setTimeout(resolve, 8000);
+            });
+          })
+        );
+      });
 
-    return await page.pdf({
-      width: '1366px',
-      height: '768px',
-      printBackground: true,
-      scale: 1,
-      margin: { top: '0', right: '0', bottom: '0', left: '0' },
-    });
-  } finally {
-    await page.close();
-  }
+      // Let layout settle
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      const pdfBuffer = await page.pdf({
+        width: '1366px',
+        height: '768px',
+        printBackground: true,
+        scale: 1,
+        margin: { top: '0', right: '0', bottom: '0', left: '0' },
+      });
+
+      return pdfBuffer;
+    } finally {
+      await page.close();
+    }
+  });
 }
 
 module.exports = { renderHtmlToPdf };
