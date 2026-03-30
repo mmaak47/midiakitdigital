@@ -349,6 +349,12 @@ export default function Admin() {
     setGeoLoading(false);
     setGeoError('');
     setScreenSelection(null);
+    setScreenStyle(defaultScreenStyle);
+    setScreenSelection2(null);
+    setScreenStyle2(defaultScreenStyle);
+    setSimulationFaceCount(1);
+    setActiveSimulationFace(0);
+    setEditing('new');
   };
 
   const openEdit = (ponto) => {

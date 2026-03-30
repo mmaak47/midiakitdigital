@@ -1482,30 +1482,28 @@ function buildEntornoEvidenceMapHtml(rows) {
     <div title="${escapeHtml(`${marker.label} • ${Math.round(marker.distance)} m`)}" style="position:absolute;left:${(marker.x - 4).toFixed(1)}px;top:${(marker.y - 4).toFixed(1)}px;width:8px;height:8px;border-radius:999px;background:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.32);"></div>
   `).join('');
 
-  const tileSize = 256;
-  const worldTiles = 2 ** zoom;
-  const startTileX = Math.floor(viewMinX / tileSize);
-  const endTileX = Math.floor(viewMaxX / tileSize);
-  const startTileY = Math.floor(viewMinY / tileSize);
-  const endTileY = Math.floor(viewMaxY / tileSize);
-  const tilePx = tileSize * scale;
-
-  const tilesHtml = [];
-  for (let tileX = startTileX; tileX <= endTileX; tileX += 1) {
-    for (let tileY = startTileY; tileY <= endTileY; tileY += 1) {
-      if (tileY < 0 || tileY >= worldTiles) continue;
-      const wrappedTileX = ((tileX % worldTiles) + worldTiles) % worldTiles;
-      const left = ((tileX * tileSize) - viewMinX) * scale;
-      const top = ((tileY * tileSize) - viewMinY) * scale;
-      tilesHtml.push(`
-        <img crossorigin="anonymous" src="https://a.basemaps.cartocdn.com/dark_all/${zoom}/${wrappedTileX}/${tileY}.png" alt="" style="position:absolute;left:${left.toFixed(2)}px;top:${top.toFixed(2)}px;width:${(tilePx + 0.5).toFixed(2)}px;height:${(tilePx + 0.5).toFixed(2)}px;object-fit:cover;" />
-      `);
-    }
+  const gridStep = 110;
+  const gridLines = [];
+  for (let x = gridStep; x < width; x += gridStep) {
+    gridLines.push(`<line x1="${x}" y1="0" x2="${x}" y2="${height}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>`);
+  }
+  for (let y = gridStep; y < height; y += gridStep) {
+    gridLines.push(`<line x1="0" y1="${y}" x2="${width}" y2="${y}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>`);
   }
 
   return `
     <div style="position:relative;width:100%;height:100%;border-radius:16px;overflow:hidden;background:#0b0b0b;" role="img" aria-label="Mapa geográfico de pontos e entorno">
-      ${tilesHtml.join('')}
+      <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" preserveAspectRatio="none" style="position:absolute;inset:0;">
+        <rect x="0" y="0" width="${width}" height="${height}" fill="#0a0a0a"/>
+        <rect x="0" y="0" width="${width}" height="${height}" fill="url(#env-grid-grad)"/>
+        <defs>
+          <linearGradient id="env-grid-grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="rgba(255,90,31,0.07)"/>
+            <stop offset="100%" stop-color="rgba(255,255,255,0.02)"/>
+          </linearGradient>
+        </defs>
+        ${gridLines.join('')}
+      </svg>
       <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.05),rgba(0,0,0,0.16));"></div>
       ${nearbyMarkersHtml}
       ${pointMarkersHtml}
