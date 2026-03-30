@@ -469,6 +469,19 @@ function normalizePdfImageSource(value) {
   return 'imagem2';
 }
 
+function normalizePhysicalSizeMeters(value, fallback = null) {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return fallback;
+  }
+
+  const numeric = Number(String(value).replace(',', '.'));
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return fallback;
+  }
+
+  return Number(numeric.toFixed(3));
+}
+
 function slugifyUsernamePart(value) {
   return String(value || '')
     .normalize('NFD')
@@ -833,6 +846,13 @@ app.post('/api/pontos', upload.fields([
     const arteAltura = tipo === ELEVADOR_TIPO
       ? ELEVADOR_ARTE_ALTURA
       : (parseInt(data.arte_altura, 10) || 1080);
+    const isBackOrFrontLight = tipo === 'Backlight' || tipo === 'Frontlight';
+    const midiaLarguraM = isBackOrFrontLight
+      ? normalizePhysicalSizeMeters(data.midia_largura_m, null)
+      : null;
+    const midiaAlturaM = isBackOrFrontLight
+      ? normalizePhysicalSizeMeters(data.midia_altura_m, null)
+      : null;
     const elevadorCategoria = tipo === ELEVADOR_TIPO
       ? normalizeElevadorCategoria(data.elevador_categoria)
       : null;
@@ -846,8 +866,8 @@ app.post('/api/pontos', upload.fields([
     const pdfImageSource = normalizePdfImageSource(data.pdf_image_source);
 
     const stmt = db.prepare(`
-      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, tipo_fluxo, audience_tags, availability_calendar, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom, foto_focal_point, pdf_image_source)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, midia_largura_m, midia_altura_m, tipo_fluxo, audience_tags, availability_calendar, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom, foto_focal_point, pdf_image_source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -857,7 +877,7 @@ app.post('/api/pontos', upload.fields([
       data.tempo || '15s', data.loop || '3 min', data.veiculacao || 'Vídeo sem áudio',
       data.publico || 'A/B', parseInt(data.telas) || 1, parseFloat(data.preco) || 0,
       data.descricao, imagem, imagem2, simulacaoTela, simulacaoArte, simulacaoPreview,
-      arteLargura, arteAltura, tipoFluxo,
+      arteLargura, arteAltura, midiaLarguraM, midiaAlturaM, tipoFluxo,
       JSON.stringify(audienceTags), JSON.stringify(availabilityCalendar), elevadorCategoria,
       imagemFocoX, imagemFocoY, imagemFocoZoom,
       fotoFocalPoint, pdfImageSource
@@ -899,6 +919,13 @@ app.put('/api/pontos/:id', upload.fields([
     const arteAltura = tipo === ELEVADOR_TIPO
       ? ELEVADOR_ARTE_ALTURA
       : (parseInt(data.arte_altura, 10) || existing.arte_altura || 1080);
+    const isBackOrFrontLight = tipo === 'Backlight' || tipo === 'Frontlight';
+    const midiaLarguraM = isBackOrFrontLight
+      ? normalizePhysicalSizeMeters(data.midia_largura_m, normalizePhysicalSizeMeters(existing.midia_largura_m, null))
+      : null;
+    const midiaAlturaM = isBackOrFrontLight
+      ? normalizePhysicalSizeMeters(data.midia_altura_m, normalizePhysicalSizeMeters(existing.midia_altura_m, null))
+      : null;
     const elevadorCategoria = tipo === ELEVADOR_TIPO
       ? normalizeElevadorCategoria(data.elevador_categoria || existing.elevador_categoria || 'Comercial')
       : null;
@@ -929,7 +956,7 @@ app.put('/api/pontos/:id', upload.fields([
         horario = ?, fluxo = ?, insercoes = ?, tempo = ?, loop = ?,
         veiculacao = ?, publico = ?, telas = ?, preco = ?, descricao = ?,
         imagem = ?, imagem2 = ?, simulacao_tela = ?, simulacao_arte = ?, simulacao_preview = ?,
-        arte_largura = ?, arte_altura = ?, tipo_fluxo = ?, audience_tags = ?, availability_calendar = ?, elevador_categoria = ?,
+        arte_largura = ?, arte_altura = ?, midia_largura_m = ?, midia_altura_m = ?, tipo_fluxo = ?, audience_tags = ?, availability_calendar = ?, elevador_categoria = ?,
         imagem_foco_x = ?, imagem_foco_y = ?, imagem_foco_zoom = ?,
         foto_focal_point = ?,
         pdf_image_source = ?,
@@ -948,7 +975,7 @@ app.put('/api/pontos/:id', upload.fields([
       parseInt(data.telas) || existing.telas, parseFloat(data.preco) || existing.preco,
       data.descricao || existing.descricao, imagem, imagem2,
       simulacaoTela, simulacaoArte, simulacaoPreview,
-      arteLargura, arteAltura, tipoFluxo,
+      arteLargura, arteAltura, midiaLarguraM, midiaAlturaM, tipoFluxo,
       JSON.stringify(audienceTags), JSON.stringify(availabilityCalendar), elevadorCategoria,
       imagemFocoX, imagemFocoY, imagemFocoZoom, fotoFocalPoint, pdfImageSource,
       req.params.id

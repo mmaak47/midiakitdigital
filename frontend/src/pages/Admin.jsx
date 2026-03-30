@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
   Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings,
-  Copy, Check, MapPin
+  Copy, Check, MapPin, FileText, Download, Square, CheckSquare
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import {
@@ -32,6 +32,7 @@ import FocalPointSelector from '../components/admin/FocalPointSelector';
 import CidadeFotosAdmin from '../components/admin/CidadeFotosAdmin';
 import UserModal from '../components/admin/UserModal';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
+import { generateTechnicalInfoPdf } from '../lib/technicalInfoPdf';
 
 const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const DEFAULT_TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
@@ -66,6 +67,8 @@ const emptyForm = {
   simulacao_tela: '', simulacao_arte: '', simulacao_preview: '',
   arte_largura: ELEVADOR_ARTE_LARGURA, arte_altura: ELEVADOR_ARTE_ALTURA,
   elevador_categoria: 'Comercial',
+  midia_largura_m: '',
+  midia_altura_m: '',
   custo_operacional: '', tipo_fluxo: 'pessoas',
   imagem_foco_x: '50', imagem_foco_y: '50', imagem_foco_zoom: '100',
   foto_focal_point: 'center center',
@@ -140,6 +143,11 @@ export default function Admin() {
   const [pdfCacheLoading, setPdfCacheLoading] = useState(false);
   const [pdfCacheError, setPdfCacheError] = useState('');
   const [invalidatingCacheId, setInvalidatingCacheId] = useState(null);
+  const [technicalPdfSelectedIds, setTechnicalPdfSelectedIds] = useState([]);
+  const [technicalPdfCityFilter, setTechnicalPdfCityFilter] = useState('todas');
+  const [technicalPdfSearch, setTechnicalPdfSearch] = useState('');
+  const [technicalPdfBusy, setTechnicalPdfBusy] = useState(false);
+  const [technicalPdfStatus, setTechnicalPdfStatus] = useState('');
 
   const [entornoForm, setEntornoForm] = useState({
     segmento: 'clinica',
@@ -325,6 +333,15 @@ export default function Admin() {
     }
   }, [auth]);
 
+  useEffect(() => {
+    const available = new Set(
+      pontos
+        .filter((point) => Number(point?.ativo) === 1)
+        .map((point) => Number(point.id))
+    );
+    setTechnicalPdfSelectedIds((current) => current.filter((id) => available.has(Number(id))));
+  }, [pontos]);
+
   const openNew = () => {
     setForm(enforceElevadorDimensions(emptyForm));
     setImageFile(null);
@@ -361,6 +378,8 @@ export default function Admin() {
       arte_largura: ponto.arte_largura?.toString() || '1920',
       arte_altura: ponto.arte_altura?.toString() || '1080',
       custo_operacional: ponto.custo_operacional?.toString() || '',
+      midia_largura_m: Number.isFinite(Number(ponto.midia_largura_m)) ? Number(ponto.midia_largura_m).toString() : '',
+      midia_altura_m: Number.isFinite(Number(ponto.midia_altura_m)) ? Number(ponto.midia_altura_m).toString() : '',
       tipo_fluxo: ponto.tipo_fluxo || 'pessoas',
       imagem_foco_x: (Number.isFinite(Number(ponto.imagem_foco_x)) ? Number(ponto.imagem_foco_x) : 50).toString(),
       imagem_foco_y: (Number.isFinite(Number(ponto.imagem_foco_y)) ? Number(ponto.imagem_foco_y) : 50).toString(),
@@ -586,6 +605,67 @@ export default function Admin() {
     const matchTipo = filterTipo === 'todos' || p.tipo === filterTipo;
     return matchSearch && matchCidade && matchTipo;
   });
+
+  const technicalPdfCandidates = useMemo(() => {
+    const term = technicalPdfSearch.trim().toLowerCase();
+    return pontos
+      .filter((point) => Number(point?.ativo) === 1)
+      .filter((point) => technicalPdfCityFilter === 'todas' || point.cidade === technicalPdfCityFilter)
+      .filter((point) => {
+        if (!term) return true;
+        return String(point.nome || '').toLowerCase().includes(term)
+          || String(point.cidade || '').toLowerCase().includes(term)
+          || String(point.tipo || '').toLowerCase().includes(term);
+      })
+      .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
+  }, [pontos, technicalPdfSearch, technicalPdfCityFilter]);
+
+  const technicalPdfSelectedPoints = useMemo(() => {
+    const selectedIdSet = new Set(technicalPdfSelectedIds.map((value) => Number(value)));
+    return pontos.filter((point) => selectedIdSet.has(Number(point.id)));
+  }, [pontos, technicalPdfSelectedIds]);
+
+  const handleToggleTechnicalPoint = (pointId) => {
+    setTechnicalPdfSelectedIds((current) => {
+      const id = Number(pointId);
+      if (current.includes(id)) {
+        return current.filter((value) => value !== id);
+      }
+      return [...current, id];
+    });
+  };
+
+  const handleSelectAllTechnicalFiltered = () => {
+    setTechnicalPdfSelectedIds((current) => {
+      const next = new Set(current);
+      technicalPdfCandidates.forEach((point) => next.add(Number(point.id)));
+      return Array.from(next);
+    });
+  };
+
+  const handleClearTechnicalSelection = () => {
+    setTechnicalPdfSelectedIds([]);
+  };
+
+  const handleGenerateTechnicalPdf = async () => {
+    if (!technicalPdfSelectedPoints.length) {
+      alert('Selecione ao menos um ponto para gerar o PDF tecnico.');
+      return;
+    }
+
+    setTechnicalPdfBusy(true);
+    setTechnicalPdfStatus('Iniciando geracao...');
+    try {
+      await generateTechnicalInfoPdf(technicalPdfSelectedPoints, {
+        onStatusChange: (status) => setTechnicalPdfStatus(status)
+      });
+    } catch (error) {
+      alert(error?.message || 'Falha ao gerar PDF tecnico.');
+    } finally {
+      setTechnicalPdfBusy(false);
+      setTimeout(() => setTechnicalPdfStatus(''), 1800);
+    }
+  };
 
   const artWidth = parseInt(form.arte_largura, 10) || 0;
   const artHeight = parseInt(form.arte_altura, 10) || 0;
@@ -966,6 +1046,100 @@ export default function Admin() {
             </section>
 
             <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-white">PDF tecnico por pontos</h3>
+                  <p className="text-xs text-brand-gray-500 mt-1">Escolha os pontos e exporte o arquivo "Informacoes Tecnicas Intermidia" com foto, nome, resolucao e especificacoes de entrega.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerateTechnicalPdf}
+                  disabled={technicalPdfBusy || !technicalPdfSelectedPoints.length}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2.5 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
+                >
+                  {technicalPdfBusy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                  {technicalPdfBusy ? 'Processando PDF...' : 'Gerar PDF tecnico'}
+                </button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_220px_auto_auto]">
+                <input
+                  type="text"
+                  value={technicalPdfSearch}
+                  onChange={(event) => setTechnicalPdfSearch(event.target.value)}
+                  placeholder="Buscar ponto por nome, cidade ou tipo..."
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
+                />
+                <select
+                  value={technicalPdfCityFilter}
+                  onChange={(event) => setTechnicalPdfCityFilter(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-orange/40"
+                >
+                  <option value="todas" className="bg-brand-dark text-white">Todas as cidades</option>
+                  {cidades.map((cidade) => (
+                    <option key={cidade} value={cidade} className="bg-brand-dark text-white">{cidade}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleSelectAllTechnicalFiltered}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-xs text-white hover:bg-white/10"
+                >
+                  <CheckSquare size={14} />
+                  Selecionar filtrados
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearTechnicalSelection}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-xs text-white hover:bg-white/10"
+                >
+                  <Square size={14} />
+                  Limpar
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="inline-flex items-center gap-1.5 text-brand-gray-300">
+                    <FileText size={14} className="text-brand-orange" />
+                    {technicalPdfSelectedPoints.length} ponto(s) selecionado(s)
+                  </span>
+                  {technicalPdfStatus ? (
+                    <span className="text-brand-orange">{technicalPdfStatus}</span>
+                  ) : (
+                    <span className="text-brand-gray-500">Este processo pode levar alguns segundos.</span>
+                  )}
+                </div>
+
+                <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-white/10">
+                  {technicalPdfCandidates.length ? (
+                    <ul className="divide-y divide-white/10">
+                      {technicalPdfCandidates.map((point) => {
+                        const checked = technicalPdfSelectedIds.includes(Number(point.id));
+                        return (
+                          <li key={point.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                            <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-white">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => handleToggleTechnicalPoint(point.id)}
+                                className="h-4 w-4 rounded border-white/20 bg-black text-brand-orange focus:ring-brand-orange/40"
+                              />
+                              <span className="min-w-0 truncate">{point.nome}</span>
+                            </label>
+                            <span className="text-xs text-brand-gray-400">{point.cidade} • {point.tipo}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="px-3 py-6 text-center text-xs text-brand-gray-500">Nenhum ponto encontrado para esse filtro.</p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Cache de PDFs</h3>
@@ -1146,6 +1320,12 @@ export default function Admin() {
                   <FormField label="Custo Operacional (R$)" value={form.custo_operacional} onChange={v => updateField('custo_operacional', v)} type="number" step="0.01" />
                   <FormField label="Arte largura (px)" value={form.arte_largura} onChange={v => updateField('arte_largura', v)} type="number" min="1" />
                   <FormField label="Arte altura (px)" value={form.arte_altura} onChange={v => updateField('arte_altura', v)} type="number" min="1" />
+                  {form.tipo === 'Frontlight' || form.tipo === 'Backlight' ? (
+                    <>
+                      <FormField label="Largura fisica (m)" value={form.midia_largura_m} onChange={v => updateField('midia_largura_m', v)} type="number" step="0.01" min="0" />
+                      <FormField label="Altura fisica (m)" value={form.midia_altura_m} onChange={v => updateField('midia_altura_m', v)} type="number" step="0.01" min="0" />
+                    </>
+                  ) : null}
                 </div>
 
                 <div>

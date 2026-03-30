@@ -31,6 +31,8 @@ db.exec(`
     imagem TEXT,
     arte_largura INTEGER DEFAULT 1920,
     arte_altura INTEGER DEFAULT 1080,
+    midia_largura_m REAL,
+    midia_altura_m REAL,
     ativo INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
@@ -72,6 +74,8 @@ ensureColumn('pontos', 'simulacao_arte', 'TEXT');
 ensureColumn('pontos', 'simulacao_preview', 'TEXT');
 ensureColumn('pontos', 'arte_largura', 'INTEGER DEFAULT 1920');
 ensureColumn('pontos', 'arte_altura', 'INTEGER DEFAULT 1080');
+ensureColumn('pontos', 'midia_largura_m', 'REAL');
+ensureColumn('pontos', 'midia_altura_m', 'REAL');
 ensureColumn('pontos', 'custo_operacional', 'REAL DEFAULT 0');
 ensureColumn('pontos', 'tipo_fluxo', "TEXT DEFAULT 'pessoas'");
 ensureColumn('pontos', 'audience_tags', "TEXT DEFAULT '[]'");
