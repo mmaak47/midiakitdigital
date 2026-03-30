@@ -262,7 +262,8 @@ section:last-child { page-break-after: avoid; break-after: avoid; }
     credentials: 'same-origin',
     body: JSON.stringify({
       html,
-      fileName
+      fileName,
+      noCache: true
     })
   });
 

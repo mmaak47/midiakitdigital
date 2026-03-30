@@ -210,6 +210,7 @@ app.use((req, res, next) => {
 // PDF render endpoint — must be registered before global express.json (own 55mb body parser)
 app.post('/api/pdf/render', pdfRenderLimiter, express.json({ limit: '55mb' }), async (req, res) => {
   const { html, fileName } = req.body || {};
+  const bypassCache = String(req.body?.noCache || '').toLowerCase() === 'true' || req.body?.noCache === true;
   if (!html || typeof html !== 'string' || html.length < 10) {
     return res.status(400).json({ error: 'Parâmetro html obrigatório.' });
   }
@@ -233,25 +234,29 @@ app.post('/api/pdf/render', pdfRenderLimiter, express.json({ limit: '55mb' }), a
       fs.mkdirSync(pdfCachePath, { recursive: true });
     }
 
-    const cached = await findValidCache(combinationKey, cacheableCities, db);
-    if (cached) {
-      db.prepare('UPDATE pdf_cache SET download_count = download_count + 1 WHERE id = ?').run(cached.id);
-      res.set({
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${safeName}"`,
-        'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff',
-        'X-Download-Options': 'noopen',
-        'X-PDF-Cache': 'HIT',
-      });
-      return fs.createReadStream(cached.file_path).pipe(res);
+    if (!bypassCache) {
+      const cached = await findValidCache(combinationKey, cacheableCities, db);
+      if (cached) {
+        db.prepare('UPDATE pdf_cache SET download_count = download_count + 1 WHERE id = ?').run(cached.id);
+        res.set({
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${safeName}"`,
+          'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff',
+          'X-Download-Options': 'noopen',
+          'X-PDF-Cache': 'HIT',
+        });
+        return fs.createReadStream(cached.file_path).pipe(res);
+      }
     }
 
     const pdfBuffer = await renderHtmlToPdf(html);
-    const outputPath = path.join(pdfCachePath, `${combinationKey}.pdf`);
-    fs.writeFileSync(outputPath, pdfBuffer);
-    const fileSizeKb = Math.round(fs.statSync(outputPath).size / 1024);
-    await saveCache(combinationKey, cacheableCities, outputPath, fileSizeKb, db);
+    if (!bypassCache) {
+      const outputPath = path.join(pdfCachePath, `${combinationKey}.pdf`);
+      fs.writeFileSync(outputPath, pdfBuffer);
+      const fileSizeKb = Math.round(fs.statSync(outputPath).size / 1024);
+      await saveCache(combinationKey, cacheableCities, outputPath, fileSizeKb, db);
+    }
 
     res.set({
       'Content-Type': 'application/pdf',
@@ -260,7 +265,7 @@ app.post('/api/pdf/render', pdfRenderLimiter, express.json({ limit: '55mb' }), a
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff',
       'X-Download-Options': 'noopen',
-      'X-PDF-Cache': 'MISS',
+      'X-PDF-Cache': bypassCache ? 'BYPASS' : 'MISS',
     });
     return res.end(pdfBuffer);
   } catch (err) {
