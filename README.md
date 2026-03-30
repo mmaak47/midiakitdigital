@@ -1,4 +1,4 @@
-# 🎬 MidiaKit Digital — DOOH Media Kit Platform
+# MidiaKit Digital — DOOH Media Kit Platform
 
 **Full-stack application for Digital Out-of-Home (DOOH) advertising** — Manage display locations (elevadores, escaleras, points), plan campaigns, analyze surrounding demographics, and generate professional quotations.
 
@@ -9,7 +9,7 @@
 
 ---
 
-## 📋 Quick Overview
+## Quick Overview
 
 | Aspect | Details |
 |--------|---------|
@@ -21,22 +21,22 @@
 
 ---
 
-## ✨ Core Features
+## Core Features
 
-- 🗺️ **Interactive Point Management** — Browse, create, manage DOOH locations
-- 📍 **Geo-Intelligence (Entorno)** — Analyze surrounding businesses by segment
-- 🎯 **Campaign Planning** — Strategic zones with scoring & recommendations
-- 💰 **Proposal Builder** — Generate quotations with discount policies
-- 🎨 **Media Simulation** — Preview screens with effects & focal points
-- 📊 **Dashboard Analytics** — Real-time metrics on points, flow, investment
-- 🔒 **Multi-level Access** — Admin / Gerente Comercial / Vendedor roles
-- 📄 **PDF Export** — Professional media kits with customizable branding
-- ✅ **Approval Workflows** — Auto-route proposals by discount thresholds
-- 🔄 **Auto-Refresh** — Background job queue for periodic updates
+- **Interactive Point Management** — Browse, create, manage DOOH locations
+- **Geo-Intelligence (Entorno)** — Analyze surrounding businesses by segment
+- **Campaign Planning** — Strategic zones with scoring & recommendations
+- **Proposal Builder** — Generate quotations with discount policies
+- **Media Simulation** — Preview screens with effects & focal points
+- **Dashboard Analytics** — Real-time metrics on points, flow, investment
+- **Multi-level Access** — Admin / Gerente Comercial / Vendedor roles
+- **PDF Export** — Professional media kits with customizable branding
+- **Approval Workflows** — Auto-route proposals by discount thresholds
+- **Auto-Refresh** — Background job queue for periodic updates
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
@@ -50,7 +50,7 @@
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 midiakitdigital/
@@ -132,7 +132,7 @@ midiakitdigital/
 
 ---
 
-## 🚀 Installation
+## Installation
 
 ### Prerequisites
 
@@ -161,7 +161,7 @@ cd ..
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ### Development
 
@@ -191,7 +191,7 @@ Backend runs on port `3002` (or `$PORT` if provided)
 
 ---
 
-## 📡 32 API Endpoints
+## 32 API Endpoints
 
 **Base URL:** `/api`
 
@@ -236,7 +236,7 @@ Backend runs on port `3002` (or `$PORT` if provided)
 
 ---
 
-## 🧩 Frontend Components Summary
+## Frontend Components Summary
 
 ### Pages (3)
 - **Landing** (`/`) — Public homepage
@@ -259,7 +259,7 @@ Backend runs on port `3002` (or `$PORT` if provided)
 
 ---
 
-## 🗄️ Database (6 Tables)
+## Database (6 Tables)
 
 | Table | Purpose | Key Fields |
 |-------|---------|-----------|
@@ -272,7 +272,7 @@ Backend runs on port `3002` (or `$PORT` if provided)
 
 ---
 
-## 🔐 Environment Variables
+## Environment Variables
 
 Create `.env` in `backend/`:
 
@@ -289,7 +289,7 @@ See [backend/.env.example](backend/.env.example) for all options.
 
 ---
 
-## 🌐 Deployment
+## Deployment
 
 ### VPS (PM2)
 ```bash
@@ -308,7 +308,7 @@ See [backend/DEPLOY.md](backend/DEPLOY.md):
 
 ---
 
-## 🏗️ Strategic Zones
+## Strategic Zones
 
 - **Premium** — High-value central locations
 - **Alto-Fluxo** — High foot traffic areas
@@ -316,13 +316,13 @@ See [backend/DEPLOY.md](backend/DEPLOY.md):
 
 ---
 
-## 📊 Business Segments
+## Business Segments
 
 Clinica • Hospital • Educacao • Escola • Faculdade • Automotivo • Varejo • Restaurante • Imobiliaria • Construtora • Contabilidade • Advocacia • Industria
 
 ---
 
-## 📚 Additional Documentation
+## Additional Documentation
 
 - **DESIGN.md** — Design system, colors, typography
 - **PLANNER_DADOS.md** — Audience tags, availability, optimization
@@ -331,7 +331,7 @@ Clinica • Hospital • Educacao • Escola • Faculdade • Automotivo • Va
 
 ---
 
-## 👥 Roles & Permissions
+## Roles & Permissions
 
 | Role | Permissions |
 |------|-------------|
@@ -341,7 +341,7 @@ Clinica • Hospital • Educacao • Escola • Faculdade • Automotivo • Va
 
 ---
 
-## 🔧 Development
+## Development
 
 ### Backend Dev
 ```bash
@@ -360,7 +360,7 @@ cd frontend && npm run build  # Output: dist/
 
 ---
 
-## 📞 Support & Contributing
+## Support & Contributing
 
 - **Issues:** [GitHub Issues](https://github.com/mmaak47/midiakitdigital/issues)
 - **Contact:** Intermidia Digital Team
@@ -368,7 +368,7 @@ cd frontend && npm run build  # Output: dist/
 
 ---
 
-## 👨‍💻 Developed by
+## Developed by
 
 **Maitê Doin** — Lead Developer  
 **Intermidia Digital** — 2024-2026
