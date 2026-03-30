@@ -1,13 +1,12 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { LayoutGrid, Map, SlidersHorizontal } from 'lucide-react';
+import { AlertCircle, CheckCircle, ChevronDown, LayoutGrid, Map, SlidersHorizontal } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import FilterSidebar from '../components/FilterSidebar';
 import PointCard from '../components/PointCard';
 import PointModal from '../components/PointModal';
 import SkeletonCard from '../components/SkeletonCard';
-import SmartMap from '../components/SmartMap';
 import FavoritesBar from '../components/FavoritesBar';
 import StrategicPlanner from '../components/StrategicPlanner';
 import CoverageMeter from '../components/CoverageMeter';
@@ -19,6 +18,8 @@ import { fetchPontos } from '../lib/api';
 import { useFavorites } from '../context/FavoritesContext';
 import { calculateCampaignScore, calculateCoverageLevel, campaignTotals } from '../lib/strategy';
 import { computeCityBoundingBoxes } from '../lib/geo';
+
+const SmartMap = lazy(() => import('../components/SmartMap'));
 
 export default function Explorer() {
   const mainRef = useRef(null);
@@ -40,6 +41,7 @@ export default function Explorer() {
   const [showMapModal, setShowMapModal] = useState(false);
   const [selected, setSelected] = useState(null);
   const [mobileFilters, setMobileFilters] = useState(false);
+  const [plannerSuggestion, setPlannerSuggestion] = useState(null);
   const { favorites, addFavorites, history, registerView } = useFavorites();
 
   const selectedForMetrics = useMemo(() => {
@@ -47,15 +49,21 @@ export default function Explorer() {
     return selected ? [selected] : [];
   }, [favorites, selected]);
 
-  const cityInventory = allPontos.filter((p) => !filters.cidade.length || filters.cidade.includes(p.cidade));
-  const coverage = calculateCoverageLevel(selectedForMetrics, cityInventory);
-  const totals = campaignTotals(selectedForMetrics);
-  const scoreInfo = calculateCampaignScore({
+  const cityInventory = useMemo(
+    () => allPontos.filter((p) => !filters.cidade.length || filters.cidade.includes(p.cidade)),
+    [allPontos, filters.cidade],
+  );
+  const coverage = useMemo(
+    () => calculateCoverageLevel(selectedForMetrics, cityInventory),
+    [selectedForMetrics, cityInventory],
+  );
+  const totals = useMemo(() => campaignTotals(selectedForMetrics), [selectedForMetrics]);
+  const scoreInfo = useMemo(() => calculateCampaignScore({
     selected: selectedForMetrics,
     objective: 'cobertura regional',
     desiredPublico: filters.publico,
     cityInventory
-  });
+  }), [selectedForMetrics, filters.publico, cityInventory]);
 
   const publicos = Array.from(new Set(allPontos.map((p) => p.publico).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const cidades = Array.from(new Set(allPontos.map((p) => p.cidade).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -115,10 +123,10 @@ export default function Explorer() {
     pendingResultsScrollRef.current = false;
   }, [loading, pontos.length]);
 
-  const handleSelectPoint = (ponto) => {
+  const handleSelectPoint = useCallback((ponto) => {
     registerView(ponto);
     setSelected(ponto);
-  };
+  }, [registerView]);
 
   return (
     <div
@@ -144,15 +152,27 @@ export default function Explorer() {
               cidades={cidades}
               publicos={publicos}
               onAddPlan={addFavorites}
+              onSuggestionChange={setPlannerSuggestion}
             />
 
-            <div className="grid xl:grid-cols-4 gap-4">
-              <div className="xl:col-span-2">
-                <CoverageMeter coverage={coverage} />
+            <div className="h-px w-full bg-white/10" />
+
+            <div>
+              <div className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-[#E8591A]">ETAPA 3 — Análise</div>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div className="lg:col-span-2">
+                  <CoverageMeter coverage={coverage} />
+                </div>
+                <div className="space-y-4">
+                  <CampaignScore scoreInfo={scoreInfo} />
+                  <ImpactSimulator points={cityInventory} onAdd={addFavorites} />
+                </div>
               </div>
-              <CampaignScore scoreInfo={scoreInfo} />
-              <ImpactSimulator points={cityInventory} onAdd={addFavorites} />
             </div>
+
+            <MarketBenchmarksPanel suggestion={plannerSuggestion} />
+
+            <div className="h-px w-full bg-white/10" />
 
             <CampaignMetrics totals={totals} />
             <RecommendationEngine history={history} onApplyCombo={addFavorites} />
@@ -269,15 +289,17 @@ export default function Explorer() {
                 <i className="ri-close-line" style={{ fontSize: 16 }} />
               </button>
 
-              <SmartMap
-                pontos={pontos}
-                selectedId={selected?.id}
-                onSelect={handleSelectPoint}
-                onOpenDetails={handleSelectPoint}
-                isDark={isDark}
-                selectedCidades={filters.cidade}
-                cityBounds={cityBounds}
-              />
+              <Suspense fallback={<div className={`h-full w-full ${isDark ? 'bg-black' : 'bg-white'} flex items-center justify-center text-sm ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Carregando mapa...</div>}>
+                <SmartMap
+                  pontos={pontos}
+                  selectedId={selected?.id}
+                  onSelect={handleSelectPoint}
+                  onOpenDetails={handleSelectPoint}
+                  isDark={isDark}
+                  selectedCidades={filters.cidade}
+                  cityBounds={cityBounds}
+                />
+              </Suspense>
             </motion.div>
           </motion.div>
         )}
@@ -289,5 +311,113 @@ export default function Explorer() {
       {/* Favorites bar */}
       <FavoritesBar isDark={isDark} />
     </div>
+  );
+}
+
+function MarketBenchmarksPanel({ suggestion }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const metrics = useMemo(() => {
+    const totals = suggestion?.totals || {};
+    const rf = suggestion?.reachFrequency || {};
+
+    const cpm = Number(totals.cpmEstimado || 0);
+    const freq = Number(rf.avgFrequency || 0);
+    const reach = Number(rf.effectiveReachPct || 0);
+    const grps = Number(rf.grps || 0);
+
+    return [
+      {
+        key: 'cpm',
+        label: 'CPM (OOH médio)',
+        benchmark: 'R$ 8 - R$ 35',
+        status: cpm > 0 ? (cpm >= 8 && cpm <= 35 ? 'ok' : 'warn') : 'none',
+      },
+      {
+        key: 'freq',
+        label: 'Frequência média',
+        benchmark: '3x-7x por 4 semanas',
+        status: freq > 0 ? (freq >= 3 ? 'ok' : 'warn') : 'none',
+      },
+      {
+        key: 'reach',
+        label: 'Reach efetivo',
+        benchmark: '5%-15% do mercado local',
+        status: reach > 0 ? (reach >= 5 ? 'ok' : 'warn') : 'none',
+      },
+      {
+        key: 'grps',
+        label: 'GRP mínimo efetivo',
+        benchmark: '50 GRPs / 4 semanas',
+        status: grps > 0 ? (grps >= 50 ? 'ok' : 'warn') : 'none',
+      },
+      {
+        key: 'viewability',
+        label: 'Viewability (DOOH)',
+        benchmark: '100% share-of-time na janela',
+        status: 'none',
+      },
+      {
+        key: 'dwell',
+        label: 'Dwell time indoor',
+        benchmark: '3-8 minutos em média',
+        status: 'none',
+      },
+      {
+        key: 'recall',
+        label: 'Brand recall (OOH)',
+        benchmark: '38%-47% recall espontâneo',
+        status: 'none',
+      },
+    ];
+  }, [suggestion]);
+
+  return (
+    <section className="rounded-xl border border-white/10 bg-black/20 p-4">
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white"
+      >
+        <ChevronDown size={14} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        ▼ Benchmarks do mercado OOH/DOOH
+      </button>
+
+      <AnimatePresence initial={false}>
+        {expanded ? (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="overflow-hidden"
+          >
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              {metrics.map((metric) => (
+                <div key={metric.key} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <div className="text-xs uppercase tracking-wide text-gray-500">{metric.label}</div>
+                  <div className="mt-1 text-base font-semibold text-white">{metric.benchmark}</div>
+                  {metric.status === 'ok' ? (
+                    <div className="mt-2 inline-flex items-center gap-1 text-xs text-green-400">
+                      <CheckCircle size={12} />
+                      Dentro do benchmark
+                    </div>
+                  ) : null}
+                  {metric.status === 'warn' ? (
+                    <div className="mt-2 inline-flex items-center gap-1 text-xs text-[#E8591A]">
+                      <AlertCircle size={12} />
+                      Abaixo do recomendado
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 text-xs text-gray-500">
+              Fontes: OAAA, WOO - World Out of Home Organization, CENP-Meios 2024
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </section>
   );
 }

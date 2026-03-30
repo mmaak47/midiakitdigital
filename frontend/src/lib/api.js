@@ -182,7 +182,10 @@ export async function createPonto(formData) {
     method: 'POST',
     body: formData
   });
-  if (!res.ok) throw new Error('Erro ao criar ponto');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao criar ponto');
+  }
   return res.json();
 }
 
@@ -191,7 +194,10 @@ export async function updatePonto(id, formData) {
     method: 'PUT',
     body: formData
   });
-  if (!res.ok) throw new Error('Erro ao atualizar ponto');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao atualizar ponto');
+  }
   return res.json();
 }
 
@@ -199,7 +205,10 @@ export async function deletePonto(id) {
   const res = await apiRequest(`/pontos/${id}`, {
     method: 'DELETE'
   });
-  if (!res.ok) throw new Error('Erro ao deletar ponto');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao deletar ponto');
+  }
   return res.json();
 }
 
@@ -283,6 +292,23 @@ export async function fetchAdminSettings() {
   return res.json();
 }
 
+export async function fetchAdminPdfCache() {
+  const res = await apiRequest('/admin/pdf-cache');
+  if (!res.ok) throw new Error('Erro ao carregar cache de PDFs');
+  return res.json();
+}
+
+export async function invalidateAdminPdfCache(id) {
+  const res = await apiRequest(`/admin/pdf-cache/${id}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao invalidar cache de PDF');
+  }
+  return res.json();
+}
+
 export async function updateAdminSettings(settings) {
   const res = await apiRequest('/admin/settings', {
     method: 'PUT',
@@ -292,6 +318,43 @@ export async function updateAdminSettings(settings) {
     const message = await parseErrorResponse(res);
     throw new Error(message || 'Erro ao atualizar configurações');
   }
+  return res.json();
+}
+
+export async function fetchCidadeFotos() {
+  const res = await apiRequest('/cidade-fotos');
+  if (!res.ok) throw new Error('Erro ao carregar fotos das cidades');
+  return res.json();
+}
+
+export async function uploadCidadeFoto(cidade, imageFile) {
+  const body = new FormData();
+  body.append('cidade', cidade);
+  body.append('image', imageFile);
+
+  const res = await apiRequest('/cidade-fotos/upload', {
+    method: 'POST',
+    body
+  });
+
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao fazer upload da foto da cidade');
+  }
+
+  return res.json();
+}
+
+export async function deleteCidadeFoto(slug) {
+  const res = await apiRequest(`/cidade-fotos/${encodeURIComponent(slug)}`, {
+    method: 'DELETE'
+  });
+
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao remover foto da cidade');
+  }
+
   return res.json();
 }
 

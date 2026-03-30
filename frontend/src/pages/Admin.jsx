@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
   Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings,
-  Copy, Check, MapPin
+  Copy, Check, MapPin, FileText, Download, Square, CheckSquare
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import {
@@ -22,11 +22,17 @@ import {
   deleteAdminUser,
   updateAdminUserRole,
   fetchAdminSettings,
+  fetchAdminPdfCache,
+  invalidateAdminPdfCache,
   updateAdminSettings,
   geocodePoint
 } from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
+import FocalPointSelector from '../components/admin/FocalPointSelector';
+import CidadeFotosAdmin from '../components/admin/CidadeFotosAdmin';
+import UserModal from '../components/admin/UserModal';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
+import { generateTechnicalInfoPdf } from '../lib/technicalInfoPdf';
 
 const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const DEFAULT_TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
@@ -61,8 +67,12 @@ const emptyForm = {
   simulacao_tela: '', simulacao_arte: '', simulacao_preview: '',
   arte_largura: ELEVADOR_ARTE_LARGURA, arte_altura: ELEVADOR_ARTE_ALTURA,
   elevador_categoria: 'Comercial',
+  midia_largura_m: '',
+  midia_altura_m: '',
   custo_operacional: '', tipo_fluxo: 'pessoas',
-  imagem_foco_x: '50', imagem_foco_y: '50', imagem_foco_zoom: '100'
+  imagem_foco_x: '50', imagem_foco_y: '50', imagem_foco_zoom: '100',
+  foto_focal_point: 'center center',
+  pdf_image_source: 'imagem2'
 };
 
 function enforceElevadorDimensions(nextForm) {
@@ -103,6 +113,7 @@ export default function Admin() {
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState('');
   const [baseImagePreviewUrl, setBaseImagePreviewUrl] = useState('');
+  const [secondImagePreviewUrl, setSecondImagePreviewUrl] = useState('');
   const [screenSelection, setScreenSelection] = useState(null);
   const [screenStyle, setScreenStyle] = useState(defaultScreenStyle);
   const [screenSelection2, setScreenSelection2] = useState(null);
@@ -119,17 +130,24 @@ export default function Admin() {
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState('');
-  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', whatsapp: '', email: '', password: '', role: 'vendedor' });
-  const [creatingUser, setCreatingUser] = useState(false);
-  const [editingRole, setEditingRole] = useState(null);
-  const [selectedRole, setSelectedRole] = useState('vendedor');
-  const [updatingRole, setUpdatingRole] = useState(false);
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [userModalInitialData, setUserModalInitialData] = useState(null);
+  const [savingUser, setSavingUser] = useState(false);
 
   const [settings, setSettings] = useState({ lucro_minimo_percentual: 15 });
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsError, setSettingsError] = useState('');
   const [lucroMinimoValue, setLucroMinimoValue] = useState(15);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [pdfCacheRows, setPdfCacheRows] = useState([]);
+  const [pdfCacheLoading, setPdfCacheLoading] = useState(false);
+  const [pdfCacheError, setPdfCacheError] = useState('');
+  const [invalidatingCacheId, setInvalidatingCacheId] = useState(null);
+  const [technicalPdfSelectedIds, setTechnicalPdfSelectedIds] = useState([]);
+  const [technicalPdfCityFilter, setTechnicalPdfCityFilter] = useState('todas');
+  const [technicalPdfSearch, setTechnicalPdfSearch] = useState('');
+  const [technicalPdfBusy, setTechnicalPdfBusy] = useState(false);
+  const [technicalPdfStatus, setTechnicalPdfStatus] = useState('');
 
   const [entornoForm, setEntornoForm] = useState({
     segmento: 'clinica',
@@ -173,7 +191,17 @@ export default function Admin() {
   }, [imageFile]);
 
   useEffect(() => {
-    if (!auth) return;
+    if (!imagem2File) {
+      setSecondImagePreviewUrl('');
+      return;
+    }
+    const blobUrl = URL.createObjectURL(imagem2File);
+    setSecondImagePreviewUrl(blobUrl);
+    return () => URL.revokeObjectURL(blobUrl);
+  }, [imagem2File]);
+
+  useEffect(() => {
+    if (!auth || activeTab !== 'entorno') return;
 
     let cancelled = false;
 
@@ -217,7 +245,7 @@ export default function Admin() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [auth]);
+  }, [auth, activeTab]);
 
   useEffect(() => {
     if (!entornoCurrentJob?.id) return;
@@ -247,6 +275,7 @@ export default function Admin() {
   useEffect(() => {
     if (activeTab === 'configuracoes' && auth) {
       loadSettings();
+      loadPdfCache();
     }
   }, [activeTab, auth]);
 
@@ -304,6 +333,15 @@ export default function Admin() {
     }
   }, [auth]);
 
+  useEffect(() => {
+    const available = new Set(
+      pontos
+        .filter((point) => Number(point?.ativo) === 1)
+        .map((point) => Number(point.id))
+    );
+    setTechnicalPdfSelectedIds((current) => current.filter((id) => available.has(Number(id))));
+  }, [pontos]);
+
   const openNew = () => {
     setForm(enforceElevadorDimensions(emptyForm));
     setImageFile(null);
@@ -311,6 +349,12 @@ export default function Admin() {
     setGeoLoading(false);
     setGeoError('');
     setScreenSelection(null);
+    setScreenStyle(defaultScreenStyle);
+    setScreenSelection2(null);
+    setScreenStyle2(defaultScreenStyle);
+    setSimulationFaceCount(1);
+    setActiveSimulationFace(0);
+    setEditing('new');
   };
 
   const openEdit = (ponto) => {
@@ -340,10 +384,14 @@ export default function Admin() {
       arte_largura: ponto.arte_largura?.toString() || '1920',
       arte_altura: ponto.arte_altura?.toString() || '1080',
       custo_operacional: ponto.custo_operacional?.toString() || '',
+      midia_largura_m: Number.isFinite(Number(ponto.midia_largura_m)) ? Number(ponto.midia_largura_m).toString() : '',
+      midia_altura_m: Number.isFinite(Number(ponto.midia_altura_m)) ? Number(ponto.midia_altura_m).toString() : '',
       tipo_fluxo: ponto.tipo_fluxo || 'pessoas',
       imagem_foco_x: (Number.isFinite(Number(ponto.imagem_foco_x)) ? Number(ponto.imagem_foco_x) : 50).toString(),
       imagem_foco_y: (Number.isFinite(Number(ponto.imagem_foco_y)) ? Number(ponto.imagem_foco_y) : 50).toString(),
-      imagem_foco_zoom: (Number.isFinite(Number(ponto.imagem_foco_zoom)) ? Number(ponto.imagem_foco_zoom) : 100).toString()
+      imagem_foco_zoom: (Number.isFinite(Number(ponto.imagem_foco_zoom)) ? Number(ponto.imagem_foco_zoom) : 100).toString(),
+      foto_focal_point: ponto.foto_focal_point || 'center center',
+      pdf_image_source: ponto.pdf_image_source || 'imagem2'
     }));
     setImageFile(null);
     setImagem2File(null);
@@ -409,25 +457,42 @@ export default function Admin() {
     }
   };
 
-  const handleCreateUser = async (event) => {
-    event.preventDefault();
-    setCreatingUser(true);
+  const splitName = (fullName, login) => {
+    const normalized = String(fullName || '').trim().replace(/\s+/g, ' ');
+    if (!normalized) return { firstName: login, lastName: '-' };
+    const parts = normalized.split(' ');
+    if (parts.length === 1) return { firstName: parts[0], lastName: login || '-' };
+    return {
+      firstName: parts[0],
+      lastName: parts.slice(1).join(' ') || (login || '-')
+    };
+  };
+
+  const handleSaveUser = async (formData) => {
+    setSavingUser(true);
     setUsersError('');
     try {
-      await createAdminUser({
-        firstName: newUser.firstName.trim(),
-        lastName: newUser.lastName.trim(),
-        whatsapp: newUser.whatsapp.trim(),
-        email: newUser.email.trim(),
-        password: newUser.password,
-        role: newUser.role || 'vendedor'
-      });
-      setNewUser({ firstName: '', lastName: '', whatsapp: '', email: '', password: '', role: 'vendedor' });
+      if (userModalInitialData?.id) {
+        await updateAdminUserRole(userModalInitialData.id, formData.tipoUsuario || 'vendedor');
+      } else {
+        const parsed = splitName(formData.nome, formData.login);
+        const normalizedEmail = String(formData.email || '').trim() || `${String(formData.login || '').trim()}@intermidia.local`;
+        await createAdminUser({
+          firstName: parsed.firstName,
+          lastName: parsed.lastName,
+          whatsapp: '',
+          email: normalizedEmail,
+          password: String(formData.senha || '').trim(),
+          role: formData.tipoUsuario || 'vendedor'
+        });
+      }
       await loadUsers();
+      setUserModalOpen(false);
+      setUserModalInitialData(null);
     } catch (err) {
       setUsersError(err.message || 'Falha ao criar usuário');
     } finally {
-      setCreatingUser(false);
+      setSavingUser(false);
     }
   };
 
@@ -442,18 +507,14 @@ export default function Admin() {
     }
   };
 
-  const handleUpdateUserRole = async (userId, newRole) => {
-    setUpdatingRole(true);
-    setUsersError('');
-    try {
-      await updateAdminUserRole(userId, newRole);
-      setEditingRole(null);
-      await loadUsers();
-    } catch (err) {
-      setUsersError(err.message || 'Falha ao atualizar role do usuário');
-    } finally {
-      setUpdatingRole(false);
-    }
+  const handleOpenNewUserModal = () => {
+    setUserModalInitialData(null);
+    setUserModalOpen(true);
+  };
+
+  const handleOpenEditUserModal = (user) => {
+    setUserModalInitialData(user);
+    setUserModalOpen(true);
   };
 
   const loadSettings = async () => {
@@ -481,6 +542,33 @@ export default function Admin() {
       setSettingsError(err.message || 'Falha ao salvar configurações');
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const loadPdfCache = async () => {
+    setPdfCacheLoading(true);
+    setPdfCacheError('');
+    try {
+      const rows = await fetchAdminPdfCache();
+      setPdfCacheRows(Array.isArray(rows) ? rows : []);
+    } catch (err) {
+      setPdfCacheRows([]);
+      setPdfCacheError(err.message || 'Falha ao carregar cache de PDFs');
+    } finally {
+      setPdfCacheLoading(false);
+    }
+  };
+
+  const handleInvalidatePdfCache = async (id) => {
+    setInvalidatingCacheId(id);
+    setPdfCacheError('');
+    try {
+      await invalidateAdminPdfCache(id);
+      await loadPdfCache();
+    } catch (err) {
+      setPdfCacheError(err.message || 'Falha ao invalidar cache');
+    } finally {
+      setInvalidatingCacheId(null);
     }
   };
 
@@ -524,6 +612,67 @@ export default function Admin() {
     return matchSearch && matchCidade && matchTipo;
   });
 
+  const technicalPdfCandidates = useMemo(() => {
+    const term = technicalPdfSearch.trim().toLowerCase();
+    return pontos
+      .filter((point) => Number(point?.ativo) === 1)
+      .filter((point) => technicalPdfCityFilter === 'todas' || point.cidade === technicalPdfCityFilter)
+      .filter((point) => {
+        if (!term) return true;
+        return String(point.nome || '').toLowerCase().includes(term)
+          || String(point.cidade || '').toLowerCase().includes(term)
+          || String(point.tipo || '').toLowerCase().includes(term);
+      })
+      .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
+  }, [pontos, technicalPdfSearch, technicalPdfCityFilter]);
+
+  const technicalPdfSelectedPoints = useMemo(() => {
+    const selectedIdSet = new Set(technicalPdfSelectedIds.map((value) => Number(value)));
+    return pontos.filter((point) => selectedIdSet.has(Number(point.id)));
+  }, [pontos, technicalPdfSelectedIds]);
+
+  const handleToggleTechnicalPoint = (pointId) => {
+    setTechnicalPdfSelectedIds((current) => {
+      const id = Number(pointId);
+      if (current.includes(id)) {
+        return current.filter((value) => value !== id);
+      }
+      return [...current, id];
+    });
+  };
+
+  const handleSelectAllTechnicalFiltered = () => {
+    setTechnicalPdfSelectedIds((current) => {
+      const next = new Set(current);
+      technicalPdfCandidates.forEach((point) => next.add(Number(point.id)));
+      return Array.from(next);
+    });
+  };
+
+  const handleClearTechnicalSelection = () => {
+    setTechnicalPdfSelectedIds([]);
+  };
+
+  const handleGenerateTechnicalPdf = async () => {
+    if (!technicalPdfSelectedPoints.length) {
+      alert('Selecione ao menos um ponto para gerar o PDF tecnico.');
+      return;
+    }
+
+    setTechnicalPdfBusy(true);
+    setTechnicalPdfStatus('Iniciando geracao...');
+    try {
+      await generateTechnicalInfoPdf(technicalPdfSelectedPoints, {
+        onStatusChange: (status) => setTechnicalPdfStatus(status)
+      });
+    } catch (error) {
+      alert(error?.message || 'Falha ao gerar PDF tecnico.');
+    } finally {
+      setTechnicalPdfBusy(false);
+      setTimeout(() => setTechnicalPdfStatus(''), 1800);
+    }
+  };
+
   const artWidth = parseInt(form.arte_largura, 10) || 0;
   const artHeight = parseInt(form.arte_altura, 10) || 0;
   const artRatioText = formatRatio(artWidth, artHeight);
@@ -531,6 +680,10 @@ export default function Admin() {
   const previewFocoY = clampNumber(form.imagem_foco_y, 0, 100, 50);
   const previewFocoZoom = clampNumber(form.imagem_foco_zoom, 100, 220, 100);
   const imagePreviewForFocus = baseImagePreviewUrl || form.imagem;
+  const hasBothImagesForPdf = Boolean(baseImagePreviewUrl || form.imagem) && Boolean(secondImagePreviewUrl || form.imagem2);
+  const selectedPdfPreviewImage = (form.pdf_image_source === 'imagem2'
+    ? (secondImagePreviewUrl || form.imagem2 || baseImagePreviewUrl || form.imagem || '')
+    : (baseImagePreviewUrl || form.imagem || secondImagePreviewUrl || form.imagem2 || ''));
   const simulationSuggestedFocus = useMemo(() => deriveFocusFromSimulationString(form.simulacao_tela), [form.simulacao_tela]);
   const activeScreenSelection = activeSimulationFace === 1 ? screenSelection2 : screenSelection;
   const activeScreenStyle = activeSimulationFace === 1 ? screenStyle2 : screenStyle;
@@ -841,69 +994,249 @@ export default function Admin() {
             users={users}
             loading={usersLoading}
             error={usersError}
-            newUser={newUser}
-            setNewUser={setNewUser}
-            creating={creatingUser}
-            onCreate={handleCreateUser}
+            onOpenNew={handleOpenNewUserModal}
+            onOpenEdit={handleOpenEditUserModal}
             onDelete={handleDeleteUser}
-            onUpdateRole={handleUpdateUserRole}
-            editingRole={editingRole}
-            setEditingRole={setEditingRole}
-            selectedRole={selectedRole}
-            setSelectedRole={setSelectedRole}
-            updatingRole={updatingRole}
             userRoles={USER_ROLES}
             onReload={loadUsers}
           />
         ) : null}
 
         {activeTab === 'configuracoes' ? (
-          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Configurações do sistema</h3>
-              <p className="text-xs text-brand-gray-500 mt-1">Configure parâmetros globais para propostas e vendas.</p>
-            </div>
+          <div className="space-y-5">
+            <CidadeFotosAdmin />
 
-            {settingsError && <p className="mt-3 text-xs text-red-300">{settingsError}</p>}
-
-            <form onSubmit={handleSaveSettings} className="mt-6 space-y-4 max-w-md">
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
               <div>
-                <label className="block text-xs text-brand-gray-400 mb-2">
-                  Lucro Mínimo Obrigatório (%)
-                </label>
-                <p className="text-xs text-brand-gray-500 mb-2">
-                  Vendedores precisarão de aprovação do Gerente Comercial se aplicarem desconto acima desse percentual.
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Configurações do sistema</h3>
+                <p className="text-xs text-brand-gray-500 mt-1">Configure parâmetros globais para propostas e vendas.</p>
+              </div>
+
+              {settingsError && <p className="mt-3 text-xs text-red-300">{settingsError}</p>}
+
+              <form onSubmit={handleSaveSettings} className="mt-6 space-y-4 max-w-md">
+                <div>
+                  <label className="block text-xs text-brand-gray-400 mb-2">
+                    Lucro Mínimo Obrigatório (%)
+                  </label>
+                  <p className="text-xs text-brand-gray-500 mb-2">
+                    Vendedores precisarão de aprovação do Gerente Comercial se aplicarem desconto acima desse percentual.
+                  </p>
+                  <div className="flex items-end gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={lucroMinimoValue}
+                      onChange={e => setLucroMinimoValue(Number(e.target.value))}
+                      className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                    />
+                    <button
+                      type="submit"
+                      disabled={savingSettings || settingsLoading}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2.5 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
+                    >
+                      <Save size={15} />
+                      {savingSettings ? 'Salvando...' : 'Salvar'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              <div className="mt-6 p-4 bg-brand-orange/5 border border-brand-orange/20 rounded-xl">
+                <p className="text-xs text-brand-orange leading-relaxed">
+                  <strong>ℹ️ Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro mínimo obrigatório (desconto acima do valor configurado aqui), a proposta fica aguardando aprovação de um Gerente Comercial antes de poder ser finalizada.
                 </p>
-                <div className="flex items-end gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={lucroMinimoValue}
-                    onChange={e => setLucroMinimoValue(Number(e.target.value))}
-                    className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
-                  />
-                  <button
-                    type="submit"
-                    disabled={savingSettings || settingsLoading}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2.5 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
-                  >
-                    <Save size={15} />
-                    {savingSettings ? 'Salvando...' : 'Salvar'}
-                  </button>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-white">PDF tecnico por pontos</h3>
+                  <p className="text-xs text-brand-gray-500 mt-1">Escolha os pontos e exporte o arquivo "Informacoes Tecnicas Intermidia" com foto, nome, resolucao e especificacoes de entrega.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerateTechnicalPdf}
+                  disabled={technicalPdfBusy || !technicalPdfSelectedPoints.length}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2.5 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
+                >
+                  {technicalPdfBusy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                  {technicalPdfBusy ? 'Processando PDF...' : 'Gerar PDF tecnico'}
+                </button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_220px_auto_auto]">
+                <input
+                  type="text"
+                  value={technicalPdfSearch}
+                  onChange={(event) => setTechnicalPdfSearch(event.target.value)}
+                  placeholder="Buscar ponto por nome, cidade ou tipo..."
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
+                />
+                <select
+                  value={technicalPdfCityFilter}
+                  onChange={(event) => setTechnicalPdfCityFilter(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-orange/40"
+                >
+                  <option value="todas" className="bg-brand-dark text-white">Todas as cidades</option>
+                  {cidades.map((cidade) => (
+                    <option key={cidade} value={cidade} className="bg-brand-dark text-white">{cidade}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleSelectAllTechnicalFiltered}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-xs text-white hover:bg-white/10"
+                >
+                  <CheckSquare size={14} />
+                  Selecionar filtrados
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearTechnicalSelection}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-xs text-white hover:bg-white/10"
+                >
+                  <Square size={14} />
+                  Limpar
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="inline-flex items-center gap-1.5 text-brand-gray-300">
+                    <FileText size={14} className="text-brand-orange" />
+                    {technicalPdfSelectedPoints.length} ponto(s) selecionado(s)
+                  </span>
+                  {technicalPdfStatus ? (
+                    <span className="text-brand-orange">{technicalPdfStatus}</span>
+                  ) : (
+                    <span className="text-brand-gray-500">Este processo pode levar alguns segundos.</span>
+                  )}
+                </div>
+
+                <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-white/10">
+                  {technicalPdfCandidates.length ? (
+                    <ul className="divide-y divide-white/10">
+                      {technicalPdfCandidates.map((point) => {
+                        const checked = technicalPdfSelectedIds.includes(Number(point.id));
+                        return (
+                          <li key={point.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                            <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-white">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => handleToggleTechnicalPoint(point.id)}
+                                className="h-4 w-4 rounded border-white/20 bg-black text-brand-orange focus:ring-brand-orange/40"
+                              />
+                              <span className="min-w-0 truncate">{point.nome}</span>
+                            </label>
+                            <span className="text-xs text-brand-gray-400">{point.cidade} • {point.tipo}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="px-3 py-6 text-center text-xs text-brand-gray-500">Nenhum ponto encontrado para esse filtro.</p>
+                  )}
                 </div>
               </div>
-            </form>
+            </section>
 
-            <div className="mt-6 p-4 bg-brand-orange/5 border border-brand-orange/20 rounded-xl">
-              <p className="text-xs text-brand-orange leading-relaxed">
-                <strong>ℹ️ Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro mínimo obrigatório (desconto acima do valor configurado aqui), a proposta fica aguardando aprovação de um Gerente Comercial antes de poder ser finalizada.
-              </p>
-            </div>
-          </section>
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Cache de PDFs</h3>
+                  <p className="text-xs text-brand-gray-500 mt-1">Controle de combinações de cidades e validade dos PDFs em cache.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadPdfCache}
+                  disabled={pdfCacheLoading}
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10 disabled:opacity-50"
+                >
+                  <RefreshCcw size={14} className={pdfCacheLoading ? 'animate-spin' : ''} />
+                  Atualizar
+                </button>
+              </div>
+
+              {pdfCacheError ? <p className="mt-3 text-xs text-red-300">{pdfCacheError}</p> : null}
+
+              <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+                <table className="w-full text-sm">
+                  <thead className="bg-white/[0.04] text-brand-gray-400">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Combinação</th>
+                      <th className="px-3 py-2 text-left font-medium">Cidades</th>
+                      <th className="px-3 py-2 text-left font-medium">Tamanho</th>
+                      <th className="px-3 py-2 text-left font-medium">Gerado em</th>
+                      <th className="px-3 py-2 text-left font-medium">Downloads</th>
+                      <th className="px-3 py-2 text-left font-medium">Status</th>
+                      <th className="px-3 py-2 text-left font-medium">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pdfCacheLoading ? (
+                      <tr>
+                        <td colSpan={7} className="px-3 py-6 text-center text-brand-gray-500">Carregando cache...</td>
+                      </tr>
+                    ) : !pdfCacheRows.length ? (
+                      <tr>
+                        <td colSpan={7} className="px-3 py-6 text-center text-brand-gray-500">Nenhum PDF em cache.</td>
+                      </tr>
+                    ) : (
+                      pdfCacheRows.map((row) => {
+                        const valid = Number(row.is_valid) === 1;
+                        return (
+                          <tr key={row.id} className="border-t border-white/10 text-white/90">
+                            <td className="px-3 py-2 font-mono text-xs">{row.combination_key}</td>
+                            <td className="px-3 py-2 text-xs text-brand-gray-300">{formatCityList(row.city_slugs)}</td>
+                            <td className="px-3 py-2 text-xs">{formatCacheSize(row.file_size_kb)}</td>
+                            <td className="px-3 py-2 text-xs">{formatDateBr(row.generated_at)}</td>
+                            <td className="px-3 py-2 text-xs">{Number(row.download_count || 0)}</td>
+                            <td className="px-3 py-2 text-xs">
+                              <span className={`inline-flex rounded-full border px-2 py-0.5 ${valid ? 'border-green-500/30 bg-green-500/10 text-green-300' : 'border-white/15 bg-white/5 text-brand-gray-400'}`}>
+                                {valid ? 'Valido' : 'Invalido'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-xs">
+                              {valid ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleInvalidatePdfCache(row.id)}
+                                  disabled={invalidatingCacheId === row.id}
+                                  className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-white hover:bg-white/10 disabled:opacity-50"
+                                >
+                                  {invalidatingCacheId === row.id ? 'Invalidando...' : 'Invalidar'}
+                                </button>
+                              ) : (
+                                <span className="text-brand-gray-500">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
         ) : null}
       </div>
+
+      <UserModal
+        isOpen={userModalOpen}
+        onClose={() => {
+          if (savingUser) return;
+          setUserModalOpen(false);
+          setUserModalInitialData(null);
+        }}
+        onSave={handleSaveUser}
+        initialData={userModalInitialData}
+      />
 
       {/* Edit / Create Modal */}
       <AnimatePresence>
@@ -993,6 +1326,12 @@ export default function Admin() {
                   <FormField label="Custo Operacional (R$)" value={form.custo_operacional} onChange={v => updateField('custo_operacional', v)} type="number" step="0.01" />
                   <FormField label="Arte largura (px)" value={form.arte_largura} onChange={v => updateField('arte_largura', v)} type="number" min="1" />
                   <FormField label="Arte altura (px)" value={form.arte_altura} onChange={v => updateField('arte_altura', v)} type="number" min="1" />
+                  {form.tipo === 'Frontlight' || form.tipo === 'Backlight' ? (
+                    <>
+                      <FormField label="Largura fisica (m)" value={form.midia_largura_m} onChange={v => updateField('midia_largura_m', v)} type="number" step="0.01" min="0" />
+                      <FormField label="Altura fisica (m)" value={form.midia_altura_m} onChange={v => updateField('midia_altura_m', v)} type="number" step="0.01" min="0" />
+                    </>
+                  ) : null}
                 </div>
 
                 <div>
@@ -1047,6 +1386,38 @@ export default function Admin() {
                       </span>
                     )}
                   </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/95 p-3">
+                  {hasBothImagesForPdf ? (
+                    <div className="mb-3">
+                      <label className="mb-2 block text-sm font-medium text-gray-700">Imagem usada no PDF</label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateField('pdf_image_source', 'imagem')}
+                          className={`rounded-lg border px-3 py-1.5 text-xs transition-colors ${form.pdf_image_source === 'imagem' ? 'border-[#E8591A] bg-[#E8591A] text-white' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}
+                        >
+                          Imagem 1
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateField('pdf_image_source', 'imagem2')}
+                          className={`rounded-lg border px-3 py-1.5 text-xs transition-colors ${form.pdf_image_source === 'imagem2' ? 'border-[#E8591A] bg-[#E8591A] text-white' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}
+                        >
+                          Imagem 2
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mb-3 text-xs text-gray-500">A seleção da imagem do PDF aparece quando as duas imagens estiverem preenchidas.</p>
+                  )}
+
+                  <FocalPointSelector
+                    value={form.foto_focal_point || 'center center'}
+                    onChange={(next) => updateField('foto_focal_point', next)}
+                    imageUrl={selectedPdfPreviewImage}
+                  />
                 </div>
 
                 <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-4">
@@ -1331,6 +1702,40 @@ function clampNumber(value, min, max, fallback) {
   return Math.min(max, Math.max(min, numeric));
 }
 
+function formatCacheSize(valueKb) {
+  const kb = Number(valueKb);
+  if (!Number.isFinite(kb) || kb <= 0) return '-';
+  if (kb > 1024) return `${(kb / 1024).toFixed(1)} MB`;
+  return `${Math.round(kb)} KB`;
+}
+
+function formatDateBr(value) {
+  if (!value) return '-';
+  const date = new Date(String(value).replace(' ', 'T'));
+  if (Number.isNaN(date.getTime())) return '-';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
+function formatCityList(citySlugsRaw) {
+  try {
+    const parsed = JSON.parse(citySlugsRaw || '[]');
+    if (!Array.isArray(parsed) || !parsed.length) return '-';
+    return parsed
+      .map((city) => String(city || ''))
+      .filter(Boolean)
+      .map((city) => city.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '))
+      .join(', ');
+  } catch {
+    return '-';
+  }
+}
+
 function deriveFocusFromSimulationString(simulacaoTela) {
   const fallback = { x: 50, y: 50, zoom: 100 };
   if (!simulacaoTela) return fallback;
@@ -1545,17 +1950,9 @@ function UsersAdminPanel({
   users,
   loading,
   error,
-  newUser,
-  setNewUser,
-  creating,
-  onCreate,
+  onOpenNew,
+  onOpenEdit,
   onDelete,
-  onUpdateRole,
-  editingRole,
-  setEditingRole,
-  selectedRole,
-  setSelectedRole,
-  updatingRole,
   userRoles,
   onReload
 }) {
@@ -1566,73 +1963,25 @@ function UsersAdminPanel({
           <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Cadastro de usuários admin</h3>
           <p className="text-xs text-brand-gray-500 mt-1">Gerencie quem pode acessar o painel administrativo e defina permissões.</p>
         </div>
-        <button
-          type="button"
-          onClick={onReload}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
-        >
-          <RefreshCcw size={15} />
-          Atualizar lista
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenNew}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#E8591A]/40 bg-[#E8591A]/15 px-4 py-2 text-sm font-semibold text-[#E8591A] hover:bg-[#E8591A]/25"
+          >
+            <UserPlus size={15} />
+            Adicionar Usuário
+          </button>
+          <button
+            type="button"
+            onClick={onReload}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+          >
+            <RefreshCcw size={15} />
+            Atualizar lista
+          </button>
+        </div>
       </div>
-
-      <form onSubmit={onCreate} className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto]">
-        <input
-          type="text"
-          value={newUser.firstName}
-          onChange={(event) => setNewUser((prev) => ({ ...prev, firstName: event.target.value }))}
-          placeholder="Nome"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
-          required
-        />
-        <input
-          type="text"
-          value={newUser.lastName}
-          onChange={(event) => setNewUser((prev) => ({ ...prev, lastName: event.target.value }))}
-          placeholder="Sobrenome"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
-          required
-        />
-        <input
-          type="text"
-          value={newUser.whatsapp}
-          onChange={(event) => setNewUser((prev) => ({ ...prev, whatsapp: event.target.value }))}
-          placeholder="WhatsApp"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
-        />
-        <input
-          type="email"
-          value={newUser.email}
-          onChange={(event) => setNewUser((prev) => ({ ...prev, email: event.target.value }))}
-          placeholder="E-mail"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
-          required
-        />
-        <input
-          type="password"
-          value={newUser.password}
-          onChange={(event) => setNewUser((prev) => ({ ...prev, password: event.target.value }))}
-          placeholder="Senha (mínimo 6)"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-500"
-          required
-          minLength={6}
-        />
-        <select
-          value={newUser.role || 'vendedor'}
-          onChange={(event) => setNewUser((prev) => ({ ...prev, role: event.target.value }))}
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white appearance-none focus:outline-none focus:border-brand-orange/40"
-        >
-          {userRoles.map(r => <option key={r.value} value={r.value} className="bg-brand-dark">{r.label}</option>)}
-        </select>
-        <button
-          type="submit"
-          disabled={creating}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
-        >
-          <UserPlus size={15} />
-          {creating ? 'Criando...' : 'Criar'}
-        </button>
-      </form>
 
       {error ? <p className="mt-3 text-xs text-red-300">{error}</p> : null}
 
@@ -1669,63 +2018,27 @@ function UsersAdminPanel({
                   <div>{user.whatsapp || '-'}</div>
                 </td>
                 <td className="px-3 py-2">
-                  {editingRole === user.id ? (
-                    <select
-                      value={selectedRole}
-                      onChange={(e) => setSelectedRole(e.target.value)}
-                      className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white appearance-none"
-                    >
-                      {userRoles.map(r => <option key={r.value} value={r.value} className="bg-brand-dark">{r.label}</option>)}
-                    </select>
-                  ) : (
-                    <span className="inline-block px-2 py-1 rounded-lg bg-brand-orange/10 text-brand-orange text-xs">
-                      {userRoles.find(r => r.value === user.role)?.label || user.role}
-                    </span>
-                  )}
+                  <span className="inline-block px-2 py-1 rounded-lg bg-brand-orange/10 text-brand-orange text-xs">
+                    {userRoles.find(r => r.value === user.role)?.label || user.role}
+                  </span>
                 </td>
                 <td className="px-3 py-2 text-right space-x-2">
-                  {editingRole === user.id ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => onUpdateRole(user.id, selectedRole)}
-                        disabled={updatingRole}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-brand-orange hover:bg-brand-orange/10 disabled:opacity-50"
-                      >
-                        <Save size={12} />
-                        Salvar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingRole(null)}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-brand-gray-400 hover:bg-white/10"
-                      >
-                        Cancelar
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingRole(user.id);
-                          setSelectedRole(user.role || 'vendedor');
-                        }}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-brand-gray-400 hover:bg-white/10"
-                      >
-                        <Pencil size={12} />
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(user.id, user.username)}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-red-300 hover:bg-red-400/10"
-                      >
-                        <Trash2 size={12} />
-                        Remover
-                      </button>
-                    </>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => onOpenEdit(user)}
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-brand-gray-400 hover:bg-white/10"
+                  >
+                    <Pencil size={12} />
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(user.id, user.username)}
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-red-300 hover:bg-red-400/10"
+                  >
+                    <Trash2 size={12} />
+                    Remover
+                  </button>
                 </td>
               </tr>
             ))}

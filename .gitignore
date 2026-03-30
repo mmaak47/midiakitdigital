@@ -4,6 +4,7 @@ dist/
 *.db
 backend/uploads/*
 !backend/uploads/.gitkeep
+backend/uploads/cidades/
 *.ps1
 *.txt
 *.log
@@ -15,3 +16,5 @@ src/
 backend/*.db-wal
 backend/*.db-shm
 backend/backups/
+backend/pdf-cache/*
+!backend/pdf-cache/.gitkeep

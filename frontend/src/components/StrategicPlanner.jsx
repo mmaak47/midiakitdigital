@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Loader2, PlusCircle, Sparkles, Target } from 'lucide-react';
+import { memo, useEffect, useMemo, useState } from 'react';
+import { Building2, Loader2, PlusCircle, Sparkles, Target } from 'lucide-react';
 import CustomSelect from './CustomSelect';
 import {
   SEGMENTOS,
@@ -9,11 +9,40 @@ import {
   suggestIdealPlan
 } from '../lib/strategy';
 import { fetchEntornoJobStatus, fetchEntornoScores } from '../lib/api';
-import { fetchIbgeCityProfiles } from '../lib/ibge';
+import { getMunicipioCode, getPIBPerCapita, getPopulacao } from '../services/ibgeService';
+
+// AUDITORIA IBGE (consumo)
+// Este componente consome os dados via src/services/ibgeService.js.
+// Fluxo:
+// 1) getMunicipioCode(praca) -> codigo IBGE do municipio
+// 2) getPopulacao(codigo) -> populacao municipal (agregado 4709)
+// 3) getPIBPerCapita(codigo) -> PIB per capita municipal (agregado 5938)
+// Exibicao:
+// - Linha contextual abaixo dos filtros de configuracao (ETAPA 1).
+// - Com cache em memoria por sessao para evitar consultas repetidas por cidade.
 
 const DEFAULT_ENTORNO_RADIUS = 800;
+const CITY_CONTEXT_CACHE = new Map();
 
-export default function StrategicPlanner({ pontos = [], publicos = [], cidades = [], onAddPlan }) {
+function formatPopulacaoCompacta(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  if (numeric >= 1000000) return `${(numeric / 1000000).toFixed(1).replace('.', ',')}M`;
+  if (numeric >= 1000) return `${(numeric / 1000).toFixed(1).replace('.', ',')}k`;
+  return new Intl.NumberFormat('pt-BR').format(Math.round(numeric));
+}
+
+function formatMoedaSemCentavos(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0
+  }).format(numeric);
+}
+
+export default function StrategicPlanner({ pontos = [], publicos = [], cidades = [], onAddPlan, onSuggestionChange }) {
   const [form, setForm] = useState({
     segmento: 'clinica',
     objetivo: 'reconhecimento de marca',
@@ -31,10 +60,11 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
     updatedAt: null,
     error: ''
   });
-  const [ibge, setIbge] = useState({
+  const [cityContext, setCityContext] = useState({
     loading: false,
-    profiles: {},
-    errors: {}
+    cityName: '',
+    populacao: null,
+    pibPerCapita: null
   });
 
   useEffect(() => {
@@ -109,34 +139,51 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
   useEffect(() => {
     let active = true;
 
-    const loadIbge = async () => {
+    const loadCityContext = async () => {
       const selectedCities = Array.isArray(form.cidade) ? form.cidade.filter(Boolean) : [];
-      if (!selectedCities.length) {
-        setIbge({ loading: false, profiles: {}, errors: {} });
+      if (selectedCities.length !== 1) {
+        setCityContext({ loading: false, cityName: '', populacao: null, pibPerCapita: null });
         return;
       }
 
-      setIbge((prev) => ({ ...prev, loading: true }));
-
-      try {
-        const response = await fetchIbgeCityProfiles(selectedCities);
-        if (!active) return;
-        setIbge({
+      const cityName = selectedCities[0];
+      if (CITY_CONTEXT_CACHE.has(cityName)) {
+        const cached = CITY_CONTEXT_CACHE.get(cityName);
+        setCityContext({
           loading: false,
-          profiles: response.profiles || {},
-          errors: response.errors || {}
+          cityName,
+          populacao: cached.populacao,
+          pibPerCapita: cached.pibPerCapita
         });
-      } catch {
-        if (!active) return;
-        setIbge({
-          loading: false,
-          profiles: {},
-          errors: { global: 'Falha ao carregar dados do IBGE.' }
-        });
+        return;
       }
+
+      setCityContext({ loading: true, cityName, populacao: null, pibPerCapita: null });
+
+      const municipioCode = await getMunicipioCode(cityName);
+      if (!active || !municipioCode) {
+        if (active) setCityContext({ loading: false, cityName, populacao: null, pibPerCapita: null });
+        return;
+      }
+
+      const [populacao, pibPerCapita] = await Promise.all([
+        getPopulacao(municipioCode),
+        getPIBPerCapita(municipioCode)
+      ]);
+
+      if (!active) return;
+
+      if (populacao === null || pibPerCapita === null) {
+        setCityContext({ loading: false, cityName, populacao: null, pibPerCapita: null });
+        return;
+      }
+
+      const result = { populacao, pibPerCapita };
+      CITY_CONTEXT_CACHE.set(cityName, result);
+      setCityContext({ loading: false, cityName, populacao, pibPerCapita });
     };
 
-    loadIbge();
+    loadCityContext();
 
     return () => {
       active = false;
@@ -161,127 +208,134 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
 
   const totals = suggestion.totals;
 
+  useEffect(() => {
+    onSuggestionChange?.(suggestion);
+  }, [onSuggestionChange, suggestion]);
+
+  const cityContextText = useMemo(() => {
+    const pop = formatPopulacaoCompacta(cityContext.populacao);
+    const pib = formatMoedaSemCentavos(cityContext.pibPerCapita);
+    if (!cityContext.cityName || !pop || !pib) return '';
+    return `${cityContext.cityName} · População: ${pop} · PIB per capita: ${pib}`;
+  }, [cityContext]);
+
   return (
-    <section className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-white/[0.01] p-6 shadow-lg shadow-black/20">
-      <div className="flex items-center gap-2 mb-5">
-        <Sparkles size={18} className="text-brand-orange" />
-        <h2 className="text-sm font-bold uppercase tracking-wider text-white">Sugestão de plano ideal</h2>
-      </div>
-
-      <div className="grid md:grid-cols-2 xl:grid-cols-7 gap-4 mb-5">
-        <CustomSelect label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS} />
-        <CustomSelect label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} allowCustom customPlaceholder="Digite um objetivo personalizado" />
-        <CustomSelect label="Praça" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={cidades} multiple placeholder="Selecionar uma ou mais praças" />
-        <CustomSelect label="Público" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={publicos} multiple placeholder="Selecionar um ou mais públicos" />
-        <CustomSelect label="Audience tags" value={form.audienceTags} onChange={(v) => setForm((s) => ({ ...s, audienceTags: v }))} options={audienceTagOptions} multiple placeholder="Selecionar tags de audiência" />
-        <CustomSelect label="Disponibilidade" value={form.availabilityPreference} onChange={(v) => setForm((s) => ({ ...s, availabilityPreference: v }))} options={availabilityOptions} />
-        <div>
-          <label className="text-[11px] uppercase tracking-wide text-brand-gray-500 font-semibold">Investimento mensal</label>
-          <input
-            type="number"
-            min={0}
-            step={500}
-            value={form.investimentoMensal}
-            onChange={(e) => setForm((s) => ({ ...s, investimentoMensal: Number(e.target.value) || 0 }))}
-            className="mt-1 w-full bg-white/10 border border-white/15 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-brand-orange/40 transition-colors"
-          />
-        </div>
-      </div>
-
-      <div className="grid lg:grid-cols-[1fr_auto] gap-4 items-start">
-        <div>
-          <p className="text-sm text-brand-gray-300 mb-3">{suggestion.justificativa}</p>
-          <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-brand-gray-400">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold uppercase tracking-wide text-brand-gray-300">Análise de entorno</span>
-              {entorno.loading && (
-                <span className="inline-flex items-center gap-1 text-brand-orange">
-                  <Loader2 size={12} className="animate-spin" />
-                  Atualizando
-                </span>
-              )}
-              {entorno.jobId && (
-                <span className="rounded-full border border-brand-orange/30 bg-brand-orange/10 px-2 py-0.5 text-brand-orange">
-                  Job #{entorno.jobId}
-                </span>
-              )}
-            </div>
-            <p className="mt-1">
-              Cobertura do cache: {(entorno.coverage * 100).toFixed(0)}% dos pontos
-              {entorno.updatedAt ? ` • atualizado em ${new Date(entorno.updatedAt).toLocaleString('pt-BR')}` : ''}
-            </p>
-            {entorno.error && <p className="mt-1 text-red-300">{entorno.error}</p>}
+    <section className="space-y-4">
+      <div className="rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-lg shadow-black/20">
+        <div className="mb-5">
+          <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8591A]">ETAPA 1</div>
+          <div className="mt-1 flex items-center gap-2">
+            <Sparkles size={18} className="text-[#E8591A]" />
+            <h2 className="text-xl font-bold text-white">Configure sua campanha</h2>
           </div>
-          {form.cidade.length > 0 && (
+        </div>
+
+        <div className="grid md:grid-cols-2 xl:grid-cols-7 gap-4 mb-5">
+          <CustomSelect label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS} />
+          <CustomSelect label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} allowCustom customPlaceholder="Digite um objetivo personalizado" />
+          <CustomSelect label="Praça" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={cidades} multiple placeholder="Selecionar uma ou mais praças" />
+          <CustomSelect label="Público" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={publicos} multiple placeholder="Selecionar um ou mais públicos" />
+          <CustomSelect label="Audience tags" value={form.audienceTags} onChange={(v) => setForm((s) => ({ ...s, audienceTags: v }))} options={audienceTagOptions} multiple placeholder="Selecionar tags de audiência" />
+          <CustomSelect label="Disponibilidade" value={form.availabilityPreference} onChange={(v) => setForm((s) => ({ ...s, availabilityPreference: v }))} options={availabilityOptions} />
+          <div>
+            <label className="text-[11px] uppercase tracking-wide text-brand-gray-500 font-semibold">Investimento mensal</label>
+            <input
+              type="number"
+              min={0}
+              step={500}
+              value={form.investimentoMensal}
+              onChange={(e) => setForm((s) => ({ ...s, investimentoMensal: Number(e.target.value) || 0 }))}
+              className="mt-1 w-full bg-white/10 border border-white/15 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-[#E8591A]/50 transition-colors"
+            />
+          </div>
+        </div>
+
+        {cityContext.loading ? (
+          <div className="mb-4 flex items-center gap-2 text-sm text-gray-400">
+            <Building2 size={14} className="text-[#E8591A]" />
+            <span className="h-4 w-48 animate-pulse rounded bg-white/10" />
+          </div>
+        ) : cityContextText ? (
+          <div className="mb-4 flex items-center gap-2 text-sm text-gray-400">
+            <Building2 size={14} className="text-[#E8591A]" />
+            <span>{cityContextText}</span>
+          </div>
+        ) : null}
+
+        <div className="grid lg:grid-cols-[1fr_auto] gap-4 items-start">
+          <div>
+            <p className="text-sm text-brand-gray-300 mb-3">{suggestion.justificativa}</p>
             <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-brand-gray-400">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold uppercase tracking-wide text-brand-gray-300">Contexto territorial</span>
-                {ibge.loading && (
+                <span className="font-semibold uppercase tracking-wide text-brand-gray-300">Análise de entorno</span>
+                {entorno.loading && (
                   <span className="inline-flex items-center gap-1 text-brand-orange">
                     <Loader2 size={12} className="animate-spin" />
-                    Consultando IBGE
+                    Atualizando
                   </span>
                 )}
-                <span className="rounded-full border border-brand-orange/30 bg-brand-orange/10 px-2 py-0.5 text-brand-orange">
-                  Fonte: IBGE
-                </span>
+                {entorno.jobId && (
+                  <span className="rounded-full border border-brand-orange/30 bg-brand-orange/10 px-2 py-0.5 text-brand-orange">
+                    Job #{entorno.jobId}
+                  </span>
+                )}
               </div>
-
-              <div className="mt-2 space-y-1.5">
-                {Object.values(ibge.profiles).map((profile) => (
-                  <p key={`${profile.city}-${profile.ibgeCode || 'na'}`}>
-                    {profile.city}: cod. {profile.ibgeCode || 'N/I'} • {profile.stateCode || '-'} • {profile.region || 'Região N/I'}
-                  </p>
-                ))}
-
-                {Object.values(ibge.errors).map((error, index) => (
-                  <p key={`ibge-error-${index}`} className="text-red-300">{error}</p>
-                ))}
-              </div>
+              <p className="mt-1">
+                Cobertura do cache: {(entorno.coverage * 100).toFixed(0)}% dos pontos
+                {entorno.updatedAt ? ` • atualizado em ${new Date(entorno.updatedAt).toLocaleString('pt-BR')}` : ''}
+              </p>
+              {entorno.error && <p className="mt-1 text-red-300">{entorno.error}</p>}
             </div>
-          )}
-          <div className="flex flex-wrap gap-2.5 mb-4">
-            {suggestion.pontos.slice(0, 8).map((p) => (
-              <span key={p.id} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-orange/15 to-brand-orange/5 border border-brand-orange/30 text-xs font-medium text-brand-orange hover:border-brand-orange/60 transition-colors">
-                {p.nome}
-              </span>
-            ))}
+            <div className="flex flex-wrap gap-2.5 mb-1">
+              {suggestion.pontos.slice(0, 8).map((p) => (
+                <span key={p.id} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-orange/15 to-brand-orange/5 border border-brand-orange/30 text-xs font-medium text-brand-orange hover:border-brand-orange/60 transition-colors">
+                  {p.nome}
+                </span>
+              ))}
+            </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 text-xs">
-            <Metric label="Pontos" value={totals.quantidade} />
-            <Metric label="Valor total" value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totals.valorTotal)} />
-            <Metric label="Fluxo total" value={new Intl.NumberFormat('pt-BR').format(totals.fluxoTotal)} />
-            <Metric label="CPM estimado" value={`R$ ${totals.cpmEstimado.toFixed(2)}`} />
-            <Metric label="Reach efetivo" value={`${suggestion.reachFrequency?.effectiveReachPct?.toFixed?.(1) ?? '0.0'}%`} />
-            <Metric label="Freq média" value={`${suggestion.reachFrequency?.avgFrequency?.toFixed?.(2) ?? '0.00'}x`} />
-            <Metric label="GRPs" value={String(suggestion.reachFrequency?.grps ?? 0)} />
-            <Metric label="Uso de budget" value={`${suggestion.optimizer?.budgetUsagePct ?? 0}%`} />
-          </div>
-        </div>
 
-        <button
-          onClick={() => onAddPlan?.(suggestion.pontos)}
-          disabled={!suggestion.pontos.length}
-          className="orange-solid-btn inline-flex items-center justify-center gap-2 h-12 px-5 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white text-sm font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all disabled:opacity-60 disabled:shadow-none whitespace-nowrap"
-        >
-          <PlusCircle size={17} />
-          Adicionar plano
-        </button>
+          <button
+            onClick={() => onAddPlan?.(suggestion.pontos)}
+            disabled={!suggestion.pontos.length}
+            className="orange-solid-btn inline-flex items-center justify-center gap-2 h-12 px-5 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white text-sm font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all disabled:opacity-60 disabled:shadow-none whitespace-nowrap"
+          >
+            <PlusCircle size={17} />
+            Adicionar plano
+          </button>
+        </div>
       </div>
 
-      <div className="mt-4 flex items-center gap-2 text-xs text-brand-gray-500">
-        <Target size={13} className="text-brand-orange" />
-        Recomendação automática com base em objetivo, público, faixa de investimento e análise de entorno por segmento.
+      <div className="h-px w-full bg-white/10" />
+
+      <div className="rounded-xl bg-black/30 p-4">
+        <div className="mb-3">
+          <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8591A]">ETAPA 2 — Resumo do plano</div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 text-xs">
+          <Metric label="Pontos" value={totals.quantidade} />
+          <Metric label="Valor Total" value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totals.valorTotal)} />
+          <Metric label="Fluxo Total" value={new Intl.NumberFormat('pt-BR').format(totals.fluxoTotal)} />
+          <Metric label="CPM Estimado" value={`R$ ${totals.cpmEstimado.toFixed(2)}`} />
+          <Metric label="Reach Efetivo" value={`${suggestion.reachFrequency?.effectiveReachPct?.toFixed?.(1) ?? '0.0'}%`} />
+          <Metric label="Freq Média" value={`${suggestion.reachFrequency?.avgFrequency?.toFixed?.(2) ?? '0.00'}x`} />
+          <Metric label="GRPs" value={String(suggestion.reachFrequency?.grps ?? 0)} />
+          <Metric label="Uso de Budget" value={`${suggestion.optimizer?.budgetUsagePct ?? 0}%`} />
+        </div>
+        <div className="mt-4 flex items-center gap-2 text-xs text-brand-gray-500">
+          <Target size={13} className="text-brand-orange" />
+          Recomendação automática com base em objetivo, público, faixa de investimento e análise de entorno por segmento.
+        </div>
       </div>
     </section>
   );
 }
 
-function Metric({ label, value }) {
+const Metric = memo(function Metric({ label, value }) {
   return (
     <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.01] p-3 shadow-md shadow-black/10">
       <div className="text-[10px] uppercase tracking-wider text-brand-gray-500 font-semibold">{label}</div>
       <div className="text-sm font-bold text-white mt-1">{value}</div>
     </div>
   );
-}
+});

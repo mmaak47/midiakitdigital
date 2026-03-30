@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import { Clock3 } from 'lucide-react';
 
-export default function RecommendationEngine({ history = [], onApplyCombo }) {
+const RecommendationEngine = memo(function RecommendationEngine({ history = [], onApplyCombo }) {
   const combos = history
     .filter((item) => item.type === 'combo')
     .slice(-4)
@@ -35,4 +36,6 @@ export default function RecommendationEngine({ history = [], onApplyCombo }) {
       </div>
     </section>
   );
-}
+});
+
+export default RecommendationEngine;

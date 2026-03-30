@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@chenglou/pretext": "^0.0.3",
     "framer-motion": "^11.18.0",
     "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
@@ -17,8 +18,10 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-leaflet": "^4.2.1",
+    "react-leaflet-cluster": "^3.1.1",
     "react-map-gl": "^8.1.0",
     "react-router-dom": "^7.1.1",
+    "react-window": "^1.8.9",
     "remixicon": "^4.9.1"
   },
   "devDependencies": {

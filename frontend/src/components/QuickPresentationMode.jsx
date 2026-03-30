@@ -144,7 +144,7 @@ export default function QuickPresentationMode({ points = [], totals = {}, segmen
               <div className="flex items-center gap-3">
                 <img src="/logo-deitado.png" alt="Intermidia" className="h-9 w-auto opacity-95" />
                 <span className="inline-flex min-h-[32px] items-center justify-center rounded-full border border-brand-orange/35 bg-brand-orange/15 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] leading-none text-brand-orange">
-                  <span className="block translate-y-[1px]">Pitch rápido</span>
+                  Pitch rápido
                 </span>
               </div>
               <button onClick={onClose} className="rounded-full border border-white/20 bg-black/35 p-2 text-white/70 hover:text-white">

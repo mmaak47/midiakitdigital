@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import { TrendingUp, CircleDollarSign, BarChart3, Layers } from 'lucide-react';
 
-export default function CampaignMetrics({ totals }) {
+const CampaignMetrics = memo(function CampaignMetrics({ totals }) {
   if (!totals) return null;
 
   const formatCurrency = (n) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
@@ -30,4 +31,6 @@ export default function CampaignMetrics({ totals }) {
       </div>
     </section>
   );
-}
+});
+
+export default CampaignMetrics;

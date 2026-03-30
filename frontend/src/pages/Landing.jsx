@@ -1,13 +1,15 @@
 import { useNavigate, Link } from 'react-router-dom';
 import { AnimatePresence, motion, useInView } from 'framer-motion';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Play } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import CustomSelect from '../components/CustomSelect';
 import SmartMap from '../components/SmartMap';
-import MidiaKitSlidesMode from '../components/MidiaKitSlidesMode';
 import { fetchPontos } from '../lib/api';
 import { getPointDisplayImages, getPrimaryPointMediaKitImage } from '../lib/pointImages';
 import { campaignTotals, sortFormatos } from '../lib/strategy';
+
+const MidiaKitSlidesMode = lazy(() => import('../components/MidiaKitSlidesMode'));
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -17,6 +19,13 @@ const fadeUp = {
     transition: { delay: i * 0.08, duration: 0.5, ease: [0.22, 1, 0.36, 1] }
   })
 };
+
+const PDF_TIPS = [
+  'Renderizando as paginas do kit...',
+  'Carregando imagens dos pontos...',
+  'Aplicando tipografia e layout...',
+  'Quase pronto, aguarde...'
+];
 
 function formatInt(value) {
   return new Intl.NumberFormat('pt-BR').format(Math.round(Number(value) || 0));
@@ -89,6 +98,9 @@ function PointImageGallery({ ponto, onExpand }) {
         className="w-full h-full object-cover min-h-[180px] transition-transform duration-500 group-hover:scale-[1.03] cursor-pointer"
         onClick={() => onExpand(ponto, idx)}
         style={{ objectPosition: `${ponto.imagem_foco_x ?? 50}% ${ponto.imagem_foco_y ?? 50}%` }}
+        loading="lazy"
+        width="640"
+        height="360"
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5 pointer-events-none">
         <span className="flex items-center gap-1 text-[11px] text-brand-orange bg-black/70 rounded-md px-2 py-1 border border-brand-orange/35 shadow-sm">
@@ -173,7 +185,7 @@ function Lightbox({ ponto, imageIndex, onClose, onChangeIndex }) {
           </button>
         </div>
         <div className="relative rounded-2xl overflow-hidden bg-[#0d0d0d] border border-white/10 shadow-[0_20px_80px_rgba(0,0,0,0.8)]">
-          <img src={current} alt={ponto.nome} className="w-full max-h-[72vh] object-contain" />
+          <img src={current} alt={ponto.nome} className="w-full max-h-[72vh] object-contain" loading="lazy" width="1280" height="720" />
           {hasMultiple && (
             <>
               <button onClick={() => onChangeIndex((imageIndex - 1 + images.length) % images.length)} className="absolute left-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-black/70 border border-white/20 flex items-center justify-center text-white hover:bg-black transition" aria-label="Imagem anterior">
@@ -311,7 +323,7 @@ function MapModal({ pontos, onClose, isDark }) {
             <div className="flex-1 p-4 space-y-3">
               {getPrimaryPointMediaKitImage(selectedPoint) && (
                 <div className={`rounded-xl overflow-hidden h-32 border ${m.imgBorder}`}>
-                  <img src={getPrimaryPointMediaKitImage(selectedPoint)} alt={selectedPoint.nome} className="w-full h-full object-cover" />
+                  <img src={getPrimaryPointMediaKitImage(selectedPoint)} alt={selectedPoint.nome} className="w-full h-full object-cover" loading="lazy" width="640" height="360" />
                 </div>
               )}
               <div>
@@ -356,7 +368,9 @@ export default function Landing() {
   const [selectedPracas, setSelectedPracas] = useState([]);
   const [selectedTipos, setSelectedTipos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [pdfStatus, setPdfStatus] = useState(null);
+  const [pdfTipIndex, setPdfTipIndex] = useState(0);
+  const [pdfToast, setPdfToast] = useState(null);
   const [showMapModal, setShowMapModal] = useState(false);
   const [showSlidesMode, setShowSlidesMode] = useState(false);
   const [lightbox, setLightbox] = useState({ ponto: null, imageIndex: 0 });
@@ -422,6 +436,21 @@ export default function Landing() {
     const fromManualCommercial = sessionStorage.getItem('comercial_manual_login') === '1';
     setShowCommercialShortcut(hasToken && fromManualCommercial);
   }, []);
+
+  useEffect(() => {
+    if (pdfStatus !== 'generating') return undefined;
+    setPdfTipIndex(0);
+    const timer = setInterval(() => {
+      setPdfTipIndex((current) => (current + 1) % PDF_TIPS.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [pdfStatus]);
+
+  useEffect(() => {
+    if (!pdfToast) return undefined;
+    const timer = setTimeout(() => setPdfToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [pdfToast]);
 
   const pracas = useMemo(() => {
     const unique = new Set(allPontos.map((p) => p.cidade).filter(Boolean));
@@ -520,16 +549,19 @@ export default function Landing() {
   }, [selectedPracas, selectedTipos]);
 
   const handleExportPdf = async () => {
-    if (!pontos.length || generatingPdf) return;
-    setGeneratingPdf(true);
+    if (!pontos.length || pdfStatus === 'generating') return;
+    setPdfStatus('generating');
     try {
       const { generateMidiaKitPdf } = await import('../lib/midiaKitPdf');
       await generateMidiaKitPdf({ praca: selectedPracaLabel, pracas: selectedPracas, pontos });
+      setPdfStatus('ready');
+      setPdfToast({ type: 'success', message: 'PDF gerado com sucesso ✓' });
+      setTimeout(() => setPdfStatus(null), 120);
     } catch (err) {
       console.error(err);
-      window.alert('Não foi possível gerar o PDF agora. Tente novamente.');
-    } finally {
-      setGeneratingPdf(false);
+      setPdfStatus('error');
+      setPdfToast({ type: 'error', message: 'Erro ao gerar PDF. Tente novamente.' });
+      setTimeout(() => setPdfStatus(null), 120);
     }
   };
 
@@ -643,9 +675,9 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={3}
-            className={`grid lg:grid-cols-[1fr_auto_auto_auto] gap-4 p-6 bg-gradient-to-br ${t.controlPanel} border rounded-2xl backdrop-blur-xl shadow-xl shadow-black/30`}
+            className={`grid lg:grid-cols-[1fr_auto_auto_auto] items-end gap-4 p-6 bg-gradient-to-br ${t.controlPanel} border rounded-2xl backdrop-blur-xl shadow-xl shadow-black/30`}
           >
-            <div className="grid sm:grid-cols-3 gap-4">
+            <div className="grid sm:grid-cols-3 gap-4 lg:col-span-4">
               <CustomSelect
                 label="Praça"
                 value={selectedPracas}
@@ -670,13 +702,29 @@ export default function Landing() {
               </div>
             </div>
 
-            <button
-              onClick={() => setShowSlidesMode(true)}
-              className="landing-orange-btn group h-[50px] self-end px-6 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
+            <motion.div
+              animate={{
+                boxShadow: [
+                  '0 0 0px #E8591A',
+                  '0 0 18px rgba(232,89,26,0.5)',
+                  '0 0 0px #E8591A'
+                ]
+              }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              className="w-full self-end rounded-2xl border border-[#E8591A]/25 bg-black/35 p-3 lg:w-auto lg:max-w-[360px]"
             >
-              <i className="ri-slideshow-3-line" style={{ fontSize: 16 }} />
-              Abrir slides
-            </button>
+              <div className="mb-2 inline-flex rounded-full border border-[#E8591A]/35 bg-[#E8591A]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#E8591A]">
+                ✦ Ver apresentação
+              </div>
+              <button
+                onClick={() => setShowSlidesMode(true)}
+                className="inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#E8591A] px-5 text-sm font-bold text-white transition-colors hover:bg-brand-orange-hover"
+              >
+                <Play size={16} />
+                Abrir apresentação em slides
+              </button>
+              <p className="mt-1.5 text-xs leading-tight text-gray-400">Apresentação visual dos pontos selecionados</p>
+            </motion.div>
 
             <button
               onClick={() => setShowMapModal(true)}
@@ -688,10 +736,10 @@ export default function Landing() {
 
             <button
               onClick={handleExportPdf}
-              disabled={generatingPdf || pontos.length === 0}
+              disabled={pdfStatus === 'generating' || pontos.length === 0}
               className={`h-[50px] self-end px-6 border font-semibold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${t.pdfBtn}`}
             >
-              {generatingPdf ? 'Gerando PDF...' : 'Gerar PDF da praça'}
+              {pdfStatus === 'generating' ? 'Gerando PDF...' : 'Gerar PDF da praça'}
             </button>
           </motion.div>
 
@@ -1044,17 +1092,19 @@ export default function Landing() {
 
       <AnimatePresence>
         {showSlidesMode && (
-          <MidiaKitSlidesMode
-            key="slides-mode"
-            open={showSlidesMode}
-            onClose={() => setShowSlidesMode(false)}
-            allPontos={allPontos}
-            selectedPracas={selectedPracas}
-            setSelectedPracas={setSelectedPracas}
-            selectedTipos={selectedTipos}
-            setSelectedTipos={setSelectedTipos}
-            isDark={isDark}
-          />
+          <Suspense fallback={null}>
+            <MidiaKitSlidesMode
+              key="slides-mode"
+              open={showSlidesMode}
+              onClose={() => setShowSlidesMode(false)}
+              allPontos={allPontos}
+              selectedPracas={selectedPracas}
+              setSelectedPracas={setSelectedPracas}
+              selectedTipos={selectedTipos}
+              setSelectedTipos={setSelectedTipos}
+              isDark={isDark}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
 
@@ -1068,6 +1118,51 @@ export default function Landing() {
             onChangeIndex={(i) => setLightbox((prev) => ({ ...prev, imageIndex: i }))}
           />
         )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pdfStatus === 'generating' ? (
+          <motion.div
+            key="pdf-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-sm"
+          >
+            <div className="relative flex flex-col items-center px-6 text-center">
+              <div className="h-12 w-12 rounded-full border-[3px] border-white/20 border-t-[#E8591A] animate-spin" />
+              <p className="mt-4 text-[18px] font-semibold text-white">Gerando PDF...</p>
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={pdfTipIndex}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.4 }}
+                  className="mt-2 text-[13px] text-white/55"
+                >
+                  {PDF_TIPS[pdfTipIndex]}
+                </motion.p>
+              </AnimatePresence>
+            </div>
+
+            <p className="absolute bottom-8 text-[11px] text-white/30">A geração leva entre 15 e 30 segundos</p>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pdfToast ? (
+          <motion.div
+            key="pdf-toast"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            className={`fixed bottom-6 right-6 z-[10000] rounded-xl border px-4 py-3 text-sm font-medium shadow-xl ${pdfToast.type === 'success' ? 'border-green-500/40 bg-green-600/20 text-green-100' : 'border-red-500/40 bg-red-600/20 text-red-100'}`}
+          >
+            {pdfToast.message}
+          </motion.div>
+        ) : null}
       </AnimatePresence>
     </div>
   );

@@ -1,5 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const crypto = require('crypto');
+const { hashPassword, isPasswordHash } = require('./auth');
 
 const db = new Database(path.join(__dirname, 'midiakit.db'));
 
@@ -29,6 +31,8 @@ db.exec(`
     imagem TEXT,
     arte_largura INTEGER DEFAULT 1920,
     arte_altura INTEGER DEFAULT 1080,
+    midia_largura_m REAL,
+    midia_altura_m REAL,
     ativo INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
@@ -70,6 +74,8 @@ ensureColumn('pontos', 'simulacao_arte', 'TEXT');
 ensureColumn('pontos', 'simulacao_preview', 'TEXT');
 ensureColumn('pontos', 'arte_largura', 'INTEGER DEFAULT 1920');
 ensureColumn('pontos', 'arte_altura', 'INTEGER DEFAULT 1080');
+ensureColumn('pontos', 'midia_largura_m', 'REAL');
+ensureColumn('pontos', 'midia_altura_m', 'REAL');
 ensureColumn('pontos', 'custo_operacional', 'REAL DEFAULT 0');
 ensureColumn('pontos', 'tipo_fluxo', "TEXT DEFAULT 'pessoas'");
 ensureColumn('pontos', 'audience_tags', "TEXT DEFAULT '[]'");
@@ -79,6 +85,16 @@ ensureColumn('pontos', 'imagem2', 'TEXT');
 ensureColumn('pontos', 'imagem_foco_x', 'REAL DEFAULT 50');
 ensureColumn('pontos', 'imagem_foco_y', 'REAL DEFAULT 50');
 ensureColumn('pontos', 'imagem_foco_zoom', 'REAL DEFAULT 100');
+try {
+  ensureColumn('pontos', 'foto_focal_point', "TEXT DEFAULT 'center center'");
+} catch (error) {
+  console.warn('[db] Nao foi possivel aplicar migracao da coluna foto_focal_point:', error?.message || error);
+}
+try {
+  ensureColumn('pontos', 'pdf_image_source', "TEXT DEFAULT 'imagem2'");
+} catch (error) {
+  console.warn('[db] Nao foi possivel aplicar migracao da coluna pdf_image_source:', error?.message || error);
+}
 ensureColumn('admin_users', 'role', 'TEXT DEFAULT "vendedor"');
 ensureColumn('admin_users', 'first_name', 'TEXT');
 ensureColumn('admin_users', 'last_name', 'TEXT');
@@ -163,6 +179,45 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS pdf_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    combination_key TEXT NOT NULL UNIQUE,
+    city_slugs TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size_kb INTEGER,
+    generated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    generated_by TEXT,
+    download_count INTEGER NOT NULL DEFAULT 0,
+    is_valid INTEGER NOT NULL DEFAULT 1
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS pdf_cache_snapshot (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cache_id INTEGER NOT NULL,
+    snapshot_type TEXT NOT NULL,
+    city_slug TEXT NOT NULL,
+    snapshot_value TEXT NOT NULL,
+    FOREIGN KEY (cache_id) REFERENCES pdf_cache(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS cidade_fotos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cidade TEXT NOT NULL,
+    cidade_slug TEXT NOT NULL UNIQUE,
+    imagem_path TEXT NOT NULL,
+    original_name TEXT,
+    mime_type TEXT,
+    size_bytes INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+db.exec(`
   UPDATE pontos
   SET
     arte_largura = COALESCE(arte_largura, 1920),
@@ -231,6 +286,21 @@ db.exec(`
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_propostas_aprovacoes_status
   ON propostas_aprovacoes (status, gerente_id)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_pdf_cache_valid_generated
+  ON pdf_cache (is_valid, generated_at)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_pdf_cache_snapshot_cache_id
+  ON pdf_cache_snapshot (cache_id)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_cidade_fotos_slug
+  ON cidade_fotos (cidade_slug)
 `);
 
 // Seed data if empty
@@ -390,16 +460,33 @@ if (count.c === 0) {
 // Seed admin if empty
 const adminCount = db.prepare('SELECT COUNT(*) as c FROM admin_users').get();
 if (adminCount.c === 0) {
+  const bootstrapPassword = String(process.env.ADMIN_BOOTSTRAP_PASSWORD || '').trim() || crypto.randomBytes(12).toString('base64url');
   db.prepare('INSERT INTO admin_users (first_name, last_name, username, email, whatsapp, password, role) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
     'Admin',
     'Intermidia',
     'admin',
     'admin@intermidia.local',
     '',
-    'intermidia2025',
+    hashPassword(bootstrapPassword),
     'admin'
   );
-  console.log('Admin user created: admin / intermidia2025 (role: admin)');
+  if (process.env.ADMIN_BOOTSTRAP_PASSWORD) {
+    console.log('Admin bootstrap user created using ADMIN_BOOTSTRAP_PASSWORD.');
+  } else {
+    console.warn(`Admin bootstrap user created with generated password. Configure ADMIN_BOOTSTRAP_PASSWORD to control it. Temporary password: ${bootstrapPassword}`);
+  }
+}
+
+try {
+  const users = db.prepare('SELECT id, password FROM admin_users').all();
+  const updateStmt = db.prepare("UPDATE admin_users SET password = ?, updated_at = datetime('now') WHERE id = ?");
+  for (const user of users) {
+    if (!isPasswordHash(user.password)) {
+      updateStmt.run(hashPassword(String(user.password || '')), user.id);
+    }
+  }
+} catch (error) {
+  console.warn('[db] Nao foi possivel migrar senhas legadas para hash:', error?.message || error);
 }
 
 db.exec(`

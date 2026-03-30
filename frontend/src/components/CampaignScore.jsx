@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import { Award } from 'lucide-react';
 
-export default function CampaignScore({ scoreInfo }) {
+const CampaignScore = memo(function CampaignScore({ scoreInfo }) {
   if (!scoreInfo) return null;
 
   return (
@@ -17,4 +18,6 @@ export default function CampaignScore({ scoreInfo }) {
       <p className="text-sm text-brand-gray-300 leading-relaxed">{scoreInfo.explanation}</p>
     </section>
   );
-}
+});
+
+export default CampaignScore;

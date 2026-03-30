@@ -1,22 +1,36 @@
-export function getPrimaryPointScreenImage(point) {
-  if (!point) return '';
-  return point.imagem || point.imagem2 || '';
-}
-
-export function getPrimaryPointMediaKitImage(point) {
-  if (!point) return '';
-  return point.imagem2 || point.imagem || '';
+function normalizeUrl(value) {
+  const url = String(value || '').trim();
+  return url || '';
 }
 
 export function getPointDisplayImages(point) {
   if (!point) return [];
 
-  const primaryImage = getPrimaryPointMediaKitImage(point);
-  const secondaryImage = primaryImage === point.imagem
-    ? point.imagem2
-    : point.imagem;
+  const candidates = [
+    ...(Array.isArray(point.photos) ? point.photos : []),
+    ...(Array.isArray(point.fotos) ? point.fotos : []),
+    point.photo,
+    point.photo2,
+    point.foto,
+    point.foto2,
+    point.imagem2,
+    point.imagem
+  ];
 
-  return [primaryImage, secondaryImage].filter((image, index, images) => Boolean(image) && images.indexOf(image) === index);
+  return candidates
+    .map(normalizeUrl)
+    .filter((image, index, images) => Boolean(image) && images.indexOf(image) === index);
+}
+
+export function getPrimaryPointScreenImage(point) {
+  const images = getPointDisplayImages(point);
+  return images[0] || '';
+}
+
+export function getPrimaryPointMediaKitImage(point) {
+  const images = getPointDisplayImages(point);
+  if (!images.length) return '';
+  return images[0];
 }
 
 export function getPrimaryPointDisplayImage(point) {

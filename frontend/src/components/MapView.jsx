@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -38,13 +39,42 @@ function FitBounds({ pontos }) {
 const formatCurrency = (n) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
 
-export default function MapView({ pontos, onSelect }) {
-  const icon = createIcon();
+function MapView({ pontos, onSelect }) {
+  const icon = useMemo(() => createIcon(), []);
 
   const validPontos = pontos.filter(p => p.lat && p.lng);
   const center = validPontos.length > 0
     ? [validPontos[0].lat, validPontos[0].lng]
     : [-24.5, -50.5];
+
+  const markers = useMemo(
+    () => validPontos.map((ponto) => (
+      <Marker
+        key={ponto.id}
+        position={[ponto.lat, ponto.lng]}
+        icon={icon}
+        eventHandlers={{ click: () => onSelect(ponto) }}
+      >
+        <Popup>
+          <div style={{ fontFamily: 'Montserrat, sans-serif', minWidth: 180 }}>
+            <div style={{ fontWeight: 600, fontSize: 14, color: '#fff', marginBottom: 4 }}>
+              {ponto.nome}
+            </div>
+            <div style={{ fontSize: 11, color: '#999', marginBottom: 6 }}>
+              {ponto.tipo} · {ponto.cidade}
+            </div>
+            <div style={{ fontSize: 11, color: '#aaa', marginBottom: 8 }}>
+              Fluxo: {new Intl.NumberFormat('pt-BR').format(ponto.fluxo)}/mês
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#FE5C2B' }}>
+              {formatCurrency(ponto.preco)}<span style={{ fontSize: 10, color: '#666', fontWeight: 400 }}>/mês</span>
+            </div>
+          </div>
+        </Popup>
+      </Marker>
+    )),
+    [icon, onSelect, validPontos],
+  );
 
   return (
     <div className="w-full h-full min-h-[400px] rounded-2xl overflow-hidden border border-white/5">
@@ -61,32 +91,12 @@ export default function MapView({ pontos, onSelect }) {
         />
         <FitBounds pontos={validPontos} />
 
-        {validPontos.map(ponto => (
-          <Marker
-            key={ponto.id}
-            position={[ponto.lat, ponto.lng]}
-            icon={icon}
-            eventHandlers={{ click: () => onSelect(ponto) }}
-          >
-            <Popup>
-              <div style={{ fontFamily: 'Montserrat, sans-serif', minWidth: 180 }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: '#fff', marginBottom: 4 }}>
-                  {ponto.nome}
-                </div>
-                <div style={{ fontSize: 11, color: '#999', marginBottom: 6 }}>
-                  {ponto.tipo} · {ponto.cidade}
-                </div>
-                <div style={{ fontSize: 11, color: '#aaa', marginBottom: 8 }}>
-                  Fluxo: {new Intl.NumberFormat('pt-BR').format(ponto.fluxo)}/mês
-                </div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#FE5C2B' }}>
-                  {formatCurrency(ponto.preco)}<span style={{ fontSize: 10, color: '#666', fontWeight: 400 }}>/mês</span>
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        {validPontos.length > 50 ? <MarkerClusterGroup>{markers}</MarkerClusterGroup> : markers}
       </MapContainer>
     </div>
   );
 }
+
+export default memo(MapView, (prevProps, nextProps) => {
+  return prevProps.pontos === nextProps.pontos && prevProps.onSelect === nextProps.onSelect;
+});
