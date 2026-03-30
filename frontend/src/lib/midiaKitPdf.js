@@ -655,31 +655,31 @@ function buildMidiaKitManifestoPage({ assets }) {
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#050505;"></div>
-    <div style="position:absolute;left:78px;top:78px;right:78px;bottom:78px;border-radius:40px;background:linear-gradient(135deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.08);overflow:hidden;"></div>
-    <div style="position:absolute;left:78px;top:78px;bottom:78px;width:760px;overflow:hidden;border-top-left-radius:40px;border-bottom-left-radius:40px;background:#0b0b0b;">
+    <div style="position:absolute;left:66px;top:56px;right:66px;bottom:56px;border-radius:34px;background:linear-gradient(135deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.08);overflow:hidden;"></div>
+    <div style="position:absolute;left:66px;top:56px;bottom:56px;width:740px;overflow:hidden;border-top-left-radius:34px;border-bottom-left-radius:34px;background:#0b0b0b;">
       <img src="${assets.about1 || assets.about2 || assets.showcase || ''}" alt="" style="width:100%;height:100%;object-fit:contain;object-position:center;filter:contrast(1.02);background:#0b0b0b;" />
       <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,5,5,0.02) 0%,rgba(5,5,5,0.28) 58%,rgba(5,5,5,0.76) 100%);"></div>
-      <div style="position:absolute;left:40px;right:40px;bottom:36px;">
+      <div style="position:absolute;left:34px;right:34px;bottom:28px;">
         <div style="display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 14px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.86);">Leitura do inventário</div>
-        <div style="margin-top:14px;font-family:Poppins, system-ui, sans-serif;font-size:52px;line-height:1.02;font-weight:700;color:#fff;letter-spacing:-0.03em;">Desde 2007, a Intermidia transforma localização em resultado de marca.</div>
+        <div style="margin-top:12px;font-family:Poppins, system-ui, sans-serif;font-size:46px;line-height:1.02;font-weight:700;color:#fff;letter-spacing:-0.03em;">Desde 2007, a Intermidia transforma localização em resultado de marca.</div>
       </div>
     </div>
 
-    <div style="position:absolute;left:820px;right:72px;top:78px;bottom:78px;display:flex;flex-direction:column;">
+    <div style="position:absolute;left:792px;right:64px;top:56px;bottom:56px;display:flex;flex-direction:column;">
       <img src="${assets.logo || ''}" alt="" style="width:180px;height:auto;object-fit:contain;" />
-      <div style="margin-top:20px;font-size:14px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.52);">Visão do mídia kit</div>
-      <div style="margin-top:12px;font-family:Poppins, system-ui, sans-serif;font-size:44px;line-height:1.05;font-weight:700;color:#fff;letter-spacing:-0.035em;">Planejamento com repertório, critério e experiência de mercado.</div>
-      <div style="margin-top:14px;font-size:18px;line-height:1.34;color:rgba(255,255,255,0.78);">A Intermidia atua desde 2007 no OOH e no DOOH, conectando pontos premium, dados de audiência e leitura comercial para campanhas memoráveis.</div>
-      <div style="margin-top:12px;font-size:15px;line-height:1.38;color:rgba(255,255,255,0.7);">Nas próximas páginas, você encontra cada formato explicado, com foto real, endereço, coordenadas e métricas para decidir com confiança.</div>
+      <div style="margin-top:14px;font-size:13px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.52);">Visão do mídia kit</div>
+      <div style="margin-top:10px;font-family:Poppins, system-ui, sans-serif;font-size:36px;line-height:1.06;font-weight:700;color:#fff;letter-spacing:-0.03em;">Planejamento com repertório, critério e experiência de mercado.</div>
+      <div style="margin-top:10px;font-size:16px;line-height:1.3;color:rgba(255,255,255,0.78);">A Intermidia atua desde 2007 no OOH e no DOOH, conectando pontos premium, dados de audiência e leitura comercial para campanhas memoráveis.</div>
+      <div style="margin-top:8px;font-size:13px;line-height:1.32;color:rgba(255,255,255,0.7);">Nas próximas páginas, você encontra cada formato explicado, com foto real, endereço, coordenadas e métricas para decidir com confiança.</div>
 
-      <div style="margin-top:20px;padding-top:8px;display:grid;grid-template-columns:1fr 1fr;column-gap:18px;row-gap:8px;">
+      <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;column-gap:14px;row-gap:6px;">
         ${cards.map((card) => `
-          <div style="padding:0 0 8px;border-bottom:1px solid rgba(255,255,255,0.12);">
+          <div style="padding:0 0 6px;border-bottom:1px solid rgba(255,255,255,0.12);">
             <div style="display:flex;align-items:center;gap:10px;">
               <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:999px;background:rgba(254,92,43,0.18);">${midiaKitDetailIcon('type', BRAND_ORANGE, 13)}</span>
-              <span style="font-size:13px;font-weight:700;color:#fff;line-height:1.2;">${escapeHtml(card.title)}</span>
+              <span style="font-size:12px;font-weight:700;color:#fff;line-height:1.18;">${escapeHtml(card.title)}</span>
             </div>
-            <div style="margin-top:8px;font-size:12px;line-height:1.42;color:rgba(255,255,255,0.7);">${escapeHtml(card.text)}</div>
+            <div style="margin-top:6px;font-size:11px;line-height:1.32;color:rgba(255,255,255,0.7);">${escapeHtml(card.text)}</div>
           </div>
         `).join('')}
       </div>
