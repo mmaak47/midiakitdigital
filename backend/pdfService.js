@@ -47,13 +47,12 @@ async function getBrowser() {
 
   _browser = await puppeteer.launch({
     headless: true,
+    protocolTimeout: 180000,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
-      '--single-process=false',
-      '--memory-pressure-off',
       '--disable-background-networking',
       '--disable-backgroundtimer-throttling',
       '--disable-breakpad',
@@ -119,6 +118,8 @@ async function renderHtmlToPdf(htmlContent) {
 
     try {
       await page.setViewport({ width: 1366, height: 768, deviceScaleFactor: 1 });
+      page.setDefaultTimeout(120000);
+      page.setDefaultNavigationTimeout(120000);
       await page.setJavaScriptEnabled(false);
       await page.setRequestInterception(true);
       page.on('request', (request) => {
@@ -147,26 +148,34 @@ async function renderHtmlToPdf(htmlContent) {
         ? htmlContent.replace('<head>', `<head>${_fontCssInjection}`)
         : htmlContent;
 
-      await page.setContent(htmlWithFonts, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.setContent(htmlWithFonts, { waitUntil: 'domcontentloaded', timeout: 120000 });
 
-      // Wait for fonts (always embedded base64 — always fast)
-      await page.evaluateHandle(() => document.fonts.ready);
+      // Wait for fonts when available, but do not fail PDF generation if this step hangs.
+      try {
+        await page.evaluateHandle(() => document.fonts.ready);
+      } catch (err) {
+        console.warn('[pdf/render] font readiness skipped:', err?.message || err);
+      }
 
-      // Wait for images without blocking on failures
-      await page.evaluate(() => {
-        const imgs = Array.from(document.images);
-        if (!imgs.length) return Promise.resolve();
-        return Promise.allSettled(
-          imgs.map((img) => {
-            if (img.complete) return Promise.resolve();
-            return new Promise((resolve) => {
-              img.addEventListener('load', resolve);
-              img.addEventListener('error', resolve);
-              setTimeout(resolve, 8000);
-            });
-          })
-        );
-      });
+      // Wait for images without blocking on failures.
+      try {
+        await page.evaluate(() => {
+          const imgs = Array.from(document.images);
+          if (!imgs.length) return Promise.resolve();
+          return Promise.allSettled(
+            imgs.map((img) => {
+              if (img.complete) return Promise.resolve();
+              return new Promise((resolve) => {
+                img.addEventListener('load', resolve, { once: true });
+                img.addEventListener('error', resolve, { once: true });
+                setTimeout(resolve, 15000);
+              });
+            })
+          );
+        });
+      } catch (err) {
+        console.warn('[pdf/render] image wait skipped:', err?.message || err);
+      }
 
       // Let layout settle
       await new Promise((resolve) => setTimeout(resolve, 800));
