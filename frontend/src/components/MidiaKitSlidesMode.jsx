@@ -436,20 +436,20 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
       </div>
 
       <div
-        className={`absolute inset-y-0 z-10 w-[320px] max-w-[44%] p-3 md:p-4 ${
+        className={`absolute inset-y-0 z-10 w-[360px] max-w-[48%] p-3 md:p-4 ${
           infoOnLeft ? 'left-0' : 'right-0'
         }`}
       >
-        <div className="h-full rounded-2xl border border-white/15 bg-black/65 backdrop-blur-md p-4 flex flex-col">
-          <img src="/logo.png" alt="Intermidia" className="h-6 self-start mb-3 opacity-65" />
-          <div className="text-[10px] uppercase tracking-wide text-brand-orange">
+        <div className="h-full rounded-2xl border border-white/15 bg-black/65 backdrop-blur-md p-5 flex flex-col">
+          <img src="/logo.png" alt="Intermidia" className="h-7 self-start mb-3 opacity-65" />
+          <div className="text-[11px] uppercase tracking-wide text-brand-orange">
             Informações do ponto
           </div>
-          <h3 className="mt-1.5 text-xl font-extrabold leading-tight">{point.nome}</h3>
-          <p className="mt-0.5 text-sm text-brand-gray-300">
+          <h3 className="mt-1.5 text-2xl font-extrabold leading-tight">{point.nome}</h3>
+          <p className="mt-1 text-[15px] text-brand-gray-300">
             {point.tipo || 'Sem tipo'} &bull; {point.cidade || 'Sem cidade'}
           </p>
-          <div className="mt-3 space-y-1.5 text-sm text-brand-gray-200">
+          <div className="mt-3.5 space-y-2 text-[18px] leading-[1.35] text-brand-gray-200">
             {point.endereco ? (
               <div>
                 <span className="text-brand-gray-500">Endereço: </span>
@@ -477,7 +477,7 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
               <strong className="text-white">{fmtMoney(Number(point.preco) || 0)}</strong> / mês
             </div>
           </div>
-          <div className="mt-auto pt-3 border-t border-white/10 text-[11px] text-brand-gray-400 space-y-0.5">
+          <div className="mt-auto pt-3 border-t border-white/10 text-[12px] text-brand-gray-400 space-y-0.5">
             <div>
               <span className="text-brand-gray-500">Praça(s): </span>
               {selectionLabel}
@@ -496,7 +496,7 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 bg-black/90 backdrop-blur-md p-6 flex items-center justify-center"
+            className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-md p-4 md:p-6 flex items-center justify-center overflow-hidden"
             onClick={() => setShowImageModal(false)}
           >
             <motion.div
@@ -504,7 +504,7 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 8 }}
               transition={{ duration: 0.2 }}
-              className="relative max-h-[90%] max-w-[94%] rounded-2xl border border-white/20 bg-black/55 p-3"
+              className="relative rounded-2xl border border-white/20 bg-black/55 p-2 md:p-3 max-h-[calc(100vh-56px)] max-w-[calc(100vw-32px)] md:max-h-[calc(100vh-80px)] md:max-w-[calc(100vw-80px)] overflow-hidden"
               onClick={(event) => event.stopPropagation()}
             >
               <button
@@ -518,7 +518,7 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
               <img
                 src={img}
                 alt={point.nome}
-                className="max-h-[82vh] max-w-[88vw] object-contain rounded-xl"
+                className="block h-auto w-auto max-h-[calc(100vh-120px)] max-w-[calc(100vw-64px)] md:max-h-[calc(100vh-140px)] md:max-w-[calc(100vw-120px)] object-contain rounded-xl mx-auto"
                 style={{ objectPosition: `${focusX}% ${focusY}%` }}
                 loading="lazy"
                 width="1600"
