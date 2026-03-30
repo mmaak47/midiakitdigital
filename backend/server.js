@@ -214,7 +214,7 @@ app.post('/api/pdf/render', pdfRenderLimiter, express.json({ limit: '55mb' }), a
   if (!html || typeof html !== 'string' || html.length < 10) {
     return res.status(400).json({ error: 'Parâmetro html obrigatório.' });
   }
-  if (html.length > 5_000_000) {
+  if (html.length > 30_000_000) {
     return res.status(400).json({ error: 'Conteúdo HTML excede o limite permitido.' });
   }
 

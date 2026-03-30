@@ -39,7 +39,69 @@ function resolveAssetUrl(url) {
 }
 
 function pickPointImage(point) {
-  return resolveAssetUrl(point?.imagem2 || point?.imagem || '');
+  return point?._pdfImage || resolveAssetUrl(point?.imagem2 || point?.imagem || '');
+}
+
+async function compressImageForPdf(url, options = {}) {
+  const source = resolveAssetUrl(url);
+  if (!source) return '';
+
+  const maxWidth = Number(options.maxWidth || 1400);
+  const quality = Number(options.quality || 0.72);
+
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.referrerPolicy = 'no-referrer';
+
+    image.onload = () => {
+      try {
+        const ratio = image.naturalWidth > 0 ? image.naturalHeight / image.naturalWidth : 1;
+        const targetWidth = Math.max(1, Math.min(maxWidth, image.naturalWidth || maxWidth));
+        const targetHeight = Math.max(1, Math.round(targetWidth * ratio));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(source);
+          return;
+        }
+
+        ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } catch {
+        resolve(source);
+      }
+    };
+
+    image.onerror = () => resolve(source);
+    image.src = source;
+  });
+}
+
+async function preparePointsForPdf(points, onStatusChange) {
+  const result = [];
+
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index];
+    if (typeof onStatusChange === 'function') {
+      onStatusChange(`Otimizando fotos (${index + 1}/${points.length})...`);
+    }
+
+    const original = resolveAssetUrl(point?.imagem2 || point?.imagem || '');
+    const optimized = original
+      ? await compressImageForPdf(original)
+      : '';
+
+    result.push({
+      ...point,
+      _pdfImage: optimized || original
+    });
+  }
+
+  return result;
 }
 
 function getPointTypeLabel(point) {
@@ -300,9 +362,11 @@ export async function generateTechnicalInfoPdf(points = [], options = {}) {
     throw new Error('Selecione pelo menos um ponto para exportar o PDF tecnico.');
   }
 
-  const pages = [buildCoverPage(list)];
-  list.forEach((point, index) => {
-    pages.push(buildPointPage(point, index + 1, list.length));
+  const preparedPoints = await preparePointsForPdf(list, options.onStatusChange);
+
+  const pages = [buildCoverPage(preparedPoints)];
+  preparedPoints.forEach((point, index) => {
+    pages.push(buildPointPage(point, index + 1, preparedPoints.length));
   });
 
   if (typeof options.onStatusChange === 'function') {
