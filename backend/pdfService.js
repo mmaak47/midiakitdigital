@@ -117,7 +117,7 @@ async function renderHtmlToPdf(htmlContent) {
     });
 
     try {
-      await page.setViewport({ width: 1366, height: 768, deviceScaleFactor: 1 });
+      await page.setViewport({ width: 1366, height: 900, deviceScaleFactor: 1 });
       page.setDefaultTimeout(120000);
       page.setDefaultNavigationTimeout(120000);
       await page.setJavaScriptEnabled(false);
@@ -181,9 +181,8 @@ async function renderHtmlToPdf(htmlContent) {
       await new Promise((resolve) => setTimeout(resolve, 800));
 
       const pdfBuffer = await page.pdf({
-        width: '1366px',
-        height: '768px',
         printBackground: true,
+        preferCSSPageSize: true,
         scale: 1,
         margin: { top: '0', right: '0', bottom: '0', left: '0' },
       });
