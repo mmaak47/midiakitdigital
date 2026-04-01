@@ -1,5 +1,14 @@
 require('dotenv').config();
 
+// ---------------------------------------------------------------------------
+// Hard startup validation — crash early with clear message if DB is misconfigured
+// ---------------------------------------------------------------------------
+if (String(process.env.DB_ENGINE || '').toLowerCase() === 'postgres' && !process.env.DATABASE_URL) {
+  console.error('[FATAL] DB_ENGINE=postgres but DATABASE_URL is not set.');
+  console.error('        Check backend/.env or PM2 ecosystem env vars.');
+  process.exit(1);
+}
+
 const express = require('express');
 const cors = require('cors');
 const { startLicenseWatcher, requireLicense, isLicensed } = require('./license');
@@ -896,7 +905,7 @@ app.post('/api/pontos', upload.fields([
 
     const stmt = db.prepare(`
       INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, midia_largura_m, midia_altura_m, tipo_fluxo, audience_tags, availability_calendar, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom, foto_focal_point, pdf_image_source)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -1735,6 +1744,16 @@ app.use((err, req, res, next) => {
 // Only bind to a port when run directly (node server.js).
 // When required by passenger_app.js, Passenger manages the socket itself.
 if (require.main === module) {
+  // Verify DB connection before accepting traffic
+  try {
+    const testRow = db.prepare('SELECT 1 AS ok').get();
+    if (!testRow || testRow.ok !== 1) throw new Error('DB returned unexpected result');
+    console.log(`[db] Connection OK (engine=${DB_ENGINE})`);
+  } catch (dbErr) {
+    console.error(`[FATAL] Database connection failed (engine=${DB_ENGINE}):`, dbErr.message);
+    process.exit(1);
+  }
+
   const server = app.listen(PORT, () => {
     console.log(`Intermidia Mídia Kit API running on port ${PORT}`);
     startLicenseWatcher().catch((err) => {

@@ -45,13 +45,38 @@ function getPointPreviewUrl(point, requireGeneratedPreview = false) {
   return point.proposalSimulationPreview || point.simulacao_preview || '';
 }
 
+const DRAFT_STORAGE_KEY = 'proposal-draft';
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(data) {
+  try {
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(data));
+  } catch { /* quota exceeded — ignore */ }
+}
+
+export function clearProposalDraft() {
+  try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch { /* ignore */ }
+}
+
 export default function ProposalModal({ onClose, open = true, selectedPoints = null, isDark = true }) {
   const { favorites } = useFavorites();
   const sourcePoints = selectedPoints ?? favorites;
   const [step, setStep] = useState('review');
   const [showPresentation, setShowPresentation] = useState(false);
   const [showQuickPresentation, setShowQuickPresentation] = useState(false);
-  const [form, setForm] = useState({
+
+  const draft = useMemo(() => loadDraft(), []);
+
+  const [form, setForm] = useState(() => ({
     clientName: '',
     clientAddress: '',
     proposalSubtitle: '',
@@ -59,15 +84,17 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     segmento: 'clinica',
     objetivo: 'reconhecimento de marca',
     publicos: [],
-    selectedCities: []
-  });
-  const [analysisMode, setAnalysisMode] = useState('segmento');
-  const [discountConfig, setDiscountConfig] = useState({
+    selectedCities: [],
+    ...(draft?.form || {})
+  }));
+  const [analysisMode, setAnalysisMode] = useState(draft?.analysisMode || 'segmento');
+  const [discountConfig, setDiscountConfig] = useState(() => ({
     mode: 'none',
     percentage: '',
     targetPointIds: [],
-    perPoint: {}
-  });
+    perPoint: {},
+    ...(draft?.discountConfig || {})
+  }));
   const [promptCopied, setPromptCopied] = useState(false);
   const [simulationArtFile, setSimulationArtFile] = useState(null);
   const [simulationArtUrl, setSimulationArtUrl] = useState('');
@@ -81,7 +108,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [mapBusy, setMapBusy] = useState(false);
   const [mapStatus, setMapStatus] = useState('');
   const [connectMapPoints, setConnectMapPoints] = useState(false);
-  const [pdfSections, setPdfSections] = useState({ methodology: true, score: true, coverage: true, impact: true });
+  const [pdfSections, setPdfSections] = useState(() => ({
+    methodology: true, score: true, coverage: true, impact: true,
+    ...(draft?.pdfSections || {})
+  }));
   const [entorno, setEntorno] = useState({
     loading: false,
     jobId: null,
@@ -98,6 +128,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     error: ''
   });
   const promptTextareaRef = useRef(null);
+
+  // Auto-save draft whenever form-related state changes
+  useEffect(() => {
+    saveDraft({ form, discountConfig, analysisMode, pdfSections });
+  }, [form, discountConfig, analysisMode, pdfSections]);
 
   const availableCities = useMemo(() => {
     return Array.from(new Set(sourcePoints.map((point) => point.cidade).filter(Boolean)))
