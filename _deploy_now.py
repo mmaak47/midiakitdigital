@@ -7,6 +7,7 @@ c.connect(VPS_HOST, 22, VPS_USER, VPS_PASS, timeout=30)
 
 cmds = [
     'cd /home/mmak/midiakit && git fetch origin main && git reset --hard origin/main',
+    'cd /home/mmak/midiakit/frontend && npm install --production=false && npm run build',
     'cd /home/mmak/midiakit && pm2 delete intermidia-midiakit 2>/dev/null; pm2 start ecosystem.config.js',
     'pm2 save',
     'sleep 3',
