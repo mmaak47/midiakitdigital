@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Copy,
@@ -11,6 +12,7 @@ import {
   MapPinned,
   Presentation,
   Route,
+  Settings2,
   Upload,
   X
 } from 'lucide-react';
@@ -39,6 +41,17 @@ import QuickPresentationMode from './QuickPresentationMode';
 
 const DEFAULT_ENTORNO_RADIUS = 800;
 
+// High-realism preset applied automatically
+const REALISM_PRESET = normalizeDisplaySettings({
+  ...defaultDisplaySettings,
+  brightness: 1.35,
+  reflection: 0.32,
+  spill: 0.28,
+  ledPixelIntensity: 0.30,
+  ledPixelSize: 6,
+  glare: 0.22
+});
+
 const WIZARD_STEPS = [
   { id: 1, label: 'Dados' },
   { id: 2, label: 'Desconto' },
@@ -52,7 +65,7 @@ const STEP_TITLES = {
   2: 'Desconto comercial',
   3: 'Arte da campanha',
   4: 'Revisão da proposta',
-  5: 'Proposta gerada',
+  5: 'Gerar proposta',
 };
 
 function getPointPreviewUrl(point, requireGeneratedPreview = false) {
@@ -114,22 +127,21 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     ...(draft?.discountConfig || {})
   }));
   const [promptCopied, setPromptCopied] = useState(false);
+  const [promptExpanded, setPromptExpanded] = useState(false);
+  const [advancedRealismOpen, setAdvancedRealismOpen] = useState(false);
   const [simulationArtFile, setSimulationArtFile] = useState(null);
   const [simulationArtUrl, setSimulationArtUrl] = useState('');
   const [simulationBusy, setSimulationBusy] = useState(false);
   const [simulationError, setSimulationError] = useState('');
   const [simulationResults, setSimulationResults] = useState({});
-  const [simulationSettings, setSimulationSettings] = useState(defaultDisplaySettings);
+  const [simulationSettings, setSimulationSettings] = useState(REALISM_PRESET);
   const [activePreviewPointId, setActivePreviewPointId] = useState(null);
   const [showPreviewLightbox, setShowPreviewLightbox] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfSections, setPdfSections] = useState({ methodology: true, score: true, coverage: true, impact: true, mapPrint: false });
+  const [connectMapPoints, setConnectMapPoints] = useState(true);
   const [mapBusy, setMapBusy] = useState(false);
   const [mapStatus, setMapStatus] = useState('');
-  const [connectMapPoints, setConnectMapPoints] = useState(false);
-  const [pdfSections, setPdfSections] = useState(() => ({
-    methodology: true, score: true, coverage: true, impact: true,
-    ...(draft?.pdfSections || {})
-  }));
   const [entorno, setEntorno] = useState({
     loading: false,
     jobId: null,
@@ -676,20 +688,22 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           </button>
 
           {/* ── Header + Stepper ── */}
-          <div className="relative flex-shrink-0 p-6 md:px-8 md:pt-8 md:pb-0 space-y-4">
+          <div className="relative flex-shrink-0 p-6 md:px-8 md:pt-8 md:pb-0 space-y-5">
             <div className="flex flex-wrap items-start gap-4 pr-10">
               <div className="h-12 w-12 rounded-xl bg-brand-orange/15 border border-brand-orange/30 flex items-center justify-center shadow-[0_8px_30px_rgba(254,92,43,0.2)]">
                 <FileText size={22} className="text-brand-orange" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-brand-gray-500 mb-1">Proposta Comercial</p>
                 <h2 className={`text-xl md:text-2xl leading-tight font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                  Passo {wizardStep} — {STEP_TITLES[wizardStep]}
+                  Proposta Comercial
                 </h2>
+                <p className={`text-sm mt-0.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
+                  {STEP_TITLES[wizardStep]}
+                </p>
               </div>
-              <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-right">
-                <div className="text-[10px] uppercase tracking-wide text-brand-gray-500">Pontos</div>
-                <div className="text-lg font-bold text-white">{proposalSourcePoints.length}</div>
+              <div className={`rounded-xl border px-3 py-2 text-right ${isDark ? 'border-white/10 bg-black/30' : 'border-neutral-200 bg-neutral-50'}`}>
+                <div className={`text-[10px] uppercase tracking-wide ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Pontos</div>
+                <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{proposalSourcePoints.length}</div>
               </div>
             </div>
 
@@ -703,7 +717,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     <button
                       type="button"
                       onClick={() => { if (done) setWizardStep(ws.id); }}
-                      className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
+                      className={`flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold transition-all ${
                         active
                           ? 'bg-brand-orange text-white shadow-[0_4px_16px_rgba(254,92,43,0.35)]'
                           : done
@@ -726,356 +740,422 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           </div>
 
           {/* ── Step content (scrollable) ── */}
-          <div className="relative flex-1 overflow-y-auto p-6 md:px-8 md:pb-4 space-y-5">
+          <div className="relative flex-1 overflow-y-auto p-6 md:px-8 md:pb-4 space-y-6">
             <AnimatePresence mode="wait">
               {/* ═══ STEP 1 — Dados da proposta ═══ */}
               {wizardStep === 1 && (
                 <motion.div key="step1" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
-                  <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
-                    <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400">Dados da proposta</h3>
 
-                    <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
-                      <Input label="Nome do cliente" value={form.clientName} onChange={(value) => setForm((s) => ({ ...s, clientName: value }))} />
-                      <Input label="Endereço do cliente" value={form.clientAddress} onChange={(value) => setForm((s) => ({ ...s, clientAddress: value }))} />
-                      <Input label="Subtítulo da capa (opcional)" value={form.proposalSubtitle} onChange={(value) => setForm((s) => ({ ...s, proposalSubtitle: value }))} />
-                      <CustomSelect label="Praças" value={form.selectedCities} onChange={(value) => setForm((s) => ({ ...s, selectedCities: value }))} options={availableCities} multiple placeholder="Todas as praças dos pontos selecionados" />
-                      <CustomSelect label="Segmento" value={form.segmento} onChange={(value) => setForm((s) => ({ ...s, segmento: value }))} options={SEGMENTOS.map((segmento) => ({ value: segmento, label: getSegmentDisplayName(segmento) }))} allowCustom customPlaceholder="Digite um segmento personalizado" />
-                      <CustomSelect label="Objetivo" value={form.objetivo} onChange={(value) => setForm((s) => ({ ...s, objetivo: value }))} options={OBJETIVOS} allowCustom customPlaceholder="Digite um objetivo personalizado" />
-                      <CustomSelect label="Públicos" value={form.publicos} onChange={(value) => setForm((s) => ({ ...s, publicos: value }))} options={availablePublicos} multiple placeholder="Públicos estratégicos" />
+                  {/* CARD 1 — Informações do cliente */}
+                  <Card isDark={isDark} title="Informações do cliente">
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <Input isDark={isDark} label="Nome do cliente" value={form.clientName} onChange={(v) => setForm((s) => ({ ...s, clientName: v }))} />
+                      <Input isDark={isDark} label="Endereço do cliente" value={form.clientAddress} onChange={(v) => setForm((s) => ({ ...s, clientAddress: v }))} />
+                    </div>
+                    <Input isDark={isDark} label="Subtítulo da capa (opcional)" value={form.proposalSubtitle} onChange={(v) => setForm((s) => ({ ...s, proposalSubtitle: v }))} />
+                  </Card>
+
+                  {/* CARD 2 — Configuração da campanha */}
+                  <Card isDark={isDark} title="Configuração da campanha">
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <CustomSelect label="Praças" value={form.selectedCities} onChange={(v) => setForm((s) => ({ ...s, selectedCities: v }))} options={availableCities} multiple placeholder="Todas as praças" />
+                      <CustomSelect label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS.map((seg) => ({ value: seg, label: getSegmentDisplayName(seg) }))} allowCustom customPlaceholder="Segmento personalizado" />
+                      <CustomSelect label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} allowCustom customPlaceholder="Objetivo personalizado" />
+                      <CustomSelect label="Públicos" value={form.publicos} onChange={(v) => setForm((s) => ({ ...s, publicos: v }))} options={availablePublicos} multiple placeholder="Públicos estratégicos" />
+                    </div>
+                  </Card>
+
+                  {/* CARD 3 — Estratégia da campanha */}
+                  <Card isDark={isDark} title="Estratégia da campanha">
+                    <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Esses tópicos aparecem na narrativa estratégica do PDF.</p>
+                    <textarea
+                      value={form.strategicTopics}
+                      onChange={(e) => setForm((s) => ({ ...s, strategicTopics: e.target.value }))}
+                      rows={3}
+                      placeholder={argumentos.join('\n')}
+                      className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition-colors ${isDark ? 'border-white/15 bg-white/[0.07] text-brand-gray-200 focus:border-brand-orange/45 focus:bg-white/[0.09]' : 'border-neutral-200 bg-white text-neutral-800 focus:border-brand-orange/50'}`}
+                    />
+                    <p className={`text-[11px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Se vazio, usaremos os argumentos gerados automaticamente.</p>
+                  </Card>
+
+                  {/* CARD 4 — Análise de entorno */}
+                  <Card isDark={isDark} title="Análise de entorno">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <ScopeButton isDark={isDark} active={analysisMode === 'segmento'} onClick={() => setAnalysisMode('segmento')}>Entorno padrão</ScopeButton>
+                      <ScopeButton isDark={isDark} active={analysisMode === 'client-address'} onClick={() => setAnalysisMode('client-address')}>Entorno personalizado</ScopeButton>
+                      {entorno.loading && <span className="text-xs text-brand-orange">Atualizando...</span>}
                     </div>
 
-                    <div>
-                      <label className="text-[11px] uppercase tracking-[0.12em] text-brand-gray-500">Tópicos estratégicos (1 por linha)</label>
-                      <textarea
-                        value={form.strategicTopics}
-                        onChange={(event) => setForm((state) => ({ ...state, strategicTopics: event.target.value }))}
-                        rows={4}
-                        placeholder={argumentos.join('\n')}
-                        className={`mt-1.5 w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition-colors ${isDark ? 'border-white/15 bg-white/[0.07] text-brand-gray-200 focus:border-brand-orange/45 focus:bg-white/[0.09]' : 'border-neutral-200 bg-white text-neutral-800 focus:border-brand-orange/50'}`}
-                      />
-                      <p className="mt-1 text-xs text-brand-gray-500">Se ficar vazio, usamos os argumentos estratégicos gerados automaticamente.</p>
-                    </div>
+                    {analysisMode === 'segmento' && (
+                      <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
+                        Score de entorno por segmento · Cache {(entorno.coverage * 100).toFixed(0)}%
+                        {entorno.updatedAt ? ` · ${new Date(entorno.updatedAt).toLocaleString('pt-BR')}` : ''}
+                      </p>
+                    )}
 
-                    <div className="grid lg:grid-cols-2 gap-3">
-                      <div className={`rounded-xl border px-4 py-3 text-xs ${isDark ? 'border-white/10 bg-black/20 text-brand-gray-400' : 'border-neutral-200 bg-neutral-50 text-neutral-500'}`}>
-                        <div className="flex flex-wrap items-center gap-2 text-brand-gray-300">
-                          <span className="font-semibold uppercase tracking-[0.12em]">Análise de entorno da praça</span>
-                          {entorno.loading ? <span className="text-brand-orange">Atualizando cache...</span> : null}
-                          {entorno.jobId ? <span className="rounded-full border border-brand-orange/25 bg-brand-orange/10 px-2 py-0.5 text-brand-orange">Job #{entorno.jobId}</span> : null}
-                        </div>
-                        <p className="mt-1">
-                          Cobertura do cache: {(entorno.coverage * 100).toFixed(0)}%
-                          {entorno.updatedAt ? ` • atualizado em ${new Date(entorno.updatedAt).toLocaleString('pt-BR')}` : ''}
-                        </p>
-                        {entorno.error ? <p className="mt-1 text-red-300">{entorno.error}</p> : null}
-                      </div>
-
-                      <div className={`rounded-xl border px-4 py-3 text-xs space-y-3 ${isDark ? 'border-white/10 bg-black/20 text-brand-gray-400' : 'border-neutral-200 bg-neutral-50 text-neutral-500'}`}>
-                        <div className="flex flex-wrap gap-2">
-                          <ScopeButton active={analysisMode === 'segmento'} onClick={() => setAnalysisMode('segmento')}>Entorno padrão</ScopeButton>
-                          <ScopeButton active={analysisMode === 'client-address'} onClick={() => setAnalysisMode('client-address')}>Entorno personalizado</ScopeButton>
-                        </div>
-
-                        {analysisMode === 'client-address' ? (
-                          <>
-                            {clientAnalysis.loading ? <p className="text-brand-orange">Analisando proximidade dos pontos em relação ao endereço do cliente...</p> : null}
-                            {clientAnalysis.error ? <p className="text-red-300">{clientAnalysis.error}</p> : null}
-                            {!clientAnalysis.loading && !clientAnalysis.error && form.clientAddress.trim() && clientAnalysis.rankedPoints.length > 0 ? (
-                              <div className="space-y-1.5 text-brand-gray-300">
-                                <p className="font-semibold uppercase tracking-[0.12em] text-brand-gray-400">Pontos mais próximos do cliente</p>
-                                {clientAnalysis.rankedPoints.slice(0, 3).map((point) => (
-                                  <p key={point.id}>{point.nome} • {point.distanceKm.toFixed(1).replace('.', ',')} km</p>
-                                ))}
-                              </div>
-                            ) : null}
-                            {!form.clientAddress.trim() ? <p>Preencha o endereço do cliente para gerar a análise personalizada em tempo real.</p> : null}
-                          </>
-                        ) : (
-                          <p>Usa o score de entorno já calculado por segmento para os pontos filtrados desta proposta.</p>
+                    {analysisMode === 'client-address' && (
+                      <div className={`text-xs space-y-1.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                        {clientAnalysis.loading && <p className="text-brand-orange">Analisando proximidade...</p>}
+                        {clientAnalysis.error && <p className="text-red-300">{clientAnalysis.error}</p>}
+                        {!clientAnalysis.loading && !clientAnalysis.error && form.clientAddress.trim() && clientAnalysis.rankedPoints.length > 0 && (
+                          <div className="space-y-1">
+                            <p className={`font-semibold uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Pontos mais próximos</p>
+                            {clientAnalysis.rankedPoints.slice(0, 3).map((pt) => (
+                              <p key={pt.id}>{pt.nome} · {pt.distanceKm.toFixed(1).replace('.', ',')} km</p>
+                            ))}
+                          </div>
                         )}
+                        {!form.clientAddress.trim() && <p>Preencha o endereço do cliente acima.</p>}
                       </div>
-                    </div>
-                  </section>
+                    )}
+                    {entorno.error && <p className="text-xs text-red-300">{entorno.error}</p>}
+                  </Card>
                 </motion.div>
               )}
 
               {/* ═══ STEP 2 — Desconto comercial ═══ */}
               {wizardStep === 2 && (
                 <motion.div key="step2" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
-                  <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
-                    <div>
-                      <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Desconto comercial</h3>
-                      <p className="text-sm text-brand-gray-400">Defina se o desconto será no total, em pontos específicos ou individual por ponto.</p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        ['none', 'Sem desconto'],
-                        ['total', 'No total da proposta'],
-                        ['specific', 'Em pontos específicos'],
-                        ['individual', 'Individual por ponto']
-                      ].map(([mode, label]) => (
-                        <ScopeButton key={mode} active={discountConfig.mode === mode} onClick={() => setDiscountConfig((current) => ({ ...current, mode }))}>{label}</ScopeButton>
-                      ))}
-                    </div>
-
-                    {(discountConfig.mode === 'total' || discountConfig.mode === 'specific') && (
-                      <div className="grid md:grid-cols-[220px_1fr] gap-4 items-start">
-                        <Input label="Percentual de desconto" value={discountConfig.percentage} onChange={(value) => setDiscountConfig((current) => ({ ...current, percentage: value.replace(',', '.') }))} />
-
-                        {discountConfig.mode === 'specific' ? (
-                          <div className={`rounded-xl border p-3 space-y-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
-                            <p className="text-[11px] uppercase tracking-[0.12em] text-brand-gray-500">Pontos com desconto</p>
-                            {proposalSourcePoints.map((point) => (
-                              <label key={point.id} className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm ${isDark ? 'border-white/10 text-brand-gray-300' : 'border-neutral-200 text-neutral-600'}`}>
-                                <span>{point.nome}</span>
-                                <input
-                                  type="checkbox"
-                                  checked={discountConfig.targetPointIds.includes(point.id)}
-                                  onChange={(event) => {
-                                    setDiscountConfig((current) => ({
-                                      ...current,
-                                      targetPointIds: event.target.checked
-                                        ? [...current.targetPointIds, point.id]
-                                        : current.targetPointIds.filter((item) => item !== point.id)
-                                    }));
-                                  }}
-                                />
-                              </label>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
-
-                    {discountConfig.mode === 'individual' && (
-                      <div className="grid md:grid-cols-2 gap-3">
-                        {proposalSourcePoints.map((point) => (
-                          <div key={point.id} className={`rounded-xl border px-3 py-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
-                            <div className="flex items-center justify-between gap-3 mb-2">
-                              <div>
-                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{point.nome}</p>
-                                <p className="text-xs text-brand-gray-500">Tabela: {formatCurrency(point.preco)}</p>
-                              </div>
-                              <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                step={0.1}
-                                value={discountConfig.perPoint[point.id] || ''}
-                                onChange={(event) => setDiscountConfig((current) => ({
-                                  ...current,
-                                  perPoint: {
-                                    ...current.perPoint,
-                                    [point.id]: event.target.value
-                                  }
-                                }))}
-                                className={`w-24 rounded-lg border px-3 py-2 text-sm outline-none ${isDark ? 'border-white/10 bg-white/5 text-white focus:border-brand-orange/40' : 'border-neutral-200 bg-white text-neutral-800 focus:border-brand-orange/50'}`}
-                                placeholder="0%"
-                              />
-                            </div>
-                          </div>
+                  <div className="grid lg:grid-cols-[1fr_340px] gap-5 items-start">
+                    {/* LEFT — Tipo de desconto */}
+                    <Card isDark={isDark} title="Tipo de desconto">
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          ['none', 'Sem desconto'],
+                          ['total', 'No total da proposta'],
+                          ['specific', 'Em pontos específicos'],
+                          ['individual', 'Individual por ponto']
+                        ].map(([mode, label]) => (
+                          <ScopeButton isDark={isDark} key={mode} active={discountConfig.mode === mode} onClick={() => setDiscountConfig((c) => ({ ...c, mode }))}>{label}</ScopeButton>
                         ))}
                       </div>
-                    )}
 
-                    <div className="grid sm:grid-cols-3 gap-3">
-                      <StatusCard label="Tabela cheia" value={formatCurrency(pricingSummary.originalTotal)} tone="default" />
-                      <StatusCard label="Desconto total" value={formatCurrency(pricingSummary.discountTotal)} tone="warning" />
-                      <StatusCard label="Valor final" value={formatCurrency(pricingSummary.finalTotal)} tone="success" />
+                      {(discountConfig.mode === 'total' || discountConfig.mode === 'specific') && (
+                        <div className="space-y-3 mt-3">
+                          <Input isDark={isDark} label="Percentual de desconto" value={discountConfig.percentage} onChange={(v) => setDiscountConfig((c) => ({ ...c, percentage: v.replace(',', '.') }))} />
+
+                          {discountConfig.mode === 'specific' && (
+                            <div className={`rounded-xl border p-3 space-y-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
+                              <p className={`text-[11px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Pontos com desconto</p>
+                              {proposalSourcePoints.map((pt) => (
+                                <label key={pt.id} className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm ${isDark ? 'border-white/10 text-brand-gray-300' : 'border-neutral-200 text-neutral-600'}`}>
+                                  <span>{pt.nome}</span>
+                                  <input
+                                    type="checkbox"
+                                    checked={discountConfig.targetPointIds.includes(pt.id)}
+                                    onChange={(e) => {
+                                      setDiscountConfig((c) => ({
+                                        ...c,
+                                        targetPointIds: e.target.checked
+                                          ? [...c.targetPointIds, pt.id]
+                                          : c.targetPointIds.filter((i) => i !== pt.id)
+                                      }));
+                                    }}
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {discountConfig.mode === 'individual' && (
+                        <div className="grid md:grid-cols-2 gap-3 mt-3">
+                          {proposalSourcePoints.map((pt) => (
+                            <div key={pt.id} className={`rounded-xl border px-3 py-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{pt.nome}</p>
+                                  <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Tabela: {formatCurrency(pt.preco)}</p>
+                                </div>
+                                <input
+                                  type="number" min={0} max={100} step={0.1}
+                                  value={discountConfig.perPoint[pt.id] || ''}
+                                  onChange={(e) => setDiscountConfig((c) => ({ ...c, perPoint: { ...c.perPoint, [pt.id]: e.target.value } }))}
+                                  className={`w-24 rounded-lg border px-3 py-2 text-sm outline-none ${isDark ? 'border-white/10 bg-white/5 text-white focus:border-brand-orange/40' : 'border-neutral-200 bg-white text-neutral-800 focus:border-brand-orange/50'}`}
+                                  placeholder="0%"
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </Card>
+
+                    {/* RIGHT — Resumo financeiro */}
+                    <div className={`rounded-2xl border p-5 space-y-4 sticky top-0 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
+                      <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Resumo financeiro</h3>
+                      <div className="space-y-3">
+                        <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-white'}`}>
+                          <div className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Tabela cheia</div>
+                          <div className={`text-xl font-bold mt-1 ${isDark ? 'text-white' : 'text-neutral-900'}`}>{formatCurrency(pricingSummary.originalTotal)}</div>
+                        </div>
+                        <div className={`rounded-xl border p-3 ${isDark ? 'border-yellow-500/20 bg-yellow-500/5' : 'border-yellow-200 bg-yellow-50'}`}>
+                          <div className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Desconto total</div>
+                          <div className="text-xl font-bold mt-1 text-yellow-400">{formatCurrency(pricingSummary.discountTotal)}</div>
+                        </div>
+                        <div className={`rounded-2xl border-2 p-4 ${isDark ? 'border-green-500/30 bg-green-500/5' : 'border-green-300 bg-green-50'}`}>
+                          <div className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Valor final</div>
+                          <div className="text-3xl font-extrabold mt-1 text-green-400">{formatCurrency(pricingSummary.finalTotal)}</div>
+                        </div>
+                      </div>
                     </div>
-                  </section>
+                  </div>
                 </motion.div>
               )}
 
               {/* ═══ STEP 3 — Arte da campanha ═══ */}
               {wizardStep === 3 && (
                 <motion.div key="step3" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
-                  <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-5">
-                    <div className="grid xl:grid-cols-[1.1fr_0.9fr] gap-4 items-start">
-                      <div className={`rounded-xl border p-4 space-y-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Prompt da arte da campanha</h3>
-                            <p className="text-sm text-brand-gray-400">O prompt usa o nome do cliente para gerar a arte que entra na simulação. Quando houver formatos diferentes, o sistema separa um prompt por formato.</p>
+
+                  {/* BLOCO 1 — Prompt da arte (colapsável) */}
+                  <Card isDark={isDark}>
+                    <button type="button" onClick={() => setPromptExpanded(!promptExpanded)} className="w-full flex items-center justify-between gap-3">
+                      <div className="text-left">
+                        <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Prompt da arte</h3>
+                        <p className={`text-sm mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                          A campanha possui {imagePromptGroups.length} formato{imagePromptGroups.length !== 1 ? 's' : ''} de tela. Um prompt foi gerado automaticamente para cada formato.
+                        </p>
+                      </div>
+                      <ChevronDown size={18} className={`shrink-0 transition-transform ${isDark ? 'text-brand-gray-400' : 'text-neutral-400'} ${promptExpanded ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {promptExpanded && (
+                      <div className="mt-4 space-y-3">
+                        {imagePromptGroups.map((group, idx) => (
+                          <div key={idx} className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
+                            <p className={`text-[11px] uppercase tracking-wide font-semibold mb-2 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                              {group.width}x{group.height}{group.aspectRatio ? ` · ${group.aspectRatio}` : ''}
+                            </p>
+                            <textarea ref={idx === 0 ? promptTextareaRef : undefined} value={group.prompt} readOnly rows={4} className={`w-full rounded-lg border px-3 py-2 text-xs outline-none ${isDark ? 'border-white/10 bg-white/5 text-brand-gray-200' : 'border-neutral-200 bg-white text-neutral-700'}`} />
                           </div>
-                          <button type="button" onClick={handleCopyPrompt} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm hover:bg-white/[0.08] ${isDark ? 'border-white/15 bg-white/[0.03] text-white' : 'border-neutral-200 bg-white text-neutral-700'}`}>
-                            {promptCopied ? <Check size={15} /> : <Copy size={15} />}
-                            {promptCopied ? 'Prompt copiado' : 'Copiar prompt'}
-                          </button>
-                        </div>
-
-                        <textarea ref={promptTextareaRef} value={imagePrompt} readOnly rows={Math.min(18, Math.max(6, imagePromptGroups.length * 7))} className={`w-full rounded-xl border px-3 py-3 text-sm outline-none ${isDark ? 'border-white/10 bg-white/5 text-brand-gray-200' : 'border-neutral-200 bg-white text-neutral-700'}`} />
+                        ))}
+                        <button type="button" onClick={handleCopyPrompt} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm hover:bg-white/[0.08] transition-colors ${isDark ? 'border-white/15 bg-white/[0.03] text-white' : 'border-neutral-200 bg-white text-neutral-700'}`}>
+                          {promptCopied ? <Check size={15} /> : <Copy size={15} />}
+                          {promptCopied ? 'Copiado!' : 'Copiar prompt'}
+                        </button>
                       </div>
-
-                      <div className="space-y-3">
-                        <div>
-                          <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Arte da campanha</h3>
-                          <p className="text-sm text-brand-gray-400">A arte enviada aqui será aplicada sobre a área de tela cadastrada no admin para cada ponto da proposta.</p>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-3">
-                          <label className={`flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm cursor-pointer transition-colors ${isDark ? 'bg-white/5 border-white/15 text-brand-gray-300 hover:bg-white/10' : 'bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50'}`}>
-                            <Upload size={16} />
-                            {simulationArtFile ? simulationArtFile.name : 'Escolher arte da campanha'}
-                            <input
-                              type="file"
-                              accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                              onChange={(e) => {
-                                setSimulationArtFile(e.target.files?.[0] || null);
-                                setSimulationError('');
-                                clearSimulationResults();
-                              }}
-                              className="hidden"
-                            />
-                          </label>
-
-                          <button
-                            type="button"
-                            onClick={handleGenerateSimulations}
-                            disabled={simulationBusy || !proposalSourcePoints.length}
-                            className="orange-solid-btn px-5 py-2.5 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover disabled:opacity-50 shadow-[0_10px_24px_rgba(254,92,43,0.28)]"
-                          >
-                            {simulationBusy ? 'Gerando simulações...' : 'Gerar simulações'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {simulationError && (
-                      <p className="text-xs text-red-300 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">{simulationError}</p>
                     )}
+                  </Card>
 
-                    <div className="grid lg:grid-cols-[220px_1fr] gap-4 items-start">
-                      <div className={`rounded-xl border p-2.5 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
-                        <p className="text-[11px] text-brand-gray-500 px-1 pb-2 uppercase tracking-wide">Preview da arte enviada</p>
-                        {simulationArtUrl ? (
-                          <img src={simulationArtUrl} alt="Arte da campanha" className="w-full h-40 object-cover rounded-lg" />
-                        ) : (
-                          <div className={`h-40 rounded-lg border border-dashed flex items-center justify-center text-xs text-brand-gray-500 ${isDark ? 'border-white/15' : 'border-neutral-300'}`}>
-                            Nenhuma arte selecionada
-                          </div>
-                        )}
+                  {/* BLOCO 2 — Arte e preview (2 colunas) */}
+                  <div className="grid lg:grid-cols-2 gap-5">
+                    {/* Coluna esquerda — Upload */}
+                    <Card isDark={isDark} title="Arte da campanha">
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onDrop={(e) => {
+                          e.preventDefault(); e.stopPropagation();
+                          const file = e.dataTransfer.files?.[0];
+                          if (file && file.type.startsWith('image/')) {
+                            setSimulationArtFile(file);
+                            setSimulationError('');
+                            clearSimulationResults();
+                          }
+                        }}
+                        className={`rounded-xl border-2 border-dashed p-6 text-center transition-colors ${isDark ? 'border-white/15 hover:border-brand-orange/30' : 'border-neutral-300 hover:border-brand-orange/40'}`}
+                      >
+                        <Upload size={24} className={`mx-auto mb-2 ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`} />
+                        <p className={`text-sm mb-3 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Arraste a arte ou clique para selecionar</p>
+                        <label className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm cursor-pointer transition-colors ${isDark ? 'border-white/15 bg-white/5 text-brand-gray-300 hover:bg-white/10' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
+                          <ImageIcon size={16} />
+                          {simulationArtFile ? simulationArtFile.name : 'Escolher arte da campanha'}
+                          <input type="file" accept="image/*" onChange={(e) => { setSimulationArtFile(e.target.files?.[0] || null); setSimulationError(''); clearSimulationResults(); }} className="hidden" />
+                        </label>
                       </div>
 
-                      <div className="grid sm:grid-cols-3 gap-3">
-                        <StatusCard label="Pontos na proposta" value={proposalSourcePoints.length} tone="default" />
-                        <StatusCard label="Simulações geradas" value={Object.values(simulationResults).filter((item) => item.status === 'Gerada').length} tone="success" />
-                        <StatusCard label="Pendências de cadastro" value={Object.values(simulationResults).filter((item) => item.status === 'Área da tela não cadastrada no admin' || item.status === 'Imagem base do ponto não cadastrada').length} tone="warning" />
-                      </div>
-                    </div>
+                      <button
+                        type="button"
+                        onClick={handleGenerateSimulations}
+                        disabled={simulationBusy || !proposalSourcePoints.length}
+                        className="w-full orange-solid-btn h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover disabled:opacity-50 shadow-[0_10px_24px_rgba(254,92,43,0.28)] mt-3"
+                      >
+                        {simulationBusy ? 'Gerando simulações...' : 'Gerar simulações'}
+                      </button>
+                    </Card>
 
-                    <div className={`rounded-xl border p-4 space-y-4 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Realismo da tela</p>
-                        <p className="text-sm text-brand-gray-400">Esses controles aproximam o resultado do simulador com brilho, reflexo, vazamento de luz e textura de LED.</p>
-                      </div>
+                    {/* Coluna direita — Preview */}
+                    <Card isDark={isDark} title="Preview da arte">
+                      {simulationArtUrl ? (
+                        <img src={simulationArtUrl} alt="Arte da campanha" className="w-full h-56 object-contain rounded-lg" />
+                      ) : (
+                        <div className={`h-56 rounded-xl border border-dashed flex items-center justify-center text-sm ${isDark ? 'border-white/15 text-brand-gray-500 bg-black/20' : 'border-neutral-300 text-neutral-400 bg-neutral-50'}`}>
+                          Nenhuma arte selecionada
+                        </div>
+                      )}
+                    </Card>
+                  </div>
 
-                      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        <SliderField label="Brilho da tela" value={simulationSettings.brightness} min={0.7} max={1.8} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, brightness: value }))} />
-                        <SliderField label="Reflexo do vidro" value={simulationSettings.reflection} min={0} max={0.55} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, reflection: value }))} />
-                        <SliderField label="Vazamento de luz" value={simulationSettings.spill} min={0} max={0.45} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, spill: value }))} />
-                        <SliderField label="Intensidade dos pixels" value={simulationSettings.ledPixelIntensity} min={0} max={0.45} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, ledPixelIntensity: value }))} />
-                        <SliderField label="Tamanho do pixel LED" value={simulationSettings.ledPixelSize} min={3} max={14} step={1} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, ledPixelSize: value }))} />
-                        <SliderField label="Glare / luz especular" value={simulationSettings.glare} min={0} max={0.4} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, glare: value }))} />
+                  {simulationError && (
+                    <p className="text-xs text-red-300 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">{simulationError}</p>
+                  )}
+
+                  {/* BLOCO 3 — Status da campanha */}
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    <StatusCard isDark={isDark} label="Pontos na proposta" value={proposalSourcePoints.length} tone="default" />
+                    <StatusCard isDark={isDark} label="Simulações geradas" value={Object.values(simulationResults).filter((i) => i.status === 'Gerada').length} tone="success" />
+                    <StatusCard isDark={isDark} label="Pendências de cadastro" value={Object.values(simulationResults).filter((i) => i.status === 'Área da tela não cadastrada no admin' || i.status === 'Imagem base do ponto não cadastrada').length} tone="warning" />
+                  </div>
+
+                  {/* Ajustes avançados (colapsável) */}
+                  <Card isDark={isDark}>
+                    <button type="button" onClick={() => setAdvancedRealismOpen(!advancedRealismOpen)} className="w-full flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Settings2 size={16} className={isDark ? 'text-brand-gray-400' : 'text-neutral-500'} />
+                        <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Ajustes avançados</h3>
                       </div>
-                    </div>
-                  </section>
+                      <ChevronDown size={18} className={`shrink-0 transition-transform ${isDark ? 'text-brand-gray-400' : 'text-neutral-400'} ${advancedRealismOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {advancedRealismOpen && (
+                      <div className="mt-4 grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <SliderField isDark={isDark} label="Brilho da tela" value={simulationSettings.brightness} min={0.7} max={1.8} step={0.01} onChange={(v) => setSimulationSettings((c) => normalizeDisplaySettings({ ...c, brightness: v }))} />
+                        <SliderField isDark={isDark} label="Reflexo do vidro" value={simulationSettings.reflection} min={0} max={0.55} step={0.01} onChange={(v) => setSimulationSettings((c) => normalizeDisplaySettings({ ...c, reflection: v }))} />
+                        <SliderField isDark={isDark} label="Vazamento de luz" value={simulationSettings.spill} min={0} max={0.45} step={0.01} onChange={(v) => setSimulationSettings((c) => normalizeDisplaySettings({ ...c, spill: v }))} />
+                        <SliderField isDark={isDark} label="Intensidade dos pixels" value={simulationSettings.ledPixelIntensity} min={0} max={0.45} step={0.01} onChange={(v) => setSimulationSettings((c) => normalizeDisplaySettings({ ...c, ledPixelIntensity: v }))} />
+                        <SliderField isDark={isDark} label="Tamanho do pixel LED" value={simulationSettings.ledPixelSize} min={3} max={14} step={1} onChange={(v) => setSimulationSettings((c) => normalizeDisplaySettings({ ...c, ledPixelSize: v }))} />
+                        <SliderField isDark={isDark} label="Glare / luz especular" value={simulationSettings.glare} min={0} max={0.4} step={0.01} onChange={(v) => setSimulationSettings((c) => normalizeDisplaySettings({ ...c, glare: v }))} />
+                      </div>
+                    )}
+                  </Card>
                 </motion.div>
               )}
 
               {/* ═══ STEP 4 — Revisão ═══ */}
               {wizardStep === 4 && (
                 <motion.div key="step4" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
-                  <PreviewPanel proposalPoints={proposalPoints} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={!!simulationArtFile} />
-                  <ProposalBuilder clientName={form.clientName} city={activeCities} publico={form.publicos} segmento={getSegmentDisplayName(form.segmento)} points={proposalPoints} totals={totals} pricingSummary={pricingSummary} strategicText={argumentos} simulationSummary={simulationSummary} activePreviewPointId={activePreviewPoint?.id} onSelectPreview={setActivePreviewPointId} onGenerate={handleGenerate} isDark={isDark} />
+
+                  {/* Resumo da proposta */}
+                  <Card isDark={isDark} title="Resumo da proposta">
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                      <MiniStat isDark={isDark} label="Cliente" value={form.clientName || '—'} />
+                      <MiniStat isDark={isDark} label="Cidades" value={activeCities.join(', ') || 'Todas'} />
+                      <MiniStat isDark={isDark} label="Segmento" value={getSegmentDisplayName(form.segmento)} />
+                      <MiniStat isDark={isDark} label="Públicos" value={form.publicos.length ? form.publicos.join(', ') : 'Todos'} />
+                      <MiniStat isDark={isDark} label="Pontos" value={proposalPoints.length} />
+                    </div>
+                  </Card>
+
+                  {/* Tabela de pontos */}
+                  <Card isDark={isDark} title="Pontos da campanha">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className={`text-[11px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
+                            <th className="text-left pb-3 pr-3">Ponto</th>
+                            <th className="text-left pb-3 pr-3">Simulação</th>
+                            <th className="text-left pb-3 pr-3">Cidade</th>
+                            <th className="text-left pb-3 pr-3">Tipo</th>
+                            <th className="text-right pb-3">Valor</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {proposalPoints.map((pt) => {
+                            const previewUrl = getPointPreviewUrl(pt, !!simulationArtFile);
+                            const hasPreview = !!previewUrl;
+                            return (
+                              <tr key={pt.id} className={`border-t ${!hasPreview ? (isDark ? 'border-yellow-500/20 bg-yellow-500/5' : 'border-yellow-200 bg-yellow-50') : (isDark ? 'border-white/[0.06]' : 'border-neutral-100')}`}>
+                                <td className={`py-2.5 pr-3 font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>{pt.nome}</td>
+                                <td className="py-2.5 pr-3">
+                                  {hasPreview ? (
+                                    <div className="w-16 h-10 rounded-md overflow-hidden border border-white/10">
+                                      <img src={previewUrl} alt="" className="w-full h-full object-cover" />
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-yellow-400">Sem simulação</span>
+                                  )}
+                                </td>
+                                <td className={`py-2.5 pr-3 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{pt.cidade}</td>
+                                <td className={`py-2.5 pr-3 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{pt.tipo}</td>
+                                <td className={`py-2.5 text-right font-semibold ${isDark ? 'text-brand-orange' : 'text-brand-orange'}`}>{formatCurrency(pt.finalPrice ?? pt.preco)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+
+                  {/* Preview ampliado */}
+                  <PreviewPanel proposalPoints={proposalPoints} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={!!simulationArtFile} isDark={isDark} />
                 </motion.div>
               )}
 
-              {/* ═══ STEP 5 — Proposta gerada ═══ */}
+              {/* ═══ STEP 5 — Gerar proposta ═══ */}
               {wizardStep === 5 && (
                 <motion.div key="step5" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
-                  <div className="rounded-2xl border border-brand-orange/30 bg-gradient-to-r from-brand-orange/20 to-brand-orange/5 p-4">
-                    <h3 className={`text-lg font-semibold mb-1 ${isDark ? 'text-white' : 'text-neutral-900'}`}>Proposta gerada com sucesso</h3>
-                    <p className="text-sm text-brand-gray-300">Apresentação pronta para reunião comercial, com narrativa estratégica, desconto aplicado e indicadores executivos.</p>
-                  </div>
 
-                  <PreviewPanel proposalPoints={proposalPoints} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={!!simulationArtFile} />
-
-                  <ProposalBuilder clientName={form.clientName} city={activeCities} publico={form.publicos} segmento={getSegmentDisplayName(form.segmento)} points={proposalPoints} totals={totals} pricingSummary={pricingSummary} strategicText={argumentos} simulationSummary={simulationSummary} activePreviewPointId={activePreviewPoint?.id} onSelectPreview={setActivePreviewPointId} onGenerate={() => {}} isDark={isDark} />
-
-                  <div className={`rounded-xl border p-4 space-y-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-400">Seções opcionais do PDF</p>
-                    <div className="flex flex-wrap gap-2">
+                  {/* Seções opcionais do PDF (cards selecionáveis) */}
+                  <Card isDark={isDark} title="Seções do PDF">
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
                       {[
-                        { key: 'methodology', label: 'Como ler as métricas' },
-                        { key: 'score', label: 'Score da campanha' },
-                        { key: 'coverage', label: 'Cobertura e presença' },
-                        { key: 'impact', label: 'Impacto da campanha' }
-                      ].map(({ key, label }) => (
+                        { key: 'methodology', label: 'Como ler as métricas', icon: '📊' },
+                        { key: 'score', label: 'Score da campanha', icon: '🏆' },
+                        { key: 'coverage', label: 'Cobertura e presença', icon: '📡' },
+                        { key: 'impact', label: 'Impacto da campanha', icon: '⚡' },
+                        { key: 'mapPrint', label: 'Print do mapa da seleção', icon: '🗺️' }
+                      ].map(({ key, label, icon }) => (
                         <button
                           key={key}
                           type="button"
                           onClick={() => setPdfSections((s) => ({ ...s, [key]: !s[key] }))}
-                          className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${pdfSections[key] ? 'border-brand-orange/40 bg-brand-orange/12 text-brand-orange' : isDark ? 'border-white/15 text-brand-gray-400 hover:bg-white/[0.06]' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-100'}`}
+                          className={`flex items-center gap-3 rounded-xl border p-3 text-left text-sm font-medium transition-all ${
+                            pdfSections[key]
+                              ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange shadow-[0_2px_8px_rgba(254,92,43,0.12)]'
+                              : isDark
+                                ? 'border-white/10 bg-white/[0.03] text-brand-gray-400 hover:bg-white/[0.06]'
+                                : 'border-neutral-200 bg-neutral-50 text-neutral-500 hover:bg-neutral-100'
+                          }`}
                         >
-                          {pdfSections[key] ? '✓ ' : ''}{label}
+                          <span className="text-lg">{icon}</span>
+                          <span>{label}</span>
+                          {pdfSections[key] && <Check size={14} className="ml-auto text-brand-orange" />}
                         </button>
                       ))}
                     </div>
-                  </div>
+                  </Card>
 
-                  <div className={`rounded-xl border p-4 space-y-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-400">Print do mapa da seleção</p>
-                      <span className="inline-flex items-center gap-1 text-[11px] text-brand-gray-500">
-                        <MapPinned size={13} />
-                        PNG de alta resolução
-                      </span>
+                  {/* Mapa */}
+                  <Card isDark={isDark} title="Print do mapa">
+                    <div className="flex flex-wrap items-center gap-4">
+                      <label className={`inline-flex items-center gap-2 text-sm ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
+                        <input type="checkbox" checked={connectMapPoints} onChange={(e) => setConnectMapPoints(e.target.checked)} className="h-4 w-4 rounded border-white/20 bg-white/5" />
+                        Linhas de conexão entre pontos
+                      </label>
+                      <button
+                        onClick={handleExportSelectionMap}
+                        disabled={mapBusy || !proposalPoints.length}
+                        className={`h-10 px-4 rounded-xl border font-medium inline-flex items-center gap-2 disabled:opacity-50 transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange' : 'border-brand-orange/30 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange'}`}
+                      >
+                        <Route size={16} />
+                        {mapBusy ? 'Aguarde...' : 'Baixar print do mapa'}
+                      </button>
                     </div>
-
-                    <label className="inline-flex items-center gap-2 text-sm text-brand-gray-300">
-                      <input
-                        type="checkbox"
-                        checked={connectMapPoints}
-                        onChange={(event) => setConnectMapPoints(event.target.checked)}
-                        className="h-4 w-4 rounded border-white/20 bg-white/5"
-                      />
-                      Desenhar linha de conexão entre os pontos
-                    </label>
-
-                    <button
-                      onClick={handleExportSelectionMap}
-                      disabled={mapBusy || !proposalPoints.length}
-                      className="h-11 px-4 rounded-xl border border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange font-medium inline-flex items-center gap-2 disabled:opacity-50"
-                    >
-                      <Route size={16} />
-                      {mapBusy ? 'Aguarde...' : 'Baixar print do mapa'}
-                    </button>
-
                     {mapBusy && mapStatus && (
-                      <p className="text-xs text-brand-orange/80 flex items-center gap-1.5">
+                      <p className="text-xs text-brand-orange/80 flex items-center gap-1.5 mt-2">
                         <span className="inline-block w-2.5 h-2.5 rounded-full border-2 border-brand-orange/60 border-t-brand-orange animate-spin" />
                         {mapStatus}
                       </p>
                     )}
-                  </div>
+                  </Card>
 
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <button onClick={handleExportProposalPdf} disabled={pdfBusy} className="orange-solid-btn h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(254,92,43,0.28)]">
-                      <Download size={16} />
+                  {/* Ações principais */}
+                  <div className="space-y-3">
+                    <button onClick={handleExportProposalPdf} disabled={pdfBusy} className="w-full orange-solid-btn h-12 rounded-xl bg-brand-orange text-white font-bold text-base hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(254,92,43,0.28)] disabled:opacity-50">
+                      <Download size={18} />
                       {pdfBusy ? 'Gerando PDF...' : 'Exportar PDF da proposta'}
                     </button>
 
-                    <button onClick={() => setShowPresentation(true)} className={`h-11 rounded-xl border font-medium inline-flex items-center justify-center gap-2 ${isDark ? 'border-white/15 bg-white/[0.03] hover:bg-white/[0.08]' : 'border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700'}`}>
-                      <Presentation size={16} />
-                      Modo apresentação
-                    </button>
-
-                    <button onClick={() => setShowQuickPresentation(true)} className="h-11 rounded-xl border border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange font-medium inline-flex items-center justify-center gap-2">
-                      <Presentation size={16} />
-                      Apresentação rápida
-                    </button>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <button onClick={() => setShowPresentation(true)} className={`h-11 rounded-xl border font-medium inline-flex items-center justify-center gap-2 transition-colors ${isDark ? 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.08]' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
+                        <Presentation size={16} />
+                        Modo apresentação
+                      </button>
+                      <button onClick={() => setShowQuickPresentation(true)} className={`h-11 rounded-xl border font-medium inline-flex items-center justify-center gap-2 transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange' : 'border-brand-orange/30 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange'}`}>
+                        <Presentation size={16} />
+                        Apresentação rápida
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -1162,50 +1242,46 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   );
 }
 
-function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand, requireGeneratedPreview = false }) {
+function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand, requireGeneratedPreview = false, isDark = true }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
+    <section className={`rounded-2xl border p-4 md:p-5 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
           <ImageIcon size={16} className="text-brand-orange" />
-          <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400">Preview ampliado da simulação</h3>
+          <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Preview da simulação</h3>
         </div>
-        <div className="flex items-center gap-2">
-          <p className="text-xs text-brand-gray-500">Clique nos thumbs para trocar</p>
-          <button type="button" onClick={onExpand} disabled={!activePreviewPoint} className="px-3 py-1.5 text-xs rounded-lg border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] disabled:opacity-40">Ver em tela cheia</button>
-        </div>
+        <button type="button" onClick={onExpand} disabled={!activePreviewPoint} className={`px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 bg-white/[0.03] hover:bg-white/[0.08] text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>Ver em tela cheia</button>
       </div>
 
       {activePreviewPoint ? (
-        <div className="grid xl:grid-cols-[1fr_260px] gap-4">
-          <div className="rounded-xl border border-white/10 bg-black/25 p-2">
-            <img src={getPointPreviewUrl(activePreviewPoint, requireGeneratedPreview)} alt={`Preview ${activePreviewPoint.nome}`} className="w-full h-[260px] md:h-[360px] object-contain rounded-lg bg-black/35" />
+        <div className="grid xl:grid-cols-[1fr_240px] gap-4">
+          <div className={`rounded-xl border p-2 ${isDark ? 'border-white/10 bg-black/25' : 'border-neutral-200 bg-white'}`}>
+            <img src={getPointPreviewUrl(activePreviewPoint, requireGeneratedPreview)} alt={`Preview ${activePreviewPoint.nome}`} className="w-full h-[240px] md:h-[320px] object-contain rounded-lg bg-black/35" />
             <div className="px-2 pt-3">
-              <p className="text-sm font-semibold text-white">{activePreviewPoint.nome}</p>
-              <p className="text-xs text-brand-gray-400 mt-1">{activePreviewPoint.cidade} · {activePreviewPoint.tipo}</p>
+              <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{activePreviewPoint.nome}</p>
+              <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>{activePreviewPoint.cidade} · {activePreviewPoint.tipo}</p>
             </div>
           </div>
 
-          <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
             {proposalPoints.map((point) => {
               const previewUrl = getPointPreviewUrl(point, requireGeneratedPreview);
               const selected = point.id === activePreviewPoint?.id;
-
               return (
                 <button
                   key={point.id}
                   type="button"
                   disabled={!previewUrl}
                   onClick={() => onSelect(point.id)}
-                  className={`w-full text-left rounded-xl border p-2 transition-all ${selected ? 'border-brand-orange bg-brand-orange/10' : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]'} ${!previewUrl ? 'opacity-55 cursor-not-allowed' : ''}`}
+                  className={`w-full text-left rounded-xl border p-2 transition-all ${selected ? 'border-brand-orange bg-brand-orange/10' : isDark ? 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]' : 'border-neutral-200 bg-white hover:bg-neutral-50'} ${!previewUrl ? 'opacity-55 cursor-not-allowed' : ''}`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-20 h-12 rounded-md border border-white/10 bg-black/35 overflow-hidden shrink-0">
+                    <div className={`w-16 h-10 rounded-md border overflow-hidden shrink-0 ${isDark ? 'border-white/10 bg-black/35' : 'border-neutral-200 bg-neutral-100'}`}>
                       {previewUrl ? <img src={previewUrl} alt="thumb" className="w-full h-full object-cover" /> : null}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-white truncate">{point.nome}</p>
-                      <p className="text-[11px] text-brand-gray-400 mt-1">{previewUrl ? 'Simulação pronta para proposta' : (point.proposalSimulationStatus || 'Sem simulação')}</p>
+                      <p className={`text-xs font-semibold truncate ${isDark ? 'text-white' : 'text-neutral-900'}`}>{point.nome}</p>
+                      <p className={`text-[11px] mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>{previewUrl ? 'Simulação pronta' : (point.proposalSimulationStatus || 'Sem simulação')}</p>
                     </div>
                   </div>
                 </button>
@@ -1214,54 +1290,74 @@ function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand, 
           </div>
         </div>
       ) : (
-        <div className="h-44 rounded-xl border border-dashed border-white/15 flex items-center justify-center text-sm text-brand-gray-500 bg-black/25">Gere as simulações para visualizar o preview ampliado.</div>
+        <div className={`h-36 rounded-xl border border-dashed flex items-center justify-center text-sm ${isDark ? 'border-white/15 text-brand-gray-500 bg-black/25' : 'border-neutral-300 text-neutral-400 bg-neutral-50'}`}>Gere as simulações para visualizar o preview.</div>
       )}
     </section>
   );
 }
 
-function Input({ label, value, onChange }) {
+function Card({ isDark = true, title, children }) {
   return (
-    <div>
-      <label className="text-[11px] uppercase tracking-[0.12em] text-brand-gray-500">{label}</label>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className="mt-1.5 w-full bg-white/[0.07] border border-white/15 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-brand-orange/45 focus:bg-white/[0.09] transition-colors" />
+    <section className={`rounded-2xl border p-5 space-y-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
+      {title && <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>{title}</h3>}
+      {children}
+    </section>
+  );
+}
+
+function MiniStat({ isDark = true, label, value }) {
+  return (
+    <div className={`rounded-xl border px-3 py-2.5 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-white'}`}>
+      <div className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{label}</div>
+      <div className={`text-sm font-semibold mt-0.5 truncate ${isDark ? 'text-white' : 'text-neutral-900'}`}>{value}</div>
     </div>
   );
 }
 
-function ScopeButton({ active, onClick, children }) {
+function Input({ isDark = true, label, value, onChange }) {
+  return (
+    <div>
+      <label className={`text-[11px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{label}</label>
+      <input value={value} onChange={(e) => onChange(e.target.value)} className={`mt-1.5 w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition-colors ${isDark ? 'bg-white/[0.07] border-white/15 focus:border-brand-orange/45 focus:bg-white/[0.09] text-white' : 'bg-white border-neutral-200 focus:border-brand-orange/50 text-neutral-800'}`} />
+    </div>
+  );
+}
+
+function ScopeButton({ isDark = true, active, onClick, children }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-xl border px-3 py-2 text-sm transition-colors ${active ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : 'border-white/10 bg-white/[0.03] text-brand-gray-300 hover:bg-white/[0.08]'}`}
+      className={`rounded-xl border px-3 py-2 text-sm transition-colors ${active ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300 hover:bg-white/[0.08]' : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-100'}`}
     >
       {children}
     </button>
   );
 }
 
-function StatusCard({ label, value, tone }) {
+function StatusCard({ isDark = true, label, value, tone }) {
   const toneClass = tone === 'success'
     ? 'text-green-400 border-green-500/20 bg-green-500/5'
     : tone === 'warning'
       ? 'text-yellow-300 border-yellow-500/20 bg-yellow-500/5'
-      : 'text-white border-white/10 bg-black/20';
+      : isDark
+        ? 'text-white border-white/10 bg-black/20'
+        : 'text-neutral-900 border-neutral-200 bg-white';
 
   return (
     <div className={`rounded-xl border p-3 ${toneClass}`}>
-      <div className="text-[10px] uppercase tracking-[0.12em] text-brand-gray-500">{label}</div>
+      <div className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{label}</div>
       <div className="text-2xl font-bold mt-1">{value}</div>
     </div>
   );
 }
 
-function SliderField({ label, value, min, max, step, onChange }) {
+function SliderField({ isDark = true, label, value, min, max, step, onChange }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <label className="text-[11px] uppercase tracking-wide text-brand-gray-500">{label}</label>
-        <span className="text-xs text-brand-gray-300">{Number(value).toFixed(step >= 1 ? 0 : 2)}</span>
+        <label className={`text-[11px] uppercase tracking-wide ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{label}</label>
+        <span className={`text-xs ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{Number(value).toFixed(step >= 1 ? 0 : 2)}</span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="proposal-slider w-full" />
     </div>
