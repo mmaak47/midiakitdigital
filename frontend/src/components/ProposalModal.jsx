@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   Check,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Download,
   FileText,
@@ -37,6 +39,22 @@ import QuickPresentationMode from './QuickPresentationMode';
 
 const DEFAULT_ENTORNO_RADIUS = 800;
 
+const WIZARD_STEPS = [
+  { id: 1, label: 'Dados' },
+  { id: 2, label: 'Desconto' },
+  { id: 3, label: 'Arte' },
+  { id: 4, label: 'Revisão' },
+  { id: 5, label: 'Gerar' },
+];
+
+const STEP_TITLES = {
+  1: 'Dados da proposta',
+  2: 'Desconto comercial',
+  3: 'Arte da campanha',
+  4: 'Revisão da proposta',
+  5: 'Proposta gerada',
+};
+
 function getPointPreviewUrl(point, requireGeneratedPreview = false) {
   if (!point) return '';
   if (requireGeneratedPreview) {
@@ -70,7 +88,7 @@ export function clearProposalDraft() {
 export default function ProposalModal({ onClose, open = true, selectedPoints = null, isDark = true }) {
   const { favorites } = useFavorites();
   const sourcePoints = selectedPoints ?? favorites;
-  const [step, setStep] = useState('review');
+  const [wizardStep, setWizardStep] = useState(1);
   const [showPresentation, setShowPresentation] = useState(false);
   const [showQuickPresentation, setShowQuickPresentation] = useState(false);
 
@@ -452,7 +470,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     return previewablePoints.find((point) => point.id === activePreviewPointId) || previewablePoints[0];
   }, [previewablePoints, activePreviewPointId]);
 
-  const handleGenerate = () => setStep('generated');
+  const handleGenerate = () => setWizardStep(5);
 
   const handleCopyPrompt = async () => {
     if (!imagePrompt) return;
@@ -645,10 +663,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className={`proposal-modal-shell relative w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-3xl border ${isDark ? 'border-white/15 bg-gradient-to-b from-[#11141b] via-[#0d1016] to-[#090c11] shadow-[0_30px_120px_rgba(0,0,0,0.75)]' : 'border-neutral-200 bg-gradient-to-b from-[#ffffff] via-[#fbfcfe] to-[#f3f5f8] shadow-[0_26px_80px_rgba(148,163,184,0.28)]'}`}
+          className={`proposal-modal-shell relative w-full max-w-6xl max-h-[92vh] flex flex-col rounded-3xl border ${isDark ? 'border-white/15 bg-gradient-to-b from-[#11141b] via-[#0d1016] to-[#090c11] shadow-[0_30px_120px_rgba(0,0,0,0.75)]' : 'border-neutral-200 bg-gradient-to-b from-[#ffffff] via-[#fbfcfe] to-[#f3f5f8] shadow-[0_26px_80px_rgba(148,163,184,0.28)]'}`}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className={`pointer-events-none absolute inset-0 ${isDark ? 'bg-[radial-gradient(circle_at_15%_5%,rgba(254,92,43,0.12),transparent_35%),radial-gradient(circle_at_90%_0%,rgba(255,255,255,0.07),transparent_28%)]' : 'bg-[radial-gradient(circle_at_12%_4%,rgba(254,92,43,0.16),transparent_36%),radial-gradient(circle_at_94%_0%,rgba(254,92,43,0.10),transparent_32%)]'}`} />
+          <div className={`pointer-events-none absolute inset-0 rounded-3xl ${isDark ? 'bg-[radial-gradient(circle_at_15%_5%,rgba(254,92,43,0.12),transparent_35%),radial-gradient(circle_at_90%_0%,rgba(255,255,255,0.07),transparent_28%)]' : 'bg-[radial-gradient(circle_at_12%_4%,rgba(254,92,43,0.16),transparent_36%),radial-gradient(circle_at_94%_0%,rgba(254,92,43,0.10),transparent_32%)]'}`} />
 
           <button
             onClick={onClose}
@@ -657,362 +675,459 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
             <X size={18} />
           </button>
 
-          <div className="relative p-6 md:p-8 space-y-5">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 md:p-6">
-              <div className="flex flex-wrap items-start gap-4">
-                <div className="h-12 w-12 rounded-xl bg-brand-orange/15 border border-brand-orange/30 flex items-center justify-center shadow-[0_8px_30px_rgba(254,92,43,0.2)]">
-                  <FileText size={22} className="text-brand-orange" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-brand-gray-500 mb-1">Proposta Comercial</p>
-                  <h2 className="text-2xl md:text-[30px] leading-tight font-bold text-white">Modo gerar proposta automática</h2>
-                  <p className="text-sm text-brand-gray-400 mt-2">Estrutura pronta para exportação em PDF e apresentação comercial, com desconto configurável, prompt de arte no modal, simulação aplicada por ponto e análise opcional pelo endereço do cliente.</p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-right">
-                  <div className="text-[10px] uppercase tracking-wide text-brand-gray-500">Pontos na proposta</div>
-                  <div className="text-lg font-bold text-white">{proposalSourcePoints.length}</div>
-                </div>
+          {/* ── Header + Stepper ── */}
+          <div className="relative flex-shrink-0 p-6 md:px-8 md:pt-8 md:pb-0 space-y-4">
+            <div className="flex flex-wrap items-start gap-4 pr-10">
+              <div className="h-12 w-12 rounded-xl bg-brand-orange/15 border border-brand-orange/30 flex items-center justify-center shadow-[0_8px_30px_rgba(254,92,43,0.2)]">
+                <FileText size={22} className="text-brand-orange" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-brand-gray-500 mb-1">Proposta Comercial</p>
+                <h2 className={`text-xl md:text-2xl leading-tight font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                  Passo {wizardStep} — {STEP_TITLES[wizardStep]}
+                </h2>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-right">
+                <div className="text-[10px] uppercase tracking-wide text-brand-gray-500">Pontos</div>
+                <div className="text-lg font-bold text-white">{proposalSourcePoints.length}</div>
               </div>
             </div>
 
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
-              <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400">Dados da proposta</h3>
-
-              <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
-                <Input label="Nome do cliente" value={form.clientName} onChange={(value) => setForm((s) => ({ ...s, clientName: value }))} />
-                <Input label="Endereço do cliente" value={form.clientAddress} onChange={(value) => setForm((s) => ({ ...s, clientAddress: value }))} />
-                <Input label="Subtítulo da capa (opcional)" value={form.proposalSubtitle} onChange={(value) => setForm((s) => ({ ...s, proposalSubtitle: value }))} />
-                <CustomSelect label="Praças" value={form.selectedCities} onChange={(value) => setForm((s) => ({ ...s, selectedCities: value }))} options={availableCities} multiple placeholder="Todas as praças dos pontos selecionados" />
-                <CustomSelect label="Segmento" value={form.segmento} onChange={(value) => setForm((s) => ({ ...s, segmento: value }))} options={SEGMENTOS.map((segmento) => ({ value: segmento, label: getSegmentDisplayName(segmento) }))} />
-                <CustomSelect label="Objetivo" value={form.objetivo} onChange={(value) => setForm((s) => ({ ...s, objetivo: value }))} options={OBJETIVOS} allowCustom customPlaceholder="Digite um objetivo personalizado" />
-                <CustomSelect label="Públicos" value={form.publicos} onChange={(value) => setForm((s) => ({ ...s, publicos: value }))} options={availablePublicos} multiple placeholder="Públicos estratégicos" />
-              </div>
-
-              <div>
-                <label className="text-[11px] uppercase tracking-[0.12em] text-brand-gray-500">Tópicos estratégicos (1 por linha)</label>
-                <textarea
-                  value={form.strategicTopics}
-                  onChange={(event) => setForm((state) => ({ ...state, strategicTopics: event.target.value }))}
-                  rows={4}
-                  placeholder={argumentos.join('\n')}
-                  className="mt-1.5 w-full rounded-xl border border-white/15 bg-white/[0.07] px-3 py-2.5 text-sm text-brand-gray-200 outline-none focus:border-brand-orange/45 focus:bg-white/[0.09] transition-colors"
-                />
-                <p className="mt-1 text-xs text-brand-gray-500">Se ficar vazio, usamos os argumentos estratégicos gerados automaticamente.</p>
-              </div>
-
-              <div className="grid lg:grid-cols-2 gap-3">
-                <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-brand-gray-400">
-                  <div className="flex flex-wrap items-center gap-2 text-brand-gray-300">
-                    <span className="font-semibold uppercase tracking-[0.12em]">Análise de entorno da praça</span>
-                    {entorno.loading ? <span className="text-brand-orange">Atualizando cache...</span> : null}
-                    {entorno.jobId ? <span className="rounded-full border border-brand-orange/25 bg-brand-orange/10 px-2 py-0.5 text-brand-orange">Job #{entorno.jobId}</span> : null}
+            {/* ── Stepper ── */}
+            <div className="flex items-center gap-1">
+              {WIZARD_STEPS.map((ws, idx) => {
+                const done = wizardStep > ws.id;
+                const active = wizardStep === ws.id;
+                return (
+                  <div key={ws.id} className="flex items-center flex-1 last:flex-initial">
+                    <button
+                      type="button"
+                      onClick={() => { if (done) setWizardStep(ws.id); }}
+                      className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
+                        active
+                          ? 'bg-brand-orange text-white shadow-[0_4px_16px_rgba(254,92,43,0.35)]'
+                          : done
+                            ? 'bg-brand-orange/15 text-brand-orange cursor-pointer hover:bg-brand-orange/25'
+                            : isDark
+                              ? 'bg-white/[0.06] text-brand-gray-500'
+                              : 'bg-neutral-100 text-neutral-400'
+                      }`}
+                    >
+                      {done ? <Check size={13} /> : <span>{ws.id}</span>}
+                      <span className="hidden sm:inline">{ws.label}</span>
+                    </button>
+                    {idx < WIZARD_STEPS.length - 1 && (
+                      <div className={`flex-1 h-px mx-1.5 ${done ? 'bg-brand-orange/40' : isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
+                    )}
                   </div>
-                  <p className="mt-1">
-                    Cobertura do cache: {(entorno.coverage * 100).toFixed(0)}%
-                    {entorno.updatedAt ? ` • atualizado em ${new Date(entorno.updatedAt).toLocaleString('pt-BR')}` : ''}
-                  </p>
-                  {entorno.error ? <p className="mt-1 text-red-300">{entorno.error}</p> : null}
-                </div>
+                );
+              })}
+            </div>
+          </div>
 
-                <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-brand-gray-400 space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    <ScopeButton active={analysisMode === 'segmento'} onClick={() => setAnalysisMode('segmento')}>Entorno padrão</ScopeButton>
-                    <ScopeButton active={analysisMode === 'client-address'} onClick={() => setAnalysisMode('client-address')}>Entorno personalizado</ScopeButton>
-                  </div>
+          {/* ── Step content (scrollable) ── */}
+          <div className="relative flex-1 overflow-y-auto p-6 md:px-8 md:pb-4 space-y-5">
+            <AnimatePresence mode="wait">
+              {/* ═══ STEP 1 — Dados da proposta ═══ */}
+              {wizardStep === 1 && (
+                <motion.div key="step1" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
+                  <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400">Dados da proposta</h3>
 
-                  {analysisMode === 'client-address' ? (
-                    <>
-                      {clientAnalysis.loading ? <p className="text-brand-orange">Analisando proximidade dos pontos em relação ao endereço do cliente...</p> : null}
-                      {clientAnalysis.error ? <p className="text-red-300">{clientAnalysis.error}</p> : null}
-                      {!clientAnalysis.loading && !clientAnalysis.error && form.clientAddress.trim() && clientAnalysis.rankedPoints.length > 0 ? (
-                        <div className="space-y-1.5 text-brand-gray-300">
-                          <p className="font-semibold uppercase tracking-[0.12em] text-brand-gray-400">Pontos mais próximos do cliente</p>
-                          {clientAnalysis.rankedPoints.slice(0, 3).map((point) => (
-                            <p key={point.id}>{point.nome} • {point.distanceKm.toFixed(1).replace('.', ',')} km</p>
-                          ))}
-                        </div>
-                      ) : null}
-                      {!form.clientAddress.trim() ? <p>Preencha o endereço do cliente para gerar a análise personalizada em tempo real.</p> : null}
-                    </>
-                  ) : (
-                    <p>Usa o score de entorno já calculado por segmento para os pontos filtrados desta proposta.</p>
-                  )}
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Desconto comercial</h3>
-                <p className="text-sm text-brand-gray-400">Defina se o desconto será no total, em pontos específicos ou individual por ponto.</p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {[
-                  ['none', 'Sem desconto'],
-                  ['total', 'No total da proposta'],
-                  ['specific', 'Em pontos específicos'],
-                  ['individual', 'Individual por ponto']
-                ].map(([mode, label]) => (
-                  <ScopeButton key={mode} active={discountConfig.mode === mode} onClick={() => setDiscountConfig((current) => ({ ...current, mode }))}>{label}</ScopeButton>
-                ))}
-              </div>
-
-              {(discountConfig.mode === 'total' || discountConfig.mode === 'specific') && (
-                <div className="grid md:grid-cols-[220px_1fr] gap-4 items-start">
-                  <Input label="Percentual de desconto" value={discountConfig.percentage} onChange={(value) => setDiscountConfig((current) => ({ ...current, percentage: value.replace(',', '.') }))} />
-
-                  {discountConfig.mode === 'specific' ? (
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
-                      <p className="text-[11px] uppercase tracking-[0.12em] text-brand-gray-500">Pontos com desconto</p>
-                      {proposalSourcePoints.map((point) => (
-                        <label key={point.id} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 px-3 py-2 text-sm text-brand-gray-300">
-                          <span>{point.nome}</span>
-                          <input
-                            type="checkbox"
-                            checked={discountConfig.targetPointIds.includes(point.id)}
-                            onChange={(event) => {
-                              setDiscountConfig((current) => ({
-                                ...current,
-                                targetPointIds: event.target.checked
-                                  ? [...current.targetPointIds, point.id]
-                                  : current.targetPointIds.filter((item) => item !== point.id)
-                              }));
-                            }}
-                          />
-                        </label>
-                      ))}
+                    <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      <Input label="Nome do cliente" value={form.clientName} onChange={(value) => setForm((s) => ({ ...s, clientName: value }))} />
+                      <Input label="Endereço do cliente" value={form.clientAddress} onChange={(value) => setForm((s) => ({ ...s, clientAddress: value }))} />
+                      <Input label="Subtítulo da capa (opcional)" value={form.proposalSubtitle} onChange={(value) => setForm((s) => ({ ...s, proposalSubtitle: value }))} />
+                      <CustomSelect label="Praças" value={form.selectedCities} onChange={(value) => setForm((s) => ({ ...s, selectedCities: value }))} options={availableCities} multiple placeholder="Todas as praças dos pontos selecionados" />
+                      <CustomSelect label="Segmento" value={form.segmento} onChange={(value) => setForm((s) => ({ ...s, segmento: value }))} options={SEGMENTOS.map((segmento) => ({ value: segmento, label: getSegmentDisplayName(segmento) }))} allowCustom customPlaceholder="Digite um segmento personalizado" />
+                      <CustomSelect label="Objetivo" value={form.objetivo} onChange={(value) => setForm((s) => ({ ...s, objetivo: value }))} options={OBJETIVOS} allowCustom customPlaceholder="Digite um objetivo personalizado" />
+                      <CustomSelect label="Públicos" value={form.publicos} onChange={(value) => setForm((s) => ({ ...s, publicos: value }))} options={availablePublicos} multiple placeholder="Públicos estratégicos" />
                     </div>
-                  ) : null}
-                </div>
-              )}
 
-              {discountConfig.mode === 'individual' && (
-                <div className="grid md:grid-cols-2 gap-3">
-                  {proposalSourcePoints.map((point) => (
-                    <div key={point.id} className="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
-                      <div className="flex items-center justify-between gap-3 mb-2">
-                        <div>
-                          <p className="text-sm font-semibold text-white">{point.nome}</p>
-                          <p className="text-xs text-brand-gray-500">Tabela: {formatCurrency(point.preco)}</p>
+                    <div>
+                      <label className="text-[11px] uppercase tracking-[0.12em] text-brand-gray-500">Tópicos estratégicos (1 por linha)</label>
+                      <textarea
+                        value={form.strategicTopics}
+                        onChange={(event) => setForm((state) => ({ ...state, strategicTopics: event.target.value }))}
+                        rows={4}
+                        placeholder={argumentos.join('\n')}
+                        className={`mt-1.5 w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition-colors ${isDark ? 'border-white/15 bg-white/[0.07] text-brand-gray-200 focus:border-brand-orange/45 focus:bg-white/[0.09]' : 'border-neutral-200 bg-white text-neutral-800 focus:border-brand-orange/50'}`}
+                      />
+                      <p className="mt-1 text-xs text-brand-gray-500">Se ficar vazio, usamos os argumentos estratégicos gerados automaticamente.</p>
+                    </div>
+
+                    <div className="grid lg:grid-cols-2 gap-3">
+                      <div className={`rounded-xl border px-4 py-3 text-xs ${isDark ? 'border-white/10 bg-black/20 text-brand-gray-400' : 'border-neutral-200 bg-neutral-50 text-neutral-500'}`}>
+                        <div className="flex flex-wrap items-center gap-2 text-brand-gray-300">
+                          <span className="font-semibold uppercase tracking-[0.12em]">Análise de entorno da praça</span>
+                          {entorno.loading ? <span className="text-brand-orange">Atualizando cache...</span> : null}
+                          {entorno.jobId ? <span className="rounded-full border border-brand-orange/25 bg-brand-orange/10 px-2 py-0.5 text-brand-orange">Job #{entorno.jobId}</span> : null}
                         </div>
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          step={0.1}
-                          value={discountConfig.perPoint[point.id] || ''}
-                          onChange={(event) => setDiscountConfig((current) => ({
-                            ...current,
-                            perPoint: {
-                              ...current.perPoint,
-                              [point.id]: event.target.value
-                            }
-                          }))}
-                          className="w-24 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-brand-orange/40"
-                          placeholder="0%"
-                        />
+                        <p className="mt-1">
+                          Cobertura do cache: {(entorno.coverage * 100).toFixed(0)}%
+                          {entorno.updatedAt ? ` • atualizado em ${new Date(entorno.updatedAt).toLocaleString('pt-BR')}` : ''}
+                        </p>
+                        {entorno.error ? <p className="mt-1 text-red-300">{entorno.error}</p> : null}
+                      </div>
+
+                      <div className={`rounded-xl border px-4 py-3 text-xs space-y-3 ${isDark ? 'border-white/10 bg-black/20 text-brand-gray-400' : 'border-neutral-200 bg-neutral-50 text-neutral-500'}`}>
+                        <div className="flex flex-wrap gap-2">
+                          <ScopeButton active={analysisMode === 'segmento'} onClick={() => setAnalysisMode('segmento')}>Entorno padrão</ScopeButton>
+                          <ScopeButton active={analysisMode === 'client-address'} onClick={() => setAnalysisMode('client-address')}>Entorno personalizado</ScopeButton>
+                        </div>
+
+                        {analysisMode === 'client-address' ? (
+                          <>
+                            {clientAnalysis.loading ? <p className="text-brand-orange">Analisando proximidade dos pontos em relação ao endereço do cliente...</p> : null}
+                            {clientAnalysis.error ? <p className="text-red-300">{clientAnalysis.error}</p> : null}
+                            {!clientAnalysis.loading && !clientAnalysis.error && form.clientAddress.trim() && clientAnalysis.rankedPoints.length > 0 ? (
+                              <div className="space-y-1.5 text-brand-gray-300">
+                                <p className="font-semibold uppercase tracking-[0.12em] text-brand-gray-400">Pontos mais próximos do cliente</p>
+                                {clientAnalysis.rankedPoints.slice(0, 3).map((point) => (
+                                  <p key={point.id}>{point.nome} • {point.distanceKm.toFixed(1).replace('.', ',')} km</p>
+                                ))}
+                              </div>
+                            ) : null}
+                            {!form.clientAddress.trim() ? <p>Preencha o endereço do cliente para gerar a análise personalizada em tempo real.</p> : null}
+                          </>
+                        ) : (
+                          <p>Usa o score de entorno já calculado por segmento para os pontos filtrados desta proposta.</p>
+                        )}
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </section>
+                </motion.div>
               )}
 
-              <div className="grid sm:grid-cols-3 gap-3">
-                <StatusCard label="Tabela cheia" value={formatCurrency(pricingSummary.originalTotal)} tone="default" />
-                <StatusCard label="Desconto total" value={formatCurrency(pricingSummary.discountTotal)} tone="warning" />
-                <StatusCard label="Valor final" value={formatCurrency(pricingSummary.finalTotal)} tone="success" />
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-5">
-              <div className="grid xl:grid-cols-[1.1fr_0.9fr] gap-4 items-start">
-                <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* ═══ STEP 2 — Desconto comercial ═══ */}
+              {wizardStep === 2 && (
+                <motion.div key="step2" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
+                  <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
                     <div>
-                      <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Prompt da arte da campanha</h3>
-                      <p className="text-sm text-brand-gray-400">O prompt agora nasce neste modal e usa o nome do cliente para gerar a arte que entra na simulação. Quando houver formatos diferentes, o sistema separa um prompt por formato.</p>
+                      <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Desconto comercial</h3>
+                      <p className="text-sm text-brand-gray-400">Defina se o desconto será no total, em pontos específicos ou individual por ponto.</p>
                     </div>
-                    <button type="button" onClick={handleCopyPrompt} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.03] px-3 py-2 text-sm text-white hover:bg-white/[0.08]">
-                      {promptCopied ? <Check size={15} /> : <Copy size={15} />}
-                      {promptCopied ? 'Prompt copiado' : 'Copiar prompt'}
-                    </button>
+
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        ['none', 'Sem desconto'],
+                        ['total', 'No total da proposta'],
+                        ['specific', 'Em pontos específicos'],
+                        ['individual', 'Individual por ponto']
+                      ].map(([mode, label]) => (
+                        <ScopeButton key={mode} active={discountConfig.mode === mode} onClick={() => setDiscountConfig((current) => ({ ...current, mode }))}>{label}</ScopeButton>
+                      ))}
+                    </div>
+
+                    {(discountConfig.mode === 'total' || discountConfig.mode === 'specific') && (
+                      <div className="grid md:grid-cols-[220px_1fr] gap-4 items-start">
+                        <Input label="Percentual de desconto" value={discountConfig.percentage} onChange={(value) => setDiscountConfig((current) => ({ ...current, percentage: value.replace(',', '.') }))} />
+
+                        {discountConfig.mode === 'specific' ? (
+                          <div className={`rounded-xl border p-3 space-y-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
+                            <p className="text-[11px] uppercase tracking-[0.12em] text-brand-gray-500">Pontos com desconto</p>
+                            {proposalSourcePoints.map((point) => (
+                              <label key={point.id} className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm ${isDark ? 'border-white/10 text-brand-gray-300' : 'border-neutral-200 text-neutral-600'}`}>
+                                <span>{point.nome}</span>
+                                <input
+                                  type="checkbox"
+                                  checked={discountConfig.targetPointIds.includes(point.id)}
+                                  onChange={(event) => {
+                                    setDiscountConfig((current) => ({
+                                      ...current,
+                                      targetPointIds: event.target.checked
+                                        ? [...current.targetPointIds, point.id]
+                                        : current.targetPointIds.filter((item) => item !== point.id)
+                                    }));
+                                  }}
+                                />
+                              </label>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {discountConfig.mode === 'individual' && (
+                      <div className="grid md:grid-cols-2 gap-3">
+                        {proposalSourcePoints.map((point) => (
+                          <div key={point.id} className={`rounded-xl border px-3 py-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
+                            <div className="flex items-center justify-between gap-3 mb-2">
+                              <div>
+                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{point.nome}</p>
+                                <p className="text-xs text-brand-gray-500">Tabela: {formatCurrency(point.preco)}</p>
+                              </div>
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step={0.1}
+                                value={discountConfig.perPoint[point.id] || ''}
+                                onChange={(event) => setDiscountConfig((current) => ({
+                                  ...current,
+                                  perPoint: {
+                                    ...current.perPoint,
+                                    [point.id]: event.target.value
+                                  }
+                                }))}
+                                className={`w-24 rounded-lg border px-3 py-2 text-sm outline-none ${isDark ? 'border-white/10 bg-white/5 text-white focus:border-brand-orange/40' : 'border-neutral-200 bg-white text-neutral-800 focus:border-brand-orange/50'}`}
+                                placeholder="0%"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <StatusCard label="Tabela cheia" value={formatCurrency(pricingSummary.originalTotal)} tone="default" />
+                      <StatusCard label="Desconto total" value={formatCurrency(pricingSummary.discountTotal)} tone="warning" />
+                      <StatusCard label="Valor final" value={formatCurrency(pricingSummary.finalTotal)} tone="success" />
+                    </div>
+                  </section>
+                </motion.div>
+              )}
+
+              {/* ═══ STEP 3 — Arte da campanha ═══ */}
+              {wizardStep === 3 && (
+                <motion.div key="step3" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
+                  <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-5">
+                    <div className="grid xl:grid-cols-[1.1fr_0.9fr] gap-4 items-start">
+                      <div className={`rounded-xl border p-4 space-y-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Prompt da arte da campanha</h3>
+                            <p className="text-sm text-brand-gray-400">O prompt usa o nome do cliente para gerar a arte que entra na simulação. Quando houver formatos diferentes, o sistema separa um prompt por formato.</p>
+                          </div>
+                          <button type="button" onClick={handleCopyPrompt} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm hover:bg-white/[0.08] ${isDark ? 'border-white/15 bg-white/[0.03] text-white' : 'border-neutral-200 bg-white text-neutral-700'}`}>
+                            {promptCopied ? <Check size={15} /> : <Copy size={15} />}
+                            {promptCopied ? 'Prompt copiado' : 'Copiar prompt'}
+                          </button>
+                        </div>
+
+                        <textarea ref={promptTextareaRef} value={imagePrompt} readOnly rows={Math.min(18, Math.max(6, imagePromptGroups.length * 7))} className={`w-full rounded-xl border px-3 py-3 text-sm outline-none ${isDark ? 'border-white/10 bg-white/5 text-brand-gray-200' : 'border-neutral-200 bg-white text-neutral-700'}`} />
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Arte da campanha</h3>
+                          <p className="text-sm text-brand-gray-400">A arte enviada aqui será aplicada sobre a área de tela cadastrada no admin para cada ponto da proposta.</p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          <label className={`flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm cursor-pointer transition-colors ${isDark ? 'bg-white/5 border-white/15 text-brand-gray-300 hover:bg-white/10' : 'bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50'}`}>
+                            <Upload size={16} />
+                            {simulationArtFile ? simulationArtFile.name : 'Escolher arte da campanha'}
+                            <input
+                              type="file"
+                              accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                              onChange={(e) => {
+                                setSimulationArtFile(e.target.files?.[0] || null);
+                                setSimulationError('');
+                                clearSimulationResults();
+                              }}
+                              className="hidden"
+                            />
+                          </label>
+
+                          <button
+                            type="button"
+                            onClick={handleGenerateSimulations}
+                            disabled={simulationBusy || !proposalSourcePoints.length}
+                            className="orange-solid-btn px-5 py-2.5 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover disabled:opacity-50 shadow-[0_10px_24px_rgba(254,92,43,0.28)]"
+                          >
+                            {simulationBusy ? 'Gerando simulações...' : 'Gerar simulações'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {simulationError && (
+                      <p className="text-xs text-red-300 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">{simulationError}</p>
+                    )}
+
+                    <div className="grid lg:grid-cols-[220px_1fr] gap-4 items-start">
+                      <div className={`rounded-xl border p-2.5 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
+                        <p className="text-[11px] text-brand-gray-500 px-1 pb-2 uppercase tracking-wide">Preview da arte enviada</p>
+                        {simulationArtUrl ? (
+                          <img src={simulationArtUrl} alt="Arte da campanha" className="w-full h-40 object-cover rounded-lg" />
+                        ) : (
+                          <div className={`h-40 rounded-lg border border-dashed flex items-center justify-center text-xs text-brand-gray-500 ${isDark ? 'border-white/15' : 'border-neutral-300'}`}>
+                            Nenhuma arte selecionada
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid sm:grid-cols-3 gap-3">
+                        <StatusCard label="Pontos na proposta" value={proposalSourcePoints.length} tone="default" />
+                        <StatusCard label="Simulações geradas" value={Object.values(simulationResults).filter((item) => item.status === 'Gerada').length} tone="success" />
+                        <StatusCard label="Pendências de cadastro" value={Object.values(simulationResults).filter((item) => item.status === 'Área da tela não cadastrada no admin' || item.status === 'Imagem base do ponto não cadastrada').length} tone="warning" />
+                      </div>
+                    </div>
+
+                    <div className={`rounded-xl border p-4 space-y-4 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Realismo da tela</p>
+                        <p className="text-sm text-brand-gray-400">Esses controles aproximam o resultado do simulador com brilho, reflexo, vazamento de luz e textura de LED.</p>
+                      </div>
+
+                      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <SliderField label="Brilho da tela" value={simulationSettings.brightness} min={0.7} max={1.8} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, brightness: value }))} />
+                        <SliderField label="Reflexo do vidro" value={simulationSettings.reflection} min={0} max={0.55} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, reflection: value }))} />
+                        <SliderField label="Vazamento de luz" value={simulationSettings.spill} min={0} max={0.45} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, spill: value }))} />
+                        <SliderField label="Intensidade dos pixels" value={simulationSettings.ledPixelIntensity} min={0} max={0.45} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, ledPixelIntensity: value }))} />
+                        <SliderField label="Tamanho do pixel LED" value={simulationSettings.ledPixelSize} min={3} max={14} step={1} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, ledPixelSize: value }))} />
+                        <SliderField label="Glare / luz especular" value={simulationSettings.glare} min={0} max={0.4} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, glare: value }))} />
+                      </div>
+                    </div>
+                  </section>
+                </motion.div>
+              )}
+
+              {/* ═══ STEP 4 — Revisão ═══ */}
+              {wizardStep === 4 && (
+                <motion.div key="step4" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
+                  <PreviewPanel proposalPoints={proposalPoints} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={!!simulationArtFile} />
+                  <ProposalBuilder clientName={form.clientName} city={activeCities} publico={form.publicos} segmento={getSegmentDisplayName(form.segmento)} points={proposalPoints} totals={totals} pricingSummary={pricingSummary} strategicText={argumentos} simulationSummary={simulationSummary} activePreviewPointId={activePreviewPoint?.id} onSelectPreview={setActivePreviewPointId} onGenerate={handleGenerate} isDark={isDark} />
+                </motion.div>
+              )}
+
+              {/* ═══ STEP 5 — Proposta gerada ═══ */}
+              {wizardStep === 5 && (
+                <motion.div key="step5" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
+                  <div className="rounded-2xl border border-brand-orange/30 bg-gradient-to-r from-brand-orange/20 to-brand-orange/5 p-4">
+                    <h3 className={`text-lg font-semibold mb-1 ${isDark ? 'text-white' : 'text-neutral-900'}`}>Proposta gerada com sucesso</h3>
+                    <p className="text-sm text-brand-gray-300">Apresentação pronta para reunião comercial, com narrativa estratégica, desconto aplicado e indicadores executivos.</p>
                   </div>
 
-                  <textarea ref={promptTextareaRef} value={imagePrompt} readOnly rows={Math.min(18, Math.max(6, imagePromptGroups.length * 7))} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-brand-gray-200 outline-none" />
-                </div>
+                  <PreviewPanel proposalPoints={proposalPoints} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={!!simulationArtFile} />
 
-                <div className="space-y-3">
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Arte da campanha</h3>
-                    <p className="text-sm text-brand-gray-400">A arte enviada aqui será aplicada sobre a área de tela cadastrada no admin para cada ponto da proposta.</p>
+                  <ProposalBuilder clientName={form.clientName} city={activeCities} publico={form.publicos} segmento={getSegmentDisplayName(form.segmento)} points={proposalPoints} totals={totals} pricingSummary={pricingSummary} strategicText={argumentos} simulationSummary={simulationSummary} activePreviewPointId={activePreviewPoint?.id} onSelectPreview={setActivePreviewPointId} onGenerate={() => {}} isDark={isDark} />
+
+                  <div className={`rounded-xl border p-4 space-y-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-400">Seções opcionais do PDF</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { key: 'methodology', label: 'Como ler as métricas' },
+                        { key: 'score', label: 'Score da campanha' },
+                        { key: 'coverage', label: 'Cobertura e presença' },
+                        { key: 'impact', label: 'Impacto da campanha' }
+                      ].map(({ key, label }) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setPdfSections((s) => ({ ...s, [key]: !s[key] }))}
+                          className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${pdfSections[key] ? 'border-brand-orange/40 bg-brand-orange/12 text-brand-orange' : isDark ? 'border-white/15 text-brand-gray-400 hover:bg-white/[0.06]' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-100'}`}
+                        >
+                          {pdfSections[key] ? '✓ ' : ''}{label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3">
-                    <label className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/15 rounded-xl text-sm text-brand-gray-300 hover:bg-white/10 cursor-pointer transition-colors">
-                      <Upload size={16} />
-                      {simulationArtFile ? simulationArtFile.name : 'Escolher arte da campanha'}
+                  <div className={`rounded-xl border p-4 space-y-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-400">Print do mapa da seleção</p>
+                      <span className="inline-flex items-center gap-1 text-[11px] text-brand-gray-500">
+                        <MapPinned size={13} />
+                        PNG de alta resolução
+                      </span>
+                    </div>
+
+                    <label className="inline-flex items-center gap-2 text-sm text-brand-gray-300">
                       <input
-                        type="file"
-                        accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                        onChange={(e) => {
-                          setSimulationArtFile(e.target.files?.[0] || null);
-                          setSimulationError('');
-                          clearSimulationResults();
-                        }}
-                        className="hidden"
+                        type="checkbox"
+                        checked={connectMapPoints}
+                        onChange={(event) => setConnectMapPoints(event.target.checked)}
+                        className="h-4 w-4 rounded border-white/20 bg-white/5"
                       />
+                      Desenhar linha de conexão entre os pontos
                     </label>
 
                     <button
-                      type="button"
-                      onClick={handleGenerateSimulations}
-                      disabled={simulationBusy || !proposalSourcePoints.length}
-                      className="orange-solid-btn px-5 py-2.5 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover disabled:opacity-50 shadow-[0_10px_24px_rgba(254,92,43,0.28)]"
+                      onClick={handleExportSelectionMap}
+                      disabled={mapBusy || !proposalPoints.length}
+                      className="h-11 px-4 rounded-xl border border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange font-medium inline-flex items-center gap-2 disabled:opacity-50"
                     >
-                      {simulationBusy ? 'Gerando simulações...' : 'Gerar simulações'}
+                      <Route size={16} />
+                      {mapBusy ? 'Aguarde...' : 'Baixar print do mapa'}
+                    </button>
+
+                    {mapBusy && mapStatus && (
+                      <p className="text-xs text-brand-orange/80 flex items-center gap-1.5">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full border-2 border-brand-orange/60 border-t-brand-orange animate-spin" />
+                        {mapStatus}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <button onClick={handleExportProposalPdf} disabled={pdfBusy} className="orange-solid-btn h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(254,92,43,0.28)]">
+                      <Download size={16} />
+                      {pdfBusy ? 'Gerando PDF...' : 'Exportar PDF da proposta'}
+                    </button>
+
+                    <button onClick={() => setShowPresentation(true)} className={`h-11 rounded-xl border font-medium inline-flex items-center justify-center gap-2 ${isDark ? 'border-white/15 bg-white/[0.03] hover:bg-white/[0.08]' : 'border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700'}`}>
+                      <Presentation size={16} />
+                      Modo apresentação
+                    </button>
+
+                    <button onClick={() => setShowQuickPresentation(true)} className="h-11 rounded-xl border border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange font-medium inline-flex items-center justify-center gap-2">
+                      <Presentation size={16} />
+                      Apresentação rápida
                     </button>
                   </div>
-                </div>
-              </div>
-
-              {simulationError && (
-                <p className="text-xs text-red-300 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">{simulationError}</p>
+                </motion.div>
               )}
+            </AnimatePresence>
+          </div>
 
-              <div className="grid lg:grid-cols-[220px_1fr] gap-4 items-start">
-                <div className="rounded-xl border border-white/10 bg-black/20 p-2.5">
-                  <p className="text-[11px] text-brand-gray-500 px-1 pb-2 uppercase tracking-wide">Preview da arte enviada</p>
-                  {simulationArtUrl ? (
-                    <img src={simulationArtUrl} alt="Arte da campanha" className="w-full h-40 object-cover rounded-lg" />
-                  ) : (
-                    <div className="h-40 rounded-lg border border-dashed border-white/15 flex items-center justify-center text-xs text-brand-gray-500">
-                      Nenhuma arte selecionada
-                    </div>
-                  )}
-                </div>
+          {/* ── Navigation footer ── */}
+          <div className={`relative flex-shrink-0 flex items-center justify-between gap-3 border-t p-4 md:px-8 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50/80'}`}>
+            <button
+              type="button"
+              onClick={() => setWizardStep((s) => Math.max(1, s - 1))}
+              disabled={wizardStep === 1}
+              className={`inline-flex items-center gap-2 h-10 px-4 rounded-xl border text-sm font-medium transition-colors disabled:opacity-30 ${isDark ? 'border-white/15 text-white hover:bg-white/[0.06]' : 'border-neutral-200 text-neutral-700 hover:bg-neutral-100'}`}
+            >
+              <ChevronLeft size={16} />
+              Voltar
+            </button>
 
-                <div className="grid sm:grid-cols-3 gap-3">
-                  <StatusCard label="Pontos na proposta" value={proposalSourcePoints.length} tone="default" />
-                  <StatusCard label="Simulações geradas" value={Object.values(simulationResults).filter((item) => item.status === 'Gerada').length} tone="success" />
-                  <StatusCard label="Pendências de cadastro" value={Object.values(simulationResults).filter((item) => item.status === 'Área da tela não cadastrada no admin' || item.status === 'Imagem base do ponto não cadastrada').length} tone="warning" />
-                </div>
-              </div>
+            <div className="text-xs text-brand-gray-500">
+              {wizardStep} de {WIZARD_STEPS.length}
+            </div>
 
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-4">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-400 mb-1">Realismo da tela</p>
-                  <p className="text-sm text-brand-gray-400">Esses controles aproximam o resultado do simulador com brilho, reflexo, vazamento de luz e textura de LED.</p>
-                </div>
-
-                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  <SliderField label="Brilho da tela" value={simulationSettings.brightness} min={0.7} max={1.8} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, brightness: value }))} />
-                  <SliderField label="Reflexo do vidro" value={simulationSettings.reflection} min={0} max={0.55} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, reflection: value }))} />
-                  <SliderField label="Vazamento de luz" value={simulationSettings.spill} min={0} max={0.45} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, spill: value }))} />
-                  <SliderField label="Intensidade dos pixels" value={simulationSettings.ledPixelIntensity} min={0} max={0.45} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, ledPixelIntensity: value }))} />
-                  <SliderField label="Tamanho do pixel LED" value={simulationSettings.ledPixelSize} min={3} max={14} step={1} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, ledPixelSize: value }))} />
-                  <SliderField label="Glare / luz especular" value={simulationSettings.glare} min={0} max={0.4} step={0.01} onChange={(value) => setSimulationSettings((current) => normalizeDisplaySettings({ ...current, glare: value }))} />
-                </div>
-              </div>
-            </section>
-
-            {(step === 'review' || step === 'generated') && (
-              <PreviewPanel proposalPoints={proposalPoints} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={!!simulationArtFile} />
+            {wizardStep < 4 && (
+              <button
+                type="button"
+                onClick={() => setWizardStep((s) => Math.min(5, s + 1))}
+                className="inline-flex items-center gap-2 h-10 px-5 rounded-xl bg-brand-orange text-white text-sm font-semibold hover:bg-brand-orange-hover shadow-[0_6px_20px_rgba(254,92,43,0.25)] transition-colors"
+              >
+                Próximo
+                <ChevronRight size={16} />
+              </button>
             )}
 
-            {step === 'review' && (
-              <section className="space-y-5">
-                <ProposalBuilder clientName={form.clientName} city={activeCities} publico={form.publicos} segmento={getSegmentDisplayName(form.segmento)} points={proposalPoints} totals={totals} pricingSummary={pricingSummary} strategicText={argumentos} simulationSummary={simulationSummary} activePreviewPointId={activePreviewPoint?.id} onSelectPreview={setActivePreviewPointId} onGenerate={handleGenerate} isDark={isDark} />
-              </section>
+            {wizardStep === 4 && (
+              <button
+                type="button"
+                onClick={handleGenerate}
+                className="inline-flex items-center gap-2 h-10 px-5 rounded-xl bg-brand-orange text-white text-sm font-semibold hover:bg-brand-orange-hover shadow-[0_6px_20px_rgba(254,92,43,0.25)] transition-colors"
+              >
+                <FileText size={16} />
+                Gerar proposta
+              </button>
             )}
 
-            {step === 'generated' && (
-              <section className="space-y-4">
-                <div className="rounded-2xl border border-brand-orange/30 bg-gradient-to-r from-brand-orange/20 to-brand-orange/5 p-4">
-                  <h3 className="text-lg font-semibold text-white mb-1">Proposta gerada com sucesso</h3>
-                  <p className="text-sm text-brand-gray-300">Apresentação pronta para reunião comercial, com narrativa estratégica, desconto aplicado e indicadores executivos.</p>
-                </div>
-
-                <ProposalBuilder clientName={form.clientName} city={activeCities} publico={form.publicos} segmento={getSegmentDisplayName(form.segmento)} points={proposalPoints} totals={totals} pricingSummary={pricingSummary} strategicText={argumentos} simulationSummary={simulationSummary} activePreviewPointId={activePreviewPoint?.id} onSelectPreview={setActivePreviewPointId} onGenerate={() => {}} isDark={isDark} />
-
-                <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-400">Seções opcionais do PDF</p>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { key: 'methodology', label: 'Como ler as métricas' },
-                      { key: 'score', label: 'Score da campanha' },
-                      { key: 'coverage', label: 'Cobertura e presença' },
-                      { key: 'impact', label: 'Impacto da campanha' }
-                    ].map(({ key, label }) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setPdfSections((s) => ({ ...s, [key]: !s[key] }))}
-                        className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${pdfSections[key] ? 'border-brand-orange/40 bg-brand-orange/12 text-brand-orange' : 'border-white/15 text-brand-gray-400 hover:bg-white/[0.06]'}`}
-                      >
-                        {pdfSections[key] ? '✓ ' : ''}{label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-brand-gray-400">Print do mapa da seleção</p>
-                    <span className="inline-flex items-center gap-1 text-[11px] text-brand-gray-500">
-                      <MapPinned size={13} />
-                      PNG de alta resolução
-                    </span>
-                  </div>
-
-                  <label className="inline-flex items-center gap-2 text-sm text-brand-gray-300">
-                    <input
-                      type="checkbox"
-                      checked={connectMapPoints}
-                      onChange={(event) => setConnectMapPoints(event.target.checked)}
-                      className="h-4 w-4 rounded border-white/20 bg-white/5"
-                    />
-                    Desenhar linha de conexão entre os pontos
-                  </label>
-
-                  <button
-                    onClick={handleExportSelectionMap}
-                    disabled={mapBusy || !proposalPoints.length}
-                    className="h-11 px-4 rounded-xl border border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange font-medium inline-flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <Route size={16} />
-                    {mapBusy ? 'Aguarde...' : 'Baixar print do mapa'}
-                  </button>
-
-                  {mapBusy && mapStatus && (
-                    <p className="text-xs text-brand-orange/80 flex items-center gap-1.5">
-                      <span className="inline-block w-2.5 h-2.5 rounded-full border-2 border-brand-orange/60 border-t-brand-orange animate-spin" />
-                      {mapStatus}
-                    </p>
-                  )}
-                </div>
-
-                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <button onClick={handleExportProposalPdf} disabled={pdfBusy} className="orange-solid-btn h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(254,92,43,0.28)]">
-                    <Download size={16} />
-                    {pdfBusy ? 'Gerando PDF...' : 'Exportar PDF da proposta'}
-                  </button>
-
-                  <button onClick={() => setShowPresentation(true)} className="h-11 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] font-medium inline-flex items-center justify-center gap-2">
-                    <Presentation size={16} />
-                    Modo apresentação
-                  </button>
-
-                  <button onClick={() => setShowQuickPresentation(true)} className="h-11 rounded-xl border border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange font-medium inline-flex items-center justify-center gap-2">
-                    <Presentation size={16} />
-                    Apresentação rápida
-                  </button>
-
-                  <button onClick={() => setStep('review')} className="h-11 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] font-medium">
-                    Voltar para revisão
-                  </button>
-                </div>
-              </section>
+            {wizardStep === 5 && (
+              <button
+                type="button"
+                onClick={() => setWizardStep(4)}
+                className={`inline-flex items-center gap-2 h-10 px-4 rounded-xl border text-sm font-medium ${isDark ? 'border-white/15 text-white hover:bg-white/[0.06]' : 'border-neutral-200 text-neutral-700 hover:bg-neutral-100'}`}
+              >
+                Voltar para revisão
+              </button>
             )}
           </div>
         </motion.div>
