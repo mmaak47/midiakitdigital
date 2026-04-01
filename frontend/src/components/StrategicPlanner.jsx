@@ -43,6 +43,7 @@ function formatMoedaSemCentavos(value) {
 }
 
 export default function StrategicPlanner({ pontos = [], publicos = [], cidades = [], onAddPlan, onSuggestionChange, isDark = true }) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [form, setForm] = useState({
     segmento: 'clinica',
     objetivo: 'reconhecimento de marca',
@@ -230,13 +231,9 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 xl:grid-cols-7 gap-4 mb-5">
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-3">
           <CustomSelect isDark={isDark} label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS} />
-          <CustomSelect isDark={isDark} label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} allowCustom customPlaceholder="Digite um objetivo personalizado" />
           <CustomSelect isDark={isDark} label="Praça" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={cidades} multiple placeholder="Selecionar uma ou mais praças" />
-          <CustomSelect isDark={isDark} label="Público" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={publicos} multiple placeholder="Selecionar um ou mais públicos" />
-          <CustomSelect isDark={isDark} label="Audience tags" value={form.audienceTags} onChange={(v) => setForm((s) => ({ ...s, audienceTags: v }))} options={audienceTagOptions} multiple placeholder="Selecionar tags de audiência" />
-          <CustomSelect isDark={isDark} label="Disponibilidade" value={form.availabilityPreference} onChange={(v) => setForm((s) => ({ ...s, availabilityPreference: v }))} options={availabilityOptions} />
           <div>
             <label className={`text-[11px] uppercase tracking-wide font-semibold ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Investimento mensal</label>
             <input
@@ -249,6 +246,23 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
             />
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((prev) => !prev)}
+          className={`mb-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-400 hover:text-white' : 'text-neutral-600 hover:text-neutral-900'}`}
+        >
+          <span>{showAdvanced ? 'Ocultar opções avançadas' : 'Personalizar mais'}</span>
+        </button>
+
+        {showAdvanced && (
+          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
+            <CustomSelect isDark={isDark} label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} allowCustom customPlaceholder="Digite um objetivo personalizado" />
+            <CustomSelect isDark={isDark} label="Público" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={publicos} multiple placeholder="Selecionar um ou mais públicos" />
+            <CustomSelect isDark={isDark} label="Perfil do público" value={form.audienceTags} onChange={(v) => setForm((s) => ({ ...s, audienceTags: v }))} options={audienceTagOptions} multiple placeholder="Selecionar interesses" />
+            <CustomSelect isDark={isDark} label="Disponibilidade" value={form.availabilityPreference} onChange={(v) => setForm((s) => ({ ...s, availabilityPreference: v }))} options={availabilityOptions} />
+          </div>
+        )}
 
         {cityContext.loading ? (
           <div className={`mb-4 flex items-center gap-2 text-sm ${isDark ? 'text-gray-400' : 'text-neutral-500'}`}>
@@ -267,24 +281,18 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
             <p className={`text-sm mb-3 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{suggestion.justificativa}</p>
             <div className={`mb-4 rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-400' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
               <div className="flex flex-wrap items-center gap-2">
-                <span className={`font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>Análise de entorno</span>
-                {entorno.loading && (
+                <span className={`font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>Inteligência regional</span>
+                {entorno.loading ? (
                   <span className="inline-flex items-center gap-1 text-brand-orange">
                     <Loader2 size={12} className="animate-spin" />
-                    Atualizando
+                    Atualizando recomendações
                   </span>
-                )}
-                {entorno.jobId && (
-                  <span className="rounded-full border border-brand-orange/30 bg-brand-orange/10 px-2 py-0.5 text-brand-orange">
-                    Job #{entorno.jobId}
-                  </span>
-                )}
+                ) : null}
               </div>
               <p className="mt-1">
-                Cobertura do cache: {(entorno.coverage * 100).toFixed(0)}% dos pontos
-                {entorno.updatedAt ? ` • atualizado em ${new Date(entorno.updatedAt).toLocaleString('pt-BR')}` : ''}
+                As sugestões já consideram fluxo e potencial da região para evitar pontos redundantes e melhorar o alcance da campanha.
               </p>
-              {entorno.error && <p className="mt-1 text-red-300">{entorno.error}</p>}
+              {entorno.error && <p className="mt-1 text-red-300">Não foi possível atualizar a análise agora. Você ainda pode montar o plano normalmente.</p>}
             </div>
             <div className="flex flex-wrap gap-2.5 mb-1">
               {suggestion.pontos.slice(0, 8).map((p) => (
@@ -310,7 +318,7 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
 
       <div className={`rounded-xl p-4 ${isDark ? 'bg-black/30' : 'bg-neutral-100 border border-neutral-200'}`}>
         <div className="mb-3">
-          <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8591A]">ETAPA 2 — Resumo do plano</div>
+          <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8591A]">ETAPA 2 — Resumo da seleção</div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 text-xs">
           <Metric label="Pontos" value={totals.quantidade} isDark={isDark} />

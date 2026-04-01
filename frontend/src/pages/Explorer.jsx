@@ -148,6 +148,31 @@ export default function Explorer() {
         {/* Main content */}
         <main ref={mainRef} className="flex-1 overflow-y-auto pb-28">
           <div className="px-6 pt-4 space-y-4">
+            <section className={`rounded-xl border p-4 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-white'}`}>
+              <div className="grid gap-2 md:grid-cols-3">
+                {[
+                  { title: '1. Escolha sua cidade', done: filters.cidade.length > 0 },
+                  { title: '2. Selecione os pontos', done: favorites.length > 0 },
+                  { title: '3. Receba sua proposta', done: history.length > 0 }
+                ].map((step) => (
+                  <div
+                    key={step.title}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${step.done ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange' : isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}
+                  >
+                    {step.title}
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {!favorites.length && (
+              <section className={`rounded-xl border p-4 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-white'}`}>
+                <p className={`text-sm ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>
+                  Comece escolhendo sua cidade e orçamento. Em seguida, adicione pontos para montar sua campanha e gerar uma proposta personalizada.
+                </p>
+              </section>
+            )}
+
             <StrategicPlanner
               pontos={allPontos}
               cidades={cidades}
@@ -331,7 +356,7 @@ function MarketBenchmarksPanel({ suggestion, isDark = true }) {
     return [
       {
         key: 'cpm',
-        label: 'CPM (OOH médio)',
+        label: 'Custo por mil pessoas impactadas',
         benchmark: 'R$ 8 - R$ 35',
         status: cpm > 0 ? (cpm >= 8 && cpm <= 35 ? 'ok' : 'warn') : 'none',
       },
@@ -343,13 +368,13 @@ function MarketBenchmarksPanel({ suggestion, isDark = true }) {
       },
       {
         key: 'reach',
-        label: 'Reach efetivo',
+        label: 'Alcance estimado',
         benchmark: '5%-15% do mercado local',
         status: reach > 0 ? (reach >= 5 ? 'ok' : 'warn') : 'none',
       },
       {
         key: 'grps',
-        label: 'GRP mínimo efetivo',
+        label: 'Impacto estimado da campanha',
         benchmark: '50 GRPs / 4 semanas',
         status: grps > 0 ? (grps >= 50 ? 'ok' : 'warn') : 'none',
       },
@@ -382,7 +407,7 @@ function MarketBenchmarksPanel({ suggestion, isDark = true }) {
         className={`inline-flex items-center gap-2 text-sm ${isDark ? 'text-gray-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-800'}`}
       >
         <ChevronDown size={14} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-        ▼ Benchmarks do mercado OOH/DOOH
+        ▼ Insights avançados de mídia (para especialistas)
       </button>
 
       <AnimatePresence initial={false}>

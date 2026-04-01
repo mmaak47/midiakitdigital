@@ -8,15 +8,15 @@ import { fetchPublicos } from '../lib/api';
 
 const CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const TIPOS = [
-  { value: 'Elevador', icon: Building2 },
-  { value: 'Tela Indoor', icon: Tv },
-  { value: 'Painel LED', icon: Monitor },
-  { value: 'Totem Digital', icon: Columns3 },
-  { value: 'Circuito Muffato', icon: ShoppingCart },
-  { value: 'LED Posto', icon: Fuel },
-  { value: 'Video Wall', icon: Monitor },
-  { value: 'Backlight', icon: Lightbulb },
-  { value: 'Frontlight', icon: Sun },
+  { value: 'Elevador', icon: Building2, help: 'Telas em elevadores residenciais e comerciais.' },
+  { value: 'Tela Indoor', icon: Tv, help: 'Painéis em ambientes internos com fluxo constante.' },
+  { value: 'Painel LED', icon: Monitor, help: 'Painel digital externo de alto impacto visual.' },
+  { value: 'Totem Digital', icon: Columns3, help: 'Tela vertical digital em pontos de circulação.' },
+  { value: 'Circuito Muffato', icon: ShoppingCart, help: 'Rede de telas em supermercados do grupo.' },
+  { value: 'LED Posto', icon: Fuel, help: 'Mídia digital em postos de combustível.' },
+  { value: 'Video Wall', icon: Monitor, help: 'Conjunto de telas formando um painel maior.' },
+  { value: 'Backlight', icon: Lightbulb, help: 'Painel iluminado por trás, visível à noite.' },
+  { value: 'Frontlight', icon: Sun, help: 'Painel iluminado por refletores frontais.' },
 ];
 
 export default function FilterSidebar({ filters, setFilters, total, mobileOpen, setMobileOpen, isDark = true }) {
@@ -108,7 +108,7 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
           Tipo
         </h3>
         <div className="space-y-1">
-          {TIPOS.map(({ value, icon: Icon }) => (
+          {TIPOS.map(({ value, icon: Icon, help }) => (
             <button
               key={value}
               onClick={() => toggleTipo(value)}
@@ -121,7 +121,10 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
               }`}
             >
               <Icon size={14} />
-              {value}
+              <span className="text-left">
+                <span className="block">{value}</span>
+                <span className={`block text-[11px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{help}</span>
+              </span>
             </button>
           ))}
         </div>
