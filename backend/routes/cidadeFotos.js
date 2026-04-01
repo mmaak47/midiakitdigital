@@ -111,7 +111,7 @@ router.get('/cidade-fotos', (req, res) => {
     const rows = db.prepare(`
       SELECT cidade, cidade_slug, imagem_path, updated_at
       FROM cidade_fotos
-      ORDER BY cidade COLLATE NOCASE ASC
+      ORDER BY cidade ASC
     `).all();
 
     const data = rows.map((row) => ({
