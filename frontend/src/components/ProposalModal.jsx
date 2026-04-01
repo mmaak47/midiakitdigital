@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  BarChart3,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -9,12 +10,16 @@ import {
   Download,
   FileText,
   Image as ImageIcon,
+  Map,
   MapPinned,
   Presentation,
+  Radio,
   Route,
   Settings2,
+  Trophy,
   Upload,
-  X
+  X,
+  Zap
 } from 'lucide-react';
 import { useFavorites } from '../context/FavoritesContext';
 import {
@@ -550,6 +555,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         showImpactSection: pdfSections.impact
       });
     } catch (error) {
+      console.error('[ProposalModal] PDF export failed:', error);
       setSimulationError(error?.message || 'Falha ao gerar o PDF da proposta.');
     } finally {
       setPdfBusy(false);
@@ -758,10 +764,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                   {/* CARD 2 — Configuração da campanha */}
                   <Card isDark={isDark} title="Configuração da campanha">
                     <div className="grid md:grid-cols-2 gap-3">
-                      <CustomSelect label="Praças" value={form.selectedCities} onChange={(v) => setForm((s) => ({ ...s, selectedCities: v }))} options={availableCities} multiple placeholder="Todas as praças" />
-                      <CustomSelect label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS.map((seg) => ({ value: seg, label: getSegmentDisplayName(seg) }))} allowCustom customPlaceholder="Segmento personalizado" />
-                      <CustomSelect label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} allowCustom customPlaceholder="Objetivo personalizado" />
-                      <CustomSelect label="Públicos" value={form.publicos} onChange={(v) => setForm((s) => ({ ...s, publicos: v }))} options={availablePublicos} multiple placeholder="Públicos estratégicos" />
+                      <CustomSelect isDark={isDark} label="Praças" value={form.selectedCities} onChange={(v) => setForm((s) => ({ ...s, selectedCities: v }))} options={availableCities} multiple placeholder="Todas as praças" />
+                      <CustomSelect isDark={isDark} label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS.map((seg) => ({ value: seg, label: getSegmentDisplayName(seg) }))} allowCustom customPlaceholder="Segmento personalizado" />
+                      <CustomSelect isDark={isDark} label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} allowCustom customPlaceholder="Objetivo personalizado" />
+                      <CustomSelect isDark={isDark} label="Públicos" value={form.publicos} onChange={(v) => setForm((s) => ({ ...s, publicos: v }))} options={availablePublicos} multiple placeholder="Públicos estratégicos" />
                     </div>
                   </Card>
 
@@ -892,11 +898,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                         </div>
                         <div className={`rounded-xl border p-3 ${isDark ? 'border-yellow-500/20 bg-yellow-500/5' : 'border-yellow-200 bg-yellow-50'}`}>
                           <div className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Desconto total</div>
-                          <div className="text-xl font-bold mt-1 text-yellow-400">{formatCurrency(pricingSummary.discountTotal)}</div>
+                          <div className={`text-xl font-bold mt-1 ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>{formatCurrency(pricingSummary.discountTotal)}</div>
                         </div>
                         <div className={`rounded-2xl border-2 p-4 ${isDark ? 'border-green-500/30 bg-green-500/5' : 'border-green-300 bg-green-50'}`}>
                           <div className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Valor final</div>
-                          <div className="text-3xl font-extrabold mt-1 text-green-400">{formatCurrency(pricingSummary.finalTotal)}</div>
+                          <div className={`text-3xl font-extrabold mt-1 ${isDark ? 'text-green-400' : 'text-green-600'}`}>{formatCurrency(pricingSummary.finalTotal)}</div>
                         </div>
                       </div>
                     </div>
@@ -987,7 +993,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                   </div>
 
                   {simulationError && (
-                    <p className="text-xs text-red-300 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">{simulationError}</p>
+                    <p className={`text-xs rounded-lg border px-3 py-2 ${isDark ? 'text-red-300 border-red-500/20 bg-red-500/10' : 'text-red-600 border-red-300 bg-red-50'}`}>{simulationError}</p>
                   )}
 
                   {/* BLOCO 3 — Status da campanha */}
@@ -1058,11 +1064,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                                 <td className={`py-2.5 pr-3 font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>{pt.nome}</td>
                                 <td className="py-2.5 pr-3">
                                   {hasPreview ? (
-                                    <div className="w-16 h-10 rounded-md overflow-hidden border border-white/10">
+                                    <div className={`w-16 h-10 rounded-md overflow-hidden border ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
                                       <img src={previewUrl} alt="" className="w-full h-full object-cover" />
                                     </div>
                                   ) : (
-                                    <span className="text-xs text-yellow-400">Sem simulação</span>
+                                    <span className={`text-xs ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>Sem simulação</span>
                                   )}
                                 </td>
                                 <td className={`py-2.5 pr-3 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{pt.cidade}</td>
@@ -1089,12 +1095,12 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                   <Card isDark={isDark} title="Seções do PDF">
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
                       {[
-                        { key: 'methodology', label: 'Como ler as métricas', icon: '📊' },
-                        { key: 'score', label: 'Score da campanha', icon: '🏆' },
-                        { key: 'coverage', label: 'Cobertura e presença', icon: '📡' },
-                        { key: 'impact', label: 'Impacto da campanha', icon: '⚡' },
-                        { key: 'mapPrint', label: 'Print do mapa da seleção', icon: '🗺️' }
-                      ].map(({ key, label, icon }) => (
+                        { key: 'methodology', label: 'Como ler as métricas', Icon: BarChart3 },
+                        { key: 'score', label: 'Score da campanha', Icon: Trophy },
+                        { key: 'coverage', label: 'Cobertura e presença', Icon: Radio },
+                        { key: 'impact', label: 'Impacto da campanha', Icon: Zap },
+                        { key: 'mapPrint', label: 'Print do mapa da seleção', Icon: Map }
+                      ].map(({ key, label, Icon }) => (
                         <button
                           key={key}
                           type="button"
@@ -1107,7 +1113,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                                 : 'border-neutral-200 bg-neutral-50 text-neutral-500 hover:bg-neutral-100'
                           }`}
                         >
-                          <span className="text-lg">{icon}</span>
+                          <Icon size={18} className={pdfSections[key] ? 'text-brand-orange' : isDark ? 'text-brand-gray-500' : 'text-neutral-400'} />
                           <span>{label}</span>
                           {pdfSections[key] && <Check size={14} className="ml-auto text-brand-orange" />}
                         </button>
@@ -1119,7 +1125,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                   <Card isDark={isDark} title="Print do mapa">
                     <div className="flex flex-wrap items-center gap-4">
                       <label className={`inline-flex items-center gap-2 text-sm ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
-                        <input type="checkbox" checked={connectMapPoints} onChange={(e) => setConnectMapPoints(e.target.checked)} className="h-4 w-4 rounded border-white/20 bg-white/5" />
+                        <input type="checkbox" checked={connectMapPoints} onChange={(e) => setConnectMapPoints(e.target.checked)} className={`h-4 w-4 rounded ${isDark ? 'border-white/20 bg-white/5' : 'border-neutral-300 bg-white'}`} />
                         Linhas de conexão entre pontos
                       </label>
                       <button
@@ -1141,6 +1147,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
                   {/* Ações principais */}
                   <div className="space-y-3">
+                    {simulationError && (
+                      <p className={`text-xs rounded-lg border px-3 py-2 ${isDark ? 'text-red-300 border-red-500/20 bg-red-500/10' : 'text-red-600 border-red-300 bg-red-50'}`}>{simulationError}</p>
+                    )}
+
                     <button onClick={handleExportProposalPdf} disabled={pdfBusy} className="w-full orange-solid-btn h-12 rounded-xl bg-brand-orange text-white font-bold text-base hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(254,92,43,0.28)] disabled:opacity-50">
                       <Download size={18} />
                       {pdfBusy ? 'Gerando PDF...' : 'Exportar PDF da proposta'}
@@ -1174,7 +1184,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
               Voltar
             </button>
 
-            <div className="text-xs text-brand-gray-500">
+            <div className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
               {wizardStep} de {WIZARD_STEPS.length}
             </div>
 
