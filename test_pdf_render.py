@@ -1,10 +1,7 @@
 import paramiko
 import json
 import time
-
-h = 'REDACTED_OLD_VPS_IP'
-u = 'mmak'
-p = '***REMOVED-OLD-PASS***'
+from secrets import OLD_VPS_HOST as h, OLD_VPS_USER as u, OLD_VPS_PASS as p
 
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())

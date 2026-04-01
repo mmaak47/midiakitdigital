@@ -1,8 +1,5 @@
 import paramiko
-
-host = 'REDACTED_VPS_IP'
-user = 'root'
-password = '***REMOVED-VPS-PASS***'
+from secrets import VPS_HOST as host, VPS_USER as user, VPS_PASS as password
 
 origins = 'http://REDACTED_VPS_IP,http://REDACTED_OLD_VPS_IP,http://REDACTED_OLD_VPS_IP,http://localhost:5173,http://127.0.0.1:5173'
 

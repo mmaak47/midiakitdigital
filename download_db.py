@@ -1,9 +1,10 @@
 import paramiko, os
 from datetime import datetime
+from secrets import OLD_VPS_HOST, OLD_VPS_USER, OLD_VPS_PASS
 
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-c.connect('REDACTED_OLD_VPS_IP', 22, 'mmak', '***REMOVED-OLD-PASS***', timeout=30)
+c.connect(OLD_VPS_HOST, 22, OLD_VPS_USER, OLD_VPS_PASS, timeout=30)
 
 sftp = c.open_sftp()
 remote_path = '/home/mmak/midiakit/backend/midiakit.db'

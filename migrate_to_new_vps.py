@@ -1,14 +1,8 @@
 import paramiko
 from pathlib import Path
-
-OLD_HOST = 'REDACTED_OLD_VPS_IP'
-OLD_USER = 'mmak'
-OLD_PASS = '***REMOVED-OLD-PASS***'
+from secrets import OLD_VPS_HOST as OLD_HOST, OLD_VPS_USER as OLD_USER, OLD_VPS_PASS as OLD_PASS
+from secrets import VPS_HOST as NEW_HOST, VPS_USER as NEW_USER, VPS_PASS as NEW_PASS
 OLD_BASE = '/home/mmak/midiakit'
-
-NEW_HOST = 'REDACTED_VPS_IP'
-NEW_USER = 'root'
-NEW_PASS = '***REMOVED-VPS-PASS***'
 NEW_BASE = '/home/mmak/midiakit'
 WORKDIR = Path(r'c:\midia kit\.migration_tmp')
 WORKDIR.mkdir(parents=True, exist_ok=True)

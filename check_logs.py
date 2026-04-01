@@ -1,9 +1,6 @@
 import paramiko
 import sys
-
-h = 'REDACTED_VPS_IP'
-u = 'root'
-p = '***REMOVED-VPS-PASS***'
+from secrets import VPS_HOST as h, VPS_USER as u, VPS_PASS as p
 
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())

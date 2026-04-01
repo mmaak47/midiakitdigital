@@ -1,8 +1,5 @@
 import paramiko
-
-HOST = 'REDACTED_VPS_IP'
-USER = 'root'
-PASS = '***REMOVED-VPS-PASS***'
+from secrets import VPS_HOST as HOST, VPS_USER as USER, VPS_PASS as PASS
 
 DOMAIN = 'midiakit.redeintermidia.com'
 WWW_DOMAIN = 'www.midiakit.redeintermidia.com'
