@@ -113,6 +113,22 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+async function blobUrlToDataUrl(url) {
+  if (!url || !url.startsWith('blob:')) return url;
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = () => resolve(url);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return url;
+  }
+}
+
 function formatPointNameHtml(name, options = {}) {
   const source = String(name || '').trim().toUpperCase();
   if (!source) return 'PONTO SEM NOME';
@@ -1530,7 +1546,9 @@ export async function generateProposalPdf({
   const strategicTopicsList = normalizeLines(strategicTopics, 6);
   const hasEntornoData = proposalPoints.some((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0);
   const assets = await loadPdfAssets();
-  const proposalImages = proposalPoints.map((point) => pickProposalImageUrl(point));
+  const proposalImages = await Promise.all(
+    proposalPoints.map(async (point) => blobUrlToDataUrl(pickProposalImageUrl(point)))
+  );
   const pages = [
     buildProposalCoverPage({
       proposalClient,

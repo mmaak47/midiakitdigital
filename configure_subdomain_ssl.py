@@ -22,7 +22,7 @@ nginx_conf = f'''server {{
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_read_timeout 120s;
+        proxy_read_timeout 300s;
     }}
 }}
 '''

@@ -8,7 +8,7 @@ let _browser = null;
 let _renderQueue = [];
 let _isRendering = false;
 const ALLOWED_HOSTS = new Set(
-  String(process.env.PDF_ALLOWED_HOSTS || 'localhost,127.0.0.1,REDACTED_OLD_VPS_IP,REDACTED_OLD_VPS_IP')
+  String(process.env.PDF_ALLOWED_HOSTS || 'localhost,127.0.0.1,REDACTED_VPS_IP,midiakit.redeintermidia.com,www.midiakit.redeintermidia.com')
     .split(',')
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean)
