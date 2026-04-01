@@ -233,14 +233,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// PDF render endpoint — must be registered before global express.json (own 55mb body parser)
-app.post('/api/pdf/render', pdfRenderLimiter, express.json({ limit: '55mb' }), async (req, res) => {
+// PDF render endpoint — must be registered before global express.json (own 120mb body parser)
+app.post('/api/pdf/render', pdfRenderLimiter, express.json({ limit: '120mb' }), async (req, res) => {
   const { html, fileName } = req.body || {};
   const bypassCache = String(req.body?.noCache || '').toLowerCase() === 'true' || req.body?.noCache === true;
+  console.log(`[pdf/render] request received: htmlLen=${html?.length || 0} fileName=${fileName || '?'} noCache=${bypassCache}`);
   if (!html || typeof html !== 'string' || html.length < 10) {
     return res.status(400).json({ error: 'Parâmetro html obrigatório.' });
   }
-  if (html.length > 30_000_000) {
+  if (html.length > 100_000_000) {
     return res.status(400).json({ error: 'Conteúdo HTML excede o limite permitido.' });
   }
 
@@ -300,6 +301,7 @@ app.post('/api/pdf/render', pdfRenderLimiter, express.json({ limit: '55mb' }), a
       'X-Download-Options': 'noopen',
       'X-PDF-Cache': bypassCache ? 'BYPASS' : 'MISS',
     });
+    console.log(`[pdf/render] success: ${safeName} size=${pdfBuffer.length} cache=${bypassCache ? 'BYPASS' : 'MISS'}`);
     return res.end(pdfBuffer);
   } catch (err) {
     console.error('[pdf/render] Erro:', err.message || err);
