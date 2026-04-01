@@ -64,10 +64,19 @@ function createPostgresCompat() {
     throw new Error('DATABASE_URL is required when DB_ENGINE=postgres');
   }
 
+  let psqlConnectionString = connectionString;
+  try {
+    const parsed = new URL(connectionString);
+    parsed.searchParams.delete('schema');
+    psqlConnectionString = parsed.toString();
+  } catch {
+    psqlConnectionString = connectionString;
+  }
+
   function runPsql(sql) {
     const output = execFileSync(
       'psql',
-      [connectionString, '-X', '-t', '-A', '-v', 'ON_ERROR_STOP=1', '-c', sql],
+      [psqlConnectionString, '-X', '-t', '-A', '-v', 'ON_ERROR_STOP=1', '-c', sql],
       { encoding: 'utf8' }
     );
     return String(output || '').trim();

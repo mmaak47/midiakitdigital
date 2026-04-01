@@ -9,7 +9,7 @@ module.exports = {
       NODE_ENV: 'production',
       PORT: 3002,
       DB_ENGINE: 'postgres',
-      DATABASE_URL: 'postgresql://midiakit_app:***REMOVED-DB-PASS-OLD***@127.0.0.1:5432/midiakit_prod?schema=public',
+      DATABASE_URL: 'postgresql://midiakit_app:***REMOVED-DB-PASS-OLD***@127.0.0.1:5432/midiakit_prod',
       FRONTEND_ORIGINS: 'http://REDACTED_VPS_IP,http://midiakit.redeintermidia.com,https://midiakit.redeintermidia.com,http://www.midiakit.redeintermidia.com,https://www.midiakit.redeintermidia.com,http://localhost:5173,http://127.0.0.1:5173',
       PDF_ALLOWED_HOSTS: 'localhost,127.0.0.1,REDACTED_VPS_IP,midiakit.redeintermidia.com,www.midiakit.redeintermidia.com'
     },
