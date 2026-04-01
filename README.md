@@ -4,7 +4,7 @@
 
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev)
-[![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite)](https://www.sqlite.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql)](https://www.postgresql.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-3-38B2AC?logo=tailwindcss)](https://tailwindcss.com)
 
 ---
@@ -15,7 +15,7 @@
 |--------|---------|
 | **Purpose** | Manage DOOH advertising points, plan strategic campaigns, analyze geo-demographics, generate & approve quotations |
 | **Users** | Vendedores (sales) → Gerentes Comerciais (managers) → Admin (approval) |
-| **Database** | SQLite with async job queue for background analysis |
+| **Database** | PostgreSQL 16 (production) with async job queue for background analysis |
 | **Deployment** | VPS (PM2) or cPanel Shared Hosting (Phusion Passenger) |
 | **Development** | React 18 + Vite frontend, Node.js/Express backend |
 
@@ -40,9 +40,9 @@
 
 | Layer | Technology |
 |-------|------------|
-| **Backend** | Node.js 18+ • Express • SQLite • Multer • Compression |
+| **Backend** | Node.js 18+ • Express • PostgreSQL • Prisma tooling • Multer • Compression |
 | **Frontend** | React 18 • Vite • Tailwind CSS • Framer Motion • Leaflet |
-| **Database** | SQLite WAL mode • async job queue for Entorno analysis |
+| **Database** | PostgreSQL 16 • async job queue for Entorno analysis |
 | **PDF Export** | PDFKit + custom templates for media kits |
 | **Authentication** | Username/Email + Password • request-based (vendedor/gerente/admin) |
 | **Geolocation** | OpenStreetMap (primary) / Google Places / Foursquare (fallbacks) |
@@ -57,16 +57,21 @@ midiakitdigital/
 ├── backend/
 │   ├── server.js                  # Express app • Passenger-compatible
 │   ├── passenger_app.js           # Phusion Passenger entry (cPanel)
-│   ├── database.js                # SQLite schema & migrations
+│   ├── database.js                # Database engine adapter (PostgreSQL runtime)
+│   ├── database.sqlite.js         # Legacy SQLite implementation
 │   ├── auth.js                    # User authentication & roles
 │   ├── license.js                 # Remote license verification
-│   ├── backupService.js           # Automated SQLite backups
+│   ├── backupService.js           # Legacy SQLite backup scheduler
 │   ├── pdfService.js              # PDF generation engine
 │   ├── entornoAnalysis.js         # Geo-intelligence & job queue
 │   ├── routes/
 │   │   └── cidadeFotos.js         # City photos endpoint
 │   ├── services/
 │   │   └── pdfCacheService.js     # PDF cache management
+│   ├── prisma/
+│   │   └── schema.prisma          # Prisma datasource/model sync
+│   ├── scripts/
+│   │   └── migrate_sqlite_to_postgres.js
 │   ├── uploads/                   # Point images (served via /uploads)
 │   ├── backups/                   # SQLite backup snapshots
 │   ├── .env.example               # Environment template
@@ -259,16 +264,20 @@ Backend runs on port `3002` (or `$PORT` if provided)
 
 ---
 
-## Database (6 Tables)
+## Database (PostgreSQL)
 
 | Table | Purpose | Key Fields |
-|-------|---------|-----------|
+|-------|---------|------------|
 | **pontos** | Display locations | id, nome, cidade, tipo, lat, lng, preco, fluxo, arte_* |
 | **admin_users** | Team members | id, username, email, role (admin/gerente/vendedor) |
 | **entorno_cache** | Geo analysis results | ponto_id, segmento, raio_m, score_relevancia, expires_at |
 | **entorno_jobs** | Async job queue | id, segmento, radius, status, processed_points |
 | **propostas** | Quotations | id, usuario_id, pontos_json, valor_total_*, status |
 | **app_settings** | Config key-value | key, value |
+| **cidade_fotos** | Hero/background city photos | cidade_slug, imagem_path |
+| **pdf_cache** | Generated PDF cache entries | combination_key, file_path |
+| **pdf_cache_snapshot** | PDF cache dimensions/snapshots | cache_id, snapshot_type |
+| **propostas_aprovacoes** | Approval trail by manager | proposta_id, gerente_id, status |
 
 ---
 
@@ -279,9 +288,10 @@ Create `.env` in `backend/`:
 ```env
 NODE_ENV=production
 FRONTEND_ORIGINS=https://yourdomain.com
+DB_ENGINE=postgres
+DATABASE_URL=postgresql://user:password@127.0.0.1:5432/midiakit_prod
 LICENSE_URL=https://...
 LICENSE_CLIENT=your-client-id
-SQLITE_BACKUP_ENABLED=true
 ENTORNO_AUTO_REFRESH_ENABLED=false
 ```
 
@@ -297,6 +307,12 @@ npm install --production
 pm2 start ecosystem.config.js
 pm2 save && pm2 startup
 ```
+
+### PostgreSQL (current production standard)
+- Install PostgreSQL 16 on VPS
+- Create app user/database (`midiakit_app` / `midiakit_prod`)
+- Set `DB_ENGINE=postgres` and `DATABASE_URL` in PM2 env
+- Use `npm run db:migrate:sqlite-to-postgres` for one-shot imports when needed
 
 ### cPanel Shared Hosting (Phusion Passenger)
 See [backend/DEPLOY.md](backend/DEPLOY.md):
