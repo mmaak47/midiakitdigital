@@ -5,16 +5,22 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "db:pull": "prisma db pull",
+    "db:generate": "prisma generate",
+    "db:migrate:sqlite-to-postgres": "node scripts/migrate_sqlite_to_postgres.js"
   },
   "dependencies": {
+    "@prisma/client": "^7.6.0",
     "better-sqlite3": "^11.7.0",
-    "dotenv": "^16.4.5",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "express-rate-limit": "^8.3.1",
     "multer": "^1.4.5-lts.1",
+    "pg": "^8.20.0",
+    "prisma": "^7.6.0",
     "puppeteer": "^24.0.0",
     "zod": "^4.3.6"
   }
