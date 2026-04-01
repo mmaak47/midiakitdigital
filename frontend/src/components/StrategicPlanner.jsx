@@ -42,7 +42,7 @@ function formatMoedaSemCentavos(value) {
   }).format(numeric);
 }
 
-export default function StrategicPlanner({ pontos = [], publicos = [], cidades = [], onAddPlan, onSuggestionChange }) {
+export default function StrategicPlanner({ pontos = [], publicos = [], cidades = [], onAddPlan, onSuggestionChange, isDark = true }) {
   const [form, setForm] = useState({
     segmento: 'clinica',
     objetivo: 'reconhecimento de marca',
@@ -221,42 +221,42 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
 
   return (
     <section className="space-y-4">
-      <div className="rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-lg shadow-black/20">
+      <div className={`rounded-2xl border p-6 shadow-lg ${isDark ? 'border-white/10 bg-zinc-900 shadow-black/20' : 'border-neutral-200 bg-white shadow-neutral-200/70'}`}>
         <div className="mb-5">
           <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8591A]">ETAPA 1</div>
           <div className="mt-1 flex items-center gap-2">
             <Sparkles size={18} className="text-[#E8591A]" />
-            <h2 className="text-xl font-bold text-white">Configure sua campanha</h2>
+            <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Configure sua campanha</h2>
           </div>
         </div>
 
         <div className="grid md:grid-cols-2 xl:grid-cols-7 gap-4 mb-5">
-          <CustomSelect label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS} />
-          <CustomSelect label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} allowCustom customPlaceholder="Digite um objetivo personalizado" />
-          <CustomSelect label="Praça" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={cidades} multiple placeholder="Selecionar uma ou mais praças" />
-          <CustomSelect label="Público" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={publicos} multiple placeholder="Selecionar um ou mais públicos" />
-          <CustomSelect label="Audience tags" value={form.audienceTags} onChange={(v) => setForm((s) => ({ ...s, audienceTags: v }))} options={audienceTagOptions} multiple placeholder="Selecionar tags de audiência" />
-          <CustomSelect label="Disponibilidade" value={form.availabilityPreference} onChange={(v) => setForm((s) => ({ ...s, availabilityPreference: v }))} options={availabilityOptions} />
+          <CustomSelect isDark={isDark} label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS} />
+          <CustomSelect isDark={isDark} label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} allowCustom customPlaceholder="Digite um objetivo personalizado" />
+          <CustomSelect isDark={isDark} label="Praça" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={cidades} multiple placeholder="Selecionar uma ou mais praças" />
+          <CustomSelect isDark={isDark} label="Público" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={publicos} multiple placeholder="Selecionar um ou mais públicos" />
+          <CustomSelect isDark={isDark} label="Audience tags" value={form.audienceTags} onChange={(v) => setForm((s) => ({ ...s, audienceTags: v }))} options={audienceTagOptions} multiple placeholder="Selecionar tags de audiência" />
+          <CustomSelect isDark={isDark} label="Disponibilidade" value={form.availabilityPreference} onChange={(v) => setForm((s) => ({ ...s, availabilityPreference: v }))} options={availabilityOptions} />
           <div>
-            <label className="text-[11px] uppercase tracking-wide text-brand-gray-500 font-semibold">Investimento mensal</label>
+            <label className={`text-[11px] uppercase tracking-wide font-semibold ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Investimento mensal</label>
             <input
               type="number"
               min={0}
               step={500}
               value={form.investimentoMensal}
               onChange={(e) => setForm((s) => ({ ...s, investimentoMensal: Number(e.target.value) || 0 }))}
-              className="mt-1 w-full bg-white/10 border border-white/15 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-[#E8591A]/50 transition-colors"
+              className={`mt-1 w-full rounded-xl px-3 py-2 text-sm outline-none transition-colors focus:border-[#E8591A]/50 ${isDark ? 'bg-white/10 border border-white/15 text-white' : 'bg-neutral-100 border border-neutral-300 text-neutral-900'}`}
             />
           </div>
         </div>
 
         {cityContext.loading ? (
-          <div className="mb-4 flex items-center gap-2 text-sm text-gray-400">
+          <div className={`mb-4 flex items-center gap-2 text-sm ${isDark ? 'text-gray-400' : 'text-neutral-500'}`}>
             <Building2 size={14} className="text-[#E8591A]" />
-            <span className="h-4 w-48 animate-pulse rounded bg-white/10" />
+            <span className={`h-4 w-48 animate-pulse rounded ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
           </div>
         ) : cityContextText ? (
-          <div className="mb-4 flex items-center gap-2 text-sm text-gray-400">
+          <div className={`mb-4 flex items-center gap-2 text-sm ${isDark ? 'text-gray-400' : 'text-neutral-500'}`}>
             <Building2 size={14} className="text-[#E8591A]" />
             <span>{cityContextText}</span>
           </div>
@@ -264,10 +264,10 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
 
         <div className="grid lg:grid-cols-[1fr_auto] gap-4 items-start">
           <div>
-            <p className="text-sm text-brand-gray-300 mb-3">{suggestion.justificativa}</p>
-            <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-brand-gray-400">
+            <p className={`text-sm mb-3 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{suggestion.justificativa}</p>
+            <div className={`mb-4 rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-400' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold uppercase tracking-wide text-brand-gray-300">Análise de entorno</span>
+                <span className={`font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>Análise de entorno</span>
                 {entorno.loading && (
                   <span className="inline-flex items-center gap-1 text-brand-orange">
                     <Loader2 size={12} className="animate-spin" />
@@ -306,23 +306,23 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
         </div>
       </div>
 
-      <div className="h-px w-full bg-white/10" />
+      <div className={`h-px w-full ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
 
-      <div className="rounded-xl bg-black/30 p-4">
+      <div className={`rounded-xl p-4 ${isDark ? 'bg-black/30' : 'bg-neutral-100 border border-neutral-200'}`}>
         <div className="mb-3">
           <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8591A]">ETAPA 2 — Resumo do plano</div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 text-xs">
-          <Metric label="Pontos" value={totals.quantidade} />
-          <Metric label="Valor Total" value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totals.valorTotal)} />
-          <Metric label="Fluxo Total" value={new Intl.NumberFormat('pt-BR').format(totals.fluxoTotal)} />
-          <Metric label="CPM Estimado" value={`R$ ${totals.cpmEstimado.toFixed(2)}`} />
-          <Metric label="Reach Efetivo" value={`${suggestion.reachFrequency?.effectiveReachPct?.toFixed?.(1) ?? '0.0'}%`} />
-          <Metric label="Freq Média" value={`${suggestion.reachFrequency?.avgFrequency?.toFixed?.(2) ?? '0.00'}x`} />
-          <Metric label="GRPs" value={String(suggestion.reachFrequency?.grps ?? 0)} />
-          <Metric label="Uso de Budget" value={`${suggestion.optimizer?.budgetUsagePct ?? 0}%`} />
+          <Metric label="Pontos" value={totals.quantidade} isDark={isDark} />
+          <Metric label="Valor Total" value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totals.valorTotal)} isDark={isDark} />
+          <Metric label="Fluxo Total" value={new Intl.NumberFormat('pt-BR').format(totals.fluxoTotal)} isDark={isDark} />
+          <Metric label="CPM Estimado" value={`R$ ${totals.cpmEstimado.toFixed(2)}`} isDark={isDark} />
+          <Metric label="Reach Efetivo" value={`${suggestion.reachFrequency?.effectiveReachPct?.toFixed?.(1) ?? '0.0'}%`} isDark={isDark} />
+          <Metric label="Freq Média" value={`${suggestion.reachFrequency?.avgFrequency?.toFixed?.(2) ?? '0.00'}x`} isDark={isDark} />
+          <Metric label="GRPs" value={String(suggestion.reachFrequency?.grps ?? 0)} isDark={isDark} />
+          <Metric label="Uso de Budget" value={`${suggestion.optimizer?.budgetUsagePct ?? 0}%`} isDark={isDark} />
         </div>
-        <div className="mt-4 flex items-center gap-2 text-xs text-brand-gray-500">
+        <div className={`mt-4 flex items-center gap-2 text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
           <Target size={13} className="text-brand-orange" />
           Recomendação automática com base em objetivo, público, faixa de investimento e análise de entorno por segmento.
         </div>
@@ -331,11 +331,11 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
   );
 }
 
-const Metric = memo(function Metric({ label, value }) {
+const Metric = memo(function Metric({ label, value, isDark = true }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.01] p-3 shadow-md shadow-black/10">
-      <div className="text-[10px] uppercase tracking-wider text-brand-gray-500 font-semibold">{label}</div>
-      <div className="text-sm font-bold text-white mt-1">{value}</div>
+    <div className={`rounded-xl border p-3 shadow-md ${isDark ? 'border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.01] shadow-black/10' : 'border-neutral-200 bg-white shadow-neutral-200/80'}`}>
+      <div className={`text-[10px] uppercase tracking-wider font-semibold ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>{label}</div>
+      <div className={`text-sm font-bold mt-1 ${isDark ? 'text-white' : 'text-neutral-900'}`}>{value}</div>
     </div>
   );
 });

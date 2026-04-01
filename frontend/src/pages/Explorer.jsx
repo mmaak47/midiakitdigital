@@ -154,6 +154,7 @@ export default function Explorer() {
               publicos={publicos}
               onAddPlan={addFavorites}
               onSuggestionChange={setPlannerSuggestion}
+              isDark={isDark}
             />
 
             <div className={`h-px w-full ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
