@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const { startLicenseWatcher, requireLicense, isLicensed } = require('./license');
@@ -48,6 +50,18 @@ const {
 
 const app = express();
 const PORT = process.env.PORT || 3002;
+
+// ---------------------------------------------------------------------------
+// Global error handlers — prevent silent crashes under Passenger / shared hosting
+// ---------------------------------------------------------------------------
+process.on('uncaughtException', (err) => {
+  console.error('[fatal] uncaughtException:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal] unhandledRejection:', reason);
+});
+
 const uploadsPath = path.join(__dirname, 'uploads');
 const pdfCachePath = path.join(__dirname, 'pdf-cache');
 const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
@@ -1716,23 +1730,43 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-app.listen(PORT, () => {
-  console.log(`Intermidia Mídia Kit API running on port ${PORT}`);
+// Only bind to a port when run directly (node server.js).
+// When required by passenger_app.js, Passenger manages the socket itself.
+if (require.main === module) {
+  const server = app.listen(PORT, () => {
+    console.log(`Intermidia Mídia Kit API running on port ${PORT}`);
+    startLicenseWatcher().catch((err) => {
+      console.error('[license] Watcher failed to start:', err.message);
+      process.exit(1);
+    });
+    if (String(process.env.SQLITE_BACKUP_ENABLED || 'true').toLowerCase() !== 'false') {
+      createBackupScheduler(db);
+    } else {
+      console.log('[backup] Automatic SQLite backup disabled by SQLITE_BACKUP_ENABLED=false');
+    }
+
+    const scheduler = startAutoRefreshScheduler();
+    if (scheduler) {
+      const config = getAutoRefreshConfig();
+      console.log(`[entorno-auto] enabled. interval=${config.intervalMinutes}min radius=${config.radius}m segments=${config.segments.join(',') || 'clinica'} cities=${config.cities.join(',') || 'todas'}`);
+    } else {
+      console.log('[entorno-auto] disabled by ENTORNO_AUTO_REFRESH_ENABLED=false');
+    }
+  });
+
+  server.on('error', (err) => {
+    console.error('[server] Failed to bind:', err.message);
+    process.exit(1);
+  });
+} else {
+  // Passenger / require() path — run startup tasks without binding
   startLicenseWatcher().catch((err) => {
     console.error('[license] Watcher failed to start:', err.message);
-    process.exit(1);
   });
   if (String(process.env.SQLITE_BACKUP_ENABLED || 'true').toLowerCase() !== 'false') {
     createBackupScheduler(db);
-  } else {
-    console.log('[backup] Automatic SQLite backup disabled by SQLITE_BACKUP_ENABLED=false');
   }
+  startAutoRefreshScheduler();
+}
 
-  const scheduler = startAutoRefreshScheduler();
-  if (scheduler) {
-    const config = getAutoRefreshConfig();
-    console.log(`[entorno-auto] enabled. interval=${config.intervalMinutes}min radius=${config.radius}m segments=${config.segments.join(',') || 'clinica'} cities=${config.cities.join(',') || 'todas'}`);
-  } else {
-    console.log('[entorno-auto] disabled by ENTORNO_AUTO_REFRESH_ENABLED=false');
-  }
-});
+module.exports = app;
