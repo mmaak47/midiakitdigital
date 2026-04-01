@@ -49,6 +49,8 @@ const {
 } = require('./entornoAnalysis');
 
 const app = express();
+
+const DB_ENGINE = String(process.env.DB_ENGINE || 'sqlite').toLowerCase();
 const PORT = process.env.PORT || 3002;
 
 // ---------------------------------------------------------------------------
@@ -1739,10 +1741,12 @@ if (require.main === module) {
       console.error('[license] Watcher failed to start:', err.message);
       process.exit(1);
     });
-    if (String(process.env.SQLITE_BACKUP_ENABLED || 'true').toLowerCase() !== 'false') {
+    if (DB_ENGINE === 'sqlite' && String(process.env.SQLITE_BACKUP_ENABLED || 'true').toLowerCase() !== 'false') {
       createBackupScheduler(db);
-    } else {
+    } else if (DB_ENGINE === 'sqlite') {
       console.log('[backup] Automatic SQLite backup disabled by SQLITE_BACKUP_ENABLED=false');
+    } else {
+      console.log('[backup] SQLite backup scheduler skipped (DB_ENGINE=postgres)');
     }
 
     const scheduler = startAutoRefreshScheduler();
@@ -1763,7 +1767,7 @@ if (require.main === module) {
   startLicenseWatcher().catch((err) => {
     console.error('[license] Watcher failed to start:', err.message);
   });
-  if (String(process.env.SQLITE_BACKUP_ENABLED || 'true').toLowerCase() !== 'false') {
+  if (DB_ENGINE === 'sqlite' && String(process.env.SQLITE_BACKUP_ENABLED || 'true').toLowerCase() !== 'false') {
     createBackupScheduler(db);
   }
   startAutoRefreshScheduler();
