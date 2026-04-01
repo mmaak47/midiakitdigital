@@ -686,6 +686,99 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets, selectedCities
   `, BRAND_DARK);
 }
 
+function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, pricingSummary, highlights, strategicTopics, strategicSubtitle, simulationSummary, segmento, assets }) {
+  const layout = getActivePdfLayoutConfig().proposal.cover;
+  const segmentLabel = getSegmentDisplayName(segmento);
+  const pointsWithEntorno = proposalPoints.filter((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0).length;
+  const hasEntornoData = pointsWithEntorno > 0;
+  const originalTotal = pricingSummary?.originalTotal ?? proposalTotals.valorTotal;
+  const finalTotal = pricingSummary?.finalTotal ?? proposalTotals.valorTotal;
+  const cards = [
+    { iconHtml: proposalIcon('target'), label: 'Pontos', value: formatInt(proposalPoints.length) },
+    { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
+    { iconHtml: proposalIcon('money'), label: 'Valor Tabela', value: formatMoney(originalTotal) },
+    { iconHtml: proposalIcon('money'), label: 'Valor Negociado', value: formatMoney(finalTotal) },
+    { iconHtml: proposalIcon('cpm'), label: 'CPM estimado', value: formatDecimalMoney(proposalTotals.cpmEstimado) }
+  ];
+  const strategicItems = strategicTopics.length
+    ? strategicTopics
+    : (highlights.length ? highlights : ['Argumentos estratégicos serão definidos na reunião comercial.']);
+  const subtitleText = String(strategicSubtitle || '').trim() || `Planejamento comercial para ${proposalCity} com foco em cobertura, frequência e presença de marca.`;
+
+  return createPage(`
+    <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(105deg,rgba(0,0,0,0.95) 0%,rgba(0,0,0,0.88) 52%,rgba(0,0,0,0.76) 100%);"></div>
+    <div style="position:absolute;inset:auto auto -180px -60px;width:560px;height:560px;border-radius:999px;background:radial-gradient(circle,rgba(255,90,31,0.28) 0%,rgba(255,90,31,0.06) 48%,rgba(255,90,31,0) 72%);"></div>
+    <div style="position:relative;z-index:1;display:grid;grid-template-columns:1.04fr 0.96fr;height:768px;max-height:768px;padding:58px 64px 50px;gap:22px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;">
+      <div style="display:flex;flex-direction:column;min-width:0;">
+        <div style="display:flex;align-items:center;gap:18px;">
+          <img src="${assets.logo || ''}" alt="" style="height:48px;width:auto;object-fit:contain;" />
+          <div data-calibration-id="proposal.cover.badge" style="display:inline-flex;align-items:center;justify-content:center;height:${layout.badgeMinHeight}px;padding:0 ${layout.badgePaddingX}px;border-radius:100px;background:${PROPOSAL_ACCENT};border:1px solid ${PROPOSAL_ACCENT};font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#fff;line-height:1;text-align:center;">
+            <span style="display:block;">Proposta comercial</span>
+          </div>
+        </div>
+
+        <div style="margin-top:28px;font-family:Poppins, system-ui, sans-serif;font-size:68px;line-height:0.92;font-weight:700;letter-spacing:-0.05em;max-width:680px;max-height:190px;overflow:hidden;">${escapeHtml(proposalClient)}</div>
+        <div style="margin-top:14px;font-size:20px;line-height:1.35;color:rgba(255,255,255,0.74);max-width:620px;max-height:112px;overflow:hidden;">${escapeHtml(subtitleText)}</div>
+
+        <div data-calibration-id="proposal.cover.chips" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
+          ${[
+            proposalCity,
+            formatPointCountLabel(proposalPoints.length || 0),
+            segmentLabel,
+            `Gerado em ${new Date().toLocaleDateString('pt-BR')}`
+          ].map((chip) => `
+            <div style="display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 16px;border-radius:100px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);font-size:12px;font-weight:600;color:${PROPOSAL_TEXT_SECONDARY};line-height:1;text-align:center;">
+              <span style="display:block;">${escapeHtml(chip)}</span>
+            </div>
+          `).join('')}
+        </div>
+
+        <div data-calibration-id="proposal.cover.metricCards" style="margin-top:auto;">
+          ${buildMetricCards(cards, {
+            valueSize: layout.metricValueSize,
+            labelSize: layout.metricLabelSize,
+            iconSize: layout.metricIconSize,
+            minHeight: 146,
+            gap: layout.metricGap,
+            padding: layout.metricPadding,
+            valueWhiteSpace: 'normal',
+            valueWordBreak: 'break-word'
+          })}
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-rows:1fr;gap:20px;min-width:0;">
+        <div style="padding:20px 22px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};display:flex;flex-direction:column;overflow:hidden;">
+          <div data-calibration-id="proposal.cover.strategicHeader" style="display:flex;align-items:center;gap:10px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};border-top:2px solid ${PROPOSAL_ACCENT};padding-top:8px;"><span style="display:inline-flex;align-items:center;justify-content:center;width:${layout.strategicHeaderIconSize}px;height:${layout.strategicHeaderIconSize}px;border-radius:999px;background:rgba(255,90,31,0.16);">${proposalIcon('target')}</span>Direcionamento estratégico</div>
+          <div data-calibration-id="proposal.cover.strategicCards" style="margin-top:14px;display:grid;gap:10px;">
+            ${strategicItems.map((item) => `
+              <div style="display:grid;grid-template-columns:32px 1fr;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};">
+                <div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:999px;background:rgba(254,92,43,0.16);">
+                  <span style="display:block;width:${layout.strategicDotSize}px;height:${layout.strategicDotSize}px;border-radius:999px;background:${PROPOSAL_ACCENT};"></span>
+                </div>
+                <div style="font-size:17px;line-height:1.35;color:#fff;word-break:break-word;max-height:4.1em;overflow:hidden;">${escapeHtml(item)}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div style="margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div style="padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};">
+              <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Segmento priorizado</div>
+              <div style="margin-top:6px;font-size:18px;line-height:1.2;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(segmentLabel)}</div>
+            </div>
+            ${hasEntornoData ? `
+              <div style="padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};">
+                <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Entorno aderente</div>
+                <div style="margin-top:6px;font-size:18px;line-height:1.2;color:#fff;font-weight:700;word-break:break-word;">${escapeHtml(`${formatInt(pointsWithEntorno)} ponto${pointsWithEntorno === 1 ? '' : 's'}`)}</div>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+  `, BRAND_DARK);
+}
+
 function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, pricingSummary, segmento, assets }) {
   const segmentLabel = getSegmentDisplayName(segmento);
   const pointCount = proposalPoints.length;
