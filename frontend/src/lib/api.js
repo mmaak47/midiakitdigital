@@ -121,13 +121,19 @@ export async function login(username, password) {
 
 export async function fetchAdminPontos() {
   const res = await apiRequest('/admin/pontos');
-  if (!res.ok) throw new Error('Erro ao carregar pontos');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao carregar pontos');
+  }
   return res.json();
 }
 
 export async function fetchAdminUsers() {
   const res = await apiRequest('/admin/users');
-  if (!res.ok) throw new Error('Erro ao carregar usuários');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao carregar usuários');
+  }
   return res.json();
 }
 
@@ -288,13 +294,19 @@ export async function geocodePoint(address) {
 
 export async function fetchAdminSettings() {
   const res = await apiRequest('/admin/settings');
-  if (!res.ok) throw new Error('Erro ao carregar configurações');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao carregar configurações');
+  }
   return res.json();
 }
 
 export async function fetchAdminPdfCache() {
   const res = await apiRequest('/admin/pdf-cache');
-  if (!res.ok) throw new Error('Erro ao carregar cache de PDFs');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao carregar cache de PDFs');
+  }
   return res.json();
 }
 

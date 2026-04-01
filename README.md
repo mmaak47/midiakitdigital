@@ -287,6 +287,7 @@ Create `.env` in `backend/`:
 
 ```env
 NODE_ENV=production
+AUTH_SECRET=replace-with-a-long-random-secret
 FRONTEND_ORIGINS=https://yourdomain.com
 DB_ENGINE=postgres
 DATABASE_URL=postgresql://user:password@127.0.0.1:5432/midiakit_prod

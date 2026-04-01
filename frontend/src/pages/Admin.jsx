@@ -284,6 +284,17 @@ export default function Admin() {
     localStorage.setItem('intermidia_theme', isDark ? 'dark' : 'light');
   }, [isDark]);
 
+  const handleSessionError = (err) => {
+    const message = String(err?.message || '');
+    if (/token inválido|token invalido|expirad|autentica/i.test(message)) {
+      sessionStorage.removeItem('admin_token');
+      setAuth(false);
+      setLoginError('Sua sessão expirou. Faça login novamente.');
+      return true;
+    }
+    return false;
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -307,7 +318,9 @@ export default function Admin() {
       const data = await fetchAdminPontos();
       setPontos(data);
     } catch (err) {
-      console.error(err);
+      if (!handleSessionError(err)) {
+        console.error(err);
+      }
     } finally {
       setLoading(false);
     }
@@ -320,7 +333,9 @@ export default function Admin() {
       const data = await fetchAdminUsers();
       setUsers(Array.isArray(data) ? data : []);
     } catch (err) {
-      setUsersError(err.message || 'Falha ao carregar usuários');
+      if (!handleSessionError(err)) {
+        setUsersError(err.message || 'Falha ao carregar usuários');
+      }
     } finally {
       setUsersLoading(false);
     }
@@ -525,7 +540,9 @@ export default function Admin() {
       setSettings(data);
       setLucroMinimoValue(data.lucro_minimo_percentual || 15);
     } catch (err) {
-      setSettingsError(err.message || 'Falha ao carregar configurações');
+      if (!handleSessionError(err)) {
+        setSettingsError(err.message || 'Falha ao carregar configurações');
+      }
     } finally {
       setSettingsLoading(false);
     }
@@ -552,8 +569,10 @@ export default function Admin() {
       const rows = await fetchAdminPdfCache();
       setPdfCacheRows(Array.isArray(rows) ? rows : []);
     } catch (err) {
-      setPdfCacheRows([]);
-      setPdfCacheError(err.message || 'Falha ao carregar cache de PDFs');
+      if (!handleSessionError(err)) {
+        setPdfCacheRows([]);
+        setPdfCacheError(err.message || 'Falha ao carregar cache de PDFs');
+      }
     } finally {
       setPdfCacheLoading(false);
     }
