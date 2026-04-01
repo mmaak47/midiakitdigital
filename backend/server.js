@@ -83,6 +83,7 @@ function getAllowedOrigins() {
   return new Set([
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'http://REDACTED_VPS_IP',
     'http://REDACTED_OLD_VPS_IP',
     'http://REDACTED_OLD_VPS_IP'
   ]);
@@ -195,7 +196,7 @@ function extensionFromMime(mimeType) {
 // Middleware
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
-app.use(cors({ origin: corsOriginValidator }));
+app.use('/api', cors({ origin: corsOriginValidator }));
 app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-Content-Type-Options', 'nosniff');

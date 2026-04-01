@@ -48,6 +48,22 @@ h1, h2, h3, h4, h5, h6 {
   background: #555;
 }
 
+/* Light mode scrollbar */
+.commercial-light ::-webkit-scrollbar-track,
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: #f4f5f7;
+}
+
+.commercial-light ::-webkit-scrollbar-thumb,
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+}
+
+.commercial-light ::-webkit-scrollbar-thumb:hover,
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
 /* Select dropdown styling */
 select {
   color-scheme: dark;
@@ -56,6 +72,18 @@ select {
 select option {
   background-color: #1a1a1a;
   color: #ffffff;
+}
+
+/* Light mode select */
+.commercial-light select,
+[data-theme="light"] select {
+  color-scheme: light;
+}
+
+.commercial-light select option,
+[data-theme="light"] select option {
+  background-color: #ffffff;
+  color: #171717;
 }
 
   /* ===== Landing Light Mode Overrides ===== */
@@ -165,6 +193,13 @@ select option:checked {
 
 .skeleton {
   background: linear-gradient(90deg, #1a1a1a 25%, #262626 50%, #1a1a1a 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Light mode skeleton */
+.skeleton-light {
+  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }

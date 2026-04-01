@@ -142,6 +142,7 @@ export default function Explorer() {
           total={pontos.length}
           mobileOpen={mobileFilters}
           setMobileOpen={setMobileFilters}
+          isDark={isDark}
         />
 
         {/* Main content */}
@@ -155,27 +156,27 @@ export default function Explorer() {
               onSuggestionChange={setPlannerSuggestion}
             />
 
-            <div className="h-px w-full bg-white/10" />
+            <div className={`h-px w-full ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
 
             <div>
               <div className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-[#E8591A]">ETAPA 3 — Análise</div>
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <div className="lg:col-span-2">
-                  <CoverageMeter coverage={coverage} />
+                  <CoverageMeter coverage={coverage} isDark={isDark} />
                 </div>
                 <div className="space-y-4">
-                  <CampaignScore scoreInfo={scoreInfo} />
-                  <ImpactSimulator points={cityInventory} onAdd={addFavorites} />
+                  <CampaignScore scoreInfo={scoreInfo} isDark={isDark} />
+                  <ImpactSimulator points={cityInventory} onAdd={addFavorites} isDark={isDark} />
                 </div>
               </div>
             </div>
 
-            <MarketBenchmarksPanel suggestion={plannerSuggestion} />
+            <MarketBenchmarksPanel suggestion={plannerSuggestion} isDark={isDark} />
 
-            <div className="h-px w-full bg-white/10" />
+            <div className={`h-px w-full ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
 
-            <CampaignMetrics totals={totals} />
-            <RecommendationEngine history={history} onApplyCombo={addFavorites} />
+            <CampaignMetrics totals={totals} isDark={isDark} />
+            <RecommendationEngine history={history} onApplyCombo={addFavorites} isDark={isDark} />
           </div>
 
           {/* Toolbar */}
@@ -229,7 +230,7 @@ export default function Explorer() {
             {loading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <SkeletonCard key={i} />
+                  <SkeletonCard key={i} isDark={isDark} />
                 ))}
               </div>
             ) : pontos.length === 0 ? (
@@ -314,7 +315,7 @@ export default function Explorer() {
   );
 }
 
-function MarketBenchmarksPanel({ suggestion }) {
+function MarketBenchmarksPanel({ suggestion, isDark = true }) {
   const [expanded, setExpanded] = useState(false);
 
   const metrics = useMemo(() => {
@@ -373,11 +374,11 @@ function MarketBenchmarksPanel({ suggestion }) {
   }, [suggestion]);
 
   return (
-    <section className="rounded-xl border border-white/10 bg-black/20 p-4">
+    <section className={`rounded-xl border p-4 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
-        className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white"
+        className={`inline-flex items-center gap-2 text-sm ${isDark ? 'text-gray-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-800'}`}
       >
         <ChevronDown size={14} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
         ▼ Benchmarks do mercado OOH/DOOH
@@ -394,9 +395,9 @@ function MarketBenchmarksPanel({ suggestion }) {
           >
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
               {metrics.map((metric) => (
-                <div key={metric.key} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                  <div className="text-xs uppercase tracking-wide text-gray-500">{metric.label}</div>
-                  <div className="mt-1 text-base font-semibold text-white">{metric.benchmark}</div>
+                <div key={metric.key} className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-white'}`}>
+                  <div className={`text-xs uppercase tracking-wide ${isDark ? 'text-gray-500' : 'text-neutral-500'}`}>{metric.label}</div>
+                  <div className={`mt-1 text-base font-semibold ${isDark ? 'text-white' : 'text-neutral-800'}`}>{metric.benchmark}</div>
                   {metric.status === 'ok' ? (
                     <div className="mt-2 inline-flex items-center gap-1 text-xs text-green-400">
                       <CheckCircle size={12} />
@@ -412,7 +413,7 @@ function MarketBenchmarksPanel({ suggestion }) {
                 </div>
               ))}
             </div>
-            <div className="mt-4 text-xs text-gray-500">
+            <div className={`mt-4 text-xs ${isDark ? 'text-gray-500' : 'text-neutral-500'}`}>
               Fontes: OAAA, WOO - World Out of Home Organization, CENP-Meios 2024
             </div>
           </motion.div>

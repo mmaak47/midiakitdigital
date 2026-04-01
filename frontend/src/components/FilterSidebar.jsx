@@ -19,7 +19,7 @@ const TIPOS = [
   { value: 'Frontlight', icon: Sun },
 ];
 
-export default function FilterSidebar({ filters, setFilters, total, mobileOpen, setMobileOpen }) {
+export default function FilterSidebar({ filters, setFilters, total, mobileOpen, setMobileOpen, isDark = true }) {
   const [publicos, setPublicos] = useState([]);
 
   useEffect(() => {
@@ -52,19 +52,19 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
     <div className="space-y-6">
       {/* Search */}
       <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray-500" />
+        <Search size={16} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`} />
         <input
           type="text"
           placeholder="Buscar ponto..."
           value={filters.search}
           onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
-          className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-500 focus:outline-none focus:border-brand-orange/40 transition-colors"
+          className={`w-full pl-9 pr-4 py-2.5 rounded-xl text-sm focus:outline-none focus:border-brand-orange/40 transition-colors ${isDark ? 'bg-white/5 border border-white/10 text-white placeholder:text-brand-gray-500' : 'bg-neutral-100 border border-neutral-200 text-neutral-900 placeholder:text-neutral-400'}`}
         />
       </div>
 
       {/* Result count + clear */}
       <div className="flex items-center justify-between">
-        <span className="text-xs text-brand-gray-500">
+        <span className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
           {total} ponto{total !== 1 ? 's' : ''} encontrado{total !== 1 ? 's' : ''}
         </span>
         {hasFilters && (
@@ -79,7 +79,7 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
 
       {/* Cidades */}
       <div>
-        <h3 className="text-xs font-semibold text-brand-gray-400 uppercase tracking-wider mb-3">
+        <h3 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
           Cidade
         </h3>
         <div className="space-y-1">
@@ -90,7 +90,9 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
                 filters.cidade.includes(cidade)
                   ? 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20'
-                  : 'text-brand-gray-300 hover:bg-white/5 border border-transparent'
+                  : isDark
+                    ? 'text-brand-gray-300 hover:bg-white/5 border border-transparent'
+                    : 'text-neutral-600 hover:bg-neutral-100 border border-transparent'
               }`}
             >
               <MapPin size={14} />
@@ -102,7 +104,7 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
 
       {/* Tipo */}
       <div>
-        <h3 className="text-xs font-semibold text-brand-gray-400 uppercase tracking-wider mb-3">
+        <h3 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
           Tipo
         </h3>
         <div className="space-y-1">
@@ -113,7 +115,9 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
                 filters.tipo === value
                   ? 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20'
-                  : 'text-brand-gray-300 hover:bg-white/5 border border-transparent'
+                  : isDark
+                    ? 'text-brand-gray-300 hover:bg-white/5 border border-transparent'
+                    : 'text-neutral-600 hover:bg-neutral-100 border border-transparent'
               }`}
             >
               <Icon size={14} />
@@ -125,7 +129,7 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
 
       {filters.tipo === 'Elevador' && (
         <div>
-          <h3 className="text-xs font-semibold text-brand-gray-400 uppercase tracking-wider mb-3">
+          <h3 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
             Categoria do Elevador
           </h3>
           <div className="flex flex-wrap gap-2">
@@ -139,7 +143,9 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
                   filters.elevador_categoria === categoria
                     ? 'bg-brand-orange text-white'
-                    : 'bg-white/5 text-brand-gray-400 hover:bg-white/10 border border-white/5'
+                    : isDark
+                      ? 'bg-white/5 text-brand-gray-400 hover:bg-white/10 border border-white/5'
+                      : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200 border border-neutral-200'
                 }`}
               >
                 {categoria}
@@ -152,7 +158,7 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
       {/* Público */}
       {publicos.length > 0 && (
         <div>
-          <h3 className="text-xs font-semibold text-brand-gray-400 uppercase tracking-wider mb-3">
+          <h3 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
             Público
           </h3>
           <div className="flex flex-wrap gap-2">
@@ -163,7 +169,9 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
                   filters.publico.includes(p)
                     ? 'bg-brand-orange text-white'
-                    : 'bg-white/5 text-brand-gray-400 hover:bg-white/10 border border-white/5'
+                    : isDark
+                      ? 'bg-white/5 text-brand-gray-400 hover:bg-white/10 border border-white/5'
+                      : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200 border border-neutral-200'
                 }`}
               >
                 {p}
@@ -178,10 +186,10 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden lg:block w-72 shrink-0 border-r border-white/5 p-6 overflow-y-auto h-full">
+      <aside className={`hidden lg:block w-72 shrink-0 border-r p-6 overflow-y-auto h-full ${isDark ? 'border-white/5' : 'border-neutral-200 bg-white'}`}>
         <div className="flex items-center gap-2 mb-6">
           <SlidersHorizontal size={16} className="text-brand-orange" />
-          <h2 className="font-semibold text-sm uppercase tracking-wider">Filtros</h2>
+          <h2 className={`font-semibold text-sm uppercase tracking-wider ${isDark ? '' : 'text-neutral-700'}`}>Filtros</h2>
         </div>
         {content}
       </aside>
@@ -200,16 +208,16 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
             animate={{ x: 0 }}
             exit={{ x: -300 }}
             transition={{ type: 'spring', damping: 25 }}
-            className="absolute left-0 top-0 bottom-0 w-80 bg-brand-dark border-r border-white/10 p-6 overflow-y-auto"
+            className={`absolute left-0 top-0 bottom-0 w-80 border-r p-6 overflow-y-auto ${isDark ? 'bg-brand-dark border-white/10' : 'bg-white border-neutral-200'}`}
           >
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
                 <SlidersHorizontal size={16} className="text-brand-orange" />
-                <h2 className="font-semibold text-sm uppercase tracking-wider">Filtros</h2>
+                <h2 className={`font-semibold text-sm uppercase tracking-wider ${isDark ? '' : 'text-neutral-700'}`}>Filtros</h2>
               </div>
               <button
                 onClick={() => setMobileOpen(false)}
-                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-neutral-100'}`}
               >
                 <X size={18} />
               </button>
