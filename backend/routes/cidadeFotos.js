@@ -108,10 +108,12 @@ function safeUnlink(filePath) {
 
 router.get('/cidade-fotos', (req, res) => {
   try {
+    const DB_ENGINE = String(process.env.DB_ENGINE || 'sqlite').toLowerCase();
+    const orderClause = DB_ENGINE === 'postgres' ? 'ORDER BY cidade ASC' : 'ORDER BY cidade COLLATE NOCASE ASC';
     const rows = db.prepare(`
       SELECT cidade, cidade_slug, imagem_path, updated_at
       FROM cidade_fotos
-      ORDER BY cidade ASC
+      ${orderClause}
     `).all();
 
     const data = rows.map((row) => ({
