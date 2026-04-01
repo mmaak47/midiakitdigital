@@ -115,11 +115,12 @@ function createPostgresCompat() {
         }
 
         const wrapped = `
+          WITH q AS (${finalSql})
           SELECT json_build_object(
             'changes', COUNT(*),
             'rows', COALESCE(json_agg(to_jsonb(q)), '[]'::json)
           )::text
-          FROM (${finalSql}) q
+          FROM q
         `;
 
         const raw = runPsql(wrapped);
