@@ -20,6 +20,16 @@ const DIM_LABELS = {
   cobertura: 'Cobertura',
 };
 
+const DIM_DESC = {
+  fluxo: 'Volume de fluxo de pessoas no local em relação ao máximo do inventário.',
+  eficiencia: 'Relação custo-benefício: CPM (custo por mil impactos) e inserções por real investido.',
+  entorno: 'Qualidade do entorno comercial (POIs relevantes para o segmento num raio de 800m).',
+  geoaudience: 'Classificação do bairro: tipo de vizinhança, nível socioeconômico, densidade urbana.',
+  census: 'Perfil demográfico IBGE + POIs locais: renda, educação, faixa etária da região.',
+  formato: 'Qualidade e impacto do formato de mídia (elevador, painel LED, indoor, totem, etc.).',
+  cobertura: 'Potencial de cobertura: relação entre preço e mediana do mercado.',
+};
+
 const DIM_ICONS = {
   fluxo: '🚶',
   eficiencia: '💰',
@@ -31,12 +41,12 @@ const DIM_ICONS = {
 };
 
 /* ─── small bar component ─── */
-function DimBar({ label, value, weight, isDark, icon }) {
+function DimBar({ label, value, weight, isDark, icon, desc }) {
   const pct = Math.max(0, Math.min(100, value));
   const color =
     pct >= 70 ? 'bg-emerald-500' : pct >= 45 ? 'bg-amber-500' : 'bg-red-500';
   return (
-    <div className="flex items-center gap-2 text-xs">
+    <div className="flex items-center gap-2 text-xs" title={desc}>
       <span className="w-4 text-center">{icon}</span>
       <span className={`w-[5.5rem] truncate ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
         {label}
@@ -111,6 +121,7 @@ function PointRow({ scored, rank, isDark, expanded, onToggle, onAdd }) {
                 weight={Math.round((SCREEN_SCORE_WEIGHTS[key] / totalW) * 100)}
                 isDark={isDark}
                 icon={DIM_ICONS[key] || '·'}
+                desc={DIM_DESC[key] || ''}
               />
             ))}
           </div>
@@ -209,11 +220,18 @@ const RecommendationEngine = memo(function RecommendationEngine({
   return (
     <section className={`rounded-2xl border p-5 space-y-5 ${isDark ? 'border-white/10 bg-white/[0.04]' : 'border-neutral-200 bg-white'}`}>
       {/* ── Header ── */}
-      <div className="flex items-center gap-2">
-        <Gauge size={18} className="text-brand-orange" />
-        <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? '' : 'text-neutral-800'}`}>
-          ScreenScore — Ranking Inteligente
-        </h3>
+      <div>
+        <div className="flex items-center gap-2">
+          <Gauge size={18} className="text-brand-orange" />
+          <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? '' : 'text-neutral-800'}`}>
+            ScreenScore — Ranking Inteligente
+          </h3>
+        </div>
+        <p className={`mt-1.5 text-[11px] leading-relaxed ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+          Nota de 0 a 100 calculada com 7 dimensões: <strong>Tráfego</strong> (fluxo de pessoas), <strong>Eficiência</strong> (custo-benefício),
+          {' '}<strong>Entorno</strong> (POIs relevantes), <strong>Geo-audiência</strong> (classificação do bairro), <strong>Demografia</strong> (IBGE Censo),
+          {' '}<strong>Formato</strong> (tipo de mídia) e <strong>Cobertura</strong> (posicionamento de preço). Passe o mouse sobre cada barra para ver detalhes.
+        </p>
       </div>
 
       {!hasData && (

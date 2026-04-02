@@ -18,10 +18,12 @@ function getPointTypeLabel(ponto) {
 }
 
 const CENSUS_PROFILE_SHORT = {
-  alta_renda: 'Alta Renda',
+  alta_renda: 'Público A/B',
   massa_varejo: 'Massa/Varejo',
   jovem_universitario: 'Jovem/Univ.',
-  terceira_idade: '3ª Idade'
+  terceira_idade: '3ª Idade',
+  misto: 'Perfil Misto',
+  indefinido: 'Sem perfil',
 };
 
 export default function PointCard({ ponto, onSelect, index = 0, isDark = true, geoProfile, censusProfile }) {

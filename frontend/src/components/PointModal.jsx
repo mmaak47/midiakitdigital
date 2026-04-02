@@ -25,10 +25,21 @@ import { getPrimaryPointScreenImage } from '../lib/pointImages';
 import MiniMap from './MiniMap';
 
 const CENSUS_PROFILE_LABELS = {
-  alta_renda: 'Alta Renda',
+  alta_renda: 'Público A/B',
   massa_varejo: 'Massa / Varejo',
   jovem_universitario: 'Jovem / Universitário',
-  terceira_idade: 'Terceira Idade'
+  terceira_idade: 'Terceira Idade',
+  misto: 'Perfil Misto',
+  indefinido: 'Sem perfil definido',
+};
+
+const CENSUS_PROFILE_DESC = {
+  alta_renda: 'Área com concentração de POIs premium e indicadores de maior renda (IBGE). Indica que o público que transita nessa região tem poder aquisitivo acima da média.',
+  massa_varejo: 'Área com alta densidade comercial e fluxo popular. Ideal para campanhas de varejo de massa, promoções e lançamentos de grande alcance.',
+  jovem_universitario: 'Região com presença de universidades, bares e estabelecimentos voltados ao público 18–29 anos.',
+  terceira_idade: 'Área com concentração de serviços de saúde, farmácias e espaços de lazer frequentados pelo público 60+.',
+  misto: 'Nenhum perfil se destaca de forma clara. A região tem características mistas de audiência.',
+  indefinido: 'Dados insuficientes para determinar o perfil dominante da audiência nesta região.',
 };
 
 const DEFAULT_IMAGE_FOCUS = { x: 50, y: 50, zoom: 100 };
@@ -314,8 +325,11 @@ export default function PointModal({ ponto, onClose, isDark = true, geoProfile, 
                 <div className={`rounded-xl p-4 mb-4 ${isDark ? 'bg-sky-500/[0.04] border border-sky-500/15' : 'bg-sky-50 border border-sky-200'}`}>
                   <div className="flex items-center gap-2 mb-2.5">
                     <BarChart3 size={14} className="text-sky-500" />
-                    <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-sky-400' : 'text-sky-700'}`}>Perfil demográfico IBGE</span>
+                    <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-sky-400' : 'text-sky-700'}`}>Perfil de audiência da região</span>
                   </div>
+                  <p className={`text-[11px] mb-3 leading-relaxed ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                    {CENSUS_PROFILE_DESC[censusProfile.perfil_dominante] || 'Classificação baseada em POIs (OpenStreetMap) e dados censitários (IBGE Censo 2022) num raio de 800m.'}
+                  </p>
                   <div className="grid grid-cols-2 gap-3">
                     {censusProfile.perfil_dominante && (
                       <div>
@@ -325,32 +339,44 @@ export default function PointModal({ ponto, onClose, isDark = true, geoProfile, 
                     )}
                     {censusProfile.score_geral > 0 && (
                       <div>
-                        <div className={`text-[10px] uppercase tracking-wider mb-0.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Score censo</div>
+                        <div className={`text-[10px] uppercase tracking-wider mb-0.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Confiança</div>
                         <div className="flex items-center gap-1.5">
                           <TrendingUp size={12} className="text-sky-500" />
-                          <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-800'}`}>{Number(censusProfile.score_geral).toFixed(1)}</span>
+                          <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-800'}`}>{Math.round(Number(censusProfile.score_geral) * 100)}%</span>
                         </div>
                       </div>
                     )}
                     {censusProfile.perfis && (
                       <div className="col-span-2">
-                        <div className={`text-[10px] uppercase tracking-wider mb-1.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Perfis de audiência</div>
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className={`text-[10px] uppercase tracking-wider mb-1.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Composição da audiência</div>
+                        <div className="space-y-1.5">
                           {Object.entries(censusProfile.perfis)
                             .filter(([, v]) => v > 0)
                             .sort(([, a], [, b]) => b - a)
-                            .map(([key, val]) => (
-                              <span key={key} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium ${key === censusProfile.perfil_dominante ? (isDark ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' : 'bg-sky-100 text-sky-800 border border-sky-300') : (isDark ? 'bg-white/5 text-brand-gray-400 border border-white/10' : 'bg-neutral-100 text-neutral-600 border border-neutral-200')}`}>
-                                {CENSUS_PROFILE_LABELS[key] || key}
-                                <span className="opacity-60">{Number(val).toFixed(1)}</span>
-                              </span>
-                            ))}
+                            .map(([key, val]) => {
+                              const pct = Math.round(Number(val) * 100);
+                              const isDom = key === censusProfile.perfil_dominante;
+                              return (
+                                <div key={key} className="flex items-center gap-2">
+                                  <span className={`text-[10px] w-20 truncate ${isDom ? (isDark ? 'text-sky-300 font-semibold' : 'text-sky-800 font-semibold') : (isDark ? 'text-brand-gray-400' : 'text-neutral-600')}`}>
+                                    {CENSUS_PROFILE_LABELS[key] || key}
+                                  </span>
+                                  <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`}>
+                                    <div
+                                      className={`h-full rounded-full ${isDom ? 'bg-sky-500' : (isDark ? 'bg-white/20' : 'bg-neutral-400')}`}
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <span className={`text-[10px] w-8 text-right tabular-nums font-medium ${isDark ? 'text-white/70' : 'text-neutral-600'}`}>{pct}%</span>
+                                </div>
+                              );
+                            })}
                         </div>
                       </div>
                     )}
                   </div>
                   {censusProfile.municipio && (
-                    <p className={`mt-3 text-[11px] ${isDark ? 'text-sky-300/50' : 'text-sky-700/60'}`}>Setor censitário em {censusProfile.municipio}</p>
+                    <p className={`mt-3 text-[11px] ${isDark ? 'text-sky-300/50' : 'text-sky-700/60'}`}>Análise do raio de 800m • Dados IBGE + OpenStreetMap • {censusProfile.municipio}</p>
                   )}
                 </div>
               )}

@@ -11,13 +11,17 @@ const CENSUS_PROFILE_COLORS = {
   massa_varejo:        '#3b82f6',
   jovem_universitario: '#8b5cf6',
   terceira_idade:      '#10b981',
+  misto:               '#a3a3a3',
+  indefinido:          '#525252',
 };
 
 const CENSUS_PROFILE_LABELS = {
-  alta_renda:          'Alta Renda',
+  alta_renda:          'Público A/B',
   massa_varejo:        'Massa / Varejo',
   jovem_universitario: 'Jovem / Universitário',
   terceira_idade:      'Terceira Idade',
+  misto:               'Perfil Misto',
+  indefinido:          'Sem perfil',
 };
 
 /** Generate a GeoJSON polygon approximating a circle of `radiusMeters` around [lng, lat]. */

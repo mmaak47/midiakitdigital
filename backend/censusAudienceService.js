@@ -703,10 +703,22 @@ function scoreProfiles(poiCounts, census) {
 
   // ── aggregate ───────────────────────────────────────────────
   const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-  const perfilDominante = sorted[0][0];
   const maxScore = sorted[0][1];
   const avgScore = sorted.reduce((s, [, v]) => s + v, 0) / sorted.length;
   const scoreGeral = Number((maxScore * 0.6 + avgScore * 0.4).toFixed(4));
+
+  // Dominance margin: se a diferença entre o 1º e 2º perfil for < 0.08 (8pp),
+  // a classificação não é confiável — marcar como "misto" para não enganar o usuário.
+  // Excepção: se o score máximo < 0.20, nenhum perfil tem sinal forte → "indefinido".
+  const DOMINANCE_MARGIN = 0.08;
+  let perfilDominante;
+  if (maxScore < 0.20) {
+    perfilDominante = 'indefinido';
+  } else if (sorted.length >= 2 && (sorted[0][1] - sorted[1][1]) < DOMINANCE_MARGIN) {
+    perfilDominante = 'misto';
+  } else {
+    perfilDominante = sorted[0][0];
+  }
 
   return { perfis: scores, perfilDominante, scoreGeral };
 }
