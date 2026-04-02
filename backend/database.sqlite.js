@@ -404,6 +404,39 @@ db.exec(`
   ON cidade_fotos (cidade_slug)
 `);
 
+// GeoAudience Intelligence: per-point neighbourhood classification + audience profile
+db.exec(`
+  CREATE TABLE IF NOT EXISTS geo_audience_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ponto_id INTEGER NOT NULL UNIQUE,
+    neighborhood_type TEXT,
+    neighborhood_label TEXT,
+    confidence REAL DEFAULT 0,
+    socioeconomic_level TEXT,
+    socioeconomic_score REAL DEFAULT 0,
+    environment_type TEXT,
+    dominant_activity TEXT,
+    urban_density TEXT,
+    pois_per_km2 INTEGER DEFAULT 0,
+    lifestyle_indicators TEXT,
+    poi_summary TEXT,
+    total_pois INTEGER DEFAULT 0,
+    radius_m INTEGER DEFAULT 400,
+    demographic_data TEXT,
+    audience_narrative TEXT,
+    premium_count INTEGER DEFAULT 0,
+    raw_data TEXT,
+    updated_at TEXT DEFAULT (datetime('now')),
+    expires_at TEXT,
+    FOREIGN KEY (ponto_id) REFERENCES pontos(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_geo_audience_profiles_type
+  ON geo_audience_profiles (neighborhood_type)
+`);
+
 // Seed data if empty
 const count = db.prepare('SELECT COUNT(*) as c FROM pontos').get();
 if (count.c === 0) {

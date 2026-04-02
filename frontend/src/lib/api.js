@@ -290,6 +290,62 @@ export async function geocodePoint(address) {
   return res.json(); // { lat, lng }
 }
 
+// ============== GEO-AUDIENCE INTELLIGENCE ==============
+
+export async function fetchGeoAudienceProfiles({ cidade } = {}) {
+  const params = new URLSearchParams();
+  if (cidade) params.set('cidade', cidade);
+  const qs = params.toString();
+  const res = await apiRequest(`/geoaudience/profiles${qs ? `?${qs}` : ''}`);
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao carregar perfis GeoAudience');
+  }
+  return res.json(); // { profiles: { [pontoId]: profile }, summary }
+}
+
+export async function fetchGeoAudienceProfile(pontoId) {
+  const res = await apiRequest(`/geoaudience/profile/${pontoId}`);
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Perfil GeoAudience não encontrado');
+  }
+  return res.json();
+}
+
+export async function fetchGeoAudienceCoverage({ cidade } = {}) {
+  const params = new URLSearchParams();
+  if (cidade) params.set('cidade', cidade);
+  const qs = params.toString();
+  const res = await apiRequest(`/geoaudience/coverage${qs ? `?${qs}` : ''}`);
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao carregar cobertura GeoAudience');
+  }
+  return res.json();
+}
+
+export async function fetchGeoAudienceTypes() {
+  const res = await apiRequest('/geoaudience/types');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao carregar tipos de bairro');
+  }
+  return res.json();
+}
+
+export async function requestGeoAudienceAnalysis({ cidade, force = false } = {}) {
+  const res = await apiRequest('/geoaudience/analyze', {
+    method: 'POST',
+    body: JSON.stringify({ cidade: cidade || null, force })
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao iniciar análise GeoAudience');
+  }
+  return res.json();
+}
+
 // ============== ADMIN SETTINGS ==============
 
 export async function fetchAdminSettings() {

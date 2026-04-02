@@ -741,6 +741,90 @@ function scoreSegmentEnvironment(point, entornoByPoint = null) {
   return Math.min(48, score * 0.62 + total * 1.35 + categories * 2.8);
 }
 
+// ─── GeoAudience Intelligence Scoring ─────────────────────────────────────
+// Segment ↔ Neighbourhood affinity matrix (mirrors backend SEGMENT_NEIGHBORHOOD_AFFINITY)
+const GEO_SEGMENT_AFFINITY = {
+  clinica:       { polo_saude: 1.8, residencial_premium: 1.4, centro_corporativo: 1.2 },
+  hospital:      { polo_saude: 1.9, residencial_medio: 1.2 },
+  escola:        { polo_educacional: 1.8, residencial_medio: 1.5, residencial_premium: 1.3 },
+  faculdade:     { zona_universitaria: 1.9, zona_lazer: 1.2, polo_educacional: 1.4 },
+  construtora:   { residencial_premium: 1.6, centro_corporativo: 1.3, residencial_medio: 1.2 },
+  imobiliaria:   { residencial_premium: 1.7, centro_corporativo: 1.3, zona_comercial: 1.2 },
+  varejo:        { zona_comercial: 1.8, zona_popular_densa: 1.4, residencial_medio: 1.2 },
+  restaurante:   { zona_lazer: 1.7, zona_comercial: 1.4, centro_corporativo: 1.3 },
+  contabilidade: { centro_corporativo: 1.8, zona_comercial: 1.3 },
+  advocacia:     { centro_corporativo: 1.8, zona_comercial: 1.2 },
+  industria:     { zona_popular_densa: 1.3, zona_comercial: 1.2 },
+  outro:         {}
+};
+
+// Audience class ↔ socioeconomic level affinity
+const PUBLICO_SOCIO_AFFINITY = {
+  'A':     { alto: 1.5, 'medio-alto': 1.2 },
+  'A/B':   { alto: 1.3, 'medio-alto': 1.3 },
+  'A/B+':  { alto: 1.4, 'medio-alto': 1.3 },
+  'B':     { 'medio-alto': 1.2, medio: 1.1 },
+  'B/C':   { medio: 1.2, 'medio-baixo': 1.1 },
+  'A/B/C': { 'medio-alto': 1.15, medio: 1.1 }
+};
+
+/**
+ * Score a point based on its GeoAudience neighbourhood profile and the target campaign.
+ * Returns 0-50 (raw score, will be normalized).
+ */
+function scoreGeoAudienceAffinity(point, { segmento, publico, geoProfilesByPoint } = {}) {
+  if (!geoProfilesByPoint || !point?.id) return 0;
+
+  const profile = geoProfilesByPoint[point.id] || geoProfilesByPoint[String(point.id)];
+  if (!profile || profile.neighborhood_type === 'indefinido') return 0;
+
+  let score = 0;
+
+  // 1. Segment ↔ neighbourhood affinity (0-20)
+  if (segmento) {
+    const affinityMap = GEO_SEGMENT_AFFINITY[segmento] || {};
+    const multiplier = affinityMap[profile.neighborhood_type] || 1.0;
+    score += Math.min(20, (profile.confidence || 0) * 0.15 * multiplier);
+  }
+
+  // 2. Audience class ↔ socioeconomic level (0-12)
+  if (publico) {
+    const targetPublico = (Array.isArray(publico) ? publico[0] : publico || '').toUpperCase();
+    const socioMap = PUBLICO_SOCIO_AFFINITY[targetPublico] || {};
+    const socioMultiplier = socioMap[profile.socioeconomic_level] || 1.0;
+    score += Math.min(12, (profile.socioeconomic_score || 0) * 0.1 * socioMultiplier);
+  }
+
+  // 3. Urban density bonus (0-8) — higher density = more impressions potential
+  const densityBonus = { 'muito alta': 8, alta: 6, media: 4, baixa: 2, 'muito baixa': 0 };
+  score += densityBonus[profile.urban_density] || 0;
+
+  // 4. POI richness bonus (0-10)
+  const poisNorm = Math.min(1, (profile.total_pois || 0) / 80);
+  score += poisNorm * 10;
+
+  return Math.min(50, score);
+}
+
+export function buildGeoAudienceNarrative(profile) {
+  if (!profile) return null;
+  return {
+    type: profile.neighborhood_type,
+    label: profile.neighborhood_label,
+    confidence: profile.confidence,
+    socioeconomic: profile.socioeconomic_level,
+    environment: profile.environment_type,
+    dominantActivity: profile.dominant_activity,
+    urbanDensity: profile.urban_density,
+    poisPerKm2: profile.pois_per_km2,
+    lifestyle: profile.lifestyle_indicators || [],
+    narrative: profile.audience_narrative || '',
+    poiSummary: profile.poi_summary || {},
+    totalPois: profile.total_pois || 0,
+    demographic: profile.demographic_data || {}
+  };
+}
+
 function buildCandidate(point, {
   objetivo,
   publico,
@@ -749,7 +833,8 @@ function buildCandidate(point, {
   maxPrice,
   entornoByPoint,
   audienceTags,
-  availabilityPreference
+  availabilityPreference,
+  geoProfilesByPoint
 }) {
   const preco = Math.max(0, toNumber(point.preco));
   const objectiveScore = scorePointByObjective(point, objetivo);
@@ -759,6 +844,7 @@ function buildCandidate(point, {
   const availabilityScore = scoreAvailabilityFit(point, availabilityPreference);
   const segmentoScore = scoreSegmentAffinity(point, segmento);
   const entornoScore = scoreSegmentEnvironment(point, entornoByPoint);
+  const geoAudienceScore = scoreGeoAudienceAffinity(point, { segmento, publico, geoProfilesByPoint });
   const formatBoost = getObjectiveFormatBoost(point.tipo, objetivo);
   const premiumPenalty = preco > medianPrice * 2.4 ? -8 : 0;
   const hugePenalty = maxPrice > 0 && preco > maxPrice * 0.85 ? -4 : 0;
@@ -767,6 +853,7 @@ function buildCandidate(point, {
     ...point,
     _preco: preco,
     _entornoScore: entornoScore,
+    _geoAudienceScore: geoAudienceScore,
     _baseScore:
       objectiveScore * 1.25 +
       efficiencyScore * 0.9 +
@@ -775,6 +862,7 @@ function buildCandidate(point, {
       availabilityScore +
       segmentoScore +
       entornoScore +
+      geoAudienceScore +
       formatBoost +
       premiumPenalty +
       hugePenalty
@@ -830,6 +918,7 @@ export function suggestIdealPlan({
   periodWeeks = 4,
   investimentoMensal = 0,
   entornoByPoint = null,
+  geoProfilesByPoint = null,
   cityInventory = []
 }) {
   const budget = Math.max(0, toNumber(investimentoMensal));
@@ -869,7 +958,8 @@ export function suggestIdealPlan({
       maxPrice,
       entornoByPoint,
       audienceTags,
-      availabilityPreference
+      availabilityPreference,
+      geoProfilesByPoint
     }))
     .sort((a, b) => b._baseScore - a._baseScore);
 
@@ -1324,12 +1414,13 @@ export function generateStrategicJustification({
    ────────────────────────────────────────────────────────── */
 
 const DEFAULT_WEIGHTS = {
-  objetivo: 25,
-  publico: 20,
-  eficiencia: 15,
-  entorno: 15,
-  segmento: 10,
-  formato: 10,
+  objetivo: 22,
+  publico: 18,
+  eficiencia: 13,
+  entorno: 12,
+  geoaudience: 12,
+  segmento: 9,
+  formato: 9,
   disponibilidade: 5
 };
 
@@ -1345,6 +1436,7 @@ export function rankPointsWithScore({
   objetivo,
   segmento,
   entornoByPoint = null,
+  geoProfilesByPoint = null,
   availabilityPreference = 'all',
   budget = 0,
   weights = DEFAULT_WEIGHTS
@@ -1367,11 +1459,12 @@ export function rankPointsWithScore({
     const pubRaw = scorePublicoAffinity(p, publicoNormalizado) + scoreAudienceTagAffinity(p, audienceTags);
     const effRaw = scoreCostEfficiency(p);
     const entRaw = scoreSegmentEnvironment(p, entornoByPoint);
+    const geoRaw = scoreGeoAudienceAffinity(p, { segmento, publico: publicoNormalizado, geoProfilesByPoint });
     const segRaw = scoreSegmentAffinity(p, segmento);
     const fmtRaw = getObjectiveFormatBoost(p.tipo, objetivo);
     const availRaw = scoreAvailabilityFit(p, availabilityPreference);
 
-    return { point: p, objRaw, pubRaw, effRaw, entRaw, segRaw, fmtRaw, availRaw };
+    return { point: p, objRaw, pubRaw, effRaw, entRaw, geoRaw, segRaw, fmtRaw, availRaw };
   });
 
   // Find max of each dimension for normalization
@@ -1379,6 +1472,7 @@ export function rankPointsWithScore({
   const maxPub = Math.max(1, ...rawScores.map((r) => r.pubRaw));
   const maxEff = Math.max(1, ...rawScores.map((r) => r.effRaw));
   const maxEnt = Math.max(1, ...rawScores.map((r) => r.entRaw));
+  const maxGeo = Math.max(1, ...rawScores.map((r) => r.geoRaw));
   const maxSeg = Math.max(1, ...rawScores.map((r) => r.segRaw));
   const maxFmt = Math.max(1, ...rawScores.map((r) => r.fmtRaw));
   const maxAvail = Math.max(1, ...rawScores.map((r) => r.availRaw));
@@ -1392,6 +1486,7 @@ export function rankPointsWithScore({
       publico: Math.max(0, Math.min(100, (r.pubRaw / maxPub) * 100)),
       eficiencia: Math.max(0, Math.min(100, (r.effRaw / maxEff) * 100)),
       entorno: Math.max(0, Math.min(100, (r.entRaw / maxEnt) * 100)),
+      geoaudience: Math.max(0, Math.min(100, (r.geoRaw / maxGeo) * 100)),
       segmento: Math.max(0, Math.min(100, (r.segRaw / maxSeg) * 100)),
       formato: Math.max(0, Math.min(100, (r.fmtRaw / maxFmt) * 100)),
       disponibilidade: Math.max(0, Math.min(100, (r.availRaw / maxAvail) * 100))
@@ -1407,6 +1502,9 @@ export function rankPointsWithScore({
     const p = r.point;
     const fluxo = toNumber(p.fluxo);
 
+    // Attach geoaudience profile if available
+    const geoProfile = geoProfilesByPoint?.[p.id] || geoProfilesByPoint?.[String(p.id)] || null;
+
     // Determine primary reason for recommendation
     const dimEntries = Object.entries(dims).sort((a, b) => b[1] - a[1]);
     const strongDims = dimEntries.filter(([, v]) => v >= 70).slice(0, 2);
@@ -1416,6 +1514,7 @@ export function rankPointsWithScore({
       publico: 'compatibilidade com o público-alvo',
       eficiencia: 'eficiência de custo por impacto',
       entorno: 'afinidade de entorno com o segmento',
+      geoaudience: 'perfil de audiência do bairro',
       segmento: 'aderência ao segmento do anunciante',
       formato: 'formato adequado ao objetivo',
       disponibilidade: 'disponibilidade de veiculação'
@@ -1424,6 +1523,11 @@ export function rankPointsWithScore({
       motivoPrincipal = `Destaque por ${strongDims.map(([k]) => DIM_LABELS[k]).join(' e ')}.`;
     } else {
       motivoPrincipal = `Perfil equilibrado com boa pontuação geral entre os critérios da campanha.`;
+    }
+
+    // Enrich motive with geoaudience when it's the top dimension
+    if (geoProfile && dims.geoaudience >= 60) {
+      motivoPrincipal += ` Localizado em ${geoProfile.neighborhood_label} (${geoProfile.socioeconomic_level}).`;
     }
 
     // Estimated monthly reach for this single point
@@ -1436,7 +1540,8 @@ export function rankPointsWithScore({
       motivoPrincipal,
       estimatedReach,
       estimatedInvestment: toNumber(p.preco),
-      cpmPonto: fluxo > 0 ? toNumber(p.preco) / (fluxo / 1000) : 0
+      cpmPonto: fluxo > 0 ? toNumber(p.preco) / (fluxo / 1000) : 0,
+      geoProfile
     };
   }).sort((a, b) => b.compatibilidade - a.compatibilidade);
 }

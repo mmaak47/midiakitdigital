@@ -11,7 +11,7 @@ import Navbar from '../components/Navbar';
 import CampaignScore from '../components/CampaignScore';
 import PointCard from '../components/PointCard';
 import PointModal from '../components/PointModal';
-import { fetchPontos } from '../lib/api';
+import { fetchPontos, fetchGeoAudienceProfiles } from '../lib/api';
 import { useFavorites } from '../context/FavoritesContext';
 import {
   SEGMENTOS,
@@ -23,6 +23,7 @@ import {
   RECOMMENDATION_WEIGHTS,
   estimateReachFrequency,
   campaignTotals,
+  buildGeoAudienceNarrative,
 } from '../lib/strategy';
 
 const SmartMap = lazy(() => import('../components/SmartMap'));
@@ -250,6 +251,7 @@ export default function CampaignPlanner() {
 
   // data
   const [allPontos, setAllPontos] = useState([]);
+  const [geoProfiles, setGeoProfiles] = useState(null); // { [pontoId]: profile }
   const [cidades, setCidades] = useState([]);
   const [publicos, setPublicos] = useState([]);
   const [loadingPontos, setLoadingPontos] = useState(false);
@@ -265,12 +267,16 @@ export default function CampaignPlanner() {
     localStorage.setItem('intermidia_theme', isDark ? 'dark' : 'light');
   }, [isDark]);
 
-  // load pontos on mount to get cities and publicos
+  // load pontos and geoaudience profiles on mount
   useEffect(() => {
     setLoadingPontos(true);
-    fetchPontos()
-      .then((data) => {
+    Promise.all([
+      fetchPontos(),
+      fetchGeoAudienceProfiles().catch(() => ({ profiles: {} }))
+    ])
+      .then(([data, geo]) => {
         setAllPontos(data);
+        setGeoProfiles(geo?.profiles || null);
         const uniqueCidades = Array.from(new Set(data.map((p) => p.cidade).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
         const uniquePublicos = Array.from(new Set(data.map((p) => p.publico).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
         setCidades(uniqueCidades);
@@ -307,6 +313,7 @@ export default function CampaignPlanner() {
           segmento,
           periodWeeks: period,
           investimentoMensal: budget || 0,
+          geoProfilesByPoint: geoProfiles,
           cityInventory: cityPontos,
         });
 
@@ -341,6 +348,7 @@ export default function CampaignPlanner() {
           objetivo,
           segmento,
           budget: budget || 0,
+          geoProfilesByPoint: geoProfiles,
         });
 
         setResult({ plan, scoreInfo, strategic, ranked });
@@ -348,7 +356,7 @@ export default function CampaignPlanner() {
         setStep(4);
       }, 100);
     });
-  }, [allPontos, cidade, publicoAlvo, audienceTags, objetivo, segmento, budget, period, empresa]);
+  }, [allPontos, cidade, publicoAlvo, audienceTags, objetivo, segmento, budget, period, empresa, geoProfiles]);
 
   const handleNext = useCallback(() => {
     if (step === 3) {
@@ -552,6 +560,7 @@ export default function CampaignPlanner() {
       publico: 'Público',
       eficiencia: 'Eficiência',
       entorno: 'Entorno',
+      geoaudience: 'GeoAudiência',
       segmento: 'Segmento',
       formato: 'Formato',
       disponibilidade: 'Disponibilidade'
@@ -562,6 +571,7 @@ export default function CampaignPlanner() {
       publico: 'bg-blue-500',
       eficiencia: 'bg-emerald-500',
       entorno: 'bg-purple-500',
+      geoaudience: 'bg-indigo-500',
       segmento: 'bg-amber-500',
       formato: 'bg-cyan-500',
       disponibilidade: 'bg-rose-400'
@@ -724,6 +734,35 @@ export default function CampaignPlanner() {
                             <p className={`text-xs mt-2 ${isDark ? 'text-white/35' : 'text-neutral-400'}`}>
                               {pt.motivoPrincipal}
                             </p>
+
+                            {/* GeoAudience Profile Badge */}
+                            {pt.geoProfile && pt.geoProfile.neighborhood_type !== 'indefinido' && (
+                              <div className={`flex flex-wrap items-center gap-2 mt-2 pt-2 border-t ${isDark ? 'border-white/5' : 'border-neutral-100'}`}>
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                  isDark ? 'bg-indigo-500/15 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
+                                }`}>
+                                  <MapPin size={10} />
+                                  {pt.geoProfile.neighborhood_label}
+                                </span>
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                  pt.geoProfile.socioeconomic_level === 'alto'
+                                    ? isDark ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-50 text-amber-700'
+                                    : pt.geoProfile.socioeconomic_level === 'medio-alto'
+                                      ? isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-700'
+                                      : isDark ? 'bg-white/10 text-white/50' : 'bg-neutral-100 text-neutral-600'
+                                }`}>
+                                  {pt.geoProfile.socioeconomic_level === 'alto' ? 'Nível Alto' :
+                                   pt.geoProfile.socioeconomic_level === 'medio-alto' ? 'Nível Médio-Alto' :
+                                   pt.geoProfile.socioeconomic_level === 'medio' ? 'Nível Médio' :
+                                   'Nível Médio-Baixo'}
+                                </span>
+                                {pt.geoProfile.urban_density && (
+                                  <span className={`text-[10px] ${isDark ? 'text-white/25' : 'text-neutral-400'}`}>
+                                    Densidade {pt.geoProfile.urban_density} • {pt.geoProfile.total_pois || 0} POIs
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </motion.div>

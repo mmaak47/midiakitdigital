@@ -56,6 +56,7 @@ const {
   getAutoRefreshState,
   runAutoRefreshCycle
 } = require('./entornoAnalysis');
+const geoAudience = require('./geoAudienceService');
 
 const app = express();
 
@@ -1240,6 +1241,101 @@ app.post('/api/entorno/client-address', requireRoles(['admin', 'gerente_comercia
       byPoint,
       rankedPoints: rankedPoints.slice(0, 12)
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================== GEO-AUDIENCE INTELLIGENCE =========================
+
+// GET all profiles (optionally filtered by city)
+app.get('/api/geoaudience/profiles', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const cidade = String(req.query.cidade || '').trim() || null;
+    const profiles = geoAudience.getAllProfiles(cidade);
+    const summary = geoAudience.getCoverageSummary(cidade);
+    res.json({ profiles, summary });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET single point profile
+app.get('/api/geoaudience/profile/:pontoId', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const pontoId = Number(req.params.pontoId);
+    if (!Number.isFinite(pontoId)) return res.status(400).json({ error: 'ID inválido' });
+    const profile = geoAudience.getProfile(pontoId);
+    if (!profile) return res.status(404).json({ error: 'Perfil não encontrado. Execute a análise primeiro.' });
+    res.json(profile);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET coverage summary
+app.get('/api/geoaudience/coverage', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const cidade = String(req.query.cidade || '').trim() || null;
+    const summary = geoAudience.getCoverageSummary(cidade);
+    res.json(summary);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET neighbourhood type definitions
+app.get('/api/geoaudience/types', (req, res) => {
+  const types = Object.entries(geoAudience.NEIGHBORHOOD_TYPES).map(([key, def]) => ({
+    type: key,
+    label: def.label,
+    icon: def.icon,
+    socioeconomic: def.socioeconomic,
+    environment: def.environment,
+    dominantActivity: def.dominantActivity,
+    lifestyle: def.lifestyle
+  }));
+  res.json({ types, radius: geoAudience.GEO_RADIUS });
+});
+
+// POST trigger analysis for a city (or all cities)
+app.post('/api/geoaudience/analyze', requireRoles(['admin', 'gerente_comercial']), async (req, res) => {
+  try {
+    const cidade = String(req.body?.cidade || '').trim() || null;
+    const force = req.body?.force === true;
+
+    // Return immediately, run analysis in background
+    res.status(202).json({
+      success: true,
+      message: `Análise GeoAudience iniciada${cidade ? ` para ${cidade}` : ' para todas as cidades'}.`,
+      cidade,
+      force
+    });
+
+    // Run asynchronously
+    geoAudience.analyzeCity(cidade, { force }).then((result) => {
+      console.log(`[geoaudience] Analysis complete: ${result.analyzed} analyzed, ${result.skipped} skipped, ${result.errors} errors`);
+    }).catch((err) => {
+      console.error('[geoaudience] Analysis failed:', err.message);
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST analyze a single point
+app.post('/api/geoaudience/analyze/:pontoId', requireRoles(['admin', 'gerente_comercial']), async (req, res) => {
+  try {
+    const pontoId = Number(req.params.pontoId);
+    if (!Number.isFinite(pontoId)) return res.status(400).json({ error: 'ID inválido' });
+
+    const point = db.prepare('SELECT id, nome, cidade, lat, lng FROM pontos WHERE id = ? AND ativo = 1').get(pontoId);
+    if (!point) return res.status(404).json({ error: 'Ponto não encontrado' });
+
+    const profile = await geoAudience.analyzePoint(point);
+    if (!profile) return res.status(422).json({ error: 'Coordenadas inválidas para este ponto' });
+
+    res.json({ success: true, profile });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
