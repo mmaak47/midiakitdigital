@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft, ArrowRight, Building2, Target, Users, MapPin, Wallet,
-  Sparkles, Plus, CheckCircle, Loader2, BarChart3, Eye, Star, TrendingUp, MessageSquareText, Award
+  Sparkles, Plus, CheckCircle, Loader2, BarChart3, Eye, Star, TrendingUp,
+  MessageSquareText, Award, ListOrdered, Map as MapIcon, FileText, SlidersHorizontal,
+  ChevronDown, ChevronUp, Zap, Trophy
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import CampaignScore from '../components/CampaignScore';
@@ -17,6 +19,9 @@ import {
   suggestIdealPlan,
   calculateCampaignScore,
   generateStrategicJustification,
+  rankPointsWithScore,
+  RECOMMENDATION_WEIGHTS,
+  estimateReachFrequency,
   campaignTotals,
 } from '../lib/strategy';
 
@@ -96,6 +101,10 @@ function formatMoney(value) {
 
 function formatInt(value) {
   return new Intl.NumberFormat('pt-BR').format(Math.round(Number(value) || 0));
+}
+
+function toNumber(v) {
+  return Number(v) || 0;
 }
 
 /* ───────────── shared ui pieces ───────────── */
@@ -323,12 +332,23 @@ export default function CampaignPlanner() {
           cityInventory: cityPontos,
         });
 
-        setResult({ plan, scoreInfo, strategic });
+        // Rank ALL city inventory with 0-100 compatibility scores
+        const ranked = rankPointsWithScore({
+          pontos: allPontos,
+          cidade: cidade || undefined,
+          publico: publicoAlvo.length ? publicoAlvo : undefined,
+          audienceTags: audienceTags.map((key) => ({ key, weight: 1 })),
+          objetivo,
+          segmento,
+          budget: budget || 0,
+        });
+
+        setResult({ plan, scoreInfo, strategic, ranked });
         setComputing(false);
         setStep(4);
       }, 100);
     });
-  }, [allPontos, cidade, publicoAlvo, audienceTags, objetivo, segmento, budget, period]);
+  }, [allPontos, cidade, publicoAlvo, audienceTags, objetivo, segmento, budget, period, empresa]);
 
   const handleNext = useCallback(() => {
     if (step === 3) {
@@ -509,10 +529,43 @@ export default function CampaignPlanner() {
     </StepCard>
   );
 
+  // results view state
+  const [resultTab, setResultTab] = useState('ranking');
+  const [rankExpanded, setRankExpanded] = useState(10);
+
   const renderResults = () => {
     if (!result) return null;
-    const { plan, scoreInfo, strategic } = result;
+    const { plan, scoreInfo, strategic, ranked } = result;
     const totals = plan.totals;
+    const top10 = (ranked || []).slice(0, 10);
+    const rankVisible = (ranked || []).slice(0, rankExpanded);
+    const selectedIds = new Set(plan.pontos.map((p) => p.id));
+
+    const TABS = [
+      { key: 'ranking', icon: ListOrdered, label: 'Ranking' },
+      { key: 'strategic', icon: FileText, label: 'Estratégia' },
+      { key: 'map', icon: MapIcon, label: 'Mapa' },
+    ];
+
+    const DIM_LABELS = {
+      objetivo: 'Objetivo',
+      publico: 'Público',
+      eficiencia: 'Eficiência',
+      entorno: 'Entorno',
+      segmento: 'Segmento',
+      formato: 'Formato',
+      disponibilidade: 'Disponibilidade'
+    };
+
+    const DIM_COLORS = {
+      objetivo: 'bg-brand-orange',
+      publico: 'bg-blue-500',
+      eficiencia: 'bg-emerald-500',
+      entorno: 'bg-purple-500',
+      segmento: 'bg-amber-500',
+      formato: 'bg-cyan-500',
+      disponibilidade: 'bg-rose-400'
+    };
 
     return (
       <motion.div
@@ -526,121 +579,344 @@ export default function CampaignPlanner() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                Plano recomendado para {empresa}
+                Recomendação inteligente para {empresa}
               </h2>
               <p className={`text-sm mt-1 ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>
                 {SEGMENTO_LABELS[segmento]} — {OBJETIVO_LABELS[objetivo]} — {cidade}
+                {ranked?.length ? ` — ${ranked.length} pontos analisados` : ''}
               </p>
             </div>
             <CampaignScore scoreInfo={scoreInfo} isDark={isDark} />
           </div>
         </div>
 
-        {/* Stats grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="Pontos" value={totals.quantidade} isDark={isDark} />
+        {/* Stats grid — expanded */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <StatCard label="Pontos selecionados" value={totals.quantidade} isDark={isDark} />
           <StatCard label="Fluxo mensal" value={formatInt(totals.fluxoTotal)} isDark={isDark} />
           <StatCard label="Investimento" value={formatMoney(totals.valorTotal)} isDark={isDark} />
           <StatCard label="CPM" value={`R$ ${totals.cpmEstimado?.toFixed(2) || '0,00'}`} isDark={isDark} />
+          <StatCard label="Alcance estimado" value={plan.reachFrequency ? `${plan.reachFrequency.effectiveReachPct?.toFixed(1) || 0}%` : '—'} isDark={isDark} />
+          <StatCard label="Frequência média" value={plan.reachFrequency ? plan.reachFrequency.avgFrequency?.toFixed(2) || '0' : '—'} isDark={isDark} />
         </div>
 
-        {/* 1. Qualidade da Seleção */}
-        {strategic?.qualidadeSelecao && (
-          <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <BarChart3 size={16} className="text-brand-orange" />
-              <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Qualidade da seleção</h3>
-            </div>
-            <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
-              {strategic.qualidadeSelecao}
-            </p>
-          </div>
-        )}
+        {/* Tab bar */}
+        <div className={`flex gap-1 p-1 rounded-xl ${isDark ? 'bg-white/[0.04]' : 'bg-neutral-100'}`}>
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setResultTab(t.key)}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                resultTab === t.key
+                  ? 'bg-brand-orange text-white shadow-sm'
+                  : isDark
+                    ? 'text-white/50 hover:text-white hover:bg-white/[0.06]'
+                    : 'text-neutral-500 hover:text-neutral-700 hover:bg-white'
+              }`}
+            >
+              <t.icon size={15} />
+              <span className="hidden sm:inline">{t.label}</span>
+            </button>
+          ))}
+        </div>
 
-        {/* 2. Justificativa Estratégica */}
-        {strategic?.justificativaEstrategica && (
-          <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp size={16} className="text-brand-orange" />
-              <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Justificativa estratégica</h3>
-            </div>
-            <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
-              {strategic.justificativaEstrategica}
-            </p>
-          </div>
-        )}
-
-        {/* 3. Argumentação Comercial */}
-        {strategic?.argumentacaoComercial?.length > 0 && (
-          <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <MessageSquareText size={16} className="text-brand-orange" />
-              <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Argumentação comercial</h3>
-            </div>
-            <ul className="space-y-2.5">
-              {strategic.argumentacaoComercial.map((arg, i) => (
-                <li key={i} className={`text-sm flex gap-2.5 ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
-                  <span className="text-brand-orange mt-0.5 flex-shrink-0 font-bold">•</span>
-                  <span className="leading-relaxed">{arg}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* 4. Destaques do Plano */}
-        {strategic?.destaquesPlano?.length > 0 && (
-          <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <Award size={16} className="text-brand-orange" />
-              <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Destaques do plano</h3>
-            </div>
-            <div className="space-y-4">
-              {strategic.destaquesPlano.map((h, i) => (
-                <div key={i} className={`rounded-xl border p-4 ${isDark ? 'border-white/[0.06] bg-white/[0.02]' : 'border-neutral-100 bg-neutral-50'}`}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Star size={14} className="text-brand-orange" />
-                    <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{h.nome}</span>
-                  </div>
-                  <div className={`flex flex-wrap gap-3 text-xs mb-2 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>
-                    <span>{h.tipo}</span>
-                    <span>•</span>
-                    <span>{h.fluxo} impactos/mês</span>
-                  </div>
-                  <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>{h.motivo}</p>
+        {/* ─── TAB: RANKING ─── */}
+        {resultTab === 'ranking' && (
+          <div className="space-y-4">
+            {/* Top 10 banner */}
+            {top10.length > 0 && (
+              <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
+                <div className="flex items-center gap-2 mb-4">
+                  <Trophy size={16} className="text-brand-orange" />
+                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>
+                    Top {Math.min(10, top10.length)} — Pontos mais compatíveis
+                  </h3>
                 </div>
-              ))}
-            </div>
+
+                <div className="space-y-3">
+                  {rankVisible.map((pt, i) => {
+                    const isInPlan = selectedIds.has(pt.id);
+                    return (
+                      <motion.div
+                        key={pt.id}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        onClick={() => setSelectedPoint(pt)}
+                        className={`rounded-xl border p-4 cursor-pointer transition-all hover:scale-[1.005] ${
+                          isInPlan
+                            ? isDark
+                              ? 'border-brand-orange/30 bg-brand-orange/[0.06]'
+                              : 'border-brand-orange/30 bg-brand-orange/5'
+                            : isDark
+                              ? 'border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]'
+                              : 'border-neutral-100 bg-white hover:bg-neutral-50'
+                        }`}
+                      >
+                        <div className="flex items-start gap-4">
+                          {/* Rank badge */}
+                          <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
+                            i === 0 ? 'bg-brand-orange text-white' :
+                            i < 3 ? (isDark ? 'bg-brand-orange/20 text-brand-orange' : 'bg-brand-orange/10 text-brand-orange') :
+                            isDark ? 'bg-white/10 text-white/60' : 'bg-neutral-100 text-neutral-500'
+                          }`}>
+                            {i + 1}º
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            {/* Name + score */}
+                            <div className="flex items-center justify-between gap-3 mb-1">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-neutral-900'}`}>{pt.nome}</span>
+                                {isInPlan && (
+                                  <span className="flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-orange/20 text-brand-orange">
+                                    No plano
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <span className={`text-2xl font-bold ${
+                                  pt.compatibilidade >= 80 ? 'text-emerald-500' :
+                                  pt.compatibilidade >= 60 ? 'text-brand-orange' :
+                                  pt.compatibilidade >= 40 ? 'text-amber-500' :
+                                  isDark ? 'text-white/40' : 'text-neutral-400'
+                                }`}>
+                                  {pt.compatibilidade}
+                                </span>
+                                <span className={`text-xs ${isDark ? 'text-white/30' : 'text-neutral-400'}`}>/100</span>
+                              </div>
+                            </div>
+
+                            {/* Meta */}
+                            <div className={`flex flex-wrap gap-x-3 gap-y-1 text-xs mb-2.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>
+                              <span>{pt.tipo || 'Formato'}</span>
+                              <span>•</span>
+                              <span>{pt.publico || '—'}</span>
+                              <span>•</span>
+                              <span>{formatInt(pt.fluxo || 0)} imp/mês</span>
+                              <span>•</span>
+                              <span>{formatMoney(pt.preco || 0)}</span>
+                            </div>
+
+                            {/* Score breakdown bars */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1.5">
+                              {Object.entries(pt.dimensoes || {})
+                                .filter(([, v]) => v > 0)
+                                .sort((a, b) => b[1] - a[1])
+                                .slice(0, 4)
+                                .map(([dim, val]) => (
+                                  <div key={dim} className="flex items-center gap-2">
+                                    <span className={`text-[10px] w-16 flex-shrink-0 ${isDark ? 'text-white/30' : 'text-neutral-400'}`}>
+                                      {DIM_LABELS[dim] || dim}
+                                    </span>
+                                    <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`}>
+                                      <div
+                                        className={`h-full rounded-full transition-all ${DIM_COLORS[dim] || 'bg-brand-orange'}`}
+                                        style={{ width: `${Math.round(val)}%` }}
+                                      />
+                                    </div>
+                                    <span className={`text-[10px] w-6 text-right ${isDark ? 'text-white/30' : 'text-neutral-400'}`}>{Math.round(val)}</span>
+                                  </div>
+                                ))}
+                            </div>
+
+                            {/* Motive */}
+                            <p className={`text-xs mt-2 ${isDark ? 'text-white/35' : 'text-neutral-400'}`}>
+                              {pt.motivoPrincipal}
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+
+                {/* Show more / less */}
+                {(ranked || []).length > 10 && (
+                  <div className="flex justify-center mt-4">
+                    <button
+                      onClick={() => setRankExpanded((prev) => prev <= 10 ? Math.min(ranked.length, 25) : 10)}
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium border transition-all ${
+                        isDark
+                          ? 'border-white/10 text-white/50 hover:text-white hover:bg-white/[0.04]'
+                          : 'border-neutral-200 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-50'
+                      }`}
+                    >
+                      {rankExpanded <= 10 ? (
+                        <><ChevronDown size={14} /> Ver mais pontos ({Math.min(ranked.length, 25)} de {ranked.length})</>
+                      ) : (
+                        <><ChevronUp size={14} /> Mostrar apenas Top 10</>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Estimates panel */}
+            {top10.length > 0 && (
+              <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap size={16} className="text-brand-orange" />
+                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>
+                    Estimativas do Top 10
+                  </h3>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className={`rounded-xl p-3 text-center ${isDark ? 'bg-white/[0.03]' : 'bg-neutral-50'}`}>
+                    <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                      {formatInt(top10.reduce((s, p) => s + (p.estimatedReach || 0), 0))}
+                    </div>
+                    <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>Alcance estimado/mês</div>
+                  </div>
+                  <div className={`rounded-xl p-3 text-center ${isDark ? 'bg-white/[0.03]' : 'bg-neutral-50'}`}>
+                    <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                      {formatInt(top10.reduce((s, p) => s + toNumber(p.fluxo), 0))}
+                    </div>
+                    <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>Impactos potenciais/mês</div>
+                  </div>
+                  <div className={`rounded-xl p-3 text-center ${isDark ? 'bg-white/[0.03]' : 'bg-neutral-50'}`}>
+                    <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                      {formatMoney(top10.reduce((s, p) => s + toNumber(p.preco), 0))}
+                    </div>
+                    <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>Investimento Top 10</div>
+                  </div>
+                  <div className={`rounded-xl p-3 text-center ${isDark ? 'bg-white/[0.03]' : 'bg-neutral-50'}`}>
+                    <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                      {(() => {
+                        const f = top10.reduce((s, p) => s + toNumber(p.fluxo), 0);
+                        const v = top10.reduce((s, p) => s + toNumber(p.preco), 0);
+                        return f > 0 ? `R$ ${(v / (f / 1000)).toFixed(2)}` : '—';
+                      })()}
+                    </div>
+                    <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>CPM médio Top 10</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Recommended plan point cards */}
+            {plan.pontos.length > 0 && (
+              <div>
+                <h3 className={`text-sm font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>
+                  Pontos do plano otimizado ({plan.pontos.length})
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {plan.pontos.map((ponto, i) => (
+                    <PointCard key={ponto.id} ponto={ponto} onSelect={setSelectedPoint} index={i} isDark={isDark} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Map */}
-        {plan.pontos.length > 0 && (
-          <div className={`rounded-2xl border overflow-hidden ${isDark ? 'border-white/10' : 'border-neutral-200 shadow-sm'}`}>
-            <div className="h-[350px] sm:h-[420px]">
-              <Suspense fallback={<div className="h-full flex items-center justify-center text-sm text-white/30">Carregando mapa...</div>}>
-                <SmartMap
-                  pontos={plan.pontos}
-                  onSelect={setSelectedPoint}
-                  onOpenDetails={setSelectedPoint}
-                  isDark={isDark}
-                />
-              </Suspense>
-            </div>
+        {/* ─── TAB: STRATEGIC ─── */}
+        {resultTab === 'strategic' && (
+          <div className="space-y-5">
+            {/* 1. Qualidade da Seleção */}
+            {strategic?.qualidadeSelecao && (
+              <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <BarChart3 size={16} className="text-brand-orange" />
+                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Qualidade da seleção</h3>
+                </div>
+                <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
+                  {strategic.qualidadeSelecao}
+                </p>
+              </div>
+            )}
+
+            {/* 2. Justificativa Estratégica */}
+            {strategic?.justificativaEstrategica && (
+              <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp size={16} className="text-brand-orange" />
+                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Justificativa estratégica</h3>
+                </div>
+                <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
+                  {strategic.justificativaEstrategica}
+                </p>
+              </div>
+            )}
+
+            {/* 3. Argumentação Comercial */}
+            {strategic?.argumentacaoComercial?.length > 0 && (
+              <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <MessageSquareText size={16} className="text-brand-orange" />
+                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Argumentação comercial</h3>
+                </div>
+                <ul className="space-y-2.5">
+                  {strategic.argumentacaoComercial.map((arg, i) => (
+                    <li key={i} className={`text-sm flex gap-2.5 ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
+                      <span className="text-brand-orange mt-0.5 flex-shrink-0 font-bold">•</span>
+                      <span className="leading-relaxed">{arg}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* 4. Destaques do Plano */}
+            {strategic?.destaquesPlano?.length > 0 && (
+              <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Award size={16} className="text-brand-orange" />
+                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Destaques do plano</h3>
+                </div>
+                <div className="space-y-4">
+                  {strategic.destaquesPlano.map((h, i) => (
+                    <div key={i} className={`rounded-xl border p-4 ${isDark ? 'border-white/[0.06] bg-white/[0.02]' : 'border-neutral-100 bg-neutral-50'}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Star size={14} className="text-brand-orange" />
+                        <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{h.nome}</span>
+                      </div>
+                      <div className={`flex flex-wrap gap-3 text-xs mb-2 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>
+                        <span>{h.tipo}</span>
+                        <span>•</span>
+                        <span>{h.fluxo} impactos/mês</span>
+                      </div>
+                      <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>{h.motivo}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Point cards */}
-        {plan.pontos.length > 0 && (
-          <div>
-            <h3 className={`text-sm font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>
-              Pontos recomendados ({plan.pontos.length})
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {plan.pontos.map((ponto, i) => (
-                <PointCard key={ponto.id} ponto={ponto} onSelect={setSelectedPoint} index={i} isDark={isDark} />
-              ))}
-            </div>
+        {/* ─── TAB: MAP ─── */}
+        {resultTab === 'map' && (
+          <div className="space-y-4">
+            {plan.pontos.length > 0 && (
+              <div className={`rounded-2xl border overflow-hidden ${isDark ? 'border-white/10' : 'border-neutral-200 shadow-sm'}`}>
+                <div className="h-[450px] sm:h-[550px]">
+                  <Suspense fallback={<div className="h-full flex items-center justify-center text-sm text-white/30">Carregando mapa...</div>}>
+                    <SmartMap
+                      pontos={plan.pontos}
+                      onSelect={setSelectedPoint}
+                      onOpenDetails={setSelectedPoint}
+                      isDark={isDark}
+                    />
+                  </Suspense>
+                </div>
+              </div>
+            )}
+
+            {/* Point cards below map */}
+            {plan.pontos.length > 0 && (
+              <div>
+                <h3 className={`text-sm font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>
+                  Pontos no mapa ({plan.pontos.length})
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {plan.pontos.map((ponto, i) => (
+                    <PointCard key={ponto.id} ponto={ponto} onSelect={setSelectedPoint} index={i} isDark={isDark} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

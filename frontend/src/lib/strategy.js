@@ -1318,3 +1318,127 @@ export function generateStrategicJustification({
     destaquesPlano: highlights
   };
 }
+
+/* ──────────────────────────────────────────────────────────
+   RANKING ENGINE — 0-100 per-point compatibility scoring
+   ────────────────────────────────────────────────────────── */
+
+const DEFAULT_WEIGHTS = {
+  objetivo: 25,
+  publico: 20,
+  eficiencia: 15,
+  entorno: 15,
+  segmento: 10,
+  formato: 10,
+  disponibilidade: 5
+};
+
+/**
+ * Score and rank ALL points in inventory.
+ * Returns array sorted by compatibilidade DESC, each with 0-100 score + breakdown.
+ */
+export function rankPointsWithScore({
+  pontos = [],
+  cidade,
+  publico,
+  audienceTags = [],
+  objetivo,
+  segmento,
+  entornoByPoint = null,
+  availabilityPreference = 'all',
+  budget = 0,
+  weights = DEFAULT_WEIGHTS
+}) {
+  const cidadeNormalizada = normalizeFilterValue(cidade, 'Todas');
+
+  // Filter by city (hard filter — only score points in target geography)
+  const filtered = pontos.filter((p) => matchesAnySelection(p.cidade, cidadeNormalizada));
+  if (!filtered.length) return [];
+
+  const publicoNormalizado = normalizeFilterValue(publico, 'Todos');
+  const prices = filtered.map((p) => Math.max(0, toNumber(p.preco))).sort((a, b) => a - b);
+  const medianPrice = prices[Math.floor(prices.length / 2)] || 1;
+  const fluxos = filtered.map((p) => toNumber(p.fluxo)).sort((a, b) => a - b);
+  const maxFluxo = fluxos[fluxos.length - 1] || 1;
+
+  // Compute raw scores for each dimension, then normalize to 0-100 per dimension
+  const rawScores = filtered.map((p) => {
+    const objRaw = scorePointByObjective(p, objetivo);
+    const pubRaw = scorePublicoAffinity(p, publicoNormalizado) + scoreAudienceTagAffinity(p, audienceTags);
+    const effRaw = scoreCostEfficiency(p);
+    const entRaw = scoreSegmentEnvironment(p, entornoByPoint);
+    const segRaw = scoreSegmentAffinity(p, segmento);
+    const fmtRaw = getObjectiveFormatBoost(p.tipo, objetivo);
+    const availRaw = scoreAvailabilityFit(p, availabilityPreference);
+
+    return { point: p, objRaw, pubRaw, effRaw, entRaw, segRaw, fmtRaw, availRaw };
+  });
+
+  // Find max of each dimension for normalization
+  const maxObj = Math.max(1, ...rawScores.map((r) => r.objRaw));
+  const maxPub = Math.max(1, ...rawScores.map((r) => r.pubRaw));
+  const maxEff = Math.max(1, ...rawScores.map((r) => r.effRaw));
+  const maxEnt = Math.max(1, ...rawScores.map((r) => r.entRaw));
+  const maxSeg = Math.max(1, ...rawScores.map((r) => r.segRaw));
+  const maxFmt = Math.max(1, ...rawScores.map((r) => r.fmtRaw));
+  const maxAvail = Math.max(1, ...rawScores.map((r) => r.availRaw));
+
+  const totalWeight = Object.values(weights).reduce((s, w) => s + w, 0) || 100;
+
+  return rawScores.map((r) => {
+    // Normalize each dimension to 0-100, clamped
+    const dims = {
+      objetivo: Math.max(0, Math.min(100, (r.objRaw / maxObj) * 100)),
+      publico: Math.max(0, Math.min(100, (r.pubRaw / maxPub) * 100)),
+      eficiencia: Math.max(0, Math.min(100, (r.effRaw / maxEff) * 100)),
+      entorno: Math.max(0, Math.min(100, (r.entRaw / maxEnt) * 100)),
+      segmento: Math.max(0, Math.min(100, (r.segRaw / maxSeg) * 100)),
+      formato: Math.max(0, Math.min(100, (r.fmtRaw / maxFmt) * 100)),
+      disponibilidade: Math.max(0, Math.min(100, (r.availRaw / maxAvail) * 100))
+    };
+
+    // Weighted average → 0-100 final score
+    const compatibilidade = Math.round(
+      Object.entries(dims).reduce((sum, [key, val]) => {
+        return sum + (val * ((weights[key] || 0) / totalWeight));
+      }, 0)
+    );
+
+    const p = r.point;
+    const fluxo = toNumber(p.fluxo);
+
+    // Determine primary reason for recommendation
+    const dimEntries = Object.entries(dims).sort((a, b) => b[1] - a[1]);
+    const strongDims = dimEntries.filter(([, v]) => v >= 70).slice(0, 2);
+    let motivoPrincipal = '';
+    const DIM_LABELS = {
+      objetivo: 'alinhamento com o objetivo da campanha',
+      publico: 'compatibilidade com o público-alvo',
+      eficiencia: 'eficiência de custo por impacto',
+      entorno: 'afinidade de entorno com o segmento',
+      segmento: 'aderência ao segmento do anunciante',
+      formato: 'formato adequado ao objetivo',
+      disponibilidade: 'disponibilidade de veiculação'
+    };
+    if (strongDims.length) {
+      motivoPrincipal = `Destaque por ${strongDims.map(([k]) => DIM_LABELS[k]).join(' e ')}.`;
+    } else {
+      motivoPrincipal = `Perfil equilibrado com boa pontuação geral entre os critérios da campanha.`;
+    }
+
+    // Estimated monthly reach for this single point
+    const estimatedReach = Math.round(fluxo * 0.38);
+
+    return {
+      ...p,
+      compatibilidade,
+      dimensoes: dims,
+      motivoPrincipal,
+      estimatedReach,
+      estimatedInvestment: toNumber(p.preco),
+      cpmPonto: fluxo > 0 ? toNumber(p.preco) / (fluxo / 1000) : 0
+    };
+  }).sort((a, b) => b.compatibilidade - a.compatibilidade);
+}
+
+export { DEFAULT_WEIGHTS as RECOMMENDATION_WEIGHTS };
