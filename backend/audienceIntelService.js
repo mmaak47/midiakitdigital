@@ -13,6 +13,8 @@
 
 const db = require('./database');
 
+const IS_POSTGRES = (db.engine === 'postgres');
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -178,46 +180,84 @@ const TAG_TO_CATEGORY = (() => {
 // ---------------------------------------------------------------------------
 
 function ensureTables() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS audience_profiles (
-      id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL UNIQUE,
-      label TEXT NOT NULL,
-      description TEXT,
-      weights JSONB NOT NULL DEFAULT '{}',
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS audience_point_scores (
-      id SERIAL PRIMARY KEY,
-      ponto_id INTEGER NOT NULL,
-      profile_name TEXT NOT NULL,
-      score REAL NOT NULL DEFAULT 0,
-      breakdown JSONB DEFAULT '{}',
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      expires_at TIMESTAMPTZ,
-      UNIQUE(ponto_id, profile_name)
-    )
-  `);
+  if (IS_POSTGRES) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS audience_profiles (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        label TEXT NOT NULL,
+        description TEXT,
+        weights JSONB NOT NULL DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS audience_point_scores (
+        id SERIAL PRIMARY KEY,
+        ponto_id INTEGER NOT NULL,
+        profile_name TEXT NOT NULL,
+        score REAL NOT NULL DEFAULT 0,
+        breakdown JSONB DEFAULT '{}',
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        expires_at TIMESTAMPTZ,
+        UNIQUE(ponto_id, profile_name)
+      )
+    `);
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS audience_jobs (
+        id SERIAL PRIMARY KEY,
+        status TEXT DEFAULT 'pending',
+        cidade TEXT,
+        progress INTEGER DEFAULT 0,
+        total INTEGER DEFAULT 0,
+        errors INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } else {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS audience_profiles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        label TEXT NOT NULL,
+        description TEXT,
+        weights TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      )
+    `);
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS audience_point_scores (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ponto_id INTEGER NOT NULL,
+        profile_name TEXT NOT NULL,
+        score REAL NOT NULL DEFAULT 0,
+        breakdown TEXT DEFAULT '{}',
+        updated_at TEXT DEFAULT (datetime('now')),
+        expires_at TEXT,
+        UNIQUE(ponto_id, profile_name)
+      )
+    `);
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS audience_jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        status TEXT DEFAULT 'pending',
+        cidade TEXT,
+        progress INTEGER DEFAULT 0,
+        total INTEGER DEFAULT 0,
+        errors INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      )
+    `);
+  }
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_aps_ponto ON audience_point_scores (ponto_id)
   `);
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_aps_profile ON audience_point_scores (profile_name)
-  `);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS audience_jobs (
-      id SERIAL PRIMARY KEY,
-      status TEXT DEFAULT 'pending',
-      cidade TEXT,
-      progress INTEGER DEFAULT 0,
-      total INTEGER DEFAULT 0,
-      errors INTEGER DEFAULT 0,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
   `);
 }
 
@@ -372,7 +412,7 @@ async function analyzePoint(pontoId, { force = false } = {}) {
 
   if (!force) {
     const cached = db.prepare(
-      `SELECT id FROM audience_point_scores WHERE ponto_id = ? AND expires_at > NOW() LIMIT 1`
+      `SELECT id FROM audience_point_scores WHERE ponto_id = ? AND expires_at > datetime('now') LIMIT 1`
     ).get(pontoId);
     if (cached) return getPointScores(pontoId);
   }
@@ -381,26 +421,11 @@ async function analyzePoint(pontoId, { force = false } = {}) {
   const scores = await scorePoint(point, profiles);
   const expiresAt = new Date(Date.now() + CACHE_TTL_HOURS * 3600_000).toISOString();
 
-  for (const s of scores) {
-    db.prepare(`
-      INSERT INTO audience_point_scores (ponto_id, profile_name, score, breakdown, updated_at, expires_at)
-      VALUES (?, ?, ?, ?, NOW(), ?)
-      ON CONFLICT (ponto_id, profile_name) DO UPDATE SET
-        score = EXCLUDED.score,
-        breakdown = EXCLUDED.breakdown,
-        updated_at = NOW(),
-        expires_at = EXCLUDED.expires_at
-    `).run(s.profile_name, s.score, JSON.stringify(s.breakdown), expiresAt, pontoId);
-    // Note: positional params order matches after bind rewrite
-  }
-
-  // Workaround: the database.js bindSql replaces ? left-to-right, so we need correct order
-  // Let's use a simpler approach: delete + insert
   db.prepare('DELETE FROM audience_point_scores WHERE ponto_id = ?').run(pontoId);
   for (const s of scores) {
     db.prepare(`
       INSERT INTO audience_point_scores (ponto_id, profile_name, score, breakdown, updated_at, expires_at)
-      VALUES (?, ?, ?, ?, NOW(), ?)
+      VALUES (?, ?, ?, ?, datetime('now'), ?)
     `).run(pontoId, s.profile_name, s.score, JSON.stringify(s.breakdown), expiresAt);
   }
 
@@ -415,10 +440,10 @@ async function analyzeCity(cidade, { force = false } = {}) {
     points = db.prepare('SELECT id, lat, lng, cidade FROM pontos WHERE ativo = 1').all();
   }
 
-  const jobRow = db.prepare(
-    `INSERT INTO audience_jobs (status, cidade, total) VALUES ('running', ?, ?) RETURNING id`
-  ).get(cidade || null, points.length);
-  const jobId = jobRow?.id;
+  const jobResult = db.prepare(
+    `INSERT INTO audience_jobs (status, cidade, total) VALUES ('running', ?, ?)`
+  ).run(cidade || null, points.length);
+  const jobId = jobResult?.lastInsertRowid;
 
   const profiles = loadProfiles();
   let analyzed = 0, skipped = 0, errors = 0;
@@ -428,7 +453,7 @@ async function analyzeCity(cidade, { force = false } = {}) {
     try {
       if (!force) {
         const cached = db.prepare(
-          `SELECT id FROM audience_point_scores WHERE ponto_id = ? AND expires_at > NOW() LIMIT 1`
+          `SELECT id FROM audience_point_scores WHERE ponto_id = ? AND expires_at > datetime('now') LIMIT 1`
         ).get(point.id);
         if (cached) { skipped++; continue; }
       }
@@ -439,13 +464,13 @@ async function analyzeCity(cidade, { force = false } = {}) {
       for (const s of scores) {
         db.prepare(`
           INSERT INTO audience_point_scores (ponto_id, profile_name, score, breakdown, updated_at, expires_at)
-          VALUES (?, ?, ?, ?, NOW(), ?)
+          VALUES (?, ?, ?, ?, datetime('now'), ?)
         `).run(point.id, s.profile_name, s.score, JSON.stringify(s.breakdown), expiresAt);
       }
       analyzed++;
 
       if (jobId && analyzed % 5 === 0) {
-        db.prepare(`UPDATE audience_jobs SET progress = ?, updated_at = NOW() WHERE id = ?`)
+        db.prepare(`UPDATE audience_jobs SET progress = ?, updated_at = datetime('now') WHERE id = ?`)
           .run(analyzed + skipped, jobId);
       }
 
@@ -458,7 +483,7 @@ async function analyzeCity(cidade, { force = false } = {}) {
   }
 
   if (jobId) {
-    db.prepare(`UPDATE audience_jobs SET status = 'done', progress = ?, errors = ?, updated_at = NOW() WHERE id = ?`)
+    db.prepare(`UPDATE audience_jobs SET status = 'done', progress = ?, errors = ?, updated_at = datetime('now') WHERE id = ?`)
       .run(analyzed + skipped + errors, errors, jobId);
   }
 
@@ -761,12 +786,12 @@ function upsertProfile(name, { label, description, weights }) {
   }
   db.prepare(`
     INSERT INTO audience_profiles (name, label, description, weights, updated_at)
-    VALUES (?, ?, ?, ?, NOW())
+    VALUES (?, ?, ?, ?, datetime('now'))
     ON CONFLICT (name) DO UPDATE SET
-      label = EXCLUDED.label,
-      description = EXCLUDED.description,
-      weights = EXCLUDED.weights,
-      updated_at = NOW()
+      label = excluded.label,
+      description = excluded.description,
+      weights = excluded.weights,
+      updated_at = datetime('now')
   `).run(name, label, description || '', JSON.stringify(weights));
   return { name, label, description, weights };
 }
