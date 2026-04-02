@@ -378,39 +378,39 @@ export default function Landing() {
   const [showCommercialShortcut, setShowCommercialShortcut] = useState(false);
 
   const t = {
-    bg: isDark ? 'bg-[#050505]' : 'bg-[#f4f5f7]',
-    text: isDark ? 'text-white' : 'text-neutral-900',
-    textSec: isDark ? 'text-brand-gray-400' : 'text-neutral-500',
-    textMuted: isDark ? 'text-brand-gray-500' : 'text-neutral-400',
-    textLight: isDark ? 'text-brand-gray-300' : 'text-neutral-600',
-    sectionBorder: isDark ? 'border-white/5' : 'border-neutral-200',
-    card: isDark ? 'bg-[#090909]/95 border-white/10' : 'bg-white border-neutral-200 shadow-md',
-    statsCard: isDark ? 'border-white/10 bg-white/[0.025] hover:border-brand-orange/25 hover:bg-white/[0.04]' : 'border-neutral-200 bg-white shadow-sm hover:border-brand-orange/40 hover:shadow-md',
-    tableHead: isDark ? 'text-brand-gray-500 border-b border-white/10 bg-white/[0.02]' : 'text-neutral-500 border-b border-neutral-200 bg-neutral-50',
-    tableRow: isDark ? 'border-b border-white/5 hover:bg-white/[0.02]' : 'border-b border-neutral-100 hover:bg-neutral-50',
-    tableCell: isDark ? 'text-white' : 'text-neutral-900',
-    tableCellSec: isDark ? 'text-brand-gray-300' : 'text-neutral-600',
-    audienceCard: isDark ? 'rounded-xl border border-white/10 p-3' : 'rounded-xl border border-neutral-200 bg-white p-3 shadow-sm',
-    vizBar: isDark ? 'h-2 rounded-full bg-white/10 overflow-hidden' : 'h-2 rounded-full bg-neutral-200 overflow-hidden',
-    stickyNav: isDark ? 'border-white/10 bg-[#090909]/95' : 'border-neutral-200 bg-white/95 shadow-sm',
-    navChip: isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300 hover:text-white hover:border-brand-orange/40' : 'border-neutral-200 bg-white text-neutral-600 hover:text-neutral-900 hover:border-brand-orange/40 shadow-sm',
-    chipOrange: isDark ? 'bg-brand-orange/15 text-brand-orange border-brand-orange/30' : 'bg-orange-50 text-orange-600 border-orange-200',
-    chipGray: isDark ? 'bg-white/[0.04] text-brand-gray-300 border-white/10' : 'bg-neutral-100 text-neutral-600 border-neutral-200',
-    miniCell: isDark ? 'rounded-lg bg-white/[0.03] p-2 border border-white/5' : 'rounded-lg bg-neutral-50 p-2 border border-neutral-200',
-    miniLabel: isDark ? 'text-brand-gray-500' : 'text-neutral-500',
-    priceCard: isDark ? 'rounded-xl bg-white/[0.03] border border-white/10 px-4 py-3 min-w-[160px]' : 'rounded-xl bg-orange-50 border border-orange-100 px-4 py-3 min-w-[160px]',
-    priceLabel: isDark ? 'text-brand-gray-500' : 'text-orange-600/80',
-    metaRow: isDark ? 'border-t border-white/10 text-brand-gray-500' : 'border-t border-neutral-200 text-neutral-500',
-    controlPanel: isDark ? 'from-white/[0.06] to-white/[0.02] border-white/10' : 'from-neutral-100 to-white border-neutral-300 shadow-sm',
-    vizDisplay: isDark ? 'from-white/10 to-white/5 border-white/15' : 'from-neutral-100 to-white border-neutral-300',
-    heroOverlay: isDark ? 'from-black/90 via-black/80 to-[#050505]' : 'from-[#fff7f3]/90 via-[#ffefe8]/72 to-[#f4f5f7]',
-    pdfBtn: isDark ? 'bg-white/5 border-white/15 text-white hover:bg-white/10' : 'bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50 shadow-sm',
-    pracaChip: isDark ? 'bg-white/[0.03] text-brand-gray-400 border-white/10 hover:text-white' : 'bg-white text-neutral-500 border-neutral-200 hover:text-neutral-900 shadow-sm',
-    toggleBtn: isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-100 shadow-sm',
+    bg: isDark ? 'bg-[#050505]' : 'bg-[#FFF8F5]',
+    text: isDark ? 'text-white' : 'text-[#1A1008]',
+    textSec: isDark ? 'text-brand-gray-400' : 'text-[#7A6155]',
+    textMuted: isDark ? 'text-brand-gray-500' : 'text-[#7A6155]',
+    textLight: isDark ? 'text-brand-gray-300' : 'text-[#7A6155]',
+    sectionBorder: isDark ? 'border-white/5' : 'border-[#F2DDD4]',
+    card: isDark ? 'bg-[#090909]/95 border-white/10' : 'bg-white border-[#EFE0D8] shadow-md',
+    statsCard: isDark ? 'border-white/10 bg-white/[0.025] hover:border-brand-orange/25 hover:bg-white/[0.04]' : 'border-[#EFE0D8] bg-white shadow-sm hover:border-[#FF6B35]/40 hover:shadow-md',
+    tableHead: isDark ? 'text-brand-gray-500 border-b border-white/10 bg-white/[0.02]' : 'text-[#7A6155] border-b border-[#EFE0D8] bg-[#FDF7F4]',
+    tableRow: isDark ? 'border-b border-white/5 hover:bg-white/[0.02]' : 'border-b border-[#F2DDD4]/60 hover:bg-[#FDF7F4]',
+    tableCell: isDark ? 'text-white' : 'text-[#1A1008]',
+    tableCellSec: isDark ? 'text-brand-gray-300' : 'text-[#7A6155]',
+    audienceCard: isDark ? 'rounded-xl border border-white/10 p-3' : 'rounded-xl border border-[#EFE0D8] bg-white p-3 shadow-sm',
+    vizBar: isDark ? 'h-2 rounded-full bg-white/10 overflow-hidden' : 'h-2 rounded-full bg-[#F2DDD4] overflow-hidden',
+    stickyNav: isDark ? 'border-white/10 bg-[#090909]/95' : 'border-[#EFE0D8] bg-white/95 shadow-sm',
+    navChip: isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300 hover:text-white hover:border-brand-orange/40' : 'border-[#EFE0D8] bg-white text-[#7A6155] hover:text-[#1A1008] hover:border-[#FF6B35]/40 shadow-sm',
+    chipOrange: isDark ? 'bg-brand-orange/15 text-brand-orange border-brand-orange/30' : 'bg-[#FFF0EA] text-[#C94A1A] border-[#FFCFB8]',
+    chipGray: isDark ? 'bg-white/[0.04] text-brand-gray-300 border-white/10' : 'bg-[#FDF7F4] text-[#7A6155] border-[#EFE0D8]',
+    miniCell: isDark ? 'rounded-lg bg-white/[0.03] p-2 border border-white/5' : 'rounded-lg bg-[#FDF7F4] p-2 border border-[#EFE0D8]',
+    miniLabel: isDark ? 'text-brand-gray-500' : 'text-[#7A6155]',
+    priceCard: isDark ? 'rounded-xl bg-white/[0.03] border border-white/10 px-4 py-3 min-w-[160px]' : 'rounded-xl bg-[#FFF0EA] border border-[#FFCFB8] px-4 py-3 min-w-[160px]',
+    priceLabel: isDark ? 'text-brand-gray-500' : 'text-[#C94A1A]',
+    metaRow: isDark ? 'border-t border-white/10 text-brand-gray-500' : 'border-t border-[#EFE0D8] text-[#7A6155]',
+    controlPanel: isDark ? 'from-white/[0.06] to-white/[0.02] border-white/10' : 'from-white to-white border-[#EFE0D8]',
+    vizDisplay: isDark ? 'from-white/10 to-white/5 border-white/15' : 'from-[#FDF7F4] to-[#FDF7F4] border-[#EFE0D8]',
+    heroOverlay: isDark ? 'from-black/90 via-black/80 to-[#050505]' : 'from-[#FFF8F5]/90 via-[#FFF8F5]/72 to-[#FFF8F5]',
+    pdfBtn: isDark ? 'bg-white/5 border-white/15 text-white hover:bg-white/10' : 'bg-transparent border-[#DDD0CA] text-[#7A6155] hover:bg-[#FDF7F4]',
+    pracaChip: isDark ? 'bg-white/[0.03] text-brand-gray-400 border-white/10 hover:text-white' : 'bg-white text-[#7A6155] border-[#DDD0CA] hover:text-[#C94A1A] hover:border-[#FF6B35]',
+    toggleBtn: isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-[#DDD0CA] bg-white text-[#7A6155] hover:bg-[#FDF7F4] shadow-sm',
     footerBg: isDark ? 'bg-[#050505]/95' : 'bg-white/97',
-    footerBorder: isDark ? 'border-white/10' : 'border-neutral-200',
-    footerText: isDark ? 'text-brand-gray-500' : 'text-neutral-500',
-    footerLink: isDark ? 'hover:text-white' : 'hover:text-neutral-900',
+    footerBorder: isDark ? 'border-white/10' : 'border-[#EFE0D8]',
+    footerText: isDark ? 'text-brand-gray-500' : 'text-[#7A6155]',
+    footerLink: isDark ? 'hover:text-white' : 'hover:text-[#1A1008]',
     ctaOverlay: isDark ? 'bg-black/65' : 'bg-white/88',
   };
 
@@ -603,7 +603,7 @@ export default function Landing() {
       <Navbar showNav={false} isDark={isDark} />
 
       {/* ── Hero ─────────────────────────────────────────────── */}
-      <section className={`pt-20 pb-10 border-b relative overflow-visible ${t.sectionBorder}`}>
+      <section className={`pt-20 pb-10 border-b relative overflow-visible ${t.sectionBorder}`} style={{ background: isDark ? undefined : '#FFF8F5' }}>
         <div
           className={`absolute inset-0 bg-cover bg-center ${isDark ? 'opacity-35' : 'opacity-[0.08] saturate-[0.75]'}`}
           style={{
@@ -613,13 +613,13 @@ export default function Landing() {
         />
         {!isDark && (
           <>
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,#fff7f2_0%,#ffe8dc_46%,#fff8f3_100%)]" />
-            <div className="absolute -top-14 -left-16 w-[260px] h-[260px] rounded-full bg-brand-orange/14" />
-            <div className="absolute -top-20 right-[-42px] w-[320px] h-[320px] rounded-full bg-brand-orange/16" />
-            <div className="absolute top-[58%] right-[7%] w-[168px] h-[168px] rounded-full bg-brand-orange/12" />
-            <div className="absolute top-[68%] left-[11%] w-[118px] h-[118px] rounded-full bg-brand-orange/10" />
+            <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #FFF8F5 0%, #FFEEE4 46%, #FFF8F5 100%)' }} />
+            <div className="absolute -top-14 -left-16 w-[260px] h-[260px] rounded-full" style={{ background: 'rgba(255,107,53,0.14)' }} />
+            <div className="absolute -top-20 right-[-42px] w-[360px] h-[360px] rounded-full" style={{ background: 'rgba(255,107,53,0.08)', filter: 'blur(80px)' }} />
+            <div className="absolute top-[58%] right-[7%] w-[168px] h-[168px] rounded-full" style={{ background: 'rgba(255,107,53,0.12)' }} />
+            <div className="absolute top-[68%] left-[11%] w-[118px] h-[118px] rounded-full" style={{ background: 'rgba(255,107,53,0.10)' }} />
             <div
-              className="absolute inset-0 bg-cover bg-center opacity-[0.055]"
+              className="absolute inset-0 bg-cover bg-center opacity-[0.045]"
               style={{
                 backgroundImage: "url('/about-1.jpg')",
                 filter: 'blur(2.4px) saturate(0.75)'
@@ -633,8 +633,16 @@ export default function Landing() {
         <div className="relative max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between mb-6">
             <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0}>
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-brand-orange/30 bg-brand-orange/10 text-xs font-semibold tracking-wide text-brand-orange">
-                MIDIA KIT DIGITAL INTERMIDIA 2026
+              <span
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-semibold tracking-[0.08em] uppercase"
+                style={{
+                  background: isDark ? 'rgba(255,107,53,0.10)' : '#FFF0EA',
+                  border: `1px solid ${isDark ? 'rgba(255,107,53,0.30)' : '#FFCFB8'}`,
+                  color: isDark ? '#FF6B35' : '#C94A1A',
+                }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B35]" />
+                Mídia Kit Digital 2026
               </span>
             </motion.div>
             <motion.button
@@ -642,7 +650,7 @@ export default function Landing() {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
               onClick={() => setIsDark(!isDark)}
-              className={`h-9 w-9 flex items-center justify-center rounded-xl border transition-all duration-200 ${t.toggleBtn}`}
+              className={`h-9 w-9 flex items-center justify-center rounded-[10px] border transition-all duration-200 ${t.toggleBtn}`}
               aria-label={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
               title={isDark ? 'Modo claro' : 'Modo escuro'}
             >
@@ -655,9 +663,10 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={1}
-            className="text-3xl sm:text-4xl md:text-5xl font-bold leading-[1.05] tracking-tight mb-4 max-w-4xl"
+            className="font-display max-w-4xl mb-4"
+            style={{ fontSize: '36px', fontWeight: 800, lineHeight: 1.15, letterSpacing: '-0.01em', color: isDark ? '#fff' : '#1A1008' }}
           >
-            Planejamento por praça com inventário real, audiência e oportunidades de mídia.
+            Planejamento por praça com inventário real, <span style={{ color: '#FF6B35' }}>audiência</span> e oportunidades de mídia.
           </motion.h1>
 
           <motion.p
@@ -665,7 +674,8 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={2}
-            className={`text-base md:text-lg max-w-3xl mb-8 ${t.textSec}`}
+            className="font-sans max-w-3xl mb-8"
+            style={{ fontSize: '14px', fontWeight: 400, lineHeight: 1.6, color: isDark ? undefined : '#7A6155' }}
           >
             Selecione uma praça para gerar um mídia kit focado na cidade ou visualize o consolidado de todas as praças.
           </motion.p>
@@ -675,9 +685,15 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={3}
-            className={`grid lg:grid-cols-[1fr_auto_auto_auto] items-end gap-4 p-6 bg-gradient-to-br ${t.controlPanel} border rounded-2xl backdrop-blur-xl shadow-xl shadow-black/30`}
+            className="p-6 rounded-[16px] backdrop-blur-xl"
+            style={{
+              background: isDark ? 'linear-gradient(to bottom right, rgba(255,255,255,0.06), rgba(255,255,255,0.02))' : '#FFFFFF',
+              border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#EFE0D8'}`,
+              boxShadow: isDark ? '0 20px 40px rgba(0,0,0,0.30)' : '0 4px 24px rgba(0,0,0,0.06)',
+            }}
           >
-            <div className="grid sm:grid-cols-3 gap-4 lg:col-span-4">
+            {/* ── 3-column form fields ── */}
+            <div className="grid sm:grid-cols-3 gap-3 mb-5">
               <CustomSelect
                 label="Praça"
                 value={selectedPracas}
@@ -685,6 +701,7 @@ export default function Landing() {
                 options={pracas}
                 placeholder="Selecionar uma ou mais praças"
                 multiple
+                isDark={isDark}
               />
               <CustomSelect
                 label="Formato"
@@ -693,56 +710,75 @@ export default function Landing() {
                 options={tiposDisponiveis}
                 placeholder="Selecionar um ou mais formatos"
                 multiple
+                isDark={isDark}
               />
               <div>
-                <label className={`text-xs uppercase tracking-wide font-semibold block mb-2 ${t.textMuted}`}>Visualização</label>
-                <div className={`h-[50px] rounded-xl bg-gradient-to-r ${t.vizDisplay} border px-4 flex items-center text-sm font-medium`}>
+                <label
+                  className="block mb-2 font-semibold uppercase"
+                  style={{ fontSize: '10px', letterSpacing: '0.08em', color: isDark ? '#737373' : '#7A6155' }}
+                >
+                  Visualização
+                </label>
+                <div
+                  className="h-[50px] rounded-[10px] border px-4 flex items-center text-sm font-medium"
+                  style={{
+                    background: isDark ? 'linear-gradient(to right, rgba(255,255,255,0.10), rgba(255,255,255,0.05))' : '#FDF7F4',
+                    borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#EFE0D8',
+                    color: isDark ? '#fff' : '#1A1008',
+                  }}
+                >
                   {!selectedPracas.length ? 'Consolidado multirregional' : `Foco em ${selectedPracaLabel}`}
                 </div>
               </div>
             </div>
 
-            <motion.div
-              animate={{
-                boxShadow: [
-                  '0 0 0px #E8591A',
-                  '0 0 18px rgba(232,89,26,0.5)',
-                  '0 0 0px #E8591A'
-                ]
-              }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-              className="w-full self-end rounded-2xl border border-[#E8591A]/25 bg-black/35 p-3 lg:w-auto lg:max-w-[360px]"
+            {/* ── Slides CTA block ── */}
+            <div
+              className="rounded-[12px] p-4 mb-5"
+              style={{ background: 'linear-gradient(135deg, #FF6B35, #FF8F5E)' }}
             >
-              <div className="mb-2 inline-flex rounded-full border border-[#E8591A]/35 bg-[#E8591A]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#E8591A]">
+              <div className="mb-2 inline-flex rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/90" style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.30)' }}>
                 ✦ Ver apresentação
               </div>
               <button
                 onClick={() => setShowSlidesMode(true)}
-                className="inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#E8591A] px-5 text-sm font-bold text-white transition-colors hover:bg-brand-orange-hover"
+                className="inline-flex h-[48px] w-full sm:w-auto items-center justify-center gap-2 rounded-[10px] px-6 text-sm font-bold text-[#FF6B35] transition-all hover:bg-white"
+                style={{ background: 'rgba(255,255,255,0.92)', border: '1px solid rgba(255,255,255,0.60)' }}
               >
                 <Play size={16} />
                 Abrir apresentação em slides
               </button>
-              <p className="mt-1.5 text-xs leading-tight text-gray-400">Apresentação visual dos pontos selecionados</p>
-            </motion.div>
+              <p className="mt-2 text-xs leading-tight text-white/75">Apresentação visual dos pontos selecionados</p>
+            </div>
 
-            <button
-              onClick={() => setShowMapModal(true)}
-              className="landing-orange-btn group h-[50px] self-end px-6 bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white font-bold rounded-xl hover:shadow-lg hover:shadow-brand-orange/50 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
-            >
-              <i className="ri-pin-distance-line" style={{ fontSize: 16 }} />
-              Abrir mapa
-            </button>
-
-            <button
-              onClick={handleExportPdf}
-              disabled={pdfStatus === 'generating' || pontos.length === 0}
-              className={`h-[50px] self-end px-6 border font-semibold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${t.pdfBtn}`}
-            >
-              {pdfStatus === 'generating' ? 'Gerando PDF...' : 'Gerar PDF da praça'}
-            </button>
+            {/* ── Action buttons row ── */}
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <button
+                onClick={handleExportPdf}
+                disabled={pdfStatus === 'generating' || pontos.length === 0}
+                className="h-[44px] px-5 font-semibold rounded-[10px] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                style={{
+                  background: 'transparent',
+                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.15)' : '#DDD0CA'}`,
+                  color: isDark ? '#fff' : '#7A6155',
+                }}
+              >
+                {pdfStatus === 'generating' ? 'Gerando PDF...' : 'Gerar PDF da praça'}
+              </button>
+              <button
+                onClick={() => setShowMapModal(true)}
+                className="landing-orange-btn group h-[44px] px-6 text-white font-bold rounded-[10px] hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
+                style={{ background: '#FF6B35', boxShadow: '0 2px 12px rgba(255,107,53,0.30)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#E85A25'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#FF6B35'; }}
+              >
+                <i className="ri-pin-distance-line" style={{ fontSize: 16 }} />
+                Abrir mapa
+              </button>
+            </div>
           </motion.div>
 
+          {/* ── Praça tags ── */}
           <div className="flex flex-wrap gap-2 mt-4">
             {quickPracas.map((praca) => (
               <button
@@ -750,22 +786,28 @@ export default function Landing() {
                 onClick={() => setSelectedPracas((current) => current.includes(praca)
                   ? current.filter((item) => item !== praca)
                   : [...current, praca])}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
+                style={
                   selectedPracas.includes(praca)
-                    ? 'landing-orange-btn bg-brand-orange text-white border-brand-orange'
-                    : t.pracaChip
-                }`}
+                    ? { background: '#FF6B35', color: '#fff', border: '1px solid #FF6B35' }
+                    : { background: isDark ? 'rgba(255,255,255,0.03)' : '#fff', color: isDark ? '#A3A3A3' : '#7A6155', border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'}` }
+                }
+                onMouseEnter={(e) => { if (!selectedPracas.includes(praca)) { e.currentTarget.style.borderColor = '#FF6B35'; e.currentTarget.style.color = isDark ? '#fff' : '#C94A1A'; } }}
+                onMouseLeave={(e) => { if (!selectedPracas.includes(praca)) { e.currentTarget.style.borderColor = isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'; e.currentTarget.style.color = isDark ? '#A3A3A3' : '#7A6155'; } }}
               >
                 {praca}
               </button>
             ))}
             <button
               onClick={() => setSelectedPracas([])}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+              className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
+              style={
                 selectedPracas.length === 0
-                  ? 'landing-orange-btn bg-brand-orange text-white border-brand-orange'
-                  : t.pracaChip
-              }`}
+                  ? { background: '#FF6B35', color: '#fff', border: '1px solid #FF6B35' }
+                  : { background: isDark ? 'rgba(255,255,255,0.03)' : '#fff', color: isDark ? '#A3A3A3' : '#7A6155', border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'}` }
+              }
+              onMouseEnter={(e) => { if (selectedPracas.length > 0) { e.currentTarget.style.borderColor = '#FF6B35'; e.currentTarget.style.color = isDark ? '#fff' : '#C94A1A'; } }}
+              onMouseLeave={(e) => { if (selectedPracas.length > 0) { e.currentTarget.style.borderColor = isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'; e.currentTarget.style.color = isDark ? '#A3A3A3' : '#7A6155'; } }}
             >
               Todas as praças
             </button>
@@ -775,9 +817,12 @@ export default function Landing() {
             <div className="mt-4">
               <button
                 onClick={() => navigate('/comercial/explorar')}
-                className="landing-orange-btn inline-flex items-center gap-2 px-5 h-[44px] rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover hover:shadow-lg hover:shadow-brand-orange/40 transition-all duration-200"
+                className="landing-orange-btn inline-flex items-center gap-2 px-5 h-[44px] rounded-[10px] text-white font-semibold transition-all duration-200"
+                style={{ background: '#FF6B35' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#E85A25'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(255,107,53,0.40)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#FF6B35'; e.currentTarget.style.boxShadow = 'none'; }}
               >
-                <i className="ri-briefcase-4-line" style={{ fontSize: 16 }} />
+                <i className="ri-arrow-right-line" style={{ fontSize: 16 }} />
                 Continuar no explorador comercial
               </button>
             </div>

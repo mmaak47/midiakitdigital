@@ -107,7 +107,7 @@ export default function CustomSelect({
   return (
     <div ref={dropdownRef} className="relative">
       {label && (
-        <label className={`text-xs uppercase tracking-wide font-semibold block mb-2 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+        <label className="block mb-2 font-semibold uppercase" style={{ fontSize: '10px', letterSpacing: '0.08em', color: isDark ? '#737373' : '#7A6155' }}>
           {label}
         </label>
       )}
@@ -115,14 +115,20 @@ export default function CustomSelect({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full px-4 py-3 rounded-xl text-sm font-medium flex items-center justify-between transition-all duration-200 focus:outline-none focus:border-brand-orange/40 ${isDark ? 'bg-gradient-to-r from-white/10 to-white/5 border border-white/15 text-white hover:border-white/25 hover:bg-gradient-to-r hover:from-white/12 hover:to-white/7' : 'bg-white border border-neutral-300 text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50'}`}
+        className="w-full px-4 py-3 rounded-[10px] text-sm font-medium flex items-center justify-between transition-all duration-200 focus:outline-none"
+        style={{
+          background: isDark ? 'linear-gradient(to right, rgba(255,255,255,0.10), rgba(255,255,255,0.05))' : '#FDF7F4',
+          border: `1px solid ${isDark ? 'rgba(255,255,255,0.15)' : '#EFE0D8'}`,
+          color: isDark ? '#fff' : '#1A1008',
+        }}
       >
-        <span className={`${selectedValues.length === 0 ? (isDark ? 'text-brand-gray-400' : 'text-neutral-400') : (isDark ? 'text-white' : 'text-neutral-900')} truncate text-left`}>
+        <span className={`${selectedValues.length === 0 ? (isDark ? 'text-brand-gray-400' : 'text-[#7A6155]/60') : ''} truncate text-left`}>
           {triggerLabel}
         </span>
         <ChevronDown 
           size={16} 
-          className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-500'} transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+          className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+          style={{ color: isDark ? '#737373' : '#FF6B35' }}
         />
       </button>
 
@@ -134,7 +140,7 @@ export default function CustomSelect({
             return (
               <span
                 key={selected}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none ${isDark ? 'border-brand-orange/25 bg-brand-orange/10 text-brand-orange' : 'border-orange-200 bg-orange-50 text-orange-700'}`}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none ${isDark ? 'border-brand-orange/25 bg-brand-orange/10 text-brand-orange' : 'border-[#FFCFB8] bg-[#FFF0EA] text-[#C94A1A]'}`}
               >
                 {chipLabel}
                 <button
@@ -158,10 +164,10 @@ export default function CustomSelect({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.15 }}
-            className={`absolute top-full left-0 right-0 mt-2 rounded-xl overflow-hidden z-50 max-h-96 ${isDark ? 'bg-gradient-to-b from-[#1a1a1a] to-[#121212] border border-white/15 shadow-2xl shadow-black/50' : 'bg-white border border-neutral-200 shadow-xl shadow-neutral-200/80'}`}
+            className={`absolute top-full left-0 right-0 mt-2 rounded-xl overflow-hidden z-50 max-h-96 ${isDark ? 'bg-gradient-to-b from-[#1a1a1a] to-[#121212] border border-white/15 shadow-2xl shadow-black/50' : 'bg-white border border-[#EFE0D8] shadow-xl shadow-[#F2DDD4]/40'}`}
           >
             {allowCustom && (
-              <div className={`border-b p-3 ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
+              <div className={`border-b p-3 ${isDark ? 'border-white/10' : 'border-[#EFE0D8]'}`}>
                 <input
                   type="text"
                   value={draftValue}
@@ -173,21 +179,21 @@ export default function CustomSelect({
                     }
                   }}
                   placeholder={customPlaceholder}
-                  className={`w-full rounded-lg px-3 py-2 text-sm outline-none transition-colors focus:border-brand-orange/35 ${isDark ? 'border border-white/10 bg-white/5 text-white' : 'border border-neutral-300 bg-neutral-50 text-neutral-900'}`}
+                  className={`w-full rounded-lg px-3 py-2 text-sm outline-none transition-colors focus:border-brand-orange/35 ${isDark ? 'border border-white/10 bg-white/5 text-white' : 'border border-[#EFE0D8] bg-[#FDF7F4] text-[#1A1008]'}`}
                 />
                 <div className="mt-2 flex justify-end">
                   <button
                     type="button"
                     onClick={commitCustomValue}
                     disabled={!draftValue.trim()}
-                    className={`rounded-lg px-3 py-1.5 text-xs transition-colors disabled:opacity-40 ${isDark ? 'border border-white/10 bg-white/5 text-brand-gray-300 hover:bg-white/10' : 'border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50'}`}
+                    className={`rounded-lg px-3 py-1.5 text-xs transition-colors disabled:opacity-40 ${isDark ? 'border border-white/10 bg-white/5 text-brand-gray-300 hover:bg-white/10' : 'border border-[#EFE0D8] bg-white text-[#7A6155] hover:bg-[#FDF7F4]'}`}
                   >
                     Adicionar
                   </button>
                 </div>
               </div>
             )}
-            <div className={`max-h-96 overflow-y-auto scrollbar-thin scrollbar-track-transparent ${isDark ? 'scrollbar-thumb-white/20' : 'scrollbar-thumb-neutral-300'}`}>
+            <div className={`max-h-96 overflow-y-auto scrollbar-thin scrollbar-track-transparent ${isDark ? 'scrollbar-thumb-white/20' : 'scrollbar-thumb-[#DDD0CA]'}`}>
               {normalizedOptions.map((option, i) => (
                 <motion.button
                   key={option.value}
@@ -198,10 +204,10 @@ export default function CustomSelect({
                   onClick={() => handleSelect(option.value)}
                   className={`w-full px-4 py-3 text-sm font-medium text-left transition-all duration-150 flex items-center justify-between group ${
                     selectedValues.includes(option.value)
-                      ? 'bg-gradient-to-r from-brand-orange to-brand-orange-hover text-white'
+                      ? 'bg-gradient-to-r from-[#FF6B35] to-[#FF8F5E] text-white'
                       : (isDark
                         ? 'text-brand-gray-200 hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5 hover:border-l-2 hover:border-brand-orange'
-                        : 'text-neutral-700 hover:bg-neutral-100 hover:border-l-2 hover:border-brand-orange')
+                        : 'text-[#1A1008] hover:bg-[#FDF7F4] hover:border-l-2 hover:border-[#FF6B35]')
                   }`}
                 >
                   <span>{option.label}</span>

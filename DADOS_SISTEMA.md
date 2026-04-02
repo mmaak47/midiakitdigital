@@ -148,7 +148,7 @@ Armazena resultados de análise de afinidade de segmento por ponto (ex: quantas 
 
 ### 1.5 `geo_audience_profiles` — Classificação de Bairros (GeoAudiência)
 
-Classifica cada ponto em 1 dos 9 tipos de bairro com base nos POIs no raio de 400m.
+Classifica cada ponto em 1 dos 9 tipos de bairro com base nos POIs no raio de 800m.
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
@@ -194,7 +194,7 @@ Classifica cada ponto em 1 dos 9 tipos de bairro com base nos POIs no raio de 40
 
 ### 1.6 `census_audience_profiles` — Classificação Demográfica (Censo IBGE)
 
-Classifica cada ponto em 4 perfis demográficos usando dados do Censo IBGE 2022 + POIs do OSM em 500m.
+Classifica cada ponto em 4 perfis demográficos usando dados do Censo IBGE 2022 + POIs do OSM em 800m.
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
@@ -347,8 +347,8 @@ Define quais categorias de estabelecimento são relevantes para cada segmento de
 | Serviço | Raio | Tags Consultadas | Finalidade |
 |---------|------|-------------------|-----------|
 | `entornoAnalysis.js` | 800m (configurável) | amenity, shop, healthcare, office, tourism, leisure | Afinidade do segmento de negócio |
-| `geoAudienceService.js` | 400m | amenity, shop, healthcare, office, tourism, leisure, building | Classificação de tipo de bairro |
-| `censusAudienceService.js` | 500m | amenity, shop, healthcare, office, tourism, leisure | Validação de perfil demográfico |
+| `geoAudienceService.js` | 800m | amenity, shop, healthcare, office, tourism, leisure, building | Classificação de tipo de bairro |
+| `censusAudienceService.js` | 800m | amenity, shop, healthcare, office, tourism, leisure | Validação de perfil demográfico |
 
 **Query OverpassQL enviada:**
 ```
@@ -501,48 +501,331 @@ Ponto (lat,lng) + Segmento → Overpass API (800m) → Classificação POIs
 
 ---
 
-### 3.2 `geoAudienceService.js` — Inteligência de Bairro
+### 3.2 `geoAudienceService.js` — Inteligência de Bairro (Classificação Completa)
 
 **Fluxo:**
 ```
-Ponto (lat,lng) → Overpass API (400m) → Classificação 13 grupos funcionais
-→ Dot-product c/ vetores dos 9 tipos de bairro → Tipo + confiança + nível socioeconômico
+Ponto (lat,lng) → Overpass API (800m) → Classificação em 13 grupos funcionais
+→ Vetor de proporções observadas → Similaridade cosseno c/ vetores dos 9 tipos de bairro
+→ Tipo + confiança + nível socioeconômico + densidade + lifestyle + narrativa
 → Upsert geo_audience_profiles
 ```
 
-**13 grupos funcionais:** corporate, commercial, food, health, education, leisure, fitness, transport, residential, beauty, hospitality, religious, green
+#### 3.2.1 Etapa 1 — Coleta de POIs (Overpass API)
 
-**Scoring socioeconômico:**
-- Contagem de POIs "premium" (spa, joalheria, perfumaria, academia boutique, vinho)
-- Ratio premium/total → nível: alto (>15%), medio-alto (>8%), medio (>3%), medio-baixo
+O serviço consulta **todos** os nós e ways num raio de **800m** do ponto, usando as tag keys: `amenity`, `shop`, `healthcare`, `office`, `tourism`, `leisure`, `building`.
 
-**Saída armazenada:** `neighborhood_type`, `confidence`, `socioeconomic_level`, `audience_narrative`, `lifestyle_indicators`
+#### 3.2.2 Etapa 2 — Classificação Funcional (`classifyElement`)
+
+Cada POI retornado é classificado em **1 dos 13 grupos funcionais**. A classificação percorre os grupos em ordem e retorna o primeiro match (tag key + valor).
+
+| Grupo | Tags OSM aceitas |
+|-------|------------------|
+| **corporate** | `office: *` (qualquer), `amenity: bank, bureau_de_change, coworking_space` |
+| **commercial** | `shop: supermarket, convenience, clothes, shoes, mobile_phone, electronics, department_store, mall, optician, jewelry, gift, toys, variety_store, furniture, hardware, trade, stationery, photo, fabric, watches, bag`; `amenity: marketplace, post_office` |
+| **food** | `amenity: restaurant, fast_food, cafe, food_court, ice_cream, bar, pub, biergarten`; `shop: bakery, butcher, confectionery, deli, greengrocer, pastry, coffee, seafood, cheese, beverages, alcohol, wine` |
+| **health** | `amenity: hospital, clinic, doctors, dentist, veterinary`; `healthcare: *`; `shop: pharmacy, chemist, medical_supply, hearing_aids, herbalist` |
+| **education** | `amenity: school, university, college, kindergarten, library, language_school, music_school, driving_school, training` |
+| **leisure** | `amenity: cinema, theatre, casino, arts_centre, nightclub, community_centre`; `tourism: museum, gallery, theme_park, attraction, viewpoint, zoo`; `leisure: dance, escape_game, amusement_arcade, bowling_alley, miniature_golf` |
+| **fitness** | `leisure: sports_centre, fitness_centre, swimming_pool, pitch, track, stadium`; `shop: sports` |
+| **transport** | `amenity: bus_station, taxi, car_rental, fuel, parking, bicycle_rental, ferry_terminal, car_wash`; `shop: car, car_repair, car_parts, motorcycle, tyres` |
+| **residential** | `building: residential, apartments, house, detached, terrace, dormitory`; `amenity: childcare, social_facility` |
+| **beauty** | `shop: beauty, hairdresser, cosmetics, perfumery, tattoo`; `amenity: spa` |
+| **hospitality** | `tourism: hotel, motel, hostel, guest_house, apartment, camp_site, chalet` |
+| **religious** | `amenity: place_of_worship` |
+| **green** | `leisure: park, garden, nature_reserve, playground, dog_park`; `amenity: fountain` |
+
+Simultaneamente, conta-se os POIs **premium** — aqueles cujo valor de tag pertence a um destes conjuntos:
+
+- **PREMIUM_INDICATORS:** `coworking_space`, `spa`, `gym`, `fitness_centre`, `sports_centre`, `swimming_pool`
+- **PREMIUM_SHOP_INDICATORS:** `beauty`, `cosmetics`, `perfumery`, `jewelry`, `watches`, `wine`
+
+**Saída da etapa:** `groupCounts` (contagem por grupo), `total` (total de POIs classificados), `premiumCount`, `poiDetails` (array com nome, grupo, distância).
+
+#### 3.2.3 Etapa 3 — Classificação de Tipo de Bairro (`classifyNeighborhood`)
+
+O algoritmo usa **similaridade cosseno** entre o vetor de proporções observadas e os vetores de referência de cada tipo de bairro.
+
+**Requisito mínimo:** Se `total < 3`, retorna `type: "indefinido"`.
+
+**Vetor observado:** Para cada grupo `g`, calcula `observed[g] = groupCounts[g] / total`.
+
+**Vetores de referência dos 9 tipos de bairro:**
+
+| Tipo | corporate | commercial | food | health | education | leisure | fitness | transport | residential | beauty | hospitality | green |
+|------|-----------|------------|------|--------|-----------|---------|---------|-----------|-------------|--------|-------------|-------|
+| `centro_corporativo` | **0.25** | 0.15 | **0.20** | 0.05 | — | — | — | 0.10 | — | — | — | — |
+| `zona_comercial` | — | **0.30** | **0.20** | 0.08 | — | — | — | 0.10 | — | — | — | — |
+| `residencial_premium` | — | — | 0.15 | — | — | — | **0.12** | — | **0.20** | **0.10** | — | 0.10 |
+| `residencial_medio` | — | 0.15 | — | 0.10 | 0.08 | — | — | 0.12 | **0.25** | — | — | — |
+| `zona_universitaria` | — | 0.10 | **0.20** | — | **0.30** | 0.10 | — | — | — | — | — | — |
+| `zona_lazer` | — | — | **0.25** | — | — | **0.20** | — | — | — | 0.05 | 0.10 | — |
+| `zona_popular_densa` | — | **0.20** | 0.15 | — | — | — | — | **0.20** | 0.15 | — | — | — |
+| `polo_saude` | — | 0.10 | 0.15 | **0.35** | — | — | — | 0.08 | — | — | — | — |
+| `polo_educacional` | — | 0.15 | 0.15 | — | **0.30** | — | — | 0.08 | — | — | — | — |
+
+> Células com `—` = 0. Valores em **negrito** são os componentes dominantes de cada tipo.
+
+**Fórmula da similaridade cosseno:**
+
+$$
+\text{similarity}(obs, ref) = \frac{\sum_{g \in \text{grupos}} obs_g \cdot ref_g}{\sqrt{\sum_g obs_g^2} \cdot \sqrt{\sum_g ref_g^2}}
+$$
+
+O tipo com maior similaridade é selecionado. A **confiança** é `similarity × 100` (0–100).
+
+**Metadados associados** de cada tipo (armazenados junto com a classificação):
+
+| Tipo | Label | Nível socioeconômico | Ambiente | Atividade dominante |
+|------|-------|---------------------|----------|---------------------|
+| `centro_corporativo` | Centro Corporativo | alto | corporativo | Escritórios, serviços financeiros e alimentação executiva |
+| `zona_comercial` | Zona Comercial | medio-alto | comercial | Comércio varejista, alimentação e serviços |
+| `residencial_premium` | Residencial Premium | alto | residencial alto padrão | Moradia de alto padrão, lazer e bem-estar |
+| `residencial_medio` | Residencial Médio | medio | residencial | Moradia, comércio local e serviços essenciais |
+| `zona_universitaria` | Zona Universitária | medio | universitário | Ensino superior, alimentação e serviços estudantis |
+| `zona_lazer` | Zona de Lazer e Entretenimento | medio-alto | entretenimento | Gastronomia, bares, entretenimento e hotelaria |
+| `zona_popular_densa` | Zona Popular de Alta Densidade | medio-baixo | popular denso | Transporte público, comércio popular e serviços essenciais |
+| `polo_saude` | Polo de Saúde | medio-alto | saúde | Hospitais, clínicas, farmácias e serviços médicos |
+| `polo_educacional` | Polo Educacional | medio | educacional | Escolas, cursos, livrarias e serviços educacionais |
+
+#### 3.2.4 Etapa 4 — Inferência Socioeconômica (`inferSocioeconomic`)
+
+Calcula um score 0–100 baseado em 4 componentes ponderados:
+
+$$
+\text{rawScore} = (\text{premiumRatio} \times 35) + (\text{fitnessBeautyRatio} \times 30) + (\text{corporateRatio} \times 20) + \min(15, \text{total} \times 0.15)
+$$
+
+Onde:
+- `premiumRatio` = `premiumCount / total` — proporção de POIs premium (spa, joalheria, perfumaria, academia, vinho)
+- `fitnessBeautyRatio` = `(fitness + beauty) / total` — proporção de POIs de fitness + beleza
+- `corporateRatio` = `corporate / total` — proporção de POIs corporativos
+- `total × 0.15` (máx 15) — bônus de diversidade/volume ("mais POIs = área mais desenvolvida")
+
+**Thresholds de nível:**
+
+| Score | Nível |
+|-------|-------|
+| ≥ 60 | `alto` |
+| 40–59 | `medio-alto` |
+| 20–39 | `medio` |
+| < 20 | `medio-baixo` |
+
+#### 3.2.5 Etapa 5 — Densidade Urbana (`inferUrbanDensity`)
+
+Calcula POIs por km² dentro do raio de análise:
+
+$$
+\text{density} = \frac{\text{total\_pois}}{\pi \times (r/1000)^2}
+$$
+
+| Densidade (POIs/km²) | Label |
+|----------------------|-------|
+| ≥ 300 | `muito alta` |
+| 150–299 | `alta` |
+| 60–149 | `media` |
+| 20–59 | `baixa` |
+| < 20 | `muito baixa` |
+
+#### 3.2.6 Etapa 6 — Indicadores de Estilo de Vida (`inferLifestyle`)
+
+Se `total ≥ 3`, analisa a proporção de cada grupo e ativa indicadores:
+
+| Indicador | Condição | Descrição |
+|-----------|----------|-----------|
+| `fitness_e_saude` | fitness ≥ 8% | Área com academias, esportes, piscinas |
+| `estetica_e_beleza` | beauty ≥ 5% | Salões, cosméticos, perfumaria |
+| `gastronomia` | food ≥ 25% | Alta concentração gastronômica |
+| `entretenimento` | leisure ≥ 10% | Cinemas, teatros, vida noturna |
+| `profissional_executivo` | corporate ≥ 15% | Escritórios, bancos, coworkings |
+| `educacao` | education ≥ 15% | Escolas, universidades, cursos |
+| `saude_e_bem_estar` | health ≥ 15% | Hospitais, clínicas, farmácias |
+| `turismo` | hospitality ≥ 5% | Hotéis, hostels, pousadas |
+| `ar_livre` | green ≥ 8% | Parques, jardins, praças |
+| `alta_mobilidade` | transport ≥ 15% | Estações, combustíveis, estacionamentos |
+| `vida_residencial` | residential ≥ 15% | Prédios, casas, serviços familiares |
+
+#### 3.2.7 Etapa 7 — Narrativa de Audiência (`generateNarrative`)
+
+Gera um texto descritivo em Markdown combinando:
+1. **Abertura** — tipo de bairro + densidade urbana
+2. **POIs dominantes** — top 3 grupos por contagem (com % do total)
+3. **Perfil socioeconômico** — descrição textual do nível
+4. **Indicadores de lifestyle** — lista dos indicadores ativos
+5. **Demografia municipal** — população + PIB per capita (dados IBGE)
+
+#### 3.2.8 Matriz de Afinidade Segmento ↔ Bairro
+
+A matriz `SEGMENT_NEIGHBORHOOD_AFFINITY` aplica **multiplicadores de bônus** ao score de recomendação quando o tipo de bairro é favorável para o segmento do anunciante. Valor `1.0` = neutro (sem bônus).
+
+| Segmento | Bairros com bônus (multiplicador) |
+|----------|-----------------------------------|
+| `clinica` | polo_saude ×1.8, residencial_premium ×1.4, centro_corporativo ×1.2 |
+| `hospital` | polo_saude ×1.9, residencial_medio ×1.2 |
+| `escola` | polo_educacional ×1.8, residencial_medio ×1.5, residencial_premium ×1.3 |
+| `faculdade` | zona_universitaria ×1.9, polo_educacional ×1.4, zona_lazer ×1.2 |
+| `construtora` | residencial_premium ×1.6, centro_corporativo ×1.3, residencial_medio ×1.2 |
+| `imobiliaria` | residencial_premium ×1.7, centro_corporativo ×1.3, zona_comercial ×1.2 |
+| `varejo` | zona_comercial ×1.8, zona_popular_densa ×1.4, residencial_medio ×1.2 |
+| `restaurante` | zona_lazer ×1.7, zona_comercial ×1.4, centro_corporativo ×1.3 |
+| `contabilidade` | centro_corporativo ×1.8, zona_comercial ×1.3 |
+| `advocacia` | centro_corporativo ×1.8, zona_comercial ×1.2 |
+| `industria` | zona_popular_densa ×1.3, zona_comercial ×1.2 |
+| `outro` | sem bônus |
+
+**Saída armazenada em `geo_audience_profiles`:** `neighborhood_type`, `neighborhood_label`, `confidence`, `socioeconomic_level`, `socioeconomic_score`, `environment_type`, `dominant_activity`, `urban_density`, `pois_per_km2`, `lifestyle_indicators` (JSON), `poi_summary` (JSON), `total_pois`, `audience_narrative`, `premium_count`, `demographic_data` (JSON), `raw_data` (JSON).
+
+**Cache:** TTL 7 dias. Auto-refresh via scheduler a cada 90 minutos.
 
 ---
 
-### 3.3 `censusAudienceService.js` — Classificação Demográfica
+### 3.3 `censusAudienceService.js` — Classificação Demográfica (Censo IBGE)
 
 **Fluxo completo:**
 ```
 Ponto (lat,lng,cidade) → IBGE Localidades (nome→código)
-→ IBGE Malhas (GeoJSON setores) → Point-in-polygon (identifica setor)
+→ IBGE Malhas (GeoJSON setores) → Point-in-polygon (identifica setor censitário)
 → IBGE Agregados (5 tabelas: pop, PIB, renda, educação, idade)
-→ Overpass API (500m, POI analysis)
-→ Score 4 perfis → Upsert census_audience_profiles
+→ Overpass API (800m, classificação de POIs por perfil)
+→ Score combinado (censo + POIs) para 4 perfis → Upsert census_audience_profiles
 ```
 
-**Scoring de cada perfil (0–1):**
+#### 3.3.1 Definição dos 4 Perfis Demográficos
 
-| Perfil | Sinal do Censo (50-70%) | Sinal de POIs (30-50%) |
-|--------|-------------------------|------------------------|
-| `alta_renda` | Renda alta + PIB alto + educação > 40% sup. completo | Joalheria, spa, concessionária, restaurante premium |
-| `massa_varejo` | Renda média (bell curve em torno de R$2.500) + pop alta | Supermercado, lotérica, transporte público, lojas populares |
-| `jovem_universitario` | % jovem 18-29 > 35% | Universidade, bar, coworking, academia |
-| `terceira_idade` | % idoso 60+ > 25% | Farmácia, igreja, praça, clínica |
+Cada perfil tem uma lista de **POIs indicadores** (tags OSM que sinalizam afinidade) e um `expectedPois` (valor de normalização):
 
-**Score geral:** `max(4 perfis) × 0.6 + média(4 perfis) × 0.4`
+**Alta Renda** (`alta_renda`) — expectedPois: 15
+- `amenity`: bank, bureau_de_change, clinic, doctors, dentist, spa, coworking_space
+- `shop`: department_store, jewelry, watches, perfumery, wine, cosmetics, beauty, optician, bag
+- `leisure`: fitness_centre, sports_centre, swimming_pool
+- `office`: qualquer
+- `tourism`: hotel
 
-**Quando dados censitários faltam:** Peso do sinal de POIs aumenta para compensar (até 100% se nenhum dado IBGE disponível).
+**Massa / Varejo** (`massa_varejo`) — expectedPois: 20
+- `amenity`: marketplace, post_office, bus_station, fuel, parking
+- `shop`: supermarket, convenience, clothes, mobile_phone, variety_store, hardware, shoes, electronics, butcher, greengrocer
+- `building`: commercial
+
+**Jovem / Universitário** (`jovem_universitario`) — expectedPois: 10
+- `amenity`: university, college, language_school, bar, pub, nightclub, cafe, fast_food, bicycle_rental, library, cinema
+- `shop`: books, computer, mobile_phone
+- `leisure`: dance, escape_game, amusement_arcade
+
+**Terceira Idade** (`terceira_idade`) — expectedPois: 10
+- `amenity`: hospital, clinic, doctors, place_of_worship, social_facility, community_centre
+- `healthcare`: qualquer
+- `leisure`: park, garden, playground
+- `shop`: pharmacy, chemist, hearing_aids, medical_supply
+
+> **Nota:** Um mesmo POI pode contar para múltiplos perfis (ex: farmácia conta para `massa_varejo` se for supermercado e para `terceira_idade` se for farmácia).
+
+#### 3.3.2 Dados Censitários do IBGE
+
+O serviço consulta 5 tabelas do IBGE Agregados para o município:
+
+**Tabela 9606 — Faixas de Renda** → `rendaMediaDomiciliar`
+- Parseia os brackets do tipo "Até ¼ de salário mínimo", "Mais de ½ a 1 salário mínimo", etc.
+- Mapeia cada bracket para valor médio em R$ (SM 2022 = R$ 1.212):
+  - Até ¼ SM → R$ 151,50 | ¼ a ½ SM → R$ 454,50 | ½ a 1 SM → R$ 909,00
+  - 1 a 2 SM → R$ 1.818,00 | 2 a 3 SM → R$ 3.030,00 | 3 a 5 SM → R$ 4.848,00
+  - 5 a 10 SM → R$ 9.090,00 | 10 a 20 SM → R$ 18.180,00 | 20+ SM → R$ 30.300,00
+- Renda média = `Σ(valor_médio × quantidade) / Σ(quantidade)`
+
+**Tabela 9529 — Nível de Instrução** → `pctInstrucaoSuperior`
+- Busca variável cujo label contém "Superior completo"
+- Calcula: `população com superior completo / população total`
+
+**Tabela 9514 — Faixas Etárias** → `pctJovem18_29`, `pctIdoso60plus`
+- Parseia brackets do formato "X a Y anos"
+- `pctJovem18_29` = soma das faixas 18-19, 20-24, 25-29 / total
+- `pctIdoso60plus` = soma das faixas 60-64, 65-69, 70-74, 75-79, 80+ / total
+
+**Tabela 4714 — População** → `population`
+
+**Tabela 5938 — PIB** → `pibPerCapita` (usado como fallback se tabela 9606 não retornar dados)
+
+#### 3.3.3 Identificação do Setor Censitário
+
+1. Busca a malha GeoJSON do município via IBGE Malhas API (`intrarregiao=setor`)
+2. Pré-computa bounding boxes para cada feature (otimização)
+3. Para o ponto (lat, lng), realiza **point-in-polygon** via algoritmo ray-casting
+4. Se encontrar feature, extrai código do setor (usado como referência)
+
+#### 3.3.4 Motor de Scoring (`scoreProfiles`)
+
+Cada perfil recebe um score final 0–1 combinando **sinal de POIs** e **sinal censitário**, com pesos diferentes por perfil.
+
+**Fórmula genérica:**
+
+$$
+\text{score} = \text{poiSignal} \times w_{poi} + \frac{\text{censusSignal}}{\text{censusWeight}} \times w_{census}
+$$
+
+Se dados censitários não estiverem disponíveis, `score = poiSignal`.
+
+---
+
+**Alta Renda** — `poiWeight = 0.45`, `censusWeight = 0.55`
+
+| Componente censitário | Fórmula | Peso interno |
+|-----------------------|---------|-------------|
+| Renda média domiciliar | `clamp(renda / 5000)` | 0.45 |
+| PIB per capita | `clamp(pib / 50000)` | 0.30 |
+| % superior completo | `clamp(pctSuperior / 0.40)` | 0.25 |
+
+`poiSignal = clamp(poiCount / 15)`
+
+---
+
+**Massa / Varejo** — `poiWeight = 0.50`, `censusWeight = 0.50`
+
+| Componente censitário | Fórmula | Peso interno |
+|-----------------------|---------|-------------|
+| Renda (curva-sino em R$3.000) | `clamp(1 - |renda - 3000| / 3000)` | 0.50 |
+| População | `clamp(pop / 200000)` | 0.50 |
+
+`poiSignal = clamp(poiCount / 20)`
+
+> A renda usa uma **curva-sino** com pico em R$ 3.000 — pontuação máxima para classe média, decaindo para rendas muito altas ou baixas.
+
+---
+
+**Jovem / Universitário** — `poiWeight = 0.55`, `censusWeight = 0.45`
+
+| Componente censitário | Fórmula | Peso interno |
+|-----------------------|---------|-------------|
+| % jovens 18-29 | `clamp(pctJovem / 0.35)` | 1.0 |
+| Fallback (pop > 100k) | `clamp(pop / 500000) × 0.3` | 0.3 |
+
+`poiSignal = clamp(poiCount / 10)`
+
+> Fallback: cidades maiores tendem a ter mais jovens; usado quando dados de faixa etária não estão disponíveis.
+
+---
+
+**Terceira Idade** — `poiWeight = 0.50`, `censusWeight = 0.50`
+
+| Componente censitário | Fórmula | Peso interno |
+|-----------------------|---------|-------------|
+| % idosos 60+ | `clamp(pctIdoso / 0.25)` | 1.0 |
+
+`poiSignal = clamp(poiCount / 10)`
+
+---
+
+#### 3.3.5 Score Geral e Perfil Dominante
+
+Após calcular os 4 scores individuais:
+
+$$
+\text{scoreGeral} = \max(\text{4 perfis}) \times 0.6 + \text{média}(\text{4 perfis}) \times 0.4
+$$
+
+O **perfil dominante** é aquele com o maior score individual.
+
+**Saída armazenada em `census_audience_profiles`:** `perfil_alta_renda`, `perfil_massa_varejo`, `perfil_jovem_universitario`, `perfil_terceira_idade`, `perfil_dominante`, `score_geral`, `municipio`, `municipio_ibge_code`, `setor_censitario`, `pois_proximos` (JSON), `fontes_dados` (JSON), `dados_censitarios` (JSON), `dados_pois` (JSON), `total_pois`.
+
+**Cache:** TTL 7 dias (168 horas). Auto-refresh via scheduler a cada 90 minutos.
 
 ---
 
