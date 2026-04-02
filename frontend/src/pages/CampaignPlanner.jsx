@@ -11,7 +11,7 @@ import Navbar from '../components/Navbar';
 import CampaignScore from '../components/CampaignScore';
 import PointCard from '../components/PointCard';
 import PointModal from '../components/PointModal';
-import { fetchPontos, fetchGeoAudienceProfiles } from '../lib/api';
+import { fetchPontos, fetchGeoAudienceProfiles, fetchCensusProfiles } from '../lib/api';
 import { useFavorites } from '../context/FavoritesContext';
 import {
   SEGMENTOS,
@@ -24,6 +24,7 @@ import {
   estimateReachFrequency,
   campaignTotals,
   buildGeoAudienceNarrative,
+  CENSUS_PROFILE_LABELS,
 } from '../lib/strategy';
 
 const SmartMap = lazy(() => import('../components/SmartMap'));
@@ -252,6 +253,7 @@ export default function CampaignPlanner() {
   // data
   const [allPontos, setAllPontos] = useState([]);
   const [geoProfiles, setGeoProfiles] = useState(null); // { [pontoId]: profile }
+  const [censusProfiles, setCensusProfiles] = useState(null); // { [pontoId]: censusProfile }
   const [cidades, setCidades] = useState([]);
   const [publicos, setPublicos] = useState([]);
   const [loadingPontos, setLoadingPontos] = useState(false);
@@ -272,11 +274,20 @@ export default function CampaignPlanner() {
     setLoadingPontos(true);
     Promise.all([
       fetchPontos(),
-      fetchGeoAudienceProfiles().catch(() => ({ profiles: {} }))
+      fetchGeoAudienceProfiles().catch(() => ({ profiles: {} })),
+      fetchCensusProfiles().catch(() => ({ profiles: [] }))
     ])
-      .then(([data, geo]) => {
+      .then(([data, geo, census]) => {
         setAllPontos(data);
         setGeoProfiles(geo?.profiles || null);
+        // Convert census profiles array to a map by ponto_id
+        const censusMap = {};
+        if (Array.isArray(census?.profiles)) {
+          for (const p of census.profiles) {
+            if (p?.ponto_id) censusMap[p.ponto_id] = p;
+          }
+        }
+        setCensusProfiles(Object.keys(censusMap).length ? censusMap : null);
         const uniqueCidades = Array.from(new Set(data.map((p) => p.cidade).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
         const uniquePublicos = Array.from(new Set(data.map((p) => p.publico).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
         setCidades(uniqueCidades);
@@ -314,6 +325,7 @@ export default function CampaignPlanner() {
           periodWeeks: period,
           investimentoMensal: budget || 0,
           geoProfilesByPoint: geoProfiles,
+          censusProfilesByPoint: censusProfiles,
           cityInventory: cityPontos,
         });
 
@@ -349,6 +361,7 @@ export default function CampaignPlanner() {
           segmento,
           budget: budget || 0,
           geoProfilesByPoint: geoProfiles,
+          censusProfilesByPoint: censusProfiles,
         });
 
         setResult({ plan, scoreInfo, strategic, ranked });
@@ -356,7 +369,7 @@ export default function CampaignPlanner() {
         setStep(4);
       }, 100);
     });
-  }, [allPontos, cidade, publicoAlvo, audienceTags, objetivo, segmento, budget, period, empresa, geoProfiles]);
+  }, [allPontos, cidade, publicoAlvo, audienceTags, objetivo, segmento, budget, period, empresa, geoProfiles, censusProfiles]);
 
   const handleNext = useCallback(() => {
     if (step === 3) {
@@ -563,7 +576,8 @@ export default function CampaignPlanner() {
       geoaudience: 'GeoAudiência',
       segmento: 'Segmento',
       formato: 'Formato',
-      disponibilidade: 'Disponibilidade'
+      disponibilidade: 'Disponibilidade',
+      censusProfile: 'Perfil Censo'
     };
 
     const DIM_COLORS = {
@@ -574,7 +588,8 @@ export default function CampaignPlanner() {
       geoaudience: 'bg-indigo-500',
       segmento: 'bg-amber-500',
       formato: 'bg-cyan-500',
-      disponibilidade: 'bg-rose-400'
+      disponibilidade: 'bg-rose-400',
+      censusProfile: 'bg-violet-500'
     };
 
     return (
@@ -759,6 +774,24 @@ export default function CampaignPlanner() {
                                 {pt.geoProfile.urban_density && (
                                   <span className={`text-[10px] ${isDark ? 'text-white/25' : 'text-neutral-400'}`}>
                                     Densidade {pt.geoProfile.urban_density} • {pt.geoProfile.total_pois || 0} POIs
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Census Audience Profile Badge */}
+                            {pt.censusProfile && pt.censusProfile.perfil_dominante && (
+                              <div className={`flex flex-wrap items-center gap-2 mt-1.5 ${!pt.geoProfile ? `pt-2 border-t ${isDark ? 'border-white/5' : 'border-neutral-100'}` : ''}`}>
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                  isDark ? 'bg-violet-500/15 text-violet-300' : 'bg-violet-50 text-violet-700'
+                                }`}>
+                                  <Users size={10} />
+                                  {CENSUS_PROFILE_LABELS[pt.censusProfile.perfil_dominante] || pt.censusProfile.perfil_dominante}
+                                </span>
+                                {pt.censusProfile.score_geral > 0 && (
+                                  <span className={`text-[10px] ${isDark ? 'text-white/25' : 'text-neutral-400'}`}>
+                                    Score {Math.round(pt.censusProfile.score_geral * 100)}%
+                                    {pt.censusProfile.total_pois > 0 && ` • ${pt.censusProfile.total_pois} POIs`}
                                   </span>
                                 )}
                               </div>

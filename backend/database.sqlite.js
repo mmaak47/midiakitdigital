@@ -437,6 +437,41 @@ db.exec(`
   ON geo_audience_profiles (neighborhood_type)
 `);
 
+// Census Audience Classification: per-point demographic audience profile
+db.exec(`
+  CREATE TABLE IF NOT EXISTS census_audience_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ponto_id INTEGER NOT NULL UNIQUE,
+    municipio TEXT,
+    municipio_ibge_code TEXT,
+    setor_censitario TEXT,
+    perfil_alta_renda REAL DEFAULT 0,
+    perfil_massa_varejo REAL DEFAULT 0,
+    perfil_jovem_universitario REAL DEFAULT 0,
+    perfil_terceira_idade REAL DEFAULT 0,
+    perfil_dominante TEXT,
+    score_geral REAL DEFAULT 0,
+    pois_proximos TEXT,
+    fontes_dados TEXT,
+    dados_censitarios TEXT,
+    dados_pois TEXT,
+    total_pois INTEGER DEFAULT 0,
+    updated_at TEXT DEFAULT (datetime('now')),
+    expires_at TEXT,
+    FOREIGN KEY (ponto_id) REFERENCES pontos(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_census_profiles_dominante
+  ON census_audience_profiles (perfil_dominante)
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_census_profiles_municipio
+  ON census_audience_profiles (municipio)
+`);
+
 // Seed data if empty
 const count = db.prepare('SELECT COUNT(*) as c FROM pontos').get();
 if (count.c === 0) {

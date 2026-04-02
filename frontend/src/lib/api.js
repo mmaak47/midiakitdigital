@@ -346,6 +346,63 @@ export async function requestGeoAudienceAnalysis({ cidade, force = false } = {})
   return res.json();
 }
 
+// ============== CENSUS AUDIENCE CLASSIFICATION ==============
+
+export async function fetchCensusProfiles({ municipio, perfil, minScore } = {}) {
+  const params = new URLSearchParams();
+  if (municipio) params.set('municipio', municipio);
+  if (perfil) params.set('perfil', perfil);
+  if (minScore) params.set('min_score', minScore);
+  const qs = params.toString();
+  const res = await apiRequest(`/census/profiles${qs ? `?${qs}` : ''}`);
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao carregar perfis censitários');
+  }
+  return res.json();
+}
+
+export async function fetchCensusProfile(pontoId) {
+  const res = await apiRequest(`/census/profile/${pontoId}`);
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Perfil censitário não encontrado');
+  }
+  return res.json();
+}
+
+export async function fetchCensusGeoJSON({ municipio, perfil, minScore } = {}) {
+  const params = new URLSearchParams();
+  if (municipio) params.set('municipio', municipio);
+  if (perfil) params.set('perfil', perfil);
+  if (minScore) params.set('min_score', minScore);
+  const qs = params.toString();
+  const res = await apiRequest(`/census/geojson${qs ? `?${qs}` : ''}`);
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao gerar GeoJSON censitário');
+  }
+  return res.json();
+}
+
+export async function fetchCensusTypes() {
+  const res = await apiRequest('/census/types');
+  if (!res.ok) throw new Error('Erro ao carregar tipos de perfil censitário');
+  return res.json();
+}
+
+export async function requestCensusAnalysis({ municipio, force = false } = {}) {
+  const res = await apiRequest('/census/analyze', {
+    method: 'POST',
+    body: JSON.stringify({ municipio: municipio || null, force })
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao iniciar análise censitária');
+  }
+  return res.json();
+}
+
 // ============== ADMIN SETTINGS ==============
 
 export async function fetchAdminSettings() {

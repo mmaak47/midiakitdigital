@@ -825,6 +825,74 @@ export function buildGeoAudienceNarrative(profile) {
   };
 }
 
+// ─── Census Audience Profile Scoring ──────────────────────────────────────
+
+const CENSUS_PROFILE_LABELS = {
+  alta_renda: 'Alta Renda',
+  massa_varejo: 'Massa / Varejo',
+  jovem_universitario: 'Jovem / Universitário',
+  terceira_idade: 'Terceira Idade'
+};
+
+// Map audience tags + público → census profiles
+const TAG_TO_CENSUS = {
+  'classe-a': ['alta_renda'],
+  premium: ['alta_renda'],
+  executivos: ['alta_renda'],
+  'classe-b': ['massa_varejo'],
+  shopper: ['massa_varejo'],
+  jovens: ['jovem_universitario'],
+  moradores: ['massa_varejo', 'terceira_idade'],
+  familias: ['massa_varejo'],
+  turistas: ['alta_renda', 'jovem_universitario'],
+  motoristas: ['massa_varejo']
+};
+
+const PUBLICO_TO_CENSUS = {
+  A: ['alta_renda'],
+  'A/B': ['alta_renda', 'massa_varejo'],
+  'A/B+': ['alta_renda'],
+  B: ['massa_varejo'],
+  'B/C': ['massa_varejo'],
+  'A/B/C': ['alta_renda', 'massa_varejo']
+};
+
+/**
+ * Score a point's census audience profile against the campaign's target audience.
+ * Returns 0-40 (raw score, normalised later to 0-100 within the dimension).
+ */
+function scoreCensusProfileAffinity(point, { publico, audienceTags, censusProfilesByPoint } = {}) {
+  if (!censusProfilesByPoint || !point?.id) return 0;
+
+  const profile = censusProfilesByPoint[point.id] || censusProfilesByPoint[String(point.id)];
+  if (!profile || !profile.perfis) return 0;
+
+  const perfis = profile.perfis;
+  let score = 0;
+
+  // Audience tag affinity (0-20)
+  const tags = Array.isArray(audienceTags) ? audienceTags.map(t => typeof t === 'string' ? t : t.key) : [];
+  for (const tag of tags) {
+    const boosted = TAG_TO_CENSUS[tag] || [];
+    for (const bp of boosted) score += (perfis[bp] || 0) * 10;
+  }
+
+  // Público class affinity (0-12)
+  const pubArr = Array.isArray(publico) ? publico : publico ? [publico] : [];
+  for (const pub of pubArr) {
+    const target = String(pub).toUpperCase();
+    const boosted = PUBLICO_TO_CENSUS[target] || [];
+    for (const bp of boosted) score += (perfis[bp] || 0) * 8;
+  }
+
+  // General census quality bonus (0-8)
+  score += (profile.score_geral || 0) * 8;
+
+  return Math.min(40, score);
+}
+
+export { CENSUS_PROFILE_LABELS };
+
 function buildCandidate(point, {
   objetivo,
   publico,
@@ -834,7 +902,8 @@ function buildCandidate(point, {
   entornoByPoint,
   audienceTags,
   availabilityPreference,
-  geoProfilesByPoint
+  geoProfilesByPoint,
+  censusProfilesByPoint
 }) {
   const preco = Math.max(0, toNumber(point.preco));
   const objectiveScore = scorePointByObjective(point, objetivo);
@@ -845,6 +914,7 @@ function buildCandidate(point, {
   const segmentoScore = scoreSegmentAffinity(point, segmento);
   const entornoScore = scoreSegmentEnvironment(point, entornoByPoint);
   const geoAudienceScore = scoreGeoAudienceAffinity(point, { segmento, publico, geoProfilesByPoint });
+  const censusScore = scoreCensusProfileAffinity(point, { publico, audienceTags, censusProfilesByPoint });
   const formatBoost = getObjectiveFormatBoost(point.tipo, objetivo);
   const premiumPenalty = preco > medianPrice * 2.4 ? -8 : 0;
   const hugePenalty = maxPrice > 0 && preco > maxPrice * 0.85 ? -4 : 0;
@@ -854,6 +924,7 @@ function buildCandidate(point, {
     _preco: preco,
     _entornoScore: entornoScore,
     _geoAudienceScore: geoAudienceScore,
+    _censusScore: censusScore,
     _baseScore:
       objectiveScore * 1.25 +
       efficiencyScore * 0.9 +
@@ -863,6 +934,7 @@ function buildCandidate(point, {
       segmentoScore +
       entornoScore +
       geoAudienceScore +
+      censusScore +
       formatBoost +
       premiumPenalty +
       hugePenalty
@@ -919,6 +991,7 @@ export function suggestIdealPlan({
   investimentoMensal = 0,
   entornoByPoint = null,
   geoProfilesByPoint = null,
+  censusProfilesByPoint = null,
   cityInventory = []
 }) {
   const budget = Math.max(0, toNumber(investimentoMensal));
@@ -959,7 +1032,8 @@ export function suggestIdealPlan({
       entornoByPoint,
       audienceTags,
       availabilityPreference,
-      geoProfilesByPoint
+      geoProfilesByPoint,
+      censusProfilesByPoint
     }))
     .sort((a, b) => b._baseScore - a._baseScore);
 
@@ -1414,13 +1488,14 @@ export function generateStrategicJustification({
    ────────────────────────────────────────────────────────── */
 
 const DEFAULT_WEIGHTS = {
-  objetivo: 22,
-  publico: 18,
-  eficiencia: 13,
-  entorno: 12,
-  geoaudience: 12,
-  segmento: 9,
-  formato: 9,
+  objetivo: 20,
+  publico: 16,
+  eficiencia: 12,
+  entorno: 11,
+  geoaudience: 10,
+  censusProfile: 10,
+  segmento: 8,
+  formato: 8,
   disponibilidade: 5
 };
 
@@ -1437,6 +1512,7 @@ export function rankPointsWithScore({
   segmento,
   entornoByPoint = null,
   geoProfilesByPoint = null,
+  censusProfilesByPoint = null,
   availabilityPreference = 'all',
   budget = 0,
   weights = DEFAULT_WEIGHTS
@@ -1463,8 +1539,9 @@ export function rankPointsWithScore({
     const segRaw = scoreSegmentAffinity(p, segmento);
     const fmtRaw = getObjectiveFormatBoost(p.tipo, objetivo);
     const availRaw = scoreAvailabilityFit(p, availabilityPreference);
+    const censusRaw = scoreCensusProfileAffinity(p, { publico: publicoNormalizado, audienceTags, censusProfilesByPoint });
 
-    return { point: p, objRaw, pubRaw, effRaw, entRaw, geoRaw, segRaw, fmtRaw, availRaw };
+    return { point: p, objRaw, pubRaw, effRaw, entRaw, geoRaw, segRaw, fmtRaw, availRaw, censusRaw };
   });
 
   // Find max of each dimension for normalization
@@ -1476,6 +1553,7 @@ export function rankPointsWithScore({
   const maxSeg = Math.max(1, ...rawScores.map((r) => r.segRaw));
   const maxFmt = Math.max(1, ...rawScores.map((r) => r.fmtRaw));
   const maxAvail = Math.max(1, ...rawScores.map((r) => r.availRaw));
+  const maxCensus = Math.max(1, ...rawScores.map((r) => r.censusRaw));
 
   const totalWeight = Object.values(weights).reduce((s, w) => s + w, 0) || 100;
 
@@ -1489,7 +1567,8 @@ export function rankPointsWithScore({
       geoaudience: Math.max(0, Math.min(100, (r.geoRaw / maxGeo) * 100)),
       segmento: Math.max(0, Math.min(100, (r.segRaw / maxSeg) * 100)),
       formato: Math.max(0, Math.min(100, (r.fmtRaw / maxFmt) * 100)),
-      disponibilidade: Math.max(0, Math.min(100, (r.availRaw / maxAvail) * 100))
+      disponibilidade: Math.max(0, Math.min(100, (r.availRaw / maxAvail) * 100)),
+      censusProfile: Math.max(0, Math.min(100, (r.censusRaw / maxCensus) * 100))
     };
 
     // Weighted average → 0-100 final score
@@ -1505,6 +1584,9 @@ export function rankPointsWithScore({
     // Attach geoaudience profile if available
     const geoProfile = geoProfilesByPoint?.[p.id] || geoProfilesByPoint?.[String(p.id)] || null;
 
+    // Attach census audience profile if available
+    const censusProfile = censusProfilesByPoint?.[p.id] || censusProfilesByPoint?.[String(p.id)] || null;
+
     // Determine primary reason for recommendation
     const dimEntries = Object.entries(dims).sort((a, b) => b[1] - a[1]);
     const strongDims = dimEntries.filter(([, v]) => v >= 70).slice(0, 2);
@@ -1517,7 +1599,8 @@ export function rankPointsWithScore({
       geoaudience: 'perfil de audiência do bairro',
       segmento: 'aderência ao segmento do anunciante',
       formato: 'formato adequado ao objetivo',
-      disponibilidade: 'disponibilidade de veiculação'
+      disponibilidade: 'disponibilidade de veiculação',
+      censusProfile: 'perfil demográfico da região (Censo IBGE)'
     };
     if (strongDims.length) {
       motivoPrincipal = `Destaque por ${strongDims.map(([k]) => DIM_LABELS[k]).join(' e ')}.`;
@@ -1528,6 +1611,12 @@ export function rankPointsWithScore({
     // Enrich motive with geoaudience when it's the top dimension
     if (geoProfile && dims.geoaudience >= 60) {
       motivoPrincipal += ` Localizado em ${geoProfile.neighborhood_label} (${geoProfile.socioeconomic_level}).`;
+    }
+
+    // Enrich motive with census profile when relevant
+    if (censusProfile && dims.censusProfile >= 60) {
+      const perfLabel = CENSUS_PROFILE_LABELS[censusProfile.perfil_dominante] || censusProfile.perfil_dominante;
+      motivoPrincipal += ` Região de perfil ${perfLabel} (Censo IBGE).`;
     }
 
     // Estimated monthly reach for this single point
@@ -1541,7 +1630,8 @@ export function rankPointsWithScore({
       estimatedReach,
       estimatedInvestment: toNumber(p.preco),
       cpmPonto: fluxo > 0 ? toNumber(p.preco) / (fluxo / 1000) : 0,
-      geoProfile
+      geoProfile,
+      censusProfile
     };
   }).sort((a, b) => b.compatibilidade - a.compatibilidade);
 }

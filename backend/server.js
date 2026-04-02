@@ -57,6 +57,7 @@ const {
   runAutoRefreshCycle
 } = require('./entornoAnalysis');
 const geoAudience = require('./geoAudienceService');
+const censusAudience = require('./censusAudienceService');
 
 const app = express();
 
@@ -782,6 +783,13 @@ app.get('/api/pontos', (req, res) => {
     params.push(`%"key":"${tag}"%`);
   });
 
+  // Census audience profile filter — supports ?perfil=alta_renda&municipio=Londrina
+  const perfilFilter = String(req.query.perfil || '').trim();
+  if (perfilFilter && censusAudience.PROFILE_KEYS.includes(perfilFilter)) {
+    sqlParts.push(' AND id IN (SELECT ponto_id FROM census_audience_profiles WHERE perfil_dominante = ?)');
+    params.push(perfilFilter);
+  }
+
   sqlParts.push(' ORDER BY cidade, nome');
 
   try {
@@ -1336,6 +1344,99 @@ app.post('/api/geoaudience/analyze/:pontoId', requireRoles(['admin', 'gerente_co
     if (!profile) return res.status(422).json({ error: 'Coordenadas inválidas para este ponto' });
 
     res.json({ success: true, profile });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Census Audience Classification Routes ──────────────────────────────────
+
+app.get('/api/census/profiles', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { municipio, perfil, min_score } = req.query;
+    const profiles = censusAudience.getAllProfiles({
+      municipio,
+      perfil,
+      minScore: min_score ? Number(min_score) : undefined
+    });
+    const summary = censusAudience.getCoverageSummary(municipio);
+    res.json({ profiles, summary });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/census/profile/:pontoId', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const pontoId = Number(req.params.pontoId);
+    if (!Number.isFinite(pontoId)) return res.status(400).json({ error: 'pontoId inválido' });
+    const profile = censusAudience.getProfile(pontoId);
+    if (!profile) return res.status(404).json({ error: 'Perfil censitário não encontrado' });
+    res.json(profile);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/census/coverage', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { municipio } = req.query;
+    res.json(censusAudience.getCoverageSummary(municipio));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/census/types', (req, res) => {
+  const types = Object.entries(censusAudience.PROFILES).map(([key, def]) => ({
+    key,
+    label: def.label,
+    icon: def.icon,
+    description: def.description,
+    color: def.color
+  }));
+  res.json({ types, radius: censusAudience.ANALYSIS_RADIUS });
+});
+
+app.get('/api/census/geojson', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { municipio, perfil, min_score } = req.query;
+    const geojson = censusAudience.buildGeoJSON({
+      municipio,
+      perfil,
+      minScore: min_score ? Number(min_score) : undefined
+    });
+    res.json(geojson);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/census/analyze', requireRoles(['admin', 'gerente_comercial']), async (req, res) => {
+  try {
+    const { municipio, force } = req.body || {};
+    res.status(202).json({
+      message: `Análise censitária iniciada${municipio ? ` para ${municipio}` : ' para todas as cidades'}.`
+    });
+    censusAudience.analyzeCity(municipio, { force: !!force }).then((result) => {
+      console.log(`[census] Analysis complete: ${result.analyzed} analyzed, ${result.skipped} skipped, ${result.errors} errors`);
+    }).catch((err) => {
+      console.error('[census] Analysis failed:', err.message);
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/census/analyze/:pontoId', requireRoles(['admin', 'gerente_comercial']), async (req, res) => {
+  try {
+    const pontoId = Number(req.params.pontoId);
+    if (!Number.isFinite(pontoId)) return res.status(400).json({ error: 'ID inválido' });
+    const point = db.prepare('SELECT id, nome, cidade, lat, lng FROM pontos WHERE id = ? AND ativo = 1').get(pontoId);
+    if (!point) return res.status(404).json({ error: 'Ponto não encontrado' });
+    const profile = await censusAudience.analyzePoint(point);
+    if (!profile) return res.status(422).json({ error: 'Coordenadas inválidas para este ponto' });
+    res.json(profile);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
