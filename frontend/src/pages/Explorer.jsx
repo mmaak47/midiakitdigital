@@ -218,7 +218,7 @@ export default function Explorer() {
             <div className={`h-px w-full ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
 
             <CampaignMetrics totals={totals} isDark={isDark} />
-            <RecommendationEngine history={history} onApplyCombo={addFavorites} isDark={isDark} />
+            <RecommendationEngine pontos={allPontos} geoProfiles={geoProfiles} censusProfiles={censusProfiles} history={history} onApplyCombo={addFavorites} isDark={isDark} />
           </div>
 
           {/* Toolbar */}
