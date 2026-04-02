@@ -696,8 +696,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           {/* ── Header + Stepper ── */}
           <div className="relative flex-shrink-0 p-6 md:px-8 md:pt-8 md:pb-0 space-y-5">
             <div className="flex flex-wrap items-start gap-4 pr-10">
-              <div className="h-12 w-12 rounded-xl bg-brand-orange/15 border border-brand-orange/30 flex items-center justify-center shadow-[0_8px_30px_rgba(254,92,43,0.2)]">
-                <FileText size={22} className="text-brand-orange" />
+              <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${isDark ? 'bg-brand-orange/15 border border-brand-orange/30 shadow-[0_8px_30px_rgba(254,92,43,0.2)]' : 'bg-orange-50 border border-orange-200'}`}>
+                <FileText size={22} className={isDark ? 'text-brand-orange' : 'text-orange-600'} />
               </div>
               <div className="min-w-0 flex-1">
                 <h2 className={`text-xl md:text-2xl leading-tight font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
@@ -727,7 +727,9 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                         active
                           ? 'bg-brand-orange text-white shadow-[0_4px_16px_rgba(254,92,43,0.35)]'
                           : done
-                            ? 'bg-brand-orange/15 text-brand-orange cursor-pointer hover:bg-brand-orange/25'
+                            ? isDark
+                              ? 'bg-brand-orange/15 text-brand-orange cursor-pointer hover:bg-brand-orange/25'
+                              : 'bg-orange-50 text-orange-700 cursor-pointer hover:bg-orange-100'
                             : isDark
                               ? 'bg-white/[0.06] text-brand-gray-500'
                               : 'bg-neutral-100 text-neutral-400'
@@ -737,7 +739,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       <span className="hidden sm:inline">{ws.label}</span>
                     </button>
                     {idx < WIZARD_STEPS.length - 1 && (
-                      <div className={`flex-1 h-px mx-1.5 ${done ? 'bg-brand-orange/40' : isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
+                      <div className={`flex-1 h-px mx-1.5 ${done ? (isDark ? 'bg-brand-orange/40' : 'bg-orange-300') : isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
                     )}
                   </div>
                 );
@@ -1107,15 +1109,17 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                           onClick={() => setPdfSections((s) => ({ ...s, [key]: !s[key] }))}
                           className={`flex items-center gap-3 rounded-xl border p-3 text-left text-sm font-medium transition-all ${
                             pdfSections[key]
-                              ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange shadow-[0_2px_8px_rgba(254,92,43,0.12)]'
+                              ? isDark
+                                ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange shadow-[0_2px_8px_rgba(254,92,43,0.12)]'
+                                : 'border-orange-300 bg-orange-50 text-orange-700 shadow-[0_2px_8px_rgba(254,92,43,0.08)]'
                               : isDark
                                 ? 'border-white/10 bg-white/[0.03] text-brand-gray-400 hover:bg-white/[0.06]'
                                 : 'border-neutral-200 bg-neutral-50 text-neutral-500 hover:bg-neutral-100'
                           }`}
                         >
-                          <Icon size={18} className={pdfSections[key] ? 'text-brand-orange' : isDark ? 'text-brand-gray-500' : 'text-neutral-400'} />
+                          <Icon size={18} className={pdfSections[key] ? (isDark ? 'text-brand-orange' : 'text-orange-600') : isDark ? 'text-brand-gray-500' : 'text-neutral-400'} />
                           <span>{label}</span>
-                          {pdfSections[key] && <Check size={14} className="ml-auto text-brand-orange" />}
+                          {pdfSections[key] && <Check size={14} className={`ml-auto ${isDark ? 'text-brand-orange' : 'text-orange-600'}`} />}
                         </button>
                       ))}
                     </div>
@@ -1131,7 +1135,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       <button
                         onClick={handleExportSelectionMap}
                         disabled={mapBusy || !proposalPoints.length}
-                        className={`h-10 px-4 rounded-xl border font-medium inline-flex items-center gap-2 disabled:opacity-50 transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange' : 'border-brand-orange/30 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange'}`}
+                        className={`h-10 px-4 rounded-xl border font-medium inline-flex items-center gap-2 disabled:opacity-50 transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange' : 'border-orange-300 bg-orange-50 hover:bg-orange-100 text-orange-700'}`}
                       >
                         <Route size={16} />
                         {mapBusy ? 'Aguarde...' : 'Baixar print do mapa'}
@@ -1161,7 +1165,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                         <Presentation size={16} />
                         Modo apresentação
                       </button>
-                      <button onClick={() => setShowQuickPresentation(true)} className={`h-11 rounded-xl border font-medium inline-flex items-center justify-center gap-2 transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange' : 'border-brand-orange/30 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange'}`}>
+                      <button onClick={() => setShowQuickPresentation(true)} className={`h-11 rounded-xl border font-medium inline-flex items-center justify-center gap-2 transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange' : 'border-orange-300 bg-orange-50 hover:bg-orange-100 text-orange-700'}`}>
                         <Presentation size={16} />
                         Apresentação rápida
                       </button>
@@ -1283,7 +1287,7 @@ function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand, 
                   type="button"
                   disabled={!previewUrl}
                   onClick={() => onSelect(point.id)}
-                  className={`w-full text-left rounded-xl border p-2 transition-all ${selected ? 'border-brand-orange bg-brand-orange/10' : isDark ? 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]' : 'border-neutral-200 bg-white hover:bg-neutral-50'} ${!previewUrl ? 'opacity-55 cursor-not-allowed' : ''}`}
+                  className={`w-full text-left rounded-xl border p-2 transition-all ${selected ? (isDark ? 'border-brand-orange bg-brand-orange/10' : 'border-orange-400 bg-orange-50') : isDark ? 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]' : 'border-neutral-200 bg-white hover:bg-neutral-50'} ${!previewUrl ? 'opacity-55 cursor-not-allowed' : ''}`}
                 >
                   <div className="flex items-start gap-3">
                     <div className={`w-16 h-10 rounded-md border overflow-hidden shrink-0 ${isDark ? 'border-white/10 bg-black/35' : 'border-neutral-200 bg-neutral-100'}`}>
@@ -1338,7 +1342,7 @@ function ScopeButton({ isDark = true, active, onClick, children }) {
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-xl border px-3 py-2 text-sm transition-colors ${active ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300 hover:bg-white/[0.08]' : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-100'}`}
+      className={`rounded-xl border px-3 py-2 text-sm transition-colors ${active ? (isDark ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : 'border-orange-300 bg-orange-50 text-orange-700') : isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300 hover:bg-white/[0.08]' : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-100'}`}
     >
       {children}
     </button>

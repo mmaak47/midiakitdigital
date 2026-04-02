@@ -686,7 +686,7 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets, selectedCities
   `, BRAND_DARK);
 }
 
-function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, pricingSummary, highlights, strategicTopics, strategicSubtitle, simulationSummary, segmento, assets }) {
+function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, pricingSummary, highlights, strategicTopics, strategicSubtitle, simulationSummary, segmento, assets, showMetricsMethodology = true }) {
   const layout = getActivePdfLayoutConfig().proposal.cover;
   const segmentLabel = getSegmentDisplayName(segmento);
   const pointsWithEntorno = proposalPoints.filter((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0).length;
@@ -735,16 +735,43 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
         </div>
 
         <div data-calibration-id="proposal.cover.metricCards" style="margin-top:auto;">
-          ${buildMetricCards(cards, {
-            valueSize: layout.metricValueSize,
-            labelSize: layout.metricLabelSize,
-            iconSize: layout.metricIconSize,
-            minHeight: 146,
-            gap: layout.metricGap,
-            padding: layout.metricPadding,
-            valueWhiteSpace: 'normal',
-            valueWordBreak: 'break-word'
-          })}
+          ${showMetricsMethodology
+            ? buildMetricCards(cards, {
+                valueSize: layout.metricValueSize,
+                labelSize: layout.metricLabelSize,
+                iconSize: layout.metricIconSize,
+                minHeight: 146,
+                gap: layout.metricGap,
+                padding: layout.metricPadding,
+                valueWhiteSpace: 'normal',
+                valueWordBreak: 'break-word'
+              })
+            : `${buildMetricCards(cards.slice(0, 2), {
+                columns: 2,
+                valueSize: layout.metricValueSize,
+                labelSize: layout.metricLabelSize,
+                iconSize: layout.metricIconSize,
+                minHeight: 100,
+                gap: layout.metricGap,
+                padding: layout.metricPadding,
+                valueWhiteSpace: 'normal',
+                valueWordBreak: 'break-word'
+              })}
+              <div style="margin-top:${layout.metricGap || 18}px;">
+                ${buildMetricCards(cards.slice(2), {
+                  columns: 3,
+                  valueSize: Math.max(layout.metricValueSize, 32),
+                  labelSize: layout.metricLabelSize,
+                  iconSize: layout.metricIconSize,
+                  minHeight: 100,
+                  gap: layout.metricGap,
+                  padding: layout.metricPadding,
+                  borderColor: PROPOSAL_ACCENT,
+                  valueWhiteSpace: 'normal',
+                  valueWordBreak: 'break-word'
+                })}
+              </div>`
+          }
         </div>
       </div>
 
@@ -1654,7 +1681,8 @@ export async function generateProposalPdf({
       strategicSubtitle,
       simulationSummary,
       segmento,
-      assets
+      assets,
+      showMetricsMethodology
     })
   ];
 
