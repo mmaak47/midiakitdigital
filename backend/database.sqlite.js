@@ -286,6 +286,51 @@ db.exec(`
       ['gas_station', 10], ['parking_lot', 9], ['auto_parts', 8],
       ['car_wash', 7], ['shopping_mall', 6], ['residential_building', 6],
       ['office', 5], ['insurance_agency', 5], ['bank', 5], ['highway_access', 7]
+    ],
+    fitness: [
+      ['residential_building', 10], ['supplement_store', 8], ['park', 7],
+      ['shopping_mall', 7], ['restaurant', 6], ['supermarket', 6],
+      ['pharmacy', 5], ['beauty_salon', 5], ['sports_center', 8], ['office', 4]
+    ],
+    beleza: [
+      ['shopping_mall', 10], ['residential_building', 9], ['pharmacy', 7],
+      ['gym', 7], ['restaurant', 6], ['supermarket', 6],
+      ['spa', 5], ['barber_shop', 5], ['beauty_salon', 4], ['office', 4]
+    ],
+    pet: [
+      ['park', 10], ['residential_building', 10], ['supermarket', 7],
+      ['veterinary', 6], ['pet_shop', 5], ['pharmacy', 5],
+      ['beauty_salon', 4], ['school', 4], ['shopping_mall', 4], ['bus_station', 3]
+    ],
+    farmacia: [
+      ['medical_center', 10], ['clinic', 9], ['residential_building', 9],
+      ['supermarket', 7], ['gym', 6], ['beauty_salon', 5],
+      ['bus_station', 5], ['school', 5], ['park', 4], ['shopping_mall', 4]
+    ],
+    supermercado: [
+      ['residential_building', 10], ['school', 8], ['bus_station', 7],
+      ['gas_station', 6], ['pharmacy', 6], ['park', 5],
+      ['church', 5], ['daycare', 5], ['restaurant', 4], ['parking_lot', 4]
+    ],
+    financeiro: [
+      ['office', 10], ['bank', 9], ['shopping_mall', 8],
+      ['coworking', 7], ['business_center', 7], ['restaurant', 6],
+      ['parking_lot', 6], ['real_estate_agency', 5], ['hotel', 4], ['law_firm', 4]
+    ],
+    turismo: [
+      ['hotel', 10], ['airport', 9], ['bus_station', 8],
+      ['tourist_attraction', 8], ['restaurant', 7], ['travel_agency', 6],
+      ['shopping_mall', 6], ['bar', 5], ['parking_lot', 5], ['park', 5]
+    ],
+    coworking: [
+      ['cafe', 10], ['restaurant', 8], ['bank', 7],
+      ['office', 7], ['bus_station', 6], ['parking_lot', 6],
+      ['gym', 5], ['hotel', 5], ['library', 5], ['shopping_mall', 4]
+    ],
+    tecnologia: [
+      ['coworking', 10], ['university', 9], ['office', 8],
+      ['cafe', 7], ['restaurant', 7], ['library', 6],
+      ['tech_office', 6], ['convention_center', 5], ['bank', 5], ['gym', 4]
     ]
   };
 

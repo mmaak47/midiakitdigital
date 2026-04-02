@@ -10,6 +10,16 @@ export const SEGMENTOS = [
   'contabilidade',
   'advocacia',
   'industria',
+  'automotivo',
+  'fitness',
+  'beleza',
+  'pet',
+  'farmacia',
+  'supermercado',
+  'financeiro',
+  'turismo',
+  'coworking',
+  'tecnologia',
   'outro'
 ];
 
@@ -25,6 +35,16 @@ const SEGMENTO_LABELS = {
   contabilidade: 'Contabilidade',
   advocacia: 'Advocacia',
   industria: 'Indústria',
+  automotivo: 'Automotivo',
+  fitness: 'Fitness e Academias',
+  beleza: 'Beleza e Estética',
+  pet: 'Pet Shop e Veterinário',
+  farmacia: 'Farmácias',
+  supermercado: 'Supermercados',
+  financeiro: 'Financeiro e Bancos',
+  turismo: 'Turismo e Hotelaria',
+  coworking: 'Coworking',
+  tecnologia: 'Tecnologia',
   outro: 'Segmento personalizado'
 };
 

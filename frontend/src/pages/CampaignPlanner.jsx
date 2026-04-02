@@ -7,7 +7,8 @@ import {
   MessageSquareText, Award, ListOrdered, Map as MapIcon, FileText, SlidersHorizontal,
   ChevronDown, ChevronUp, Zap, Trophy, Check,
   Cross, Hospital, GraduationCap, BookOpen, HardHat, Home, ShoppingBag,
-  UtensilsCrossed, Calculator, Scale, Cog, MoreHorizontal
+  UtensilsCrossed, Calculator, Scale, Cog, MoreHorizontal,
+  Car, Dumbbell, Scissors, PawPrint, Pill, ShoppingCart, Landmark, Plane, Laptop, Cpu
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import CampaignScore from '../components/CampaignScore';
@@ -43,6 +44,16 @@ const SEGMENTO_LABELS = {
   contabilidade: 'Contabilidade',
   advocacia: 'Advocacia e Jurídico',
   industria: 'Indústria',
+  automotivo: 'Automotivo',
+  fitness: 'Fitness e Academias',
+  beleza: 'Beleza e Estética',
+  pet: 'Pet Shop e Veterinário',
+  farmacia: 'Farmácias',
+  supermercado: 'Supermercados',
+  financeiro: 'Financeiro e Bancos',
+  turismo: 'Turismo e Hotelaria',
+  coworking: 'Coworking',
+  tecnologia: 'Tecnologia',
   outro: 'Outro segmento',
 };
 
@@ -58,6 +69,16 @@ const SEGMENTO_ICONS = {
   contabilidade: Calculator,
   advocacia: Scale,
   industria: Cog,
+  automotivo: Car,
+  fitness: Dumbbell,
+  beleza: Scissors,
+  pet: PawPrint,
+  farmacia: Pill,
+  supermercado: ShoppingCart,
+  financeiro: Landmark,
+  turismo: Plane,
+  coworking: Laptop,
+  tecnologia: Cpu,
   outro: MoreHorizontal,
 };
 

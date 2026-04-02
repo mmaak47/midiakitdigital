@@ -15,7 +15,8 @@ const FOURSQUARE_API_KEY = process.env.FOURSQUARE_API_KEY || '';
 const AUTO_REFRESH_ENABLED = String(process.env.ENTORNO_AUTO_REFRESH_ENABLED || 'true').toLowerCase() !== 'false';
 const AUTO_REFRESH_INTERVAL_MINUTES = Math.max(5, Number(process.env.ENTORNO_AUTO_REFRESH_INTERVAL_MINUTES) || 90);
 const AUTO_REFRESH_RADIUS_RAW = process.env.ENTORNO_AUTO_REFRESH_RADIUS || DEFAULT_RADIUS;
-const AUTO_REFRESH_SEGMENTS_RAW = String(process.env.ENTORNO_AUTO_REFRESH_SEGMENTS || 'clinica');
+const ALL_SEGMENTS_DEFAULT = 'clinica,hospital,educacao,escola,faculdade,automotivo,varejo,restaurante,imobiliaria,construtora,contabilidade,advocacia,industria,fitness,beleza,pet,farmacia,supermercado,financeiro,turismo,coworking,tecnologia';
+const AUTO_REFRESH_SEGMENTS_RAW = String(process.env.ENTORNO_AUTO_REFRESH_SEGMENTS || ALL_SEGMENTS_DEFAULT);
 const AUTO_REFRESH_CITIES = String(process.env.ENTORNO_AUTO_REFRESH_CITIES || '')
   .split(',')
   .map((item) => String(item || '').trim())
@@ -36,6 +37,15 @@ const SEGMENT_CATEGORIES_LEGACY = {
   contabilidade: ['contabilidade', 'escritorio', 'consultoria', 'cartorio', 'centro empresarial'],
   advocacia: ['advocacia', 'forum', 'cartorio', 'escritorio', 'tribunal'],
   industria: ['posto de combustivel', 'autopecas', 'logistica', 'transportadora', 'ferramentas'],
+  fitness: ['academia', 'crossfit', 'pilates', 'natacao', 'esporte', 'personal trainer'],
+  beleza: ['salao de beleza', 'estetica', 'barbearia', 'spa', 'manicure', 'cosmeticos'],
+  pet: ['pet shop', 'veterinario', 'clinica veterinaria', 'banho e tosa', 'racao'],
+  farmacia: ['farmacia', 'drogaria', 'manipulacao', 'produtos naturais', 'laboratorio'],
+  supermercado: ['supermercado', 'mercado', 'atacado', 'hortifruti', 'mercearia'],
+  financeiro: ['banco', 'financeira', 'cooperativa de credito', 'corretora', 'contabilidade'],
+  turismo: ['hotel', 'pousada', 'hostel', 'agencia de viagem', 'turismo', 'aluguel de carro'],
+  coworking: ['coworking', 'escritorio compartilhado', 'sala comercial', 'centro empresarial'],
+  tecnologia: ['tecnologia', 'informatica', 'software', 'startup', 'assistencia tecnica'],
   outro: []
 };
 
@@ -83,7 +93,23 @@ const CATEGORY_SEARCH_TERMS = {
   industrial_zone: ['distrito industrial', 'zona industrial', 'industrial'],
   car_wash: ['lava rapido', 'lava jato', 'car wash'],
   insurance_agency: ['seguradora', 'seguros', 'insurance'],
-  highway_access: ['acesso rodoviario', 'rodovia', 'highway']
+  highway_access: ['acesso rodoviario', 'rodovia', 'highway'],
+  supplement_store: ['suplementos', 'loja de suplementos', 'nutrition store'],
+  sports_center: ['centro esportivo', 'quadra', 'sports center'],
+  spa: ['spa', 'day spa', 'termas'],
+  barber_shop: ['barbearia', 'barber shop'],
+  pet_shop: ['pet shop', 'loja de animais', 'pet store'],
+  veterinary: ['veterinario', 'clinica veterinaria', 'veterinary'],
+  wholesale: ['atacado', 'atacadao', 'wholesale'],
+  grocery: ['hortifruti', 'mercearia', 'sacolao', 'grocery'],
+  financial_services: ['financeira', 'cooperativa de credito', 'corretora', 'financial'],
+  credit_union: ['cooperativa de credito', 'sicoob', 'sicredi', 'credit union'],
+  airport: ['aeroporto', 'airport'],
+  tourist_attraction: ['ponto turistico', 'museu', 'monumento', 'tourist attraction'],
+  travel_agency: ['agencia de viagem', 'travel agency'],
+  tech_office: ['escritorio de tecnologia', 'startup', 'tech office'],
+  university: ['universidade', 'faculdade', 'campus', 'university'],
+  convention_center: ['centro de convencoes', 'eventos', 'convention center']
 };
 
 /**
@@ -127,7 +153,7 @@ let autoRefreshState = {
   enabled: AUTO_REFRESH_ENABLED,
   intervalMinutes: AUTO_REFRESH_INTERVAL_MINUTES,
   radius: DEFAULT_RADIUS,
-  segments: ['clinica'],
+  segments: ALL_SEGMENTS_DEFAULT.split(','),
   cities: AUTO_REFRESH_CITIES,
   lastRunAt: null,
   lastQueued: [],
@@ -979,7 +1005,7 @@ function getAutoRefreshState() {
 function runAutoRefreshCycle() {
   const queued = [];
   try {
-    const segments = getAutoRefreshSegments().length ? getAutoRefreshSegments() : ['clinica'];
+    const segments = getAutoRefreshSegments().length ? getAutoRefreshSegments() : ALL_SEGMENTS_DEFAULT.split(',');
     const radius = getAutoRefreshRadius();
     const cities = AUTO_REFRESH_CITIES.length ? AUTO_REFRESH_CITIES : [''];
 
@@ -1022,7 +1048,7 @@ function startAutoRefreshScheduler() {
     ...autoRefreshState,
     enabled: true,
     radius: getAutoRefreshRadius(),
-    segments: getAutoRefreshSegments().length ? getAutoRefreshSegments() : ['clinica']
+    segments: getAutoRefreshSegments().length ? getAutoRefreshSegments() : ALL_SEGMENTS_DEFAULT.split(',')
   };
 
   if (autoRefreshTimer) return autoRefreshTimer;

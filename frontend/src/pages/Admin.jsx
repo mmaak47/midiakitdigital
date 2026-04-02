@@ -44,7 +44,9 @@ const PUBLICOS = ['A', 'B', 'A/B'];
 const ENTORNO_SEGMENTOS = [
   'clinica', 'hospital', 'educacao', 'escola', 'faculdade',
   'automotivo', 'varejo', 'restaurante', 'imobiliaria',
-  'construtora', 'contabilidade', 'advocacia', 'industria', 'outro'
+  'construtora', 'contabilidade', 'advocacia', 'industria',
+  'fitness', 'beleza', 'pet', 'farmacia', 'supermercado',
+  'financeiro', 'turismo', 'coworking', 'tecnologia', 'outro'
 ];
 const USER_ROLES = [
   { value: 'admin', label: 'Admin (acesso total)' },
