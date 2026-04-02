@@ -764,7 +764,7 @@ export default function Admin() {
             className={`w-full max-w-md rounded-3xl border p-8 backdrop-blur ${isDark ? 'border-white/10 bg-white/[0.03] shadow-2xl shadow-black/30' : 'border-neutral-200 bg-white shadow-xl shadow-neutral-200/70'}`}
           >
             <div className="mb-8 flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-orange/15 text-brand-orange">
+              <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${isDark ? 'bg-brand-orange/15 text-brand-orange' : 'bg-orange-50 text-orange-600'}`}>
                 <LogIn size={20} />
               </div>
               <div>
@@ -1005,6 +1005,7 @@ export default function Admin() {
             onRun={handleRunEntorno}
             currentJob={entornoCurrentJob}
             jobs={entornoJobs}
+            isDark={isDark}
           />
         ) : null}
 
@@ -1018,6 +1019,7 @@ export default function Admin() {
             onDelete={handleDeleteUser}
             userRoles={USER_ROLES}
             onReload={loadUsers}
+            isDark={isDark}
           />
         ) : null}
 
@@ -1054,7 +1056,7 @@ export default function Admin() {
                     <button
                       type="submit"
                       disabled={savingSettings || settingsLoading}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2.5 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
+                      className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${isDark ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange hover:bg-brand-orange/25' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
                     >
                       <Save size={15} />
                       {savingSettings ? 'Salvando...' : 'Salvar'}
@@ -1063,8 +1065,8 @@ export default function Admin() {
                 </div>
               </form>
 
-              <div className="mt-6 p-4 bg-brand-orange/5 border border-brand-orange/20 rounded-xl">
-                <p className="text-xs text-brand-orange leading-relaxed">
+              <div className={`mt-6 p-4 rounded-xl ${isDark ? 'bg-brand-orange/5 border border-brand-orange/20' : 'bg-orange-50 border border-orange-200'}`}>
+                <p className={`text-xs leading-relaxed ${isDark ? 'text-brand-orange' : 'text-orange-700'}`}>
                   <strong>ℹ️ Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro mínimo obrigatório (desconto acima do valor configurado aqui), a proposta fica aguardando aprovação de um Gerente Comercial antes de poder ser finalizada.
                 </p>
               </div>
@@ -1080,7 +1082,7 @@ export default function Admin() {
                   type="button"
                   onClick={handleGenerateTechnicalPdf}
                   disabled={technicalPdfBusy || !technicalPdfSelectedPoints.length}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2.5 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
+                  className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${isDark ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange hover:bg-brand-orange/25' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
                 >
                   {technicalPdfBusy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
                   {technicalPdfBusy ? 'Processando PDF...' : 'Gerar PDF tecnico'}
@@ -1477,7 +1479,7 @@ export default function Admin() {
                           <button
                             type="button"
                             onClick={() => setActiveSimulationFace(0)}
-                            className={`rounded-lg border px-3 py-2 text-xs transition-colors ${activeSimulationFace === 0 ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : 'border-white/10 bg-white/5 text-white hover:bg-white/10'}`}
+                            className={`rounded-lg border px-3 py-2 text-xs transition-colors ${activeSimulationFace === 0 ? (isDark ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : 'border-orange-300 bg-orange-50 text-orange-700') : 'border-white/10 bg-white/5 text-white hover:bg-white/10'}`}
                           >
                             Face 1
                           </button>
@@ -1485,7 +1487,7 @@ export default function Admin() {
                             <button
                               type="button"
                               onClick={() => setActiveSimulationFace(1)}
-                              className={`rounded-lg border px-3 py-2 text-xs transition-colors ${activeSimulationFace === 1 ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : 'border-white/10 bg-white/5 text-white hover:bg-white/10'}`}
+                              className={`rounded-lg border px-3 py-2 text-xs transition-colors ${activeSimulationFace === 1 ? (isDark ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : 'border-orange-300 bg-orange-50 text-orange-700') : 'border-white/10 bg-white/5 text-white hover:bg-white/10'}`}
                             >
                               Face 2
                             </button>
@@ -1661,7 +1663,7 @@ export default function Admin() {
                   <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Proporção da arte para este ponto</p>
-                      <span className="px-2.5 py-1 rounded-full bg-brand-orange/15 text-brand-orange text-xs font-semibold">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${isDark ? 'bg-brand-orange/15 text-brand-orange' : 'bg-orange-50 text-orange-700'}`}>
                         {artRatioText || 'Defina largura e altura'}
                       </span>
                     </div>
@@ -1834,7 +1836,8 @@ function EntornoAdminPanel({
   error,
   onRun,
   currentJob,
-  jobs
+  jobs,
+  isDark = true
 }) {
   const currentStatus = String(currentJob?.status || '').toLowerCase();
   const processing = currentStatus === 'queued' || currentStatus === 'running';
@@ -1850,7 +1853,7 @@ function EntornoAdminPanel({
           type="button"
           onClick={onRun}
           disabled={busy}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 px-4 py-2 text-sm font-semibold text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50"
+          className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50 ${isDark ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange hover:bg-brand-orange/25' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
         >
           {busy ? <Loader2 size={15} className="animate-spin" /> : <RefreshCcw size={15} />}
           {busy ? 'Enfileirando...' : 'Reprocessar agora'}
@@ -1973,7 +1976,8 @@ function UsersAdminPanel({
   onOpenEdit,
   onDelete,
   userRoles,
-  onReload
+  onReload,
+  isDark = true
 }) {
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
@@ -2037,7 +2041,7 @@ function UsersAdminPanel({
                   <div>{user.whatsapp || '-'}</div>
                 </td>
                 <td className="px-3 py-2">
-                  <span className="inline-block px-2 py-1 rounded-lg bg-brand-orange/10 text-brand-orange text-xs">
+                  <span className={`inline-block px-2 py-1 rounded-lg text-xs ${isDark ? 'bg-brand-orange/10 text-brand-orange' : 'bg-orange-50 text-orange-700'}`}>
                     {userRoles.find(r => r.value === user.role)?.label || user.role}
                   </span>
                 </td>
@@ -2065,7 +2069,7 @@ function UsersAdminPanel({
         </table>
       </div>
 
-      <div className="mt-4 p-4 bg-brand-orange/5 border border-brand-orange/20 rounded-xl text-xs text-brand-gray-300">
+      <div className={`mt-4 p-4 rounded-xl text-xs ${isDark ? 'bg-brand-orange/5 border border-brand-orange/20 text-brand-gray-300' : 'bg-orange-50 border border-orange-200 text-neutral-600'}`}>
         <p><strong>Permissões por Role:</strong></p>
         <ul className="list-disc list-inside mt-2 space-y-1">
           <li><strong>Admin:</strong> Acesso total ao painel administrativo</li>

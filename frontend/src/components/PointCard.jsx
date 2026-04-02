@@ -3,7 +3,11 @@ import { MapPin, Users, Monitor, Heart } from 'lucide-react';
 import { useFavorites } from '../context/FavoritesContext';
 import { getPrimaryPointScreenImage } from '../lib/pointImages';
 
-const typeBadgeClass = 'bg-brand-orange/12 text-brand-orange border-brand-orange/30';
+function typeBadgeClassFn(isDark) {
+  return isDark
+    ? 'bg-brand-orange/12 text-brand-orange border-brand-orange/30'
+    : 'bg-orange-50 text-orange-700 border-orange-200';
+}
 
 function getPointTypeLabel(ponto) {
   if (!ponto) return '';
@@ -58,7 +62,7 @@ export default function PointCard({ ponto, onSelect, index = 0, isDark = true })
         )}
 
         {/* Type badge */}
-        <div className={`absolute top-3 left-3 px-3 py-1.5 rounded-lg text-xs font-semibold border backdrop-blur-sm ${typeBadgeClass}`}>
+        <div className={`absolute top-3 left-3 px-3 py-1.5 rounded-lg text-xs font-semibold border backdrop-blur-sm ${typeBadgeClassFn(isDark)}`}>
           {getPointTypeLabel(ponto)}
         </div>
 

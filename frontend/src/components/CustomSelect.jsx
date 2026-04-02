@@ -134,13 +134,13 @@ export default function CustomSelect({
             return (
               <span
                 key={selected}
-                className="inline-flex items-center gap-1.5 rounded-full border border-brand-orange/25 bg-brand-orange/10 px-2.5 py-1 text-[11px] font-medium leading-none text-brand-orange"
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none ${isDark ? 'border-brand-orange/25 bg-brand-orange/10 text-brand-orange' : 'border-orange-200 bg-orange-50 text-orange-700'}`}
               >
                 {chipLabel}
                 <button
                   type="button"
                   onClick={() => handleRemove(selected)}
-                  className="text-brand-orange/70 transition-colors hover:text-brand-orange"
+                  className={`transition-colors ${isDark ? 'text-brand-orange/70 hover:text-brand-orange' : 'text-orange-400 hover:text-orange-700'}`}
                   aria-label={`Remover ${chipLabel}`}
                 >
                   <X size={12} />

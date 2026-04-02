@@ -89,7 +89,9 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
               onClick={() => updateFilter('cidade', cidade)}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
                 filters.cidade.includes(cidade)
-                  ? 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20'
+                  ? isDark
+                    ? 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20'
+                    : 'bg-orange-50 text-orange-700 border border-orange-200'
                   : isDark
                     ? 'text-brand-gray-300 hover:bg-white/5 border border-transparent'
                     : 'text-neutral-600 hover:bg-neutral-100 border border-transparent'
@@ -114,7 +116,9 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
               onClick={() => toggleTipo(value)}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
                 filters.tipo === value
-                  ? 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20'
+                  ? isDark
+                    ? 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20'
+                    : 'bg-orange-50 text-orange-700 border border-orange-200'
                   : isDark
                     ? 'text-brand-gray-300 hover:bg-white/5 border border-transparent'
                     : 'text-neutral-600 hover:bg-neutral-100 border border-transparent'

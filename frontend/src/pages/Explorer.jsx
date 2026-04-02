@@ -157,7 +157,7 @@ export default function Explorer() {
                 ].map((step) => (
                   <div
                     key={step.title}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${step.done ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange' : isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${step.done ? (isDark ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange' : 'border-orange-300 bg-orange-50 text-orange-700') : isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}
                   >
                     {step.title}
                   </div>

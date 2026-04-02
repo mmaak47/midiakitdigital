@@ -204,7 +204,7 @@ export default function PointModal({ ponto, onClose, isDark = true }) {
             <div className="lg:w-1/2 p-6 lg:p-8">
               <div className="flex items-start justify-between gap-4 mb-2">
                 <div>
-                  <span className="inline-block px-2.5 py-1 rounded-lg bg-brand-orange/10 text-brand-orange text-xs font-medium mb-3">
+                  <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-medium mb-3 ${isDark ? 'bg-brand-orange/10 text-brand-orange' : 'bg-orange-50 text-orange-700'}`}>
                     {getPointTypeLabel(ponto)}
                   </span>
                   <h2 className={`text-2xl lg:text-3xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
