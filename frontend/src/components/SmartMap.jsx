@@ -43,6 +43,80 @@ function makeCirclePolygon(lng, lat, radiusMeters, steps = 48) {
   return coords;
 }
 
+/** Haversine distance in meters between two lat/lng pairs. */
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6_371_008.8;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Cluster nearby points into neighborhoods and return one feature per cluster. */
+const CLUSTER_MERGE_DISTANCE = 1200; // meters — points within this range merge into one neighborhood
+
+function buildNeighborhoodCircles(points, censusProfiles) {
+  // Build list of points with census data
+  const items = [];
+  for (const pt of points) {
+    const cp = censusProfiles[pt.id];
+    if (!cp?.perfil_dominante) continue;
+    items.push({ lat: pt.lat, lng: pt.lng, profile: cp.perfil_dominante });
+  }
+  if (!items.length) return [];
+
+  // Greedy distance-based clustering
+  const clusters = []; // each: { lats: [], lngs: [], profiles: [] }
+  for (const item of items) {
+    let merged = false;
+    for (const cl of clusters) {
+      const cLat = cl.lats.reduce((a, b) => a + b, 0) / cl.lats.length;
+      const cLng = cl.lngs.reduce((a, b) => a + b, 0) / cl.lngs.length;
+      if (haversineMeters(item.lat, item.lng, cLat, cLng) <= CLUSTER_MERGE_DISTANCE) {
+        cl.lats.push(item.lat);
+        cl.lngs.push(item.lng);
+        cl.profiles.push(item.profile);
+        merged = true;
+        break;
+      }
+    }
+    if (!merged) {
+      clusters.push({ lats: [item.lat], lngs: [item.lng], profiles: [item.profile] });
+    }
+  }
+
+  // Build one feature per cluster
+  return clusters.map((cl) => {
+    const centLat = cl.lats.reduce((a, b) => a + b, 0) / cl.lats.length;
+    const centLng = cl.lngs.reduce((a, b) => a + b, 0) / cl.lngs.length;
+
+    // Majority vote for dominant profile
+    const counts = {};
+    for (const p of cl.profiles) counts[p] = (counts[p] || 0) + 1;
+    const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+    const color = CENSUS_PROFILE_COLORS[dominant];
+
+    // Radius: covers the cluster spread + 800m analysis buffer
+    let maxDist = 0;
+    for (let i = 0; i < cl.lats.length; i++) {
+      const d = haversineMeters(cl.lats[i], cl.lngs[i], centLat, centLng);
+      if (d > maxDist) maxDist = d;
+    }
+    const radius = Math.max(800, maxDist + 800);
+
+    return {
+      type: 'Feature',
+      properties: { color, profile: dominant, count: cl.profiles.length },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [makeCirclePolygon(centLng, centLat, radius)],
+      },
+    };
+  });
+}
+
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
 function buildRasterFallbackStyle() {
@@ -112,21 +186,7 @@ function SmartMap({
 
   const censusCirclesGeoJson = useMemo(() => {
     if (!censusProfiles || !valid.length) return EMPTY_FC;
-    const features = [];
-    for (const pt of valid) {
-      const cp = censusProfiles[pt.id];
-      if (!cp?.perfil_dominante) continue;
-      const color = CENSUS_PROFILE_COLORS[cp.perfil_dominante];
-      if (!color) continue;
-      features.push({
-        type: 'Feature',
-        properties: { color, profile: cp.perfil_dominante },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [makeCirclePolygon(pt.lng, pt.lat, 800)],
-        },
-      });
-    }
+    const features = buildNeighborhoodCircles(valid, censusProfiles);
     return features.length ? { type: 'FeatureCollection', features } : EMPTY_FC;
   }, [valid, censusProfiles]);
 
