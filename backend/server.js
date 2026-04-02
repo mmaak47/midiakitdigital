@@ -1980,6 +1980,32 @@ if (require.main === module) {
     } else {
       console.log('[entorno-auto] disabled by ENTORNO_AUTO_REFRESH_ENABLED=false');
     }
+
+    // GeoAudience + Census auto-refresh
+    const geoAutoEnabled = String(process.env.GEO_CENSUS_AUTO_REFRESH_ENABLED || 'true').toLowerCase() !== 'false';
+    const geoAutoIntervalMin = Math.max(10, Number(process.env.GEO_CENSUS_AUTO_REFRESH_INTERVAL_MINUTES) || 120);
+    if (geoAutoEnabled) {
+      const runGeoCensusRefresh = () => {
+        geoAudience.analyzeCity(null, { force: false }).then((r) => {
+          console.log(`[geoaudience-auto] cycle done: ${r.analyzed} analyzed, ${r.skipped} skipped, ${r.errors} errors`);
+        }).catch((err) => {
+          console.error('[geoaudience-auto] cycle error:', err.message);
+        }).then(() => {
+          return censusAudience.analyzeCity(null, { force: false });
+        }).then((r) => {
+          console.log(`[census-auto] cycle done: ${r.analyzed} analyzed, ${r.skipped} skipped, ${r.errors} errors`);
+        }).catch((err) => {
+          console.error('[census-auto] cycle error:', err.message);
+        });
+      };
+      // First run after a short delay to let the server stabilize
+      setTimeout(runGeoCensusRefresh, 30_000);
+      const geoCensusTimer = setInterval(runGeoCensusRefresh, geoAutoIntervalMin * 60 * 1000);
+      if (typeof geoCensusTimer.unref === 'function') geoCensusTimer.unref();
+      console.log(`[geo-census-auto] enabled. interval=${geoAutoIntervalMin}min`);
+    } else {
+      console.log('[geo-census-auto] disabled by GEO_CENSUS_AUTO_REFRESH_ENABLED=false');
+    }
   });
 
   server.on('error', (err) => {
@@ -1995,6 +2021,28 @@ if (require.main === module) {
     createBackupScheduler(db);
   }
   startAutoRefreshScheduler();
+
+  // GeoAudience + Census auto-refresh (Passenger path)
+  const geoAutoEnabledP = String(process.env.GEO_CENSUS_AUTO_REFRESH_ENABLED || 'true').toLowerCase() !== 'false';
+  const geoAutoIntervalMinP = Math.max(10, Number(process.env.GEO_CENSUS_AUTO_REFRESH_INTERVAL_MINUTES) || 120);
+  if (geoAutoEnabledP) {
+    const runGeoCensusRefresh = () => {
+      geoAudience.analyzeCity(null, { force: false }).then((r) => {
+        console.log(`[geoaudience-auto] cycle done: ${r.analyzed} analyzed, ${r.skipped} skipped, ${r.errors} errors`);
+      }).catch((err) => {
+        console.error('[geoaudience-auto] cycle error:', err.message);
+      }).then(() => {
+        return censusAudience.analyzeCity(null, { force: false });
+      }).then((r) => {
+        console.log(`[census-auto] cycle done: ${r.analyzed} analyzed, ${r.skipped} skipped, ${r.errors} errors`);
+      }).catch((err) => {
+        console.error('[census-auto] cycle error:', err.message);
+      });
+    };
+    setTimeout(runGeoCensusRefresh, 30_000);
+    const geoCensusTimerP = setInterval(runGeoCensusRefresh, geoAutoIntervalMinP * 60 * 1000);
+    if (typeof geoCensusTimerP.unref === 'function') geoCensusTimerP.unref();
+  }
 }
 
 module.exports = app;
