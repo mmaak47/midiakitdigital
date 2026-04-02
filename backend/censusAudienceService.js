@@ -70,11 +70,17 @@ const PROFILES = {
     color: '#8b5cf6',
     description: 'Público jovem (18–29), universitário, conectado e vida social ativa.',
     osmMatch: {
-      amenity: ['university', 'college', 'language_school', 'bar', 'pub', 'nightclub', 'cafe', 'fast_food', 'bicycle_rental', 'library', 'cinema', 'coworking_space', 'food_court'],
-      shop: ['books', 'computer', 'mobile_phone', 'coffee', 'sports'],
-      leisure: ['dance', 'escape_game', 'amusement_arcade', 'fitness_centre', 'sports_centre']
+      amenity: [
+        'university', 'college', 'language_school', 'school',
+        'bar', 'pub', 'nightclub', 'cafe', 'fast_food', 'food_court',
+        'bicycle_rental', 'library', 'cinema', 'coworking_space',
+        'arts_centre', 'theatre', 'music_venue', 'studio'
+      ],
+      shop: ['books', 'computer', 'video_games', 'music', 'sports', 'coffee', 'tattoo'],
+      leisure: ['dance', 'escape_game', 'amusement_arcade', 'fitness_centre', 'sports_centre', 'skatepark', 'pitch']
     },
-    expectedPois: 20
+    // Reduzido de 20 para 15: áreas universitárias têm POIs concentrados mas em menor variedade
+    expectedPois: 15
   },
   terceira_idade: {
     label: 'Terceira Idade',
@@ -82,12 +88,18 @@ const PROFILES = {
     color: '#10b981',
     description: 'Público 60 + anos, frequentador de saúde, espaços religiosos e lazer.',
     osmMatch: {
-      amenity: ['hospital', 'clinic', 'doctors', 'place_of_worship', 'social_facility', 'community_centre', 'pharmacy'],
+      amenity: [
+        'hospital', 'clinic', 'doctors', 'dentist',
+        'place_of_worship', 'social_facility', 'community_centre', 'social_centre',
+        'pharmacy', 'post_office'
+      ],
       healthcare: ['__any__'],
-      leisure: ['park', 'garden', 'playground', 'nature_reserve'],
-      shop: ['pharmacy', 'chemist', 'hearing_aids', 'medical_supply', 'herbalist']
+      leisure: ['park', 'garden', 'nature_reserve', 'bowling_alley', 'dance'],
+      // lottery (casa lotérica) é fortemente frequentado por idosos no Brasil para
+      // receber aposentadoria/benefícios — indicador muito relevante culturalmente
+      shop: ['pharmacy', 'chemist', 'hearing_aids', 'medical_supply', 'herbalist', 'lottery', 'optician']
     },
-    expectedPois: 20
+    expectedPois: 18
   }
 };
 
@@ -383,14 +395,11 @@ function parseAgeBrackets(resultados) {
     const ageNums = catName.match(/(\d+)/g);
     if (ageNums) {
       const low = parseInt(ageNums[0], 10);
-      if (low >= 15 && low < 30) jovem += val;
+      // Jovem: 18-29 anos (excluímos 15-17 para ser mais específico de universitários)
+      if (low >= 18 && low < 30) jovem += val;
+      // Idoso: 60+ anos — "ou mais" é tratado aqui também (ex: "75 anos ou mais")
+      // Bug anterior: condição !idoso impedia que grupos subsequentes fossem contabilizados
       if (low >= 60) idoso += val;
-    }
-
-    // Handle "ou mais" (e.g., "80 anos ou mais")
-    if (catName.includes('ou mais') && ageNums) {
-      const age = parseInt(ageNums[0], 10);
-      if (age >= 60 && !idoso) idoso += val;
     }
   }
 
@@ -624,23 +633,25 @@ function scoreProfiles(poiCounts, census) {
     let censusWeight = 0;
 
     if (census.rendaMediaDomiciliar && hasRealIncomeData) {
-      // Bell-curve: peak em R$ 2.500 (renda típica de bairros populares em cidades médias BR)
+      // Bell-curve: pico em R$ 2.500 (renda típica de bairros populares em cidades médias BR)
       const dist = Math.abs(census.rendaMediaDomiciliar - 2500);
-      censusSignal += clamp(1 - dist / 2500) * 0.50;
-      censusWeight += 0.50;
+      censusSignal += clamp(1 - dist / 2500) * 0.55;
+      censusWeight += 0.55;
     } else if (census.pibPerCapita) {
       // Cidades com PIB per capita entre R$25k-45k/ano têm perfil de massa/varejo mais forte
       const pibSignal = clamp(1 - Math.abs(census.pibPerCapita - 35000) / 35000);
-      censusSignal += pibSignal * 0.20;
-      censusWeight += 0.20;
+      censusSignal += pibSignal * 0.25;
+      censusWeight += 0.25;
     }
     if (census.population) {
-      censusSignal += clamp(census.population / 300000) * 0.50;
-      censusWeight += 0.50;
+      // Reduzido de 0.50 para 0.25: tamanho de cidade não indica perfil massa/varejo isoladamente —
+      // o sinal de POI local é muito mais relevante para diferenciar o perfil real do bairro
+      censusSignal += clamp(census.population / 300000) * 0.25;
+      censusWeight += 0.25;
     }
 
     scores.massa_varejo = censusWeight > 0
-      ? Number((poiSignal * 0.55 + (censusSignal / censusWeight) * 0.45).toFixed(4))
+      ? Number((poiSignal * 0.60 + (censusSignal / censusWeight) * 0.40).toFixed(4))
       : Number(poiSignal.toFixed(4));
   }
 
@@ -651,16 +662,19 @@ function scoreProfiles(poiCounts, census) {
     let censusWeight = 0;
 
     if (census.pctJovem18_29 != null) {
-      censusSignal += clamp(census.pctJovem18_29 / 0.35);
+      // Threshold reduzido de 0.35 → 0.25: cidades brasileiras têm em média 20-25% jovens,
+      // exigir 35% era irrealista e impedia que o perfil emergisse
+      censusSignal += clamp(census.pctJovem18_29 / 0.25);
       censusWeight += 1;
-    } else if (census.population && census.population > 100000) {
-      // Larger cities tend to be younger
-      censusSignal += clamp(census.population / 500000) * 0.3;
-      censusWeight += 0.3;
+    } else if (census.population) {
+      // Fallback: cidades universitárias (Londrina, Maringá, Florianópolis) tendem a ser maiores
+      // e mais jovens — sinal fraco mas melhor do que zero
+      censusSignal += clamp(census.population / 400000) * 0.25;
+      censusWeight += 0.25;
     }
 
     scores.jovem_universitario = censusWeight > 0
-      ? Number((poiSignal * 0.55 + (censusSignal / censusWeight) * 0.45).toFixed(4))
+      ? Number((poiSignal * 0.60 + (censusSignal / censusWeight) * 0.40).toFixed(4))
       : Number(poiSignal.toFixed(4));
   }
 
@@ -671,12 +685,19 @@ function scoreProfiles(poiCounts, census) {
     let censusWeight = 0;
 
     if (census.pctIdoso60plus != null) {
-      censusSignal += clamp(census.pctIdoso60plus / 0.25);
+      // Threshold ajustado: média BR é ~13%, exigir 25% era alto demais.
+      // 15% é um limiar mais razoável para identificar concentração de idosos
+      censusSignal += clamp(census.pctIdoso60plus / 0.15);
       censusWeight += 1;
+    } else if (census.population) {
+      // Fallback: cidades menores e cidades litorâneas/interior tendem a ter mais idosos
+      // proporcionalmente; grandes metrópoles diluem esse perfil
+      censusSignal += clamp(1 - census.population / 600000) * 0.25;
+      censusWeight += 0.25;
     }
 
     scores.terceira_idade = censusWeight > 0
-      ? Number((poiSignal * 0.50 + (censusSignal / censusWeight) * 0.50).toFixed(4))
+      ? Number((poiSignal * 0.55 + (censusSignal / censusWeight) * 0.45).toFixed(4))
       : Number(poiSignal.toFixed(4));
   }
 
