@@ -6,6 +6,43 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 const DEFAULT_CENTER = { latitude: -23.32, longitude: -51.16, zoom: 11 };
 
+const CENSUS_PROFILE_COLORS = {
+  alta_renda:          '#f59e0b',
+  massa_varejo:        '#3b82f6',
+  jovem_universitario: '#8b5cf6',
+  terceira_idade:      '#10b981',
+};
+
+const CENSUS_PROFILE_LABELS = {
+  alta_renda:          'Alta Renda',
+  massa_varejo:        'Massa / Varejo',
+  jovem_universitario: 'Jovem / Universitário',
+  terceira_idade:      'Terceira Idade',
+};
+
+/** Generate a GeoJSON polygon approximating a circle of `radiusMeters` around [lng, lat]. */
+function makeCirclePolygon(lng, lat, radiusMeters, steps = 48) {
+  const earthRadius = 6_371_008.8;
+  const latRad = (lat * Math.PI) / 180;
+  const angularDist = radiusMeters / earthRadius;
+  const coords = [];
+  for (let i = 0; i <= steps; i++) {
+    const bearing = (2 * Math.PI * i) / steps;
+    const dLat = Math.asin(
+      Math.sin(latRad) * Math.cos(angularDist) +
+      Math.cos(latRad) * Math.sin(angularDist) * Math.cos(bearing),
+    );
+    const dLng =
+      (lng * Math.PI) / 180 +
+      Math.atan2(
+        Math.sin(bearing) * Math.sin(angularDist) * Math.cos(latRad),
+        Math.cos(angularDist) - Math.sin(latRad) * Math.sin(dLat),
+      );
+    coords.push([(dLng * 180) / Math.PI, (dLat * 180) / Math.PI]);
+  }
+  return coords;
+}
+
 function buildRasterFallbackStyle(isDark) {
   const darkTiles = [
     'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
@@ -63,6 +100,7 @@ function SmartMap({
   focusCoords = null,
   selectedCidades = [],
   cityBounds = {},
+  censusProfiles = null,
 }) {
   const [popupPoint, setPopupPoint] = useState(null);
   const mapRef = useRef(null);
@@ -77,6 +115,26 @@ function SmartMap({
   }, [isDark]);
 
   const valid = useMemo(() => sanitizePoints(pontos), [pontos]);
+
+  const censusCirclesGeoJson = useMemo(() => {
+    if (!censusProfiles || !valid.length) return null;
+    const features = [];
+    for (const pt of valid) {
+      const cp = censusProfiles[pt.id];
+      if (!cp?.perfil_dominante) continue;
+      const color = CENSUS_PROFILE_COLORS[cp.perfil_dominante];
+      if (!color) continue;
+      features.push({
+        type: 'Feature',
+        properties: { color, profile: cp.perfil_dominante },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [makeCirclePolygon(pt.lng, pt.lat, 800)],
+        },
+      });
+    }
+    return features.length ? { type: 'FeatureCollection', features } : null;
+  }, [valid, censusProfiles]);
 
   const pointsGeoJson = useMemo(() => ({
     type: 'FeatureCollection',
@@ -194,6 +252,28 @@ function SmartMap({
       >
         <NavigationControl position="top-left" showCompass={false} />
 
+        {censusCirclesGeoJson && (
+          <Source id="census-circles" type="geojson" data={censusCirclesGeoJson}>
+            <Layer
+              id="census-circles-fill"
+              type="fill"
+              paint={{
+                'fill-color': ['get', 'color'],
+                'fill-opacity': 0.15,
+              }}
+            />
+            <Layer
+              id="census-circles-stroke"
+              type="line"
+              paint={{
+                'line-color': ['get', 'color'],
+                'line-width': 1.5,
+                'line-opacity': 0.5,
+              }}
+            />
+          </Source>
+        )}
+
         <Source
           id="points"
           type="geojson"
@@ -239,6 +319,21 @@ function SmartMap({
         ) : null}
       </Map>
 
+      {censusCirclesGeoJson && (
+        <div className={`absolute right-3 bottom-3 z-[500] rounded-lg border px-3 py-2 text-xs ${isDark ? 'bg-black/75 border-white/15 text-white backdrop-blur-sm' : 'bg-white/90 border-neutral-200 text-neutral-800 backdrop-blur-sm shadow-sm'}`}>
+          <div className="font-semibold mb-1.5" style={{ fontSize: 11 }}>Perfil Censitário (800 m)</div>
+          {Object.entries(CENSUS_PROFILE_LABELS).map(([key, label]) => (
+            <div key={key} className="flex items-center gap-1.5 mb-0.5 last:mb-0">
+              <span
+                className="inline-block w-3 h-3 rounded-sm flex-shrink-0"
+                style={{ background: CENSUS_PROFILE_COLORS[key], opacity: 0.7 }}
+              />
+              <span style={{ fontSize: 11 }}>{label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {selectedId && (
         <div className={`absolute left-3 bottom-3 z-[500] rounded-lg border border-brand-orange/40 px-3 py-2 text-xs ${isDark ? 'bg-brand-orange/20 text-white' : 'bg-brand-orange/12 text-neutral-800'}`}>
           Ponto selecionado no mapa sincronizado com a listagem.
@@ -257,5 +352,6 @@ export default memo(SmartMap, (prevProps, nextProps) => {
     && prevProps.focusCoords?.lat === nextProps.focusCoords?.lat
     && prevProps.focusCoords?.lng === nextProps.focusCoords?.lng
     && prevProps.selectedCidades === nextProps.selectedCidades
-    && prevProps.cityBounds === nextProps.cityBounds;
+    && prevProps.cityBounds === nextProps.cityBounds
+    && prevProps.censusProfiles === nextProps.censusProfiles;
 });

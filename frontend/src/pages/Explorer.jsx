@@ -343,6 +343,7 @@ export default function Explorer() {
                   isDark={isDark}
                   selectedCidades={filters.cidade}
                   cityBounds={cityBounds}
+                  censusProfiles={censusProfiles}
                 />
               </Suspense>
             </motion.div>
