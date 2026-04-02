@@ -128,7 +128,7 @@ export default function PointCard({ ponto, onSelect, index = 0, isDark = true, g
                 {CENSUS_PROFILE_SHORT[censusProfile.perfil_dominante] || censusProfile.perfil_dominante}
               </span>
             )}
-            {ponto.audience_tags && ponto.audience_tags.slice(0, 2).map((tag) => (
+            {!censusProfile && ponto.audience_tags && ponto.audience_tags.slice(0, 2).map((tag) => (
               <span key={tag.key} className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium ${isDark ? 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20' : 'bg-orange-50 text-orange-600 border border-orange-200'}`}>
                 {tag.label}
               </span>

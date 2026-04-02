@@ -246,8 +246,8 @@ export default function PointModal({ ponto, onClose, isDark = true, geoProfile, 
                 ))}
               </div>
 
-              {/* Audience Tags */}
-              {ponto.audience_tags && ponto.audience_tags.length > 0 && (
+              {/* Audience Tags — only show when no data-driven census profile is available */}
+              {!censusProfile && ponto.audience_tags && ponto.audience_tags.length > 0 && (
                 <div className={`rounded-xl p-4 mb-4 ${isDark ? 'bg-white/[0.03] border border-white/5' : 'bg-neutral-50 border border-neutral-200'}`}>
                   <div className="flex items-center gap-2 mb-2.5">
                     <Tag size={14} className="text-brand-orange" />
