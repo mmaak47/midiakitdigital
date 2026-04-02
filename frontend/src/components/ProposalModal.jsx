@@ -24,7 +24,7 @@ import {
 import { useFavorites } from '../context/FavoritesContext';
 import {
   campaignTotals,
-  generateCommercialArguments,
+  generateStrategicJustification,
   getSegmentDisplayName,
   OBJETIVOS,
   SEGMENTOS
@@ -380,13 +380,17 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     };
   }, [analysisMode, form.clientAddress, proposalSourcePoints, activeCities]);
 
-  const argumentos = useMemo(() => generateCommercialArguments({
-    selected: proposalSourcePoints,
-    city: activeCities,
-    publico: form.publicos,
-    objetivo: form.objetivo,
-    segmento: form.segmento
-  }), [proposalSourcePoints, activeCities, form.publicos, form.objetivo, form.segmento]);
+  const argumentos = useMemo(() => {
+    const strategic = generateStrategicJustification({
+      selected: proposalSourcePoints,
+      cidade: Array.isArray(activeCities) ? activeCities[0] : activeCities,
+      publicoAlvo: form.publicos,
+      objetivo: form.objetivo,
+      segmento: form.segmento,
+      empresa: form.clientName
+    });
+    return strategic.argumentacaoComercial || [];
+  }, [proposalSourcePoints, activeCities, form.publicos, form.objetivo, form.segmento, form.clientName]);
 
   const imagePromptGroups = useMemo(() => {
     return buildProposalImagePromptsByFormat({

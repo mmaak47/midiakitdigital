@@ -1066,3 +1066,255 @@ export function sortFormatos(items, typeKey = 'tipo') {
     return compareFormatos(formatoA, formatoB);
   });
 }
+
+/* ──────────────────────────────────────────────────────────
+   STRATEGIC JUSTIFICATION GENERATOR
+   Generates 4-section professional media plan justification
+   ────────────────────────────────────────────────────────── */
+
+export function generateStrategicJustification({
+  selected = [],
+  totals: _totals,
+  reachFrequency = {},
+  optimizer = {},
+  empresa = '',
+  segmento = '',
+  objetivo = '',
+  cidade = '',
+  budget = 0,
+  periodWeeks = 4,
+  publicoAlvo = [],
+  cityInventory = [],
+  entornoByPoint = null
+}) {
+  const totals = _totals || campaignTotals(selected);
+  const coverage = calculateCoverageLevel(selected, cityInventory);
+  const segmentLabel = getSegmentDisplayName(segmento);
+  const fmt = (n) => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
+  const fmtDec = (n, d = 1) => Number(n || 0).toFixed(d).replace('.', ',');
+  const fmtMoney = (n) => `R$ ${fmt(n)}`;
+
+  const formatos = Array.from(new Set(selected.map((p) => p.tipo).filter(Boolean)));
+  const formatosList = formatos.length <= 3
+    ? formatos.join(', ')
+    : `${formatos.slice(0, 3).join(', ')} e mais ${formatos.length - 3}`;
+
+  const tiposAmbiente = {};
+  selected.forEach((p) => {
+    const t = p.tipo || 'Outros';
+    tiposAmbiente[t] = (tiposAmbiente[t] || 0) + 1;
+  });
+  const tiposRanked = Object.entries(tiposAmbiente).sort((a, b) => b[1] - a[1]);
+
+  const publicoValues = normalizeArrayInput(publicoAlvo);
+  const publicoLabel = publicoValues.length ? formatList(publicoValues) : 'diversos perfis';
+
+  const matchedPublico = selected.filter((p) => {
+    if (!publicoValues.length) return true;
+    const pp = String(p.publico || '').toUpperCase();
+    return publicoValues.some((v) => pp.includes(String(v).toUpperCase()));
+  });
+  const publicoMatchPct = selected.length > 0
+    ? Math.round((matchedPublico.length / selected.length) * 100)
+    : 0;
+
+  const avgFluxo = totals.quantidade > 0 ? Math.round(totals.fluxoTotal / totals.quantidade) : 0;
+  const cpm = totals.cpmEstimado || 0;
+  const budgetUsage = optimizer.budgetUsagePct || (budget > 0 ? Math.round((totals.valorTotal / budget) * 100) : 0);
+  const freq = reachFrequency.avgFrequency || 0;
+  const reach = reachFrequency.effectiveReachPct || 0;
+  const grps = reachFrequency.grps || 0;
+
+  // Entorno data aggregation
+  let entornoCount = 0;
+  let topEntornoPoint = null;
+  if (entornoByPoint) {
+    selected.forEach((p) => {
+      const m = entornoByPoint[p.id] || entornoByPoint[String(p.id)];
+      if (m && (Number(m.affinity_score) > 0 || Number(m.score_relevancia) > 0)) {
+        entornoCount++;
+        const as = Number(m.affinity_score) || Number(m.score_relevancia) || 0;
+        if (!topEntornoPoint || as > topEntornoPoint.score) {
+          topEntornoPoint = { nome: p.nome, score: as, tipo: p.tipo };
+        }
+      }
+    });
+  }
+
+  /* ────── 1. QUALIDADE DA SELEÇÃO ────── */
+
+  const qualityParts = [];
+
+  // Reach vs frequency balance
+  if (reach > 0 && freq > 0) {
+    if (freq >= 4 && reach >= 40) {
+      qualityParts.push(`O plano atinge ${fmtDec(reach)}% de reach efetivo com frequência média de ${fmtDec(freq, 2)} exposições por pessoa no período de ${periodWeeks} semanas, indicando impacto recorrente e capacidade real de fixação de marca.`);
+    } else if (freq >= 2.5) {
+      qualityParts.push(`Com frequência média de ${fmtDec(freq, 2)} exposições e reach de ${fmtDec(reach)}%, o plano garante repetição suficiente para ultrapassar o limiar de lembrança espontânea na praça de ${cidade || 'atuação'}.`);
+    } else {
+      qualityParts.push(`A frequência estimada de ${fmtDec(freq, 2)} e reach de ${fmtDec(reach)}% demonstram capacidade de introdução de marca na praça, com espaço para ampliar recorrência em fases futuras.`);
+    }
+  }
+
+  // Investment efficiency
+  if (cpm > 0) {
+    if (cpm < 15) {
+      qualityParts.push(`O CPM de ${fmtMoney(cpm)} posiciona o plano em alta eficiência de custo por impacto, permitindo volume expressivo de exposições dentro do investimento proposto.`);
+    } else if (cpm < 30) {
+      qualityParts.push(`Com CPM de ${fmtMoney(cpm)}, o investimento gera ${fmt(totals.fluxoTotal)} impactos mensais — relação custo-benefício compatível com DOOH indoor de qualidade na região.`);
+    } else {
+      qualityParts.push(`O investimento de ${fmtMoney(totals.valorTotal)} entrega ${fmt(totals.fluxoTotal)} impactos mensais (CPM ${fmtMoney(cpm)}), priorizando qualidade de contexto e proximidade com o público decisor.`);
+    }
+  }
+
+  // Geographic distribution + audience fit
+  const geoAndAudience = [];
+  if (coverage.coveragePct > 0) {
+    geoAndAudience.push(`a cobertura abrange ${fmtDec(coverage.coveragePct)}% dos pontos disponíveis na praça`);
+  }
+  if (publicoMatchPct >= 80) {
+    geoAndAudience.push(`${publicoMatchPct}% dos pontos possuem perfil de público alinhado ao target (${publicoLabel})`);
+  } else if (publicoMatchPct >= 50) {
+    geoAndAudience.push(`${publicoMatchPct}% dos pontos possuem aderência direta ao perfil ${publicoLabel}`);
+  }
+  if (formatos.length >= 3) {
+    geoAndAudience.push(`a diversidade de ${formatos.length} formatos (${formatosList}) permite impactar o público em múltiplos momentos da jornada`);
+  } else if (formatos.length === 2) {
+    geoAndAudience.push(`a combinação de ${formatos.join(' e ')} gera complementaridade entre visibilidade e recorrência`);
+  }
+  if (geoAndAudience.length) {
+    qualityParts.push(`Em termos de composição, ${geoAndAudience.join('; ')}.`);
+  }
+
+  /* ────── 2. JUSTIFICATIVA ESTRATÉGICA ────── */
+
+  const strategyParts = [];
+
+  // Objective alignment
+  const OBJ_NARRATIVES = {
+    'reconhecimento de marca': `reconhecimento de marca, priorizando volume de impacto e repetição em ${cidade || 'múltiplas praças'}`,
+    'presenca premium': `presença premium, posicionando a marca em contextos de público qualificado e ambientes de padrão elevado`,
+    'cobertura regional': `cobertura regional ampla, distribuindo a campanha em múltiplos pontos para maximizar capilaridade territorial`,
+    'proximidade da decisao de compra': `conversão por proximidade, posicionando mensagens em pontos onde o público está próximo do momento de decisão`,
+    'lembranca continua': `lembrança contínua, mantendo exposição sustentada ao longo de ${periodWeeks} semanas para reforçar familiaridade com a marca`
+  };
+  const objNarrative = OBJ_NARRATIVES[objetivo] || `os objetivos definidos para ${empresa || 'o anunciante'}`;
+  strategyParts.push(`A campanha foi estruturada com foco em ${objNarrative}. A seleção de ${totals.quantidade} pontos em ${formatos.length} formato${formatos.length > 1 ? 's' : ''} foi orientada por algoritmo de otimização que avalia eficiência de custo, afinidade com público-alvo e potencial de impacto por localização.`);
+
+  // Frequency logic
+  if (freq >= 3) {
+    strategyParts.push(`A frequência média de ${fmtDec(freq, 2)} indica que cada pessoa impactada será exposta à mensagem múltiplas vezes, ultrapassando o limiar de 3 exposições necessário para consolidação de lembrança segundo modelos de mídia OOH.`);
+  } else if (freq >= 1.5) {
+    strategyParts.push(`Com ${fmtDec(freq, 2)} exposições médias por pessoa, o plano estabelece base sólida de lembrança e reconhecimento no período de ${periodWeeks} semanas.`);
+  }
+
+  // Environment quality
+  if (tiposRanked.length) {
+    const envDesc = tiposRanked.slice(0, 3).map(([t, c]) => `${c} ponto${c > 1 ? 's' : ''} em ${t}`).join(', ');
+    strategyParts.push(`Os ambientes selecionados — ${envDesc} — garantem que a exposição ocorra em contextos de atenção concentrada, onde o tempo de permanência e a proximidade com a tela amplificam a absorção da mensagem.`);
+  }
+
+  // Entorno relevance
+  if (entornoCount > 0) {
+    const entornoPct = Math.round((entornoCount / selected.length) * 100);
+    strategyParts.push(`A análise de entorno identificou que ${entornoCount} dos ${totals.quantidade} pontos (${entornoPct}%) estão cercados por locais frequentados pelo público-alvo do segmento ${segmentLabel}, o que potencializa a relevância contextual de cada inserção.`);
+  }
+
+  // Segment fit
+  strategyParts.push(`Para o segmento de ${segmentLabel}, a composição privilegia ambientes onde o público-alvo transita com maior recorrência, conectando a mensagem ao contexto de vida e decisão do consumidor em ${cidade || 'toda a praça'}.`);
+
+  /* ────── 3. ARGUMENTAÇÃO COMERCIAL ────── */
+
+  const bullets = [];
+
+  // Audience quality
+  if (publicoMatchPct > 0) {
+    bullets.push(`${publicoMatchPct}% dos pontos possuem público predominante ${publicoLabel} — o plano fala diretamente com o target da campanha, reduzindo dispersão de investimento.`);
+  } else if (publicoValues.length) {
+    bullets.push(`Os pontos selecionados cobrem perfis complementares ao target ${publicoLabel}, ampliando a presença em momentos estratégicos da jornada.`);
+  }
+
+  // Recurrence
+  if (freq >= 3) {
+    bullets.push(`Frequência média de ${fmtDec(freq, 2)} exposições — acima do threshold de 3x recomendado para campanhas de fixação, o que acelera a curva de lembrança de marca.`);
+  } else if (freq >= 1.5) {
+    bullets.push(`Frequência de ${fmtDec(freq, 2)} exposições por pessoa, suficiente para construir reconhecimento progressivo ao longo das ${periodWeeks} semanas.`);
+  }
+
+  // CPM efficiency
+  if (cpm > 0 && cpm < 35) {
+    bullets.push(`CPM de ${fmtMoney(cpm)} — custo por mil impactos competitivo para DOOH indoor, gerando ${fmt(totals.fluxoTotal)} impactos mensais com investimento de ${fmtMoney(totals.valorTotal)}.`);
+  } else if (cpm >= 35) {
+    bullets.push(`Investimento de ${fmtMoney(totals.valorTotal)} concentrado em ${totals.quantidade} pontos de qualidade contextual, priorizando relevância sobre volume bruto (${fmt(totals.fluxoTotal)} impactos/mês).`);
+  }
+
+  // Capillarity
+  if (formatos.length >= 2) {
+    bullets.push(`${formatos.length} formatos distintos (${formatosList}) em ${totals.quantidade} pontos — presença diversificada que impacta o público em diferentes contextos e momentos do dia.`);
+  } else if (totals.quantidade >= 5) {
+    bullets.push(`${totals.quantidade} pontos do formato ${formatos[0] || 'selecionado'} garantem repetição e presença consistente em ${cidade || 'toda a praça'}.`);
+  }
+
+  // Segment adherence
+  if (entornoCount > 0 && topEntornoPoint) {
+    bullets.push(`Análise de entorno confirmou afinidade com ${segmentLabel}: ${entornoCount} ponto${entornoCount > 1 ? 's' : ''} estão cercados por locais frequentados pelo público-alvo, com destaque para ${topEntornoPoint.nome} (score de afinidade ${topEntornoPoint.score.toFixed(0)}).`);
+  } else {
+    bullets.push(`Seleção orientada ao segmento ${segmentLabel} com base em perfil de público, tipo de ambiente e posicionamento geográfico para máxima aderência contextual.`);
+  }
+
+  // Budget usage
+  if (budget > 0 && budgetUsage > 0) {
+    bullets.push(`Utilização de ${budgetUsage}% do orçamento (${fmtMoney(totals.valorTotal)} de ${fmtMoney(budget)}), com seleção marginal que evita pontos redundantes e otimiza o retorno por real investido.`);
+  }
+
+  /* ────── 4. DESTAQUES DO PLANO ────── */
+
+  const highlights = [];
+  if (selected.length > 0) {
+    const scored = selected.map((p) => {
+      const fluxo = toNumber(p.fluxo);
+      const objScore = scorePointByObjective(p, objetivo);
+      const entornoMetrics = entornoByPoint
+        ? (entornoByPoint[p.id] || entornoByPoint[String(p.id)])
+        : null;
+      const affinityScore = Number(entornoMetrics?.affinity_score) || Number(entornoMetrics?.score_relevancia) || 0;
+      const relevance = objScore + affinityScore * 0.3 + (fluxo / 10000);
+      return { ...p, _relevance: relevance, _affinityScore: affinityScore };
+    }).sort((a, b) => b._relevance - a._relevance);
+
+    scored.slice(0, 3).forEach((p) => {
+      const fluxo = toNumber(p.fluxo);
+      const tipo = p.tipo || 'Ponto';
+      const publico = p.publico || '';
+
+      let motivo = '';
+      if (objetivo === 'presenca premium' && (publico.includes('A') || tipo.toLowerCase().includes('elevador'))) {
+        motivo = `Ambiente de permanência qualificada com público ${publico}, ideal para posicionamento de marca premium.`;
+      } else if (objetivo === 'reconhecimento de marca' && fluxo >= 80000) {
+        motivo = `Fluxo de ${fmt(fluxo)} impactos/mês garante volume de repetição necessário para fixar a marca na memória do público.`;
+      } else if (objetivo === 'proximidade da decisao de compra') {
+        motivo = `Localizado em ambiente de decisão (${tipo}), conectando a mensagem ao momento de consumo do público ${publico}.`;
+      } else if (p._affinityScore > 0) {
+        motivo = `Entorno validado com score de afinidade ${p._affinityScore.toFixed(0)} — presença confirmada de locais frequentados pelo público-alvo do segmento ${segmentLabel}.`;
+      } else if (fluxo >= 60000) {
+        motivo = `Alto volume de circulação (${fmt(fluxo)} impactos/mês) com perfil ${publico}, sustentando frequência e alcance dentro do plano.`;
+      } else {
+        motivo = `Ponto estratégico em ${tipo.toLowerCase()} com público ${publico}, complementando cobertura e diversidade do plano em ${cidade || 'na praça'}.`;
+      }
+
+      highlights.push({
+        nome: p.nome || 'Ponto sem nome',
+        tipo,
+        fluxo: fmt(fluxo),
+        motivo
+      });
+    });
+  }
+
+  return {
+    qualidadeSelecao: qualityParts.join(' '),
+    justificativaEstrategica: strategyParts.join(' '),
+    argumentacaoComercial: bullets,
+    destaquesPlano: highlights
+  };
+}

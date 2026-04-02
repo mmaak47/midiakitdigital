@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft, ArrowRight, Building2, Target, Users, MapPin, Wallet,
-  Sparkles, Plus, CheckCircle, Loader2, BarChart3, Eye
+  Sparkles, Plus, CheckCircle, Loader2, BarChart3, Eye, Star, TrendingUp, MessageSquareText, Award
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import CampaignScore from '../components/CampaignScore';
@@ -16,7 +16,7 @@ import {
   OBJETIVOS,
   suggestIdealPlan,
   calculateCampaignScore,
-  generateCommercialArguments,
+  generateStrategicJustification,
   campaignTotals,
 } from '../lib/strategy';
 
@@ -308,15 +308,22 @@ export default function CampaignPlanner() {
           cityInventory: cityPontos,
         });
 
-        const args = generateCommercialArguments({
+        const strategic = generateStrategicJustification({
           selected: plan.pontos,
-          city: cidade,
-          publico: publicoAlvo,
-          objetivo,
+          totals: plan.totals,
+          reachFrequency: plan.reachFrequency,
+          optimizer: plan.optimizer,
+          empresa,
           segmento,
+          objetivo,
+          cidade,
+          budget: budget || 0,
+          periodWeeks: period,
+          publicoAlvo,
+          cityInventory: cityPontos,
         });
 
-        setResult({ plan, scoreInfo, args });
+        setResult({ plan, scoreInfo, strategic });
         setComputing(false);
         setStep(4);
       }, 100);
@@ -504,7 +511,7 @@ export default function CampaignPlanner() {
 
   const renderResults = () => {
     if (!result) return null;
-    const { plan, scoreInfo, args } = result;
+    const { plan, scoreInfo, strategic } = result;
     const totals = plan.totals;
 
     return (
@@ -537,32 +544,73 @@ export default function CampaignPlanner() {
           <StatCard label="CPM" value={`R$ ${totals.cpmEstimado?.toFixed(2) || '0,00'}`} isDark={isDark} />
         </div>
 
-        {/* Justificativa */}
-        <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
-          <div className="flex items-center gap-2 mb-3">
-            <BarChart3 size={16} className="text-brand-orange" />
-            <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Justificativa estratégica</h3>
-          </div>
-          <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
-            {plan.justificativa}
-          </p>
-        </div>
-
-        {/* Commercial arguments */}
-        {args.length > 0 && (
+        {/* 1. Qualidade da Seleção */}
+        {strategic?.qualidadeSelecao && (
           <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
             <div className="flex items-center gap-2 mb-3">
-              <Sparkles size={16} className="text-brand-orange" />
+              <BarChart3 size={16} className="text-brand-orange" />
+              <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Qualidade da seleção</h3>
+            </div>
+            <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
+              {strategic.qualidadeSelecao}
+            </p>
+          </div>
+        )}
+
+        {/* 2. Justificativa Estratégica */}
+        {strategic?.justificativaEstrategica && (
+          <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp size={16} className="text-brand-orange" />
+              <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Justificativa estratégica</h3>
+            </div>
+            <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
+              {strategic.justificativaEstrategica}
+            </p>
+          </div>
+        )}
+
+        {/* 3. Argumentação Comercial */}
+        {strategic?.argumentacaoComercial?.length > 0 && (
+          <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
+            <div className="flex items-center gap-2 mb-3">
+              <MessageSquareText size={16} className="text-brand-orange" />
               <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Argumentação comercial</h3>
             </div>
-            <ul className="space-y-2">
-              {args.map((arg, i) => (
-                <li key={i} className={`text-sm flex gap-2 ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
-                  <span className="text-brand-orange mt-0.5 flex-shrink-0">•</span>
-                  {arg}
+            <ul className="space-y-2.5">
+              {strategic.argumentacaoComercial.map((arg, i) => (
+                <li key={i} className={`text-sm flex gap-2.5 ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
+                  <span className="text-brand-orange mt-0.5 flex-shrink-0 font-bold">•</span>
+                  <span className="leading-relaxed">{arg}</span>
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {/* 4. Destaques do Plano */}
+        {strategic?.destaquesPlano?.length > 0 && (
+          <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
+            <div className="flex items-center gap-2 mb-3">
+              <Award size={16} className="text-brand-orange" />
+              <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Destaques do plano</h3>
+            </div>
+            <div className="space-y-4">
+              {strategic.destaquesPlano.map((h, i) => (
+                <div key={i} className={`rounded-xl border p-4 ${isDark ? 'border-white/[0.06] bg-white/[0.02]' : 'border-neutral-100 bg-neutral-50'}`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Star size={14} className="text-brand-orange" />
+                    <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{h.nome}</span>
+                  </div>
+                  <div className={`flex flex-wrap gap-3 text-xs mb-2 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>
+                    <span>{h.tipo}</span>
+                    <span>•</span>
+                    <span>{h.fluxo} impactos/mês</span>
+                  </div>
+                  <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>{h.motivo}</p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
