@@ -370,7 +370,8 @@ function authenticateSensitiveApi(req, res, next) {
     '/audience-tags',
     '/cidade-fotos',
     '/geoaudience/profiles',
-    '/census/profiles'
+    '/census/profiles',
+    '/audience-intel/profiles'
   ];
 
   if (method === 'GET' && publicGetPrefixes.some((prefix) => routePath === prefix || routePath.startsWith(`${prefix}/`))) {
