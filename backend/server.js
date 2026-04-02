@@ -367,7 +367,9 @@ function authenticateSensitiveApi(req, res, next) {
     '/publicos',
     '/stats',
     '/audience-tags',
-    '/cidade-fotos'
+    '/cidade-fotos',
+    '/geoaudience/profiles',
+    '/census/profiles'
   ];
 
   if (method === 'GET' && publicGetPrefixes.some((prefix) => routePath === prefix || routePath.startsWith(`${prefix}/`))) {
@@ -1257,7 +1259,7 @@ app.post('/api/entorno/client-address', requireRoles(['admin', 'gerente_comercia
 // ====================== GEO-AUDIENCE INTELLIGENCE =========================
 
 // GET all profiles (optionally filtered by city)
-app.get('/api/geoaudience/profiles', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+app.get('/api/geoaudience/profiles', (req, res) => {
   try {
     const cidade = String(req.query.cidade || '').trim() || null;
     const profiles = geoAudience.getAllProfiles(cidade);
@@ -1351,7 +1353,7 @@ app.post('/api/geoaudience/analyze/:pontoId', requireRoles(['admin', 'gerente_co
 
 // ─── Census Audience Classification Routes ──────────────────────────────────
 
-app.get('/api/census/profiles', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+app.get('/api/census/profiles', (req, res) => {
   try {
     const { municipio, perfil, min_score } = req.query;
     const profiles = censusAudience.getAllProfiles({
