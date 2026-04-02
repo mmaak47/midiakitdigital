@@ -9,11 +9,13 @@ export default function Navbar({ transparent = false, showNav = true, commercial
   const logoSrc = isDark ? '/logo.png' : '/logo-light.png';
   const links = commercial
     ? [
+        { to: '/planejar', label: 'Planejar Campanha' },
         { to: '/comercial/explorar', label: 'Explorar Pontos' },
         { to: '/comercial/admin', label: 'Admin' }
       ]
     : [
         { to: '/', label: 'Home' },
+        { to: '/planejar', label: 'Planejar Campanha' },
         { to: '/comercial', label: 'Comercial' }
       ];
 

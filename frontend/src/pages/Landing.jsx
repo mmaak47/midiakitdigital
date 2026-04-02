@@ -1051,13 +1051,22 @@ export default function Landing() {
                 Continue para o explorador com filtros aplicados e selecione os pontos para montar sua proposta comercial.
               </p>
             </div>
-            <button
-              onClick={() => navigate(explorerPath)}
-              className="landing-orange-btn group inline-flex items-center justify-center gap-2 px-8 h-[52px] bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover hover:shadow-lg hover:shadow-brand-orange/40 transition-all duration-200"
-            >
-              Explorar inventário completo
-              <i className="ri-arrow-right-line group-hover:translate-x-1 transition-transform inline-block" style={{ fontSize: 18 }} />
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => navigate('/planejar')}
+                className="landing-orange-btn group inline-flex items-center justify-center gap-2 px-8 h-[52px] bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover hover:shadow-lg hover:shadow-brand-orange/40 transition-all duration-200"
+              >
+                Planejar campanha
+                <i className="ri-magic-line group-hover:translate-x-1 transition-transform inline-block" style={{ fontSize: 18 }} />
+              </button>
+              <button
+                onClick={() => navigate(explorerPath)}
+                className={`group inline-flex items-center justify-center gap-2 px-8 h-[52px] font-semibold rounded-xl border transition-all duration-200 ${isDark ? 'border-white/20 text-white hover:bg-white/10' : 'border-neutral-300 text-neutral-700 hover:bg-neutral-100'}`}
+              >
+                Explorar inventário completo
+                <i className="ri-arrow-right-line group-hover:translate-x-1 transition-transform inline-block" style={{ fontSize: 18 }} />
+              </button>
+            </div>
           </motion.div>
         </div>
       </section>

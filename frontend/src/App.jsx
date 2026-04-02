@@ -5,6 +5,7 @@ import Landing from './pages/Landing';
 
 const Explorer = lazy(() => import('./pages/Explorer'));
 const Admin = lazy(() => import('./pages/Admin'));
+const CampaignPlanner = lazy(() => import('./pages/CampaignPlanner'));
 
 function RequireCommercialAuth({ children }) {
   const hasToken = typeof window !== 'undefined' && !!sessionStorage.getItem('admin_token');
@@ -18,6 +19,7 @@ export default function App() {
         <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/planejar" element={<CampaignPlanner />} />
             <Route path="/comercial" element={<Admin />} />
             <Route path="/comercial/admin" element={<Admin />} />
             <Route path="/comercial/explorar" element={<RequireCommercialAuth><Explorer /></RequireCommercialAuth>} />
