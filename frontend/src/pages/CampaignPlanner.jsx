@@ -379,6 +379,8 @@ export default function CampaignPlanner() {
           periodWeeks: period,
           publicoAlvo,
           cityInventory: cityPontos,
+          geoProfilesByPoint: geoProfiles,
+          censusProfilesByPoint: censusProfiles,
         });
 
         // Rank ALL city inventory with 0-100 compatibility scores
@@ -811,10 +813,27 @@ export default function CampaignPlanner() {
                                 ))}
                             </div>
 
-                            {/* Motive */}
-                            <p className={`text-xs mt-2 ${isDark ? 'text-white/35' : 'text-neutral-400'}`}>
-                              {pt.motivoPrincipal}
-                            </p>
+                            {/* Justificativa estruturada */}
+                            {pt.justificativaCompleta ? (
+                              <div className={`text-xs mt-2 space-y-0.5 ${isDark ? 'text-white/45' : 'text-neutral-500'}`}>
+                                {pt.justificativaCompleta.demografico && (
+                                  <p>{pt.justificativaCompleta.demografico}</p>
+                                )}
+                                {pt.justificativaCompleta.entorno && (
+                                  <p>{pt.justificativaCompleta.entorno}</p>
+                                )}
+                                {pt.justificativaCompleta.comparativo && (
+                                  <p className="font-medium">{pt.justificativaCompleta.comparativo}</p>
+                                )}
+                                {pt.justificativaCompleta.limitacao && (
+                                  <p className={`italic ${isDark ? 'text-white/25' : 'text-neutral-400'}`}>{pt.justificativaCompleta.limitacao}</p>
+                                )}
+                              </div>
+                            ) : (
+                              <p className={`text-xs mt-2 ${isDark ? 'text-white/35' : 'text-neutral-400'}`}>
+                                {pt.motivoPrincipal}
+                              </p>
+                            )}
 
                             {/* GeoAudience Profile Badge */}
                             {pt.geoProfile && pt.geoProfile.neighborhood_type !== 'indefinido' && (

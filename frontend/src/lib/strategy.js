@@ -1249,7 +1249,9 @@ export function generateStrategicJustification({
   periodWeeks = 4,
   publicoAlvo = [],
   cityInventory = [],
-  entornoByPoint = null
+  entornoByPoint = null,
+  geoProfilesByPoint = null,
+  censusProfilesByPoint = null
 }) {
   const totals = _totals || campaignTotals(selected);
   const coverage = calculateCoverageLevel(selected, cityInventory);
@@ -1309,127 +1311,176 @@ export function generateStrategicJustification({
 
   const qualityParts = [];
 
-  // Reach vs frequency balance
+  // Reach vs frequency balance — with concrete numbers
   if (reach > 0 && freq > 0) {
-    if (freq >= 4 && reach >= 40) {
-      qualityParts.push(`O plano atinge ${fmtDec(reach)}% de reach efetivo com frequência média de ${fmtDec(freq, 2)} exposições por pessoa no período de ${periodWeeks} semanas, indicando impacto recorrente e capacidade real de fixação de marca.`);
-    } else if (freq >= 2.5) {
-      qualityParts.push(`Com frequência média de ${fmtDec(freq, 2)} exposições e reach de ${fmtDec(reach)}%, o plano garante repetição suficiente para ultrapassar o limiar de lembrança espontânea na praça de ${cidade || 'atuação'}.`);
-    } else {
-      qualityParts.push(`A frequência estimada de ${fmtDec(freq, 2)} e reach de ${fmtDec(reach)}% demonstram capacidade de introdução de marca na praça, com espaço para ampliar recorrência em fases futuras.`);
-    }
+    qualityParts.push(`O plano atinge reach efetivo de ${fmtDec(reach)}% com frequência média de ${fmtDec(freq, 2)} exposições por pessoa em ${periodWeeks} semanas. Total de ${fmt(totals.fluxoTotal)} impactos/mês distribuídos em ${totals.quantidade} ponto${totals.quantidade > 1 ? 's' : ''} (estimativa via modelo de reach DOOH indoor).`);
   }
 
-  // Investment efficiency
+  // Investment efficiency — concrete CPM + comparison
   if (cpm > 0) {
-    if (cpm < 15) {
-      qualityParts.push(`O CPM de ${fmtMoney(cpm)} posiciona o plano em alta eficiência de custo por impacto, permitindo volume expressivo de exposições dentro do investimento proposto.`);
-    } else if (cpm < 30) {
-      qualityParts.push(`Com CPM de ${fmtMoney(cpm)}, o investimento gera ${fmt(totals.fluxoTotal)} impactos mensais — relação custo-benefício compatível com DOOH indoor de qualidade na região.`);
-    } else {
-      qualityParts.push(`O investimento de ${fmtMoney(totals.valorTotal)} entrega ${fmt(totals.fluxoTotal)} impactos mensais (CPM ${fmtMoney(cpm)}), priorizando qualidade de contexto e proximidade com o público decisor.`);
+    const cityAvgCpm = cityInventory.length > 0
+      ? (() => {
+          const cpms = cityInventory.map(pt => { const f = toNumber(pt.fluxo); return f > 0 ? toNumber(pt.preco) / (f / 1000) : Infinity; }).filter(v => v < Infinity);
+          return cpms.length > 0 ? cpms.reduce((a, b) => a + b, 0) / cpms.length : 0;
+        })()
+      : 0;
+
+    let cpmComparison = '';
+    if (cityAvgCpm > 0) {
+      const diff = Math.round(((cpm - cityAvgCpm) / cityAvgCpm) * 100);
+      cpmComparison = diff <= 0
+        ? ` — ${Math.abs(diff)}% abaixo da média do inventário em ${cidade || 'a praça'} (média R$ ${cityAvgCpm.toFixed(2)}, ${cityInventory.length} pontos)`
+        : ` — ${diff}% acima da média (R$ ${cityAvgCpm.toFixed(2)}), priorizando qualidade de contexto sobre volume`;
     }
+    qualityParts.push(`CPM do plano: ${fmtMoney(cpm)}${cpmComparison}. Investimento de ${fmtMoney(totals.valorTotal)} gera ${fmt(totals.fluxoTotal)} impactos mensais.`);
   }
 
-  // Geographic distribution + audience fit
+  // Geographic + audience composition — use real percentages
   const geoAndAudience = [];
   if (coverage.coveragePct > 0) {
-    geoAndAudience.push(`a cobertura abrange ${fmtDec(coverage.coveragePct)}% dos pontos disponíveis na praça`);
+    geoAndAudience.push(`cobertura de ${fmtDec(coverage.coveragePct)}% do inventário disponível (${totals.quantidade} de ${cityInventory.length} pontos em ${cidade || 'a praça'})`);
   }
-  if (publicoMatchPct >= 80) {
-    geoAndAudience.push(`${publicoMatchPct}% dos pontos possuem perfil de público alinhado ao target (${publicoLabel})`);
-  } else if (publicoMatchPct >= 50) {
-    geoAndAudience.push(`${publicoMatchPct}% dos pontos possuem aderência direta ao perfil ${publicoLabel}`);
+  if (publicoMatchPct > 0) {
+    geoAndAudience.push(`${publicoMatchPct}% dos pontos selecionados com público ${publicoLabel} — aderência ${publicoMatchPct >= 80 ? 'alta' : publicoMatchPct >= 50 ? 'moderada' : 'parcial'} ao target`);
   }
-  if (formatos.length >= 3) {
-    geoAndAudience.push(`a diversidade de ${formatos.length} formatos (${formatosList}) permite impactar o público em múltiplos momentos da jornada`);
-  } else if (formatos.length === 2) {
-    geoAndAudience.push(`a combinação de ${formatos.join(' e ')} gera complementaridade entre visibilidade e recorrência`);
+  if (formatos.length >= 2) {
+    const fmtBreakdown = tiposRanked.slice(0, 4).map(([t, c]) => `${c}× ${t}`).join(', ');
+    geoAndAudience.push(`${formatos.length} formatos (${fmtBreakdown})`);
   }
   if (geoAndAudience.length) {
-    qualityParts.push(`Em termos de composição, ${geoAndAudience.join('; ')}.`);
+    qualityParts.push(`Composição: ${geoAndAudience.join('; ')}.`);
   }
 
   /* ────── 2. JUSTIFICATIVA ESTRATÉGICA ────── */
 
   const strategyParts = [];
 
-  // Objective alignment
-  const OBJ_NARRATIVES = {
-    'reconhecimento de marca': `reconhecimento de marca, priorizando volume de impacto e repetição em ${cidade || 'múltiplas praças'}`,
-    'presenca premium': `presença premium, posicionando a marca em contextos de público qualificado e ambientes de padrão elevado`,
-    'cobertura regional': `cobertura regional ampla, distribuindo a campanha em múltiplos pontos para maximizar capilaridade territorial`,
-    'proximidade da decisao de compra': `conversão por proximidade, posicionando mensagens em pontos onde o público está próximo do momento de decisão`,
-    'lembranca continua': `lembrança contínua, mantendo exposição sustentada ao longo de ${periodWeeks} semanas para reforçar familiaridade com a marca`
-  };
-  const objNarrative = OBJ_NARRATIVES[objetivo] || `os objetivos definidos para ${empresa || 'o anunciante'}`;
-  strategyParts.push(`A campanha foi estruturada com foco em ${objNarrative}. A seleção de ${totals.quantidade} pontos em ${formatos.length} formato${formatos.length > 1 ? 's' : ''} foi orientada por algoritmo de otimização que avalia eficiência de custo, afinidade com público-alvo e potencial de impacto por localização.`);
+  // Objective alignment — concrete numbers
+  strategyParts.push(`Campanha para ${empresa || 'o anunciante'} (${segmentLabel}) com objetivo de ${objetivo || 'mídia OOH'} em ${cidade || 'múltiplas praças'}. Seleção de ${totals.quantidade} pontos em ${formatos.length} formato${formatos.length > 1 ? 's' : ''} otimizada por algoritmo de 9 dimensões (objetivo, público, eficiência, entorno, geoaudiência, censo, segmento, formato, disponibilidade).`);
 
-  // Frequency logic
+  // Frequency logic — with precise numbers and model reference
   if (freq >= 3) {
-    strategyParts.push(`A frequência média de ${fmtDec(freq, 2)} indica que cada pessoa impactada será exposta à mensagem múltiplas vezes, ultrapassando o limiar de 3 exposições necessário para consolidação de lembrança segundo modelos de mídia OOH.`);
+    strategyParts.push(`Frequência média de ${fmtDec(freq, 2)} exposições/pessoa excede o threshold de 3× recomendado para fixação em DOOH (modelo de reach indoor com decaimento logarítmico). GRPs estimados: ${fmtDec(grps, 1)}.`);
   } else if (freq >= 1.5) {
-    strategyParts.push(`Com ${fmtDec(freq, 2)} exposições médias por pessoa, o plano estabelece base sólida de lembrança e reconhecimento no período de ${periodWeeks} semanas.`);
+    strategyParts.push(`Frequência de ${fmtDec(freq, 2)} exposições/pessoa em ${periodWeeks} semanas. GRPs: ${fmtDec(grps, 1)}. Suficiente para construir reconhecimento progressivo (estimativa via modelo de reach indoor).`);
+  } else if (freq > 0) {
+    strategyParts.push(`Frequência estimada de ${fmtDec(freq, 2)} — plano focado em alcance amplo com repetição limitada. GRPs: ${fmtDec(grps, 1)} (modelo de reach indoor).`);
   }
 
-  // Environment quality
+  // Environment composition — concrete counts, not vague quality statements
   if (tiposRanked.length) {
-    const envDesc = tiposRanked.slice(0, 3).map(([t, c]) => `${c} ponto${c > 1 ? 's' : ''} em ${t}`).join(', ');
-    strategyParts.push(`Os ambientes selecionados — ${envDesc} — garantem que a exposição ocorra em contextos de atenção concentrada, onde o tempo de permanência e a proximidade com a tela amplificam a absorção da mensagem.`);
+    const envDesc = tiposRanked.map(([t, c]) => `${c}× ${t}`).join(', ');
+    strategyParts.push(`Distribuição por formato: ${envDesc}. Ticket médio/ponto: ${fmtMoney(totals.ticketMedio || (totals.valorTotal / totals.quantidade))} · fluxo médio/ponto: ${fmt(avgFluxo)} imp/mês.`);
   }
 
-  // Entorno relevance
+  // GeoAudience enrichment — neighborhood-level data with source
+  if (geoProfilesByPoint) {
+    const neighborhoodCounts = {};
+    const socioLevels = { alto: 0, 'medio-alto': 0, medio: 0, 'medio-baixo': 0 };
+    let totalPoisAll = 0;
+    selected.forEach((pt) => {
+      const gp = geoProfilesByPoint[pt.id] || geoProfilesByPoint[String(pt.id)];
+      if (gp && gp.neighborhood_type !== 'indefinido') {
+        neighborhoodCounts[gp.neighborhood_label || gp.neighborhood_type] = (neighborhoodCounts[gp.neighborhood_label || gp.neighborhood_type] || 0) + 1;
+        if (gp.socioeconomic_level) socioLevels[gp.socioeconomic_level] = (socioLevels[gp.socioeconomic_level] || 0) + 1;
+        totalPoisAll += gp.total_pois || 0;
+      }
+    });
+    const topNeighborhoods = Object.entries(neighborhoodCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    if (topNeighborhoods.length > 0) {
+      const nbText = topNeighborhoods.map(([n, c]) => `${c}× ${n}`).join(', ');
+      const premiumCount = (socioLevels.alto || 0) + (socioLevels['medio-alto'] || 0);
+      strategyParts.push(`Perfil de bairros (raio 400m, OpenStreetMap): ${nbText}. ${premiumCount > 0 ? `${premiumCount} ponto${premiumCount > 1 ? 's' : ''} em nível alto/médio-alto. ` : ''}Total de ${fmt(totalPoisAll)} POIs mapeados no entorno dos pontos selecionados.`);
+    }
+  }
+
+  // Census-level data — with IBGE source
+  if (censusProfilesByPoint) {
+    const censusPoints = selected.filter(pt => {
+      const cp = censusProfilesByPoint[pt.id] || censusProfilesByPoint[String(pt.id)];
+      return cp && cp.perfil_dominante;
+    });
+    if (censusPoints.length > 0) {
+      const profileCounts = {};
+      censusPoints.forEach(pt => {
+        const cp = censusProfilesByPoint[pt.id] || censusProfilesByPoint[String(pt.id)];
+        const label = CENSUS_PROFILE_LABELS[cp.perfil_dominante] || cp.perfil_dominante;
+        profileCounts[label] = (profileCounts[label] || 0) + 1;
+      });
+      const profileText = Object.entries(profileCounts).sort((a, b) => b[1] - a[1]).map(([l, c]) => `${c}× ${l}`).join(', ');
+      strategyParts.push(`Perfil demográfico dominante dos pontos (IBGE Censo 2022, tabelas 9606/9514/9529): ${profileText}. ${censusPoints.length} de ${totals.quantidade} pontos com dados censitários disponíveis.`);
+    }
+  }
+
+  // Entorno relevance — concrete scores
   if (entornoCount > 0) {
     const entornoPct = Math.round((entornoCount / selected.length) * 100);
-    strategyParts.push(`A análise de entorno identificou que ${entornoCount} dos ${totals.quantidade} pontos (${entornoPct}%) estão cercados por locais frequentados pelo público-alvo do segmento ${segmentLabel}, o que potencializa a relevância contextual de cada inserção.`);
+    strategyParts.push(`Análise de entorno: ${entornoCount} de ${totals.quantidade} pontos (${entornoPct}%) com afinidade confirmada para ${segmentLabel}${topEntornoPoint ? ` — destaque: ${topEntornoPoint.nome} (afinidade ${topEntornoPoint.score.toFixed(0)}/100)` : ''} (categorias-alvo mapeadas via OpenStreetMap Overpass API).`);
   }
-
-  // Segment fit
-  strategyParts.push(`Para o segmento de ${segmentLabel}, a composição privilegia ambientes onde o público-alvo transita com maior recorrência, conectando a mensagem ao contexto de vida e decisão do consumidor em ${cidade || 'toda a praça'}.`);
 
   /* ────── 3. ARGUMENTAÇÃO COMERCIAL ────── */
 
   const bullets = [];
 
-  // Audience quality
+  // Audience quality — real percentage
   if (publicoMatchPct > 0) {
-    bullets.push(`${publicoMatchPct}% dos pontos possuem público predominante ${publicoLabel} — o plano fala diretamente com o target da campanha, reduzindo dispersão de investimento.`);
-  } else if (publicoValues.length) {
-    bullets.push(`Os pontos selecionados cobrem perfis complementares ao target ${publicoLabel}, ampliando a presença em momentos estratégicos da jornada.`);
+    bullets.push(`${publicoMatchPct}% dos pontos com público ${publicoLabel} aderente ao target — ${matchedPublico.length} de ${selected.length} pontos.`);
   }
 
-  // Recurrence
-  if (freq >= 3) {
-    bullets.push(`Frequência média de ${fmtDec(freq, 2)} exposições — acima do threshold de 3x recomendado para campanhas de fixação, o que acelera a curva de lembrança de marca.`);
-  } else if (freq >= 1.5) {
-    bullets.push(`Frequência de ${fmtDec(freq, 2)} exposições por pessoa, suficiente para construir reconhecimento progressivo ao longo das ${periodWeeks} semanas.`);
+  // Frequency — concrete number + model source
+  if (freq > 0) {
+    bullets.push(`Frequência média: ${fmtDec(freq, 2)}×/pessoa em ${periodWeeks} semanas (${fmt(grps)} GRPs). Estimativa via modelo de reach DOOH indoor.`);
   }
 
-  // CPM efficiency
-  if (cpm > 0 && cpm < 35) {
-    bullets.push(`CPM de ${fmtMoney(cpm)} — custo por mil impactos competitivo para DOOH indoor, gerando ${fmt(totals.fluxoTotal)} impactos mensais com investimento de ${fmtMoney(totals.valorTotal)}.`);
-  } else if (cpm >= 35) {
-    bullets.push(`Investimento de ${fmtMoney(totals.valorTotal)} concentrado em ${totals.quantidade} pontos de qualidade contextual, priorizando relevância sobre volume bruto (${fmt(totals.fluxoTotal)} impactos/mês).`);
+  // CPM + investment — full breakdown
+  if (cpm > 0) {
+    bullets.push(`CPM: ${fmtMoney(cpm)} · investimento: ${fmtMoney(totals.valorTotal)}/mês · ${fmt(totals.fluxoTotal)} impactos mensais · ticket médio/ponto: ${fmtMoney(totals.ticketMedio || (totals.valorTotal / totals.quantidade))}.`);
   }
 
-  // Capillarity
-  if (formatos.length >= 2) {
-    bullets.push(`${formatos.length} formatos distintos (${formatosList}) em ${totals.quantidade} pontos — presença diversificada que impacta o público em diferentes contextos e momentos do dia.`);
-  } else if (totals.quantidade >= 5) {
-    bullets.push(`${totals.quantidade} pontos do formato ${formatos[0] || 'selecionado'} garantem repetição e presença consistente em ${cidade || 'toda a praça'}.`);
+  // Capillarity — concrete format counts
+  if (formatos.length >= 2 || totals.quantidade >= 3) {
+    const fmtBreakdown = tiposRanked.map(([t, c]) => `${c}× ${t}`).join(', ');
+    bullets.push(`${totals.quantidade} pontos em ${formatos.length} formato${formatos.length > 1 ? 's' : ''}: ${fmtBreakdown}${cidade ? ` em ${cidade}` : ''}.`);
   }
 
-  // Segment adherence
+  // Entorno — concrete score + source
   if (entornoCount > 0 && topEntornoPoint) {
-    bullets.push(`Análise de entorno confirmou afinidade com ${segmentLabel}: ${entornoCount} ponto${entornoCount > 1 ? 's' : ''} estão cercados por locais frequentados pelo público-alvo, com destaque para ${topEntornoPoint.nome} (score de afinidade ${topEntornoPoint.score.toFixed(0)}).`);
-  } else {
-    bullets.push(`Seleção orientada ao segmento ${segmentLabel} com base em perfil de público, tipo de ambiente e posicionamento geográfico para máxima aderência contextual.`);
+    bullets.push(`Afinidade de entorno confirmada em ${entornoCount} ponto${entornoCount > 1 ? 's' : ''}: ${topEntornoPoint.nome} lidera com score ${topEntornoPoint.score.toFixed(0)}/100. Categorias-alvo mapeadas via OpenStreetMap Overpass API (raio 400m).`);
   }
 
-  // Budget usage
+  // Budget usage — real percentage
   if (budget > 0 && budgetUsage > 0) {
-    bullets.push(`Utilização de ${budgetUsage}% do orçamento (${fmtMoney(totals.valorTotal)} de ${fmtMoney(budget)}), com seleção marginal que evita pontos redundantes e otimiza o retorno por real investido.`);
+    bullets.push(`Uso do orçamento: ${budgetUsage}% (${fmtMoney(totals.valorTotal)} de ${fmtMoney(budget)}). Margem restante: ${fmtMoney(budget - totals.valorTotal)}.`);
   }
+
+  // GeoAudience summary
+  if (geoProfilesByPoint) {
+    const premiumPoints = selected.filter(pt => {
+      const gp = geoProfilesByPoint[pt.id] || geoProfilesByPoint[String(pt.id)];
+      return gp && (gp.socioeconomic_level === 'alto' || gp.socioeconomic_level === 'medio-alto');
+    });
+    if (premiumPoints.length > 0) {
+      bullets.push(`${premiumPoints.length} de ${totals.quantidade} pontos em bairros de nível socioeconômico alto ou médio-alto (inferido via concentração de POIs premium — OpenStreetMap).`);
+    }
+  }
+
+  // Census summary
+  if (censusProfilesByPoint) {
+    const withCensus = selected.filter(pt => {
+      const cp = censusProfilesByPoint[pt.id] || censusProfilesByPoint[String(pt.id)];
+      return cp && cp.score_geral > 0;
+    });
+    if (withCensus.length > 0) {
+      const avgScore = Math.round(withCensus.reduce((s, pt) => {
+        const cp = censusProfilesByPoint[pt.id] || censusProfilesByPoint[String(pt.id)];
+        return s + (cp.score_geral || 0);
+      }, 0) / withCensus.length * 100);
+      bullets.push(`Score censitário médio: ${avgScore}% nos ${withCensus.length} pontos com dados IBGE (Censo 2022, tabelas 9606/9514/9529).`);
+    }
+  }
+
+  // Limitation disclaimer
+  bullets.push(`Nota: dados de fluxo são declarados pelo inventário — sem medição direta de audiência. Dados de entorno e POIs extraídos via OpenStreetMap (atualização contínua). Dados censitários: IBGE Censo 2022.`);
 
   /* ────── 4. DESTAQUES DO PLANO ────── */
 
@@ -1442,35 +1493,97 @@ export function generateStrategicJustification({
         ? (entornoByPoint[p.id] || entornoByPoint[String(p.id)])
         : null;
       const affinityScore = Number(entornoMetrics?.affinity_score) || Number(entornoMetrics?.score_relevancia) || 0;
+      const gp = geoProfilesByPoint ? (geoProfilesByPoint[p.id] || geoProfilesByPoint[String(p.id)]) : null;
+      const cp = censusProfilesByPoint ? (censusProfilesByPoint[p.id] || censusProfilesByPoint[String(p.id)]) : null;
       const relevance = objScore + affinityScore * 0.3 + (fluxo / 10000);
-      return { ...p, _relevance: relevance, _affinityScore: affinityScore };
+      return { ...p, _relevance: relevance, _affinityScore: affinityScore, _geoProfile: gp, _censusProfile: cp };
     }).sort((a, b) => b._relevance - a._relevance);
 
-    scored.slice(0, 3).forEach((p) => {
+    // Pre-compute city-level stats for comparatives
+    const allFluxos = cityInventory.map(pt => toNumber(pt.fluxo)).filter(f => f > 0);
+    const avgCityFluxo = allFluxos.length > 0 ? allFluxos.reduce((a, b) => a + b, 0) / allFluxos.length : 0;
+    const allCpms = cityInventory.map(pt => { const f = toNumber(pt.fluxo); return f > 0 ? toNumber(pt.preco) / (f / 1000) : Infinity; }).filter(v => v < Infinity);
+    const avgCityCpm = allCpms.length > 0 ? allCpms.reduce((a, b) => a + b, 0) / allCpms.length : 0;
+
+    scored.slice(0, 3).forEach((p, idx) => {
       const fluxo = toNumber(p.fluxo);
       const tipo = p.tipo || 'Ponto';
       const publico = p.publico || '';
+      const ptCpm = fluxo > 0 ? toNumber(p.preco) / (fluxo / 1000) : 0;
 
-      let motivo = '';
-      if (objetivo === 'presenca premium' && (publico.includes('A') || tipo.toLowerCase().includes('elevador'))) {
-        motivo = `Ambiente de permanência qualificada com público ${publico}, ideal para posicionamento de marca premium.`;
-      } else if (objetivo === 'reconhecimento de marca' && fluxo >= 80000) {
-        motivo = `Fluxo de ${fmt(fluxo)} impactos/mês garante volume de repetição necessário para fixar a marca na memória do público.`;
-      } else if (objetivo === 'proximidade da decisao de compra') {
-        motivo = `Localizado em ambiente de decisão (${tipo}), conectando a mensagem ao momento de consumo do público ${publico}.`;
+      const motivoParts = [];
+
+      // [Dado demográfico principal com número + fonte]
+      if (p._censusProfile && p._censusProfile.perfis) {
+        const perfis = p._censusProfile.perfis;
+        const best = [
+          ['Alta Renda', perfis.alta_renda],
+          ['Massa/Varejo', perfis.massa_varejo],
+          ['Jovem/Universitário', perfis.jovem_universitario],
+          ['Terceira Idade', perfis.terceira_idade],
+        ].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+        if (best.length > 0) {
+          motivoParts.push(`Perfil censitário ${best[0][0]} ${(best[0][1] * 100).toFixed(0)}% (IBGE Censo 2022, tabelas 9606/9514).`);
+        }
+      } else if (p._geoProfile && p._geoProfile.socioeconomic_score > 0) {
+        motivoParts.push(`Nível socioeconômico ${p._geoProfile.socioeconomic_level} (score ${p._geoProfile.socioeconomic_score}/100, inferido via POIs — OpenStreetMap).`);
+      }
+
+      // [Dado de POIs/entorno com distância + fonte]
+      if (p._geoProfile && p._geoProfile.total_pois > 0) {
+        const poiSummary = p._geoProfile.poi_summary || {};
+        const topCats = Object.entries(poiSummary).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 2);
+        const catLabels = {
+          corporate: 'escritórios', commercial: 'comércio', food: 'alimentação',
+          health: 'saúde', education: 'educação', leisure: 'lazer', fitness: 'fitness',
+          transport: 'transporte', residential: 'residencial', beauty: 'estética',
+          hospitality: 'hotelaria', religious: 'religioso', green: 'áreas verdes'
+        };
+        const catText = topCats.map(([cat, count]) => `${count} ${catLabels[cat] || cat}`).join(', ');
+        motivoParts.push(`Raio 400m: ${p._geoProfile.total_pois} POIs${catText ? ` (${catText})` : ''} · ${p._geoProfile.neighborhood_label || p._geoProfile.neighborhood_type} (OpenStreetMap).`);
       } else if (p._affinityScore > 0) {
-        motivo = `Entorno validado com score de afinidade ${p._affinityScore.toFixed(0)} — presença confirmada de locais frequentados pelo público-alvo do segmento ${segmentLabel}.`;
-      } else if (fluxo >= 60000) {
-        motivo = `Alto volume de circulação (${fmt(fluxo)} impactos/mês) com perfil ${publico}, sustentando frequência e alcance dentro do plano.`;
-      } else {
-        motivo = `Ponto estratégico em ${tipo.toLowerCase()} com público ${publico}, complementando cobertura e diversidade do plano em ${cidade || 'na praça'}.`;
+        motivoParts.push(`Score de afinidade com ${segmentLabel}: ${p._affinityScore.toFixed(0)}/100 (categorias-alvo no raio — OpenStreetMap Overpass API).`);
+      }
+
+      // [Comparativo com outros pontos ou média da cidade]
+      const comparatives = [];
+      if (fluxo > 0 && avgCityFluxo > 0) {
+        const fluxoPct = Math.round(((fluxo - avgCityFluxo) / avgCityFluxo) * 100);
+        if (fluxoPct > 10) {
+          comparatives.push(`fluxo ${fluxoPct}% acima da média da praça (${fmt(fluxo)} vs ${fmt(avgCityFluxo)})`);
+        } else if (fluxoPct < -10) {
+          comparatives.push(`fluxo ${Math.abs(fluxoPct)}% abaixo da média, compensado por qualidade de contexto`);
+        }
+      }
+      if (ptCpm > 0 && avgCityCpm > 0) {
+        const cpmDiff = Math.round(((ptCpm - avgCityCpm) / avgCityCpm) * 100);
+        if (cpmDiff <= -15) {
+          comparatives.push(`CPM R$ ${ptCpm.toFixed(2)} — ${Math.abs(cpmDiff)}% abaixo da média (R$ ${avgCityCpm.toFixed(2)})`);
+        }
+      }
+      // Rank among top 3 label
+      if (idx === 0) {
+        comparatives.push(`maior relevância entre os ${selected.length} pontos do plano`);
+      }
+      if (comparatives.length > 0) {
+        motivoParts.push(comparatives.join('; ') + '.');
+      }
+
+      // [Limitação ou ressalva, se houver]
+      if (!p._geoProfile && !p._censusProfile) {
+        motivoParts.push('Sem dados de entorno georreferenciados — justificativa baseada em atributos cadastrais.');
+      }
+
+      // Fallback if no enrichment at all
+      if (motivoParts.length === 0) {
+        motivoParts.push(`${fmt(fluxo)} imp/mês (${tipo}), público ${publico || 'N/D'}, ${fmtMoney(toNumber(p.preco))}/mês. Dados de entorno não disponíveis para este ponto.`);
       }
 
       highlights.push({
         nome: p.nome || 'Ponto sem nome',
         tipo,
         fluxo: fmt(fluxo),
-        motivo
+        motivo: motivoParts.join(' ')
       });
     });
   }
@@ -1587,42 +1700,142 @@ export function rankPointsWithScore({
     // Attach census audience profile if available
     const censusProfile = censusProfilesByPoint?.[p.id] || censusProfilesByPoint?.[String(p.id)] || null;
 
-    // Build data-driven motivoPrincipal with concrete numbers (no generic phrases)
-    const fmtFluxo = new Intl.NumberFormat('pt-BR').format(Math.round(fluxo));
+    // ── JUSTIFICATIVA OBRIGATÓRIA (dados reais, fontes, comparativos) ──
+    const _fmt = (n) => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
     const cpmVal = fluxo > 0 ? toNumber(p.preco) / (fluxo / 1000) : 0;
-    const fmtCpm = cpmVal > 0 ? `R$ ${cpmVal.toFixed(2)}` : null;
 
-    // Piece 1: fluxo + format
-    const piece1 = `${fmtFluxo} imp/mês${p.tipo ? ` (${p.tipo})` : ''}`;
+    // Rank position among all city points (1-based)
+    // (will be set after sorting, so use dims for comparative context)
+    const totalCityPoints = filtered.length;
 
-    // Piece 2: entorno / geoaudience profile
-    let piece2 = '';
-    if (geoProfile && geoProfile.neighborhood_label && geoProfile.neighborhood_type !== 'indefinido') {
-      piece2 = geoProfile.neighborhood_label;
-      if (geoProfile.socioeconomic_level && geoProfile.socioeconomic_level !== 'indefinido') {
-        piece2 += ` · nível ${geoProfile.socioeconomic_level}`;
+    // ── Piece 1: Dado demográfico principal com número + fonte ──
+    let pieceDemografico = '';
+    if (censusProfile && censusProfile.perfis) {
+      const perfis = censusProfile.perfis;
+      const dominante = censusProfile.perfil_dominante;
+      const scoreGeral = censusProfile.score_geral;
+
+      // Best profile score
+      const perfilEntries = [
+        ['alta_renda', perfis.alta_renda, 'Alta Renda'],
+        ['massa_varejo', perfis.massa_varejo, 'Massa/Varejo'],
+        ['jovem_universitario', perfis.jovem_universitario, 'Jovem/Universitário'],
+        ['terceira_idade', perfis.terceira_idade, 'Terceira Idade'],
+      ].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+
+      if (perfilEntries.length > 0) {
+        const [, topScore, topLabel] = perfilEntries[0];
+        pieceDemografico = `Perfil ${topLabel} ${(topScore * 100).toFixed(0)}%`;
       }
-    } else if (censusProfile && censusProfile.perfil_dominante) {
-      const perfLabel = CENSUS_PROFILE_LABELS[censusProfile.perfil_dominante] || censusProfile.perfil_dominante;
-      piece2 = `Perfil ${perfLabel}`;
+
+      // Enrich with specific IBGE data if available via demographic_data on geoProfile
+      if (geoProfile?.demographic_data) {
+        const demo = geoProfile.demographic_data;
+        if (demo.pibPerCapita > 0) {
+          pieceDemografico += ` · PIB/capita R$ ${_fmt(demo.pibPerCapita)} (IBGE, tabela 5938, ref. 2021)`;
+        }
+      }
+
+      // If no specific IBGE data but we have census score
+      if (!pieceDemografico && scoreGeral > 0) {
+        pieceDemografico = `Score censo ${(scoreGeral * 100).toFixed(0)}% (IBGE Censo 2022)`;
+      }
+    }
+
+    // Fallback to geoProfile socioeconomic if no census
+    if (!pieceDemografico && geoProfile) {
+      if (geoProfile.socioeconomic_score > 0) {
+        pieceDemografico = `Nível socioeconômico ${geoProfile.socioeconomic_level} (score ${geoProfile.socioeconomic_score}/100, inferido via POIs — OpenStreetMap)`;
+      }
+    }
+
+    // ── Piece 2: Dado de POIs/entorno com distância + fonte ──
+    let pieceEntorno = '';
+    if (geoProfile && geoProfile.total_pois > 0) {
+      const poiSummary = geoProfile.poi_summary || {};
+      // Pick top 2 POI categories by count
+      const topCats = Object.entries(poiSummary)
+        .filter(([, v]) => v > 0)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 2);
+
+      const catLabels = {
+        corporate: 'escritórios/corporativo', commercial: 'comércio', food: 'alimentação',
+        health: 'saúde', education: 'educação', leisure: 'lazer', fitness: 'fitness',
+        transport: 'transporte', residential: 'residencial', beauty: 'estética',
+        hospitality: 'hotelaria', religious: 'religioso', green: 'áreas verdes'
+      };
+
+      if (topCats.length > 0) {
+        const parts = topCats.map(([cat, count]) => `${count} ${catLabels[cat] || cat}`);
+        pieceEntorno = `Raio 400m: ${geoProfile.total_pois} POIs (${parts.join(', ')}) · ${geoProfile.neighborhood_label || geoProfile.neighborhood_type} (OpenStreetMap)`;
+        if (geoProfile.pois_per_km2 > 0) {
+          pieceEntorno += ` · ${_fmt(geoProfile.pois_per_km2)} POIs/km²`;
+        }
+      } else {
+        pieceEntorno = `Raio 400m: ${geoProfile.total_pois} POIs · ${geoProfile.neighborhood_label || 'ambiente urbano'} (OpenStreetMap)`;
+      }
     } else if (p.endereco) {
-      piece2 = p.endereco.length > 50 ? p.endereco.slice(0, 47) + '...' : p.endereco;
+      pieceEntorno = p.endereco.length > 60 ? p.endereco.slice(0, 57) + '...' : p.endereco;
     }
 
-    // Piece 3: why this point (comparative or cost-based)
-    let piece3 = '';
-    if (fmtCpm) {
-      piece3 = `CPM ${fmtCpm}`;
-    }
-    if (dims.eficiencia >= 75 && fmtCpm) {
-      piece3 = `CPM ${fmtCpm} — entre os mais eficientes`;
-    } else if (dims.objetivo >= 80) {
-      piece3 = piece3 ? `${piece3} · alta afinidade com o objetivo` : 'Alta afinidade com o objetivo';
-    } else if (dims.entorno >= 80) {
-      piece3 = piece3 ? `${piece3} · entorno alinhado ao segmento` : 'Entorno alinhado ao segmento';
+    // ── Piece 3: Comparativo com outros pontos ──
+    let pieceComparativo = '';
+    {
+      // CPM comparison
+      const allCpms = filtered
+        .map(pt => { const f = toNumber(pt.fluxo); return f > 0 ? toNumber(pt.preco) / (f / 1000) : Infinity; })
+        .filter(v => v < Infinity)
+        .sort((a, b) => a - b);
+      const medianCpm = allCpms.length > 0 ? allCpms[Math.floor(allCpms.length / 2)] : 0;
+
+      if (cpmVal > 0 && medianCpm > 0) {
+        const pctVsMedian = Math.round(((cpmVal - medianCpm) / medianCpm) * 100);
+        if (pctVsMedian <= -20) {
+          pieceComparativo = `CPM R$ ${cpmVal.toFixed(2)} — ${Math.abs(pctVsMedian)}% abaixo da mediana (R$ ${medianCpm.toFixed(2)}) entre ${totalCityPoints} pontos`;
+        } else if (pctVsMedian >= 20) {
+          pieceComparativo = `CPM R$ ${cpmVal.toFixed(2)} — ${pctVsMedian}% acima da mediana, priorizando qualidade de contexto`;
+        } else {
+          pieceComparativo = `CPM R$ ${cpmVal.toFixed(2)} — alinhado à mediana da praça (R$ ${medianCpm.toFixed(2)}, ${totalCityPoints} pontos)`;
+        }
+      } else if (fluxo > 0) {
+        // Fluxo comparison
+        const fluxoPercentile = filtered.filter(pt => toNumber(pt.fluxo) <= fluxo).length;
+        const pctile = Math.round((fluxoPercentile / totalCityPoints) * 100);
+        pieceComparativo = `${_fmt(fluxo)} imp/mês — percentil ${pctile} entre ${totalCityPoints} pontos da praça`;
+      }
+
+      // Score comparison
+      if (compatibilidade >= 80) {
+        pieceComparativo += pieceComparativo ? ` · score ${compatibilidade}/100` : `Score ${compatibilidade}/100 entre ${totalCityPoints} pontos avaliados`;
+      }
     }
 
-    const motivoPrincipal = [piece1, piece2, piece3].filter(Boolean).join(' · ');
+    // ── Piece 4: Limitação ou ressalva ──
+    let pieceLimitacao = '';
+    if (!geoProfile && !censusProfile) {
+      pieceLimitacao = 'Sem dados de entorno georreferenciados — justificativa baseada em atributos cadastrais do ponto.';
+    } else if (geoProfile && (!geoProfile.poi_summary || geoProfile.total_pois < 5)) {
+      pieceLimitacao = 'Poucos POIs mapeados no raio — densidade de dados limitada.';
+    }
+
+    // ── Montagem do motivoPrincipal (resumo compacto para card) ──
+    const motivoParts = [
+      pieceDemografico,
+      pieceEntorno,
+      pieceComparativo,
+    ].filter(Boolean);
+    const motivoPrincipal = motivoParts.length > 0
+      ? motivoParts.join(' · ')
+      : `${_fmt(fluxo)} imp/mês (${p.tipo || 'N/D'}) · ${p.endereco || p.cidade || 'localização não especificada'}`;
+
+    // ── justificativaCompleta (objeto estruturado para exibição expandida) ──
+    const justificativaCompleta = {
+      demografico: pieceDemografico || null,
+      entorno: pieceEntorno || null,
+      comparativo: pieceComparativo || null,
+      limitacao: pieceLimitacao || null,
+    };
 
     // Estimated monthly reach for this single point
     const estimatedReach = Math.round(fluxo * 0.38);
@@ -1632,6 +1845,7 @@ export function rankPointsWithScore({
       compatibilidade,
       dimensoes: dims,
       motivoPrincipal,
+      justificativaCompleta,
       estimatedReach,
       estimatedInvestment: toNumber(p.preco),
       cpmPonto: fluxo > 0 ? toNumber(p.preco) / (fluxo / 1000) : 0,
