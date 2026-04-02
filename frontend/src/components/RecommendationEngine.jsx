@@ -3,13 +3,13 @@ import { ChevronDown, ChevronUp, Clock3, MapPin, Sparkles, Star, Target, Trendin
 import { computeScreenScore, SCREEN_SCORE_WEIGHTS } from '../lib/strategy';
 
 /* ─── Constants ─── */
-const MIN_SCORE = 65;           // pontos abaixo disso NÃO aparecem
+const MIN_SCORE = 35;           // pontos abaixo disso NÃO aparecem
 const MAX_RECOMMENDATIONS = 10; // curadoria premium — máximo visível
 
 /* ─── Qualitative labels (cliente NUNCA vê números brutos) ─── */
 function getQualityLabel(score) {
-  if (score >= 85) return { text: 'Alta afinidade com o público', icon: Star, color: 'text-emerald-400', lightColor: 'text-emerald-700' };
-  if (score >= 75) return { text: 'Boa oportunidade de impacto', icon: Zap, color: 'text-sky-400', lightColor: 'text-sky-700' };
+  if (score >= 70) return { text: 'Alta afinidade com o público', icon: Star, color: 'text-emerald-400', lightColor: 'text-emerald-700' };
+  if (score >= 55) return { text: 'Boa oportunidade de impacto', icon: Zap, color: 'text-sky-400', lightColor: 'text-sky-700' };
   return { text: 'Local estratégico para este público', icon: Target, color: 'text-amber-400', lightColor: 'text-amber-700' };
 }
 

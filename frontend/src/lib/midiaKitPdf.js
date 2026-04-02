@@ -1440,9 +1440,8 @@ function buildCampaignScorePage({ proposalPoints, segmento, assets }) {
                 <div style="margin-top:3px;font-size:13px;color:rgba(255,255,255,0.55);">${escapeHtml(row.cidade)} · ${row.total} locais relevantes</div>
               </div>
               <div style="text-align:center;font-size:28px;font-weight:700;line-height:1;color:${row.score <= 0 ? 'rgba(255,255,255,0.25)' : color};font-family:Poppins, system-ui, sans-serif;">${row.score.toFixed(1).replace('.', ',')}</div>
-              <div style="text-align:center;font-size:18px;font-weight:700;line-height:1;color:${score >= 6 ? PROPOSAL_ACCENT : 'rgba(255,255,255,0.4)'};font-family:Poppins;">${score.toFixed(1).replace('.', ',')}</div>
               <div style="display:flex;align-items:center;height:8px;border-radius:100px;background:rgba(255,255,255,0.08);overflow:hidden;">
-                <div style="height:100%;width:${bar}%;border-radius:100px;background:${score >= 6 ? PROPOSAL_ACCENT : 'rgba(255,255,255,0.4)'};"></div>
+                <div style="height:100%;width:${bar}%;border-radius:100px;background:${row.score >= 6 ? PROPOSAL_ACCENT : 'rgba(255,255,255,0.4)'};"></div>
               </div>
             </div>
           `;

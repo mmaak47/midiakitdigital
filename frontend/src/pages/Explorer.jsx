@@ -162,7 +162,7 @@ export default function Explorer() {
         />
 
         {/* Main content */}
-        <main ref={mainRef} className="flex-1 overflow-y-auto pb-28">
+        <main ref={mainRef} className={`flex-1 overflow-y-auto transition-[margin] duration-300 ${favorites.length > 0 ? 'mr-80' : ''}`}>
           <div className="px-6 pt-4 space-y-4">
             <section className={`rounded-xl border p-4 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-white'}`}>
               <div className="grid gap-2 md:grid-cols-3">

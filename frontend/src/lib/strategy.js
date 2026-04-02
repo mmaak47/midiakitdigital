@@ -613,7 +613,7 @@ export function estimateReachFrequency({ selected = [], cityInventory = [], peri
   const marketUniqueBase = Math.max(45000, Math.round((cityTotals.fluxoTotal || totals.fluxoTotal) / 6.8));
   const estimatedUnique = Math.max(1, Math.round(marketUniqueBase * (effectiveReachPct / 100)));
   const avgFrequency = totals.fluxoTotal / estimatedUnique;
-  const grps = (effectiveReachPct * avgFrequency) / 100;
+  const grps = effectiveReachPct * avgFrequency;
 
   return {
     grossReachPct: Number(grossReachPct.toFixed(1)),
