@@ -58,6 +58,7 @@ const {
 } = require('./entornoAnalysis');
 const geoAudience = require('./geoAudienceService');
 const censusAudience = require('./censusAudienceService');
+const audienceIntel = require('./audienceIntelService');
 
 const app = express();
 
@@ -1442,6 +1443,121 @@ app.post('/api/census/analyze/:pontoId', requireRoles(['admin', 'gerente_comerci
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ─── Audience Intelligence Engine Routes ─────────────────────────────────────
+
+// Profiles CRUD
+app.get('/api/audience-intel/profiles', (req, res) => {
+  try {
+    res.json(audienceIntel.listProfiles());
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/audience-intel/profiles/:name', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const { label, description, weights } = req.body;
+    if (!label || !weights) return res.status(400).json({ error: 'label and weights required' });
+    res.json(audienceIntel.upsertProfile(req.params.name, { label, description, weights }));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/audience-intel/profiles/:name', requireRoles(['admin']), (req, res) => {
+  try {
+    const deleted = audienceIntel.deleteProfile(req.params.name);
+    res.json({ deleted });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Point scoring
+app.get('/api/audience-intel/scores', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { cidade, profile, minScore } = req.query;
+    res.json(audienceIntel.getAllScores({ cidade, profile, minScore }));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/audience-intel/scores/:pontoId', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const pontoId = Number(req.params.pontoId);
+    if (!Number.isFinite(pontoId)) return res.status(400).json({ error: 'ID inválido' });
+    res.json(audienceIntel.getPointScores(pontoId));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/audience-intel/ranking', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { profile, cidade, limit } = req.query;
+    if (!profile) return res.status(400).json({ error: 'profile query param required' });
+    res.json(audienceIntel.getRanking({ profile, cidade, limit: Number(limit) || 20 }));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Analyze (triggers async scoring)
+app.post('/api/audience-intel/analyze/:pontoId', requireRoles(['admin', 'gerente_comercial']), async (req, res) => {
+  try {
+    const pontoId = Number(req.params.pontoId);
+    if (!Number.isFinite(pontoId)) return res.status(400).json({ error: 'ID inválido' });
+    const force = req.query.force === '1' || req.query.force === 'true';
+    const scores = await audienceIntel.analyzePoint(pontoId, { force });
+    res.json(scores);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/audience-intel/analyze-city', requireRoles(['admin', 'gerente_comercial']), async (req, res) => {
+  try {
+    const { cidade, force } = req.body;
+    // Run async — respond immediately with job reference
+    const result = audienceIntel.analyzeCity(cidade, { force: !!force });
+    // Don't await — return immediately
+    res.json({ message: 'Analysis started', cidade: cidade || 'all' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/audience-intel/jobs/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const job = audienceIntel.getJob(Number(req.params.id));
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    res.json(job);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Heatmap
+app.get('/api/audience-intel/heatmap', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { profile, cidade, cellSize } = req.query;
+    if (!profile) return res.status(400).json({ error: 'profile query param required' });
+    let bounds = null;
+    if (req.query.bounds) {
+      bounds = req.query.bounds.split(',').map(Number);
+      if (bounds.length !== 4 || bounds.some(n => !Number.isFinite(n))) {
+        return res.status(400).json({ error: 'bounds must be minLng,minLat,maxLng,maxLat' });
+      }
+    }
+    res.json(audienceIntel.generateHeatmap({
+      profile,
+      cidade,
+      bounds,
+      cellSizeM: Number(cellSize) || undefined,
+    }));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Campaign Simulator
+app.post('/api/audience-intel/simulate', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { selectedPoints, investment, periodDays } = req.body;
+    if (!Array.isArray(selectedPoints) || !selectedPoints.length) {
+      return res.status(400).json({ error: 'selectedPoints array required' });
+    }
+    if (!investment || investment <= 0) return res.status(400).json({ error: 'positive investment required' });
+    if (!periodDays || periodDays <= 0) return res.status(400).json({ error: 'positive periodDays required' });
+    res.json(audienceIntel.simulateCampaign({
+      selectedPoints: selectedPoints.map(Number),
+      investment: Number(investment),
+      periodDays: Number(periodDays),
+    }));
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // DELETE ponto (soft delete)
