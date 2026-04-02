@@ -1,15 +1,134 @@
 import { memo, useMemo, useState } from 'react';
-import { BarChart3, ChevronDown, ChevronUp, Clock3, Gauge, Star, TrendingUp, Zap } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock3, MapPin, Sparkles, Star, Target, TrendingUp, Zap } from 'lucide-react';
 import { computeScreenScore, SCREEN_SCORE_WEIGHTS } from '../lib/strategy';
 
-/* ─── grade colour helpers ─── */
-const GRADE_COLORS = {
-  A: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', ring: 'ring-emerald-500/30', light: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-  B: { bg: 'bg-sky-500/15', text: 'text-sky-400', ring: 'ring-sky-500/30', light: 'bg-sky-50 text-sky-700 ring-sky-200' },
-  C: { bg: 'bg-amber-500/15', text: 'text-amber-400', ring: 'ring-amber-500/30', light: 'bg-amber-50 text-amber-700 ring-amber-200' },
-  D: { bg: 'bg-red-500/15', text: 'text-red-400', ring: 'ring-red-500/30', light: 'bg-red-50 text-red-700 ring-red-200' },
-};
+/* ─── Constants ─── */
+const MIN_SCORE = 65;           // pontos abaixo disso NÃO aparecem
+const MAX_RECOMMENDATIONS = 10; // curadoria premium — máximo visível
 
+/* ─── Qualitative labels (cliente NUNCA vê números brutos) ─── */
+function getQualityLabel(score) {
+  if (score >= 85) return { text: 'Alta afinidade com o público', icon: Star, color: 'text-emerald-400', lightColor: 'text-emerald-700' };
+  if (score >= 75) return { text: 'Boa oportunidade de impacto', icon: Zap, color: 'text-sky-400', lightColor: 'text-sky-700' };
+  return { text: 'Local estratégico para este público', icon: Target, color: 'text-amber-400', lightColor: 'text-amber-700' };
+}
+
+/* highlight tags — pick 2-3 strongest dimensions to explain WHY */
+function getHighlights(breakdown) {
+  const DIM_POSITIVE = {
+    fluxo: 'Alto fluxo de pessoas',
+    eficiencia: 'Excelente custo-benefício',
+    entorno: 'Entorno comercial forte',
+    geoaudience: 'Bairro com perfil qualificado',
+    census: 'Região com perfil demográfico alinhado',
+    formato: 'Formato de alto impacto',
+    cobertura: 'Ótimo posicionamento de preço',
+  };
+  return Object.entries(breakdown)
+    .filter(([, v]) => v >= 55)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3)
+    .map(([key]) => DIM_POSITIVE[key] || key);
+}
+
+/* ─── Recommendation card ─── */
+function RecommendationCard({ scored, isDark, onAdd, expanded, onToggle }) {
+  const { point, score, breakdown } = scored;
+  const quality = getQualityLabel(score);
+  const QIcon = quality.icon;
+  const highlights = getHighlights(breakdown);
+
+  return (
+    <div className={`rounded-xl border transition-colors ${isDark ? 'border-white/10 bg-white/[0.03] hover:bg-white/[0.05]' : 'border-neutral-200 bg-white hover:bg-neutral-50'}`}>
+      <button
+        type="button"
+        className="w-full flex items-start gap-3 px-4 py-3.5 text-left"
+        onClick={onToggle}
+      >
+        {/* Quality icon */}
+        <div className={`flex-shrink-0 mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center ${isDark ? 'bg-brand-orange/10' : 'bg-orange-50'}`}>
+          <QIcon size={16} className="text-brand-orange" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-neutral-800'}`}>
+            {point.nome || point.endereco || `Ponto ${point.id}`}
+          </div>
+          <div className={`text-xs mt-0.5 ${isDark ? quality.color : quality.lightColor}`}>
+            {quality.text}
+          </div>
+          <div className={`text-[11px] mt-1 truncate ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+            <MapPin size={10} className="inline -mt-px mr-0.5" />
+            {point.cidade} • {point.tipo}
+          </div>
+        </div>
+
+        <div className="flex-shrink-0 flex items-center gap-2">
+          <span className={`text-xs font-medium ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
+            R$ {Number(point.preco || 0).toLocaleString('pt-BR')}
+          </span>
+          {expanded
+            ? <ChevronUp size={14} className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'} />
+            : <ChevronDown size={14} className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'} />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className={`px-4 pb-4 pt-0 border-t ${isDark ? 'border-white/5' : 'border-neutral-100'}`}>
+          {/* Why this screen — positive highlights */}
+          {highlights.length > 0 && (
+            <div className="pt-3 flex flex-wrap gap-1.5">
+              {highlights.map((h) => (
+                <span
+                  key={h}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium ${
+                    isDark
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  }`}
+                >
+                  <Sparkles size={9} />
+                  {h}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Dimension bars — only show dimensions ≥ 50 (hide weak ones) */}
+          <div className="pt-3 space-y-1.5">
+            {Object.entries(breakdown)
+              .filter(([, v]) => v >= 50)
+              .sort(([, a], [, b]) => b - a)
+              .map(([key, val]) => {
+                const pct = Math.max(0, Math.min(100, val));
+                return (
+                  <div key={key} className="flex items-center gap-2 text-xs" title={DIM_DESC[key]}>
+                    <span className="w-4 text-center">{DIM_ICONS[key] || '·'}</span>
+                    <span className={`w-[5.5rem] truncate ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                      {DIM_LABELS[key] || key}
+                    </span>
+                    <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`}>
+                      <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onAdd?.([point]); }}
+            className="mt-3 w-full py-2 rounded-lg text-xs font-semibold bg-brand-orange text-white hover:bg-brand-orange/90 transition-colors"
+          >
+            + Adicionar ao plano
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Dimension metadata (used in expanded details) ─── */
 const DIM_LABELS = {
   fluxo: 'Tráfego',
   eficiencia: 'Eficiência',
@@ -21,13 +140,13 @@ const DIM_LABELS = {
 };
 
 const DIM_DESC = {
-  fluxo: 'Volume de fluxo de pessoas no local em relação ao máximo do inventário.',
-  eficiencia: 'Relação custo-benefício: CPM (custo por mil impactos) e inserções por real investido.',
-  entorno: 'Qualidade do entorno comercial (POIs relevantes para o segmento num raio de 800m).',
-  geoaudience: 'Classificação do bairro: tipo de vizinhança, nível socioeconômico, densidade urbana.',
-  census: 'Perfil demográfico IBGE + POIs locais: renda, educação, faixa etária da região.',
-  formato: 'Qualidade e impacto do formato de mídia (elevador, painel LED, indoor, totem, etc.).',
-  cobertura: 'Potencial de cobertura: relação entre preço e mediana do mercado.',
+  fluxo: 'Volume de fluxo de pessoas no local.',
+  eficiencia: 'Custo-benefício: CPM e inserções por real.',
+  entorno: 'Qualidade do entorno comercial no raio de 800m.',
+  geoaudience: 'Perfil socioeconômico do bairro.',
+  census: 'Perfil demográfico IBGE da região.',
+  formato: 'Qualidade e impacto do formato de mídia.',
+  cobertura: 'Posicionamento de preço vs. mercado.',
 };
 
 const DIM_ICONS = {
@@ -40,129 +159,8 @@ const DIM_ICONS = {
   cobertura: '📡',
 };
 
-/* ─── small bar component ─── */
-function DimBar({ label, value, weight, isDark, icon, desc }) {
-  const pct = Math.max(0, Math.min(100, value));
-  const color =
-    pct >= 70 ? 'bg-emerald-500' : pct >= 45 ? 'bg-amber-500' : 'bg-red-500';
-  return (
-    <div className="flex items-center gap-2 text-xs" title={desc}>
-      <span className="w-4 text-center">{icon}</span>
-      <span className={`w-[5.5rem] truncate ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
-        {label}
-      </span>
-      <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`}>
-        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className={`w-8 text-right tabular-nums font-medium ${isDark ? 'text-white/70' : 'text-neutral-600'}`}>
-        {pct}
-      </span>
-      <span className={`w-6 text-right ${isDark ? 'text-brand-gray-600' : 'text-neutral-400'}`}>
-        {weight}%
-      </span>
-    </div>
-  );
-}
-
-/* ─── score badge ─── */
-function ScoreBadge({ score, grade, isDark, size = 'md' }) {
-  const g = GRADE_COLORS[grade] || GRADE_COLORS.D;
-  const sz = size === 'lg' ? 'w-14 h-14 text-xl' : 'w-9 h-9 text-sm';
-  return (
-    <div
-      className={`flex items-center justify-center rounded-xl font-bold ring-1 ${sz} ${
-        isDark ? `${g.bg} ${g.text} ${g.ring}` : `${g.light}`
-      }`}
-    >
-      {score}
-    </div>
-  );
-}
-
-/* ─── point row ─── */
-function PointRow({ scored, rank, isDark, expanded, onToggle, onAdd }) {
-  const { point, score, grade, breakdown } = scored;
-  const g = GRADE_COLORS[grade] || GRADE_COLORS.D;
-  const totalW = Object.values(SCREEN_SCORE_WEIGHTS).reduce((s, v) => s + v, 0);
-
-  return (
-    <div className={`rounded-xl border transition-colors ${isDark ? 'border-white/10 bg-white/[0.03] hover:bg-white/[0.05]' : 'border-neutral-200 bg-neutral-50 hover:bg-white'}`}>
-      <button
-        type="button"
-        className="w-full flex items-center gap-3 px-3 py-2.5 text-left"
-        onClick={onToggle}
-      >
-        <span className={`flex-shrink-0 w-5 text-center text-xs font-bold ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
-          {rank}
-        </span>
-        <ScoreBadge score={score} grade={grade} isDark={isDark} />
-        <div className="flex-1 min-w-0">
-          <div className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-neutral-800'}`}>
-            {point.nome || point.endereco || `Ponto ${point.id}`}
-          </div>
-          <div className={`text-xs truncate ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
-            {point.cidade} • {point.tipo} • R$ {Number(point.preco || 0).toLocaleString('pt-BR')}
-          </div>
-        </div>
-        <span className={`flex-shrink-0 px-2 py-0.5 rounded-md text-xs font-bold ring-1 ${isDark ? `${g.bg} ${g.text} ${g.ring}` : g.light}`}>
-          {grade}
-        </span>
-        {expanded ? <ChevronUp size={14} className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'} /> : <ChevronDown size={14} className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'} />}
-      </button>
-
-      {expanded && (
-        <div className={`px-3 pb-3 pt-0 border-t ${isDark ? 'border-white/5' : 'border-neutral-100'}`}>
-          <div className="pt-2 space-y-1.5">
-            {Object.entries(breakdown).map(([key, val]) => (
-              <DimBar
-                key={key}
-                label={DIM_LABELS[key] || key}
-                value={val}
-                weight={Math.round((SCREEN_SCORE_WEIGHTS[key] / totalW) * 100)}
-                isDark={isDark}
-                icon={DIM_ICONS[key] || '·'}
-                desc={DIM_DESC[key] || ''}
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onAdd?.([point]); }}
-            className="mt-3 w-full py-1.5 rounded-lg text-xs font-medium bg-brand-orange/90 text-white hover:bg-brand-orange transition-colors"
-          >
-            + Adicionar ao plano
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ─── distribution mini chart ─── */
-function GradeDistribution({ counts, total, isDark }) {
-  const grades = ['A', 'B', 'C', 'D'];
-  return (
-    <div className="flex gap-1.5">
-      {grades.map((g) => {
-        const pct = total > 0 ? (counts[g] / total) * 100 : 0;
-        const gc = GRADE_COLORS[g];
-        return (
-          <div key={g} className="flex-1 text-center">
-            <div className={`rounded-lg py-1.5 text-xs font-bold ring-1 ${isDark ? `${gc.bg} ${gc.text} ${gc.ring}` : gc.light}`}>
-              {g}
-            </div>
-            <div className={`mt-1 text-[10px] font-medium tabular-nums ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
-              {counts[g]} <span className={isDark ? 'text-brand-gray-600' : 'text-neutral-400'}>({pct.toFixed(0)}%)</span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 /* ═══════════════════════════════════════════════════════════════
-   MAIN COMPONENT
+   MAIN COMPONENT — Sales-first recommendation engine
    ═══════════════════════════════════════════════════════════════ */
 const RecommendationEngine = memo(function RecommendationEngine({
   pontos = [],
@@ -173,16 +171,15 @@ const RecommendationEngine = memo(function RecommendationEngine({
   isDark = true,
 }) {
   const [expandedId, setExpandedId] = useState(null);
-  const [showAll, setShowAll] = useState(false);
 
-  /* ── Compute ScreenScore for every point ── */
-  const scored = useMemo(() => {
-    if (!pontos.length) return [];
+  /* ── Compute & filter ── */
+  const { recommended, totalScored } = useMemo(() => {
+    if (!pontos.length) return { recommended: [], totalScored: 0 };
     const maxFluxo = Math.max(1, ...pontos.map((p) => Number(p.fluxo) || 0));
     const prices = pontos.map((p) => Number(p.preco) || 0).filter((v) => v > 0).sort((a, b) => a - b);
     const medianPrice = prices.length ? prices[Math.floor(prices.length / 2)] : 1;
 
-    return pontos
+    const all = pontos
       .map((point) => {
         const result = computeScreenScore(point, {
           geoProfile: geoProfiles?.[point.id] || null,
@@ -194,20 +191,12 @@ const RecommendationEngine = memo(function RecommendationEngine({
         return { point, ...result };
       })
       .sort((a, b) => b.score - a.score);
+
+    // Regra 1: score mínimo — ocultar telas fracas
+    const filtered = all.filter((s) => s.score >= MIN_SCORE);
+    // Regra 2: máximo de recomendações — curadoria premium
+    return { recommended: filtered.slice(0, MAX_RECOMMENDATIONS), totalScored: all.length };
   }, [pontos, geoProfiles, censusProfiles]);
-
-  const gradeCounts = useMemo(() => {
-    const c = { A: 0, B: 0, C: 0, D: 0 };
-    for (const s of scored) c[s.grade] = (c[s.grade] || 0) + 1;
-    return c;
-  }, [scored]);
-
-  const avgScore = useMemo(() => {
-    if (!scored.length) return 0;
-    return Math.round(scored.reduce((s, v) => s + v.score, 0) / scored.length);
-  }, [scored]);
-
-  const topN = showAll ? scored : scored.slice(0, 6);
 
   /* ── History combos ── */
   const combos = history
@@ -215,92 +204,73 @@ const RecommendationEngine = memo(function RecommendationEngine({
     .slice(-4)
     .reverse();
 
-  const hasData = scored.length > 0;
+  const noData = totalScored === 0;
+  const noGoodOptions = totalScored > 0 && recommended.length === 0;
 
   return (
-    <section className={`rounded-2xl border p-5 space-y-5 ${isDark ? 'border-white/10 bg-white/[0.04]' : 'border-neutral-200 bg-white'}`}>
+    <section className={`rounded-2xl border p-5 space-y-4 ${isDark ? 'border-white/10 bg-white/[0.04]' : 'border-neutral-200 bg-white'}`}>
       {/* ── Header ── */}
-      <div>
-        <div className="flex items-center gap-2">
-          <Gauge size={18} className="text-brand-orange" />
-          <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? '' : 'text-neutral-800'}`}>
-            ScreenScore — Ranking Inteligente
-          </h3>
-        </div>
-        <p className={`mt-1.5 text-[11px] leading-relaxed ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
-          Nota de 0 a 100 calculada com 7 dimensões: <strong>Tráfego</strong> (fluxo de pessoas), <strong>Eficiência</strong> (custo-benefício),
-          {' '}<strong>Entorno</strong> (POIs relevantes), <strong>Geo-audiência</strong> (classificação do bairro), <strong>Demografia</strong> (IBGE Censo),
-          {' '}<strong>Formato</strong> (tipo de mídia) e <strong>Cobertura</strong> (posicionamento de preço). Passe o mouse sobre cada barra para ver detalhes.
-        </p>
+      <div className="flex items-center gap-2">
+        <Sparkles size={18} className="text-brand-orange" />
+        <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? '' : 'text-neutral-800'}`}>
+          Telas Recomendadas
+        </h3>
+        {recommended.length > 0 && (
+          <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full font-medium ${isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-700'}`}>
+            {recommended.length} {recommended.length === 1 ? 'oportunidade' : 'oportunidades'}
+          </span>
+        )}
       </div>
 
-      {!hasData && (
+      {/* ── Empty state: loading ── */}
+      {noData && (
         <p className={`text-sm ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
-          Carregue pontos para visualizar o ScreenScore de cada tela e identificar as melhores oportunidades.
+          Selecione uma cidade para ver as melhores oportunidades de mídia para sua campanha.
         </p>
       )}
 
-      {hasData && (
-        <>
-          {/* ── Summary row ── */}
-          <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3`}>
-            <div className={`rounded-xl border px-3 py-2.5 text-center ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
-              <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-neutral-800'}`}>{scored.length}</div>
-              <div className={`text-[10px] uppercase tracking-wider ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Pontos avaliados</div>
-            </div>
-            <div className={`rounded-xl border px-3 py-2.5 text-center ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
-              <div className={`text-2xl font-bold ${avgScore >= 60 ? 'text-emerald-400' : avgScore >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
-                {avgScore}
-              </div>
-              <div className={`text-[10px] uppercase tracking-wider ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Score médio</div>
-            </div>
-            <div className={`rounded-xl border px-3 py-2.5 text-center ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
-              <div className={`text-2xl font-bold text-emerald-400`}>{gradeCounts.A}</div>
-              <div className={`text-[10px] uppercase tracking-wider ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Nota A</div>
-            </div>
-            <div className={`rounded-xl border px-3 py-2.5 text-center ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
-              <div className={`text-2xl font-bold text-sky-400`}>{gradeCounts.A + gradeCounts.B}</div>
-              <div className={`text-[10px] uppercase tracking-wider ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>A + B</div>
-            </div>
-          </div>
+      {/* ── Empty state: no good options ── */}
+      {noGoodOptions && (
+        <div className={`rounded-xl border p-5 text-center ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-neutral-50'}`}>
+          <div className={`text-3xl mb-2`}>🔍</div>
+          <p className={`text-sm font-medium mb-1 ${isDark ? 'text-white' : 'text-neutral-800'}`}>
+            Não encontramos telas ideais para este público nesta região.
+          </p>
+          <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+            Sugerimos ampliar o raio da campanha ou ajustar o público-alvo para encontrar melhores oportunidades.
+          </p>
+        </div>
+      )}
 
-          {/* ── Grade distribution ── */}
-          <GradeDistribution counts={gradeCounts} total={scored.length} isDark={isDark} />
+      {/* ── Recommendations list ── */}
+      {recommended.length > 0 && (
+        <div className="space-y-2">
+          {recommended.map((s) => (
+            <RecommendationCard
+              key={s.point.id}
+              scored={s}
+              isDark={isDark}
+              expanded={expandedId === s.point.id}
+              onToggle={() => setExpandedId(expandedId === s.point.id ? null : s.point.id)}
+              onAdd={onApplyCombo}
+            />
+          ))}
+        </div>
+      )}
 
-          {/* ── Top points list ── */}
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp size={14} className="text-brand-orange" />
-              <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>
-                Ranking por ScreenScore
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              {topN.map((s, i) => (
-                <PointRow
-                  key={s.point.id}
-                  scored={s}
-                  rank={i + 1}
-                  isDark={isDark}
-                  expanded={expandedId === s.point.id}
-                  onToggle={() => setExpandedId(expandedId === s.point.id ? null : s.point.id)}
-                  onAdd={onApplyCombo}
-                />
-              ))}
-            </div>
-
-            {scored.length > 6 && (
-              <button
-                type="button"
-                onClick={() => setShowAll((v) => !v)}
-                className={`mt-2 w-full py-2 rounded-xl text-xs font-medium border transition-colors ${isDark ? 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06] text-brand-gray-400' : 'border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-600'}`}
-              >
-                {showAll ? `Mostrar top 6` : `Ver todos os ${scored.length} pontos`}
-              </button>
-            )}
-          </div>
-        </>
+      {/* ── Add all recommendations at once ── */}
+      {recommended.length > 1 && (
+        <button
+          type="button"
+          onClick={() => onApplyCombo?.(recommended.map((s) => s.point))}
+          className={`w-full py-2.5 rounded-xl text-xs font-semibold border transition-colors ${
+            isDark
+              ? 'border-brand-orange/30 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20'
+              : 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100'
+          }`}
+        >
+          Adicionar todas as {recommended.length} telas recomendadas ao plano
+        </button>
       )}
 
       {/* ── History section ── */}
