@@ -173,6 +173,7 @@ function SmartMap({
   censusProfiles = null,
 }) {
   const [popupPoint, setPopupPoint] = useState(null);
+  const [showCircles, setShowCircles] = useState(true);
   const mapRef = useRef(null);
   const shouldAutoFitRef = useRef(true);
 
@@ -310,6 +311,7 @@ function SmartMap({
           <Layer
             id="census-circles-fill"
             type="fill"
+            layout={{ visibility: showCircles ? 'visible' : 'none' }}
             paint={{
               'fill-color': ['get', 'color'],
               'fill-opacity': 0.18,
@@ -318,6 +320,7 @@ function SmartMap({
           <Layer
             id="census-circles-stroke"
             type="line"
+            layout={{ visibility: showCircles ? 'visible' : 'none' }}
             paint={{
               'line-color': ['get', 'color'],
               'line-width': 1.5,
@@ -372,17 +375,37 @@ function SmartMap({
       </Map>
 
       {censusProfiles && (
-        <div className={`absolute right-3 bottom-3 z-[500] rounded-lg border px-3 py-2 text-xs bg-white/90 border-neutral-200 text-neutral-800 backdrop-blur-sm shadow-sm`}>
-          <div className="font-semibold mb-1.5" style={{ fontSize: 11 }}>Perfil Censitário (800 m)</div>
-          {Object.entries(CENSUS_PROFILE_LABELS).map(([key, label]) => (
-            <div key={key} className="flex items-center gap-1.5 mb-0.5 last:mb-0">
+        <div className="absolute right-3 bottom-3 z-[500] rounded-lg border bg-white/90 border-neutral-200 text-neutral-800 backdrop-blur-sm shadow-sm overflow-hidden">
+          {/* Header com toggle */}
+          <button
+            onClick={() => setShowCircles(v => !v)}
+            className="w-full flex items-center justify-between gap-3 px-3 py-2 hover:bg-neutral-100 transition-colors"
+          >
+            <span className="font-semibold" style={{ fontSize: 11 }}>Perfil Censitário (800 m)</span>
+            <span
+              className="flex-shrink-0 w-7 h-4 rounded-full transition-colors duration-200 relative"
+              style={{ background: showCircles ? '#FE5C2B' : '#D1D5DB' }}
+            >
               <span
-                className="inline-block w-3 h-3 rounded-sm flex-shrink-0"
-                style={{ background: CENSUS_PROFILE_COLORS[key], opacity: 0.7 }}
+                className="absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200"
+                style={{ left: showCircles ? '14px' : '2px' }}
               />
-              <span style={{ fontSize: 11 }}>{label}</span>
+            </span>
+          </button>
+          {/* Legenda */}
+          {showCircles && (
+            <div className="px-3 pb-2 border-t border-neutral-100">
+              {Object.entries(CENSUS_PROFILE_LABELS).map(([key, label]) => (
+                <div key={key} className="flex items-center gap-1.5 mt-1">
+                  <span
+                    className="inline-block w-3 h-3 rounded-sm flex-shrink-0"
+                    style={{ background: CENSUS_PROFILE_COLORS[key], opacity: 0.8 }}
+                  />
+                  <span style={{ fontSize: 11 }}>{label}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
 

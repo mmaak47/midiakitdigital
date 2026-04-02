@@ -41,9 +41,10 @@ export async function geocodeAddress(address) {
   }
 }
 
+// Usando CARTO Voyager para consistência com SmartMap e MiniMap
 const TILE_THEMES = {
-  dark: 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-  light: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+  dark: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+  light: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png'
 };
 
 const imageCache = new Map();

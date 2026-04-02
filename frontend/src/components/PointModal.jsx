@@ -1,11 +1,28 @@
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+/** Converte **texto** em <strong> dentro de um parágrafo */
+function RichText({ text, className }) {
+  if (!text) return null;
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return (
+    <p className={className}>
+      {parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <strong key={i}>{part.slice(2, -2)}</strong>;
+        }
+        return part;
+      })}
+    </p>
+  );
+}
 import {
   X, MapPin, Clock, Users, Monitor, Play, RotateCcw, Hash,
   DollarSign, Heart, Building2, Sparkles, BarChart3, TrendingUp, Tag
 } from 'lucide-react';
 import { useFavorites } from '../context/FavoritesContext';
 import { getPrimaryPointScreenImage } from '../lib/pointImages';
+import MiniMap from './MiniMap';
 
 const CENSUS_PROFILE_LABELS = {
   alta_renda: 'Alta Renda',
@@ -70,14 +87,6 @@ function getPointTypeLabel(ponto) {
   return ponto.tipo || '';
 }
 
-function buildMapEmbedUrl(lat, lng) {
-  const delta = 0.005;
-  const minLon = (lng - delta).toFixed(6);
-  const minLat = (lat - delta).toFixed(6);
-  const maxLon = (lng + delta).toFixed(6);
-  const maxLat = (lat + delta).toFixed(6);
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${minLon}%2C${minLat}%2C${maxLon}%2C${maxLat}&layer=mapnik&marker=${lat.toFixed(6)}%2C${lng.toFixed(6)}`;
-}
 
 export default function PointModal({ ponto, onClose, isDark = true, geoProfile, censusProfile }) {
   if (!ponto) return null;
@@ -85,10 +94,6 @@ export default function PointModal({ ponto, onClose, isDark = true, geoProfile, 
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const fav = isFavorite(ponto.id);
   const displayImage = getPrimaryPointScreenImage(ponto);
-  const lat = Number(ponto.lat);
-  const lng = Number(ponto.lng);
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
-  const mapEmbedUrl = hasCoords ? buildMapEmbedUrl(lat, lng) : '';
   const imageFocus = useMemo(() => {
     const simulationFocus = deriveFocusFromSimulation(ponto.simulacao_tela);
     const hasX = Number.isFinite(Number(ponto.imagem_foco_x));
@@ -185,25 +190,12 @@ export default function PointModal({ ponto, onClose, isDark = true, geoProfile, 
                 )}
               </div>
 
-              <div className={`relative h-[190px] lg:flex-1 border-t ${isDark ? 'border-white/10 bg-black/25' : 'border-neutral-200 bg-white/75'}`}>
-                {hasCoords ? (
-                  <>
-                    <iframe
-                      title={`Mapa de ${ponto.nome}`}
-                      src={mapEmbedUrl}
-                      className="absolute inset-0 w-full h-full border-0 [filter:grayscale(1)_invert(0.92)_hue-rotate(180deg)_saturate(0.72)_contrast(1.06)_brightness(0.9)]"
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                    />
-                    <div className="absolute left-3 top-3 rounded-lg bg-black/65 px-2 py-1 text-[11px] text-white/85 pointer-events-none">
-                      Localização do ponto
-                    </div>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-xs text-brand-gray-500">
-                    Sem coordenadas para exibir o mapa deste ponto.
-                  </div>
-                )}
+              <div className={`relative h-[190px] lg:flex-1 border-t ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
+                <MiniMap
+                  lat={ponto.lat}
+                  lng={ponto.lng}
+                  className="absolute inset-0 w-full h-full"
+                />
               </div>
             </div>
 
@@ -309,7 +301,10 @@ export default function PointModal({ ponto, onClose, isDark = true, geoProfile, 
                     )}
                   </div>
                   {geoProfile.audience_narrative && (
-                    <p className={`mt-3 text-xs leading-relaxed ${isDark ? 'text-emerald-300/70' : 'text-emerald-700/80'}`}>{geoProfile.audience_narrative}</p>
+                    <RichText
+                      text={geoProfile.audience_narrative}
+                      className={`mt-3 text-xs leading-relaxed ${isDark ? 'text-emerald-300/70' : 'text-emerald-700/80'}`}
+                    />
                   )}
                 </div>
               )}
