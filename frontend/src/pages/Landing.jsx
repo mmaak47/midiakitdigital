@@ -376,6 +376,10 @@ export default function Landing() {
   const [lightbox, setLightbox] = useState({ ponto: null, imageIndex: 0 });
   const [isDark, setIsDark] = useState(true);
   const [showCommercialShortcut, setShowCommercialShortcut] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return !sessionStorage.getItem('intermidia_welcome_seen');
+  });
 
   const t = {
     bg: isDark ? 'bg-[#050505]' : 'bg-[#FFF8F5]',
@@ -601,6 +605,82 @@ export default function Landing() {
       </div>
 
       <Navbar showNav={false} isDark={isDark} />
+
+      {/* ── Welcome modal ────────────────────────────────────── */}
+      <AnimatePresence>
+        {showWelcome && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+          >
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { sessionStorage.setItem('intermidia_welcome_seen', '1'); setShowWelcome(false); }} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0a0a] p-8 text-center shadow-2xl"
+            >
+              {/* Logo / brand */}
+              <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-orange/10 border border-brand-orange/20">
+                <i className="ri-projector-2-line text-brand-orange" style={{ fontSize: 28 }} />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">
+                Bem-vindo ao Mídia Kit Digital
+              </h2>
+              <p className="text-sm text-brand-gray-400 mb-8 leading-relaxed max-w-sm mx-auto">
+                Escolha o que deseja fazer para direcionarmos você à melhor experiência.
+              </p>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                {/* Option 1: View Mídia Kit */}
+                <button
+                  type="button"
+                  onClick={() => { sessionStorage.setItem('intermidia_welcome_seen', '1'); setShowWelcome(false); }}
+                  className="group flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-5 transition-all hover:border-brand-orange/40 hover:bg-brand-orange/[0.06]"
+                >
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-orange/10 group-hover:bg-brand-orange/20 transition-colors">
+                    <i className="ri-presentation-line text-brand-orange" style={{ fontSize: 22 }} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-white mb-1">Visualizar o Mídia Kit</div>
+                    <div className="text-[11px] text-brand-gray-500 leading-snug">
+                      Conheça nosso inventário de telas, formatos e praças disponíveis.
+                    </div>
+                  </div>
+                </button>
+
+                {/* Option 2: Plan Campaign */}
+                <button
+                  type="button"
+                  onClick={() => { sessionStorage.setItem('intermidia_welcome_seen', '1'); setShowWelcome(false); navigate('/planejar'); }}
+                  className="group flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-5 transition-all hover:border-brand-orange/40 hover:bg-brand-orange/[0.06]"
+                >
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-orange/10 group-hover:bg-brand-orange/20 transition-colors">
+                    <i className="ri-route-line text-brand-orange" style={{ fontSize: 22 }} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-white mb-1">Planejar uma Campanha</div>
+                    <div className="text-[11px] text-brand-gray-500 leading-snug">
+                      Monte seu plano com recomendações inteligentes de telas e audiência.
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => { sessionStorage.setItem('intermidia_welcome_seen', '1'); setShowWelcome(false); }}
+                className="mt-5 text-xs text-brand-gray-600 hover:text-brand-gray-400 transition-colors"
+              >
+                Pular e continuar navegando
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Hero ─────────────────────────────────────────────── */}
       <section className={`pt-20 pb-10 border-b relative overflow-visible ${t.sectionBorder}`} style={{ background: isDark ? undefined : '#FFF8F5' }}>
