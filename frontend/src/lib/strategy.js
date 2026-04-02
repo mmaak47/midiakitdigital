@@ -1587,37 +1587,42 @@ export function rankPointsWithScore({
     // Attach census audience profile if available
     const censusProfile = censusProfilesByPoint?.[p.id] || censusProfilesByPoint?.[String(p.id)] || null;
 
-    // Determine primary reason for recommendation
-    const dimEntries = Object.entries(dims).sort((a, b) => b[1] - a[1]);
-    const strongDims = dimEntries.filter(([, v]) => v >= 70).slice(0, 2);
-    let motivoPrincipal = '';
-    const DIM_LABELS = {
-      objetivo: 'alinhamento com o objetivo da campanha',
-      publico: 'compatibilidade com o público-alvo',
-      eficiencia: 'eficiência de custo por impacto',
-      entorno: 'afinidade de entorno com o segmento',
-      geoaudience: 'perfil de audiência do bairro',
-      segmento: 'aderência ao segmento do anunciante',
-      formato: 'formato adequado ao objetivo',
-      disponibilidade: 'disponibilidade de veiculação',
-      censusProfile: 'perfil demográfico da região (Censo IBGE)'
-    };
-    if (strongDims.length) {
-      motivoPrincipal = `Destaque por ${strongDims.map(([k]) => DIM_LABELS[k]).join(' e ')}.`;
-    } else {
-      motivoPrincipal = `Perfil equilibrado com boa pontuação geral entre os critérios da campanha.`;
-    }
+    // Build data-driven motivoPrincipal with concrete numbers (no generic phrases)
+    const fmtFluxo = new Intl.NumberFormat('pt-BR').format(Math.round(fluxo));
+    const cpmVal = fluxo > 0 ? toNumber(p.preco) / (fluxo / 1000) : 0;
+    const fmtCpm = cpmVal > 0 ? `R$ ${cpmVal.toFixed(2)}` : null;
 
-    // Enrich motive with geoaudience when it's the top dimension
-    if (geoProfile && dims.geoaudience >= 60) {
-      motivoPrincipal += ` Localizado em ${geoProfile.neighborhood_label} (${geoProfile.socioeconomic_level}).`;
-    }
+    // Piece 1: fluxo + format
+    const piece1 = `${fmtFluxo} imp/mês${p.tipo ? ` (${p.tipo})` : ''}`;
 
-    // Enrich motive with census profile when relevant
-    if (censusProfile && dims.censusProfile >= 60) {
+    // Piece 2: entorno / geoaudience profile
+    let piece2 = '';
+    if (geoProfile && geoProfile.neighborhood_label && geoProfile.neighborhood_type !== 'indefinido') {
+      piece2 = geoProfile.neighborhood_label;
+      if (geoProfile.socioeconomic_level && geoProfile.socioeconomic_level !== 'indefinido') {
+        piece2 += ` · nível ${geoProfile.socioeconomic_level}`;
+      }
+    } else if (censusProfile && censusProfile.perfil_dominante) {
       const perfLabel = CENSUS_PROFILE_LABELS[censusProfile.perfil_dominante] || censusProfile.perfil_dominante;
-      motivoPrincipal += ` Região de perfil ${perfLabel} (Censo IBGE).`;
+      piece2 = `Perfil ${perfLabel}`;
+    } else if (p.endereco) {
+      piece2 = p.endereco.length > 50 ? p.endereco.slice(0, 47) + '...' : p.endereco;
     }
+
+    // Piece 3: why this point (comparative or cost-based)
+    let piece3 = '';
+    if (fmtCpm) {
+      piece3 = `CPM ${fmtCpm}`;
+    }
+    if (dims.eficiencia >= 75 && fmtCpm) {
+      piece3 = `CPM ${fmtCpm} — entre os mais eficientes`;
+    } else if (dims.objetivo >= 80) {
+      piece3 = piece3 ? `${piece3} · alta afinidade com o objetivo` : 'Alta afinidade com o objetivo';
+    } else if (dims.entorno >= 80) {
+      piece3 = piece3 ? `${piece3} · entorno alinhado ao segmento` : 'Entorno alinhado ao segmento';
+    }
+
+    const motivoPrincipal = [piece1, piece2, piece3].filter(Boolean).join(' · ');
 
     // Estimated monthly reach for this single point
     const estimatedReach = Math.round(fluxo * 0.38);

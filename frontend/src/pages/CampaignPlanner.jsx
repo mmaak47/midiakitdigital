@@ -5,7 +5,9 @@ import {
   ArrowLeft, ArrowRight, Building2, Target, Users, MapPin, Wallet,
   Sparkles, Plus, CheckCircle, Loader2, BarChart3, Eye, Star, TrendingUp,
   MessageSquareText, Award, ListOrdered, Map as MapIcon, FileText, SlidersHorizontal,
-  ChevronDown, ChevronUp, Zap, Trophy
+  ChevronDown, ChevronUp, Zap, Trophy, Check,
+  Cross, Hospital, GraduationCap, BookOpen, HardHat, Home, ShoppingBag,
+  UtensilsCrossed, Calculator, Scale, Cog, MoreHorizontal
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import CampaignScore from '../components/CampaignScore';
@@ -44,6 +46,21 @@ const SEGMENTO_LABELS = {
   outro: 'Outro segmento',
 };
 
+const SEGMENTO_ICONS = {
+  clinica: Cross,
+  hospital: Hospital,
+  escola: GraduationCap,
+  faculdade: BookOpen,
+  construtora: HardHat,
+  imobiliaria: Home,
+  varejo: ShoppingBag,
+  restaurante: UtensilsCrossed,
+  contabilidade: Calculator,
+  advocacia: Scale,
+  industria: Cog,
+  outro: MoreHorizontal,
+};
+
 const OBJETIVO_LABELS = {
   'reconhecimento de marca': 'Reconhecimento de Marca',
   'presenca premium': 'Presença Premium',
@@ -53,11 +70,11 @@ const OBJETIVO_LABELS = {
 };
 
 const OBJETIVO_DESCRIPTIONS = {
-  'reconhecimento de marca': 'Maximizar visibilidade e repetição para acelerar lembrança da marca.',
-  'presenca premium': 'Posicionar em ambientes de alto padrão para elevar percepção de marca.',
-  'cobertura regional': 'Distribuir pontos em diversas regiões para capilaridade máxima.',
-  'proximidade da decisao de compra': 'Impactar perto do ponto de compra para gerar conversão direta.',
-  'lembranca continua': 'Garantir exposição constante e frequência ao longo do tempo.',
+  'reconhecimento de marca': 'Prioriza pontos de alto fluxo e visibilidade para maximizar impressões e repetição de marca no menor prazo.',
+  'presenca premium': 'Seleciona locais em bairros de alta renda e formatos de grande impacto visual para associar a marca a um ambiente premium.',
+  'cobertura regional': 'Distribui pontos em múltiplos bairros e vias para garantir cobertura geográfica ampla e reduzir sobreposição.',
+  'proximidade da decisao de compra': 'Concentra mídia próxima a PDVs, shoppings e centros comerciais para impactar no momento da decisão.',
+  'lembranca continua': 'Equilibra frequência e permanência: prioriza contratos longos e pontos com fluxo estável ao longo do mês.',
 };
 
 const AUDIENCE_TAGS = [
@@ -111,26 +128,39 @@ function toNumber(v) {
 
 /* ───────────── shared ui pieces ───────────── */
 
+const STEP_LABELS = ['Empresa', 'Objetivo', 'Público', 'Praça', 'Resultado'];
+
 function StepIndicator({ current, total, isDark }) {
   return (
-    <div className="flex items-center gap-2 justify-center mb-8">
+    <div className="flex items-start gap-2 justify-center mb-8">
       {Array.from({ length: total }).map((_, i) => (
         <div key={i} className="flex items-center gap-2">
-          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
-            i < current
-              ? 'bg-brand-orange text-white'
-              : i === current
-                ? isDark
-                  ? 'bg-brand-orange/20 text-brand-orange ring-2 ring-brand-orange'
-                  : 'bg-brand-orange/15 text-brand-orange ring-2 ring-brand-orange'
-                : isDark
-                  ? 'bg-white/10 text-white/40'
-                  : 'bg-neutral-200 text-neutral-400'
-          }`}>
-            {i < current ? <CheckCircle size={16} /> : i + 1}
+          <div className="flex flex-col items-center gap-1.5">
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
+              i < current
+                ? 'bg-brand-orange text-white'
+                : i === current
+                  ? isDark
+                    ? 'bg-brand-orange/20 text-brand-orange ring-2 ring-brand-orange'
+                    : 'bg-brand-orange/15 text-brand-orange ring-2 ring-brand-orange'
+                  : isDark
+                    ? 'bg-white/10 text-white/40'
+                    : 'bg-neutral-200 text-neutral-400'
+            }`}>
+              {i < current ? <Check size={16} strokeWidth={2.5} /> : i + 1}
+            </div>
+            <span className={`text-[11px] leading-tight transition-colors duration-300 ${
+              i < current
+                ? isDark ? 'text-white/50' : 'text-neutral-500'
+                : i === current
+                  ? 'text-brand-orange font-semibold'
+                  : isDark ? 'text-white/30' : 'text-neutral-400'
+            }`}>
+              {STEP_LABELS[i]}
+            </span>
           </div>
           {i < total - 1 && (
-            <div className={`w-8 h-0.5 rounded-full transition-colors ${
+            <div className={`w-8 h-0.5 rounded-full transition-colors mt-[-18px] ${
               i < current
                 ? 'bg-brand-orange'
                 : isDark ? 'bg-white/10' : 'bg-neutral-200'
@@ -427,13 +457,29 @@ export default function CampaignPlanner() {
         <div className="space-y-1.5">
           <span className={`text-sm font-medium ${isDark ? 'text-white/70' : 'text-neutral-600'}`}>Segmento *</span>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {SEGMENTOS.map((seg) => (
-              <OptionCard key={seg} selected={segmento === seg} onClick={() => setSegmento(seg)} isDark={isDark}>
-                <span className={`text-sm ${segmento === seg ? 'text-brand-orange font-semibold' : isDark ? 'text-white/70' : 'text-neutral-600'}`}>
-                  {SEGMENTO_LABELS[seg] || seg}
-                </span>
-              </OptionCard>
-            ))}
+            {SEGMENTOS.map((seg) => {
+              const SegIcon = SEGMENTO_ICONS[seg] || MoreHorizontal;
+              const isSel = segmento === seg;
+              return (
+                <button
+                  key={seg}
+                  type="button"
+                  onClick={() => setSegmento(seg)}
+                  className={`rounded-xl border p-4 text-left transition-all duration-200 flex items-center gap-3 ${
+                    isSel
+                      ? 'border-brand-orange bg-[#FFF5F2] ring-1 ring-brand-orange/40'
+                      : isDark
+                        ? 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-[#FFCFB8]'
+                        : 'border-neutral-200 bg-white hover:bg-[#FFFAF8] hover:border-[#FFCFB8]'
+                  }`}
+                >
+                  <SegIcon size={18} className={isSel ? 'text-brand-orange flex-shrink-0' : isDark ? 'text-white/40 flex-shrink-0' : 'text-neutral-400 flex-shrink-0'} />
+                  <span className={`text-sm ${isSel ? 'text-brand-orange font-semibold' : isDark ? 'text-white/70' : 'text-neutral-600'}`}>
+                    {SEGMENTO_LABELS[seg] || seg}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -472,7 +518,7 @@ export default function CampaignPlanner() {
       <h2 className={`text-xl font-bold mb-1 ${isDark ? 'text-white' : 'text-neutral-900'}`}>Público-alvo</h2>
       <p className={`text-sm mb-6 ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>Selecione o perfil de público e características de audiência desejados.</p>
 
-      <div className="space-y-6">
+      <div className={`rounded-xl border p-5 space-y-5 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white'}`}>
         {publicos.length > 0 && (
           <div className="space-y-2">
             <span className={`text-sm font-medium ${isDark ? 'text-white/70' : 'text-neutral-600'}`}>Classe / Público</span>
@@ -484,6 +530,14 @@ export default function CampaignPlanner() {
           </div>
         )}
 
+        {publicos.length > 0 && (
+          <div className={`border-t ${isDark ? 'border-white/10' : 'border-neutral-100'}`} />
+        )}
+
+        <p className={`text-xs italic ${isDark ? 'text-white/35' : 'text-[#9E8378]'}`}>
+          As tags abaixo refinam a seleção com base no perfil comportamental e demográfico da audiência de cada ponto.
+        </p>
+
         <div className="space-y-2">
           <span className={`text-sm font-medium ${isDark ? 'text-white/70' : 'text-neutral-600'}`}>Tags de audiência</span>
           <div className="flex flex-wrap gap-2">
@@ -491,6 +545,11 @@ export default function CampaignPlanner() {
               <TagToggle key={tag.key} label={tag.label} selected={audienceTags.includes(tag.key)} onClick={() => handleToggleTag(tag.key)} isDark={isDark} />
             ))}
           </div>
+          {audienceTags.length > 0 && (
+            <span className="text-xs font-medium text-brand-orange">
+              {audienceTags.length} tag{audienceTags.length !== 1 ? 's' : ''} selecionada{audienceTags.length !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
       </div>
     </StepCard>
@@ -553,6 +612,7 @@ export default function CampaignPlanner() {
   // results view state
   const [resultTab, setResultTab] = useState('ranking');
   const [rankExpanded, setRankExpanded] = useState(10);
+  const [strategyTextExpanded, setStrategyTextExpanded] = useState(false);
 
   const renderResults = () => {
     if (!result) return null;
@@ -716,11 +776,17 @@ export default function CampaignPlanner() {
                             <div className={`flex flex-wrap gap-x-3 gap-y-1 text-xs mb-2.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>
                               <span>{pt.tipo || 'Formato'}</span>
                               <span>•</span>
-                              <span>{pt.publico || '—'}</span>
+                              <span>Público {pt.publico || '—'}</span>
                               <span>•</span>
-                              <span>{formatInt(pt.fluxo || 0)} imp/mês</span>
+                              <span>{formatInt(pt.fluxo || 0)} impactos/mês</span>
                               <span>•</span>
-                              <span>{formatMoney(pt.preco || 0)}</span>
+                              <span>{formatMoney(pt.preco || 0)}/mês</span>
+                              {pt.cpmPonto > 0 && (
+                                <>
+                                  <span>•</span>
+                                  <span>CPM R$ {pt.cpmPonto.toFixed(2)}</span>
+                                </>
+                              )}
                             </div>
 
                             {/* Score breakdown bars */}
@@ -886,58 +952,99 @@ export default function CampaignPlanner() {
         {/* ─── TAB: STRATEGIC ─── */}
         {resultTab === 'strategic' && (
           <div className="space-y-5">
-            {/* 1. Qualidade da Seleção */}
-            {strategic?.qualidadeSelecao && (
-              <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <BarChart3 size={16} className="text-brand-orange" />
-                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Qualidade da seleção</h3>
-                </div>
-                <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
-                  {strategic.qualidadeSelecao}
-                </p>
+            {/* 1. Alcance e Frequência */}
+            <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart3 size={16} className="text-brand-orange" />
+                <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Alcance e frequência</h3>
               </div>
-            )}
-
-            {/* 2. Justificativa Estratégica */}
-            {strategic?.justificativaEstrategica && (
-              <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <TrendingUp size={16} className="text-brand-orange" />
-                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Justificativa estratégica</h3>
-                </div>
-                <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
-                  {strategic.justificativaEstrategica}
-                </p>
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 mb-2">
+                <span className="text-2xl font-bold text-brand-orange">
+                  {plan.reachFrequency ? `${plan.reachFrequency.effectiveReachPct?.toFixed(1) || 0}%` : '—'}
+                </span>
+                <span className={`text-sm ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>alcance efetivo</span>
+                <span className={`text-lg font-semibold ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>·</span>
+                <span className="text-2xl font-bold text-brand-orange">
+                  {plan.reachFrequency ? plan.reachFrequency.avgFrequency?.toFixed(1) || '0' : '—'}×
+                </span>
+                <span className={`text-sm ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>freq. média</span>
               </div>
-            )}
+              <p className={`text-sm leading-relaxed ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>
+                Com {totals.quantidade} ponto{totals.quantidade !== 1 ? 's' : ''} selecionado{totals.quantidade !== 1 ? 's' : ''} e {formatInt(totals.fluxoTotal)} impactos/mês, a campanha gera uma exposição estimada de {formatInt(top10.reduce((s, p) => s + (p.estimatedReach || 0), 0))} pessoas alcançadas mensalmente.
+              </p>
+            </div>
 
-            {/* 3. Argumentação Comercial */}
-            {strategic?.argumentacaoComercial?.length > 0 && (
-              <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <MessageSquareText size={16} className="text-brand-orange" />
-                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Argumentação comercial</h3>
-                </div>
-                <ul className="space-y-2.5">
-                  {strategic.argumentacaoComercial.map((arg, i) => (
-                    <li key={i} className={`text-sm flex gap-2.5 ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
-                      <span className="text-brand-orange mt-0.5 flex-shrink-0 font-bold">•</span>
-                      <span className="leading-relaxed">{arg}</span>
-                    </li>
-                  ))}
-                </ul>
+            {/* 2. Composição do Plano */}
+            <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
+              <div className="flex items-center gap-2 mb-4">
+                <SlidersHorizontal size={16} className="text-brand-orange" />
+                <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Composição do plano</h3>
               </div>
-            )}
+              {(() => {
+                const formatMap = {};
+                plan.pontos.forEach((p) => {
+                  const key = p.tipo || 'Outros';
+                  if (!formatMap[key]) formatMap[key] = { count: 0, value: 0 };
+                  formatMap[key].count += 1;
+                  formatMap[key].value += toNumber(p.preco);
+                });
+                const totalVal = plan.pontos.reduce((s, p) => s + toNumber(p.preco), 0) || 1;
+                return (
+                  <div className="space-y-2">
+                    {Object.entries(formatMap).sort((a, b) => b[1].count - a[1].count).map(([fmt, data]) => {
+                      const pct = Math.round((data.value / totalVal) * 100);
+                      return (
+                        <div key={fmt} className="flex items-center gap-3">
+                          <span className={`text-sm w-32 flex-shrink-0 font-medium ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>{fmt}</span>
+                          <span className="text-sm font-semibold text-brand-orange w-8 text-right">{data.count}×</span>
+                          <div className={`flex-1 h-2 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`}>
+                            <div className="h-full rounded-full bg-brand-orange transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className={`text-xs w-10 text-right ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>{pct}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
 
-            {/* 4. Destaques do Plano */}
-            {strategic?.destaquesPlano?.length > 0 && (
-              <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Award size={16} className="text-brand-orange" />
-                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Destaques do plano</h3>
-                </div>
-                <div className="space-y-4">
+            {/* 3. Por que esses pontos */}
+            <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
+              <div className="flex items-center gap-2 mb-3">
+                <MessageSquareText size={16} className="text-brand-orange" />
+                <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Por que esses pontos</h3>
+              </div>
+
+              {/* Collapsible justification text */}
+              <div className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'} ${!strategyTextExpanded ? 'line-clamp-3' : ''}`}>
+                {strategic?.justificativaEstrategica && (
+                  <p className="mb-2">{strategic.justificativaEstrategica}</p>
+                )}
+                {strategic?.qualidadeSelecao && strategyTextExpanded && (
+                  <p className="mb-2">{strategic.qualidadeSelecao}</p>
+                )}
+                {strategic?.argumentacaoComercial?.length > 0 && strategyTextExpanded && (
+                  <ul className="space-y-1.5 mt-2">
+                    {strategic.argumentacaoComercial.map((arg, i) => (
+                      <li key={i} className="flex gap-2">
+                        <span className="text-brand-orange font-bold flex-shrink-0">•</span>
+                        <span>{arg}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <button
+                onClick={() => setStrategyTextExpanded((v) => !v)}
+                className={`flex items-center gap-1 mt-2 text-xs font-medium text-brand-orange hover:underline`}
+              >
+                {strategyTextExpanded ? <><ChevronUp size={14} /> Recolher texto</> : <><ChevronDown size={14} /> Ver texto completo</>}
+              </button>
+
+              {/* Highlights (top points) */}
+              {strategic?.destaquesPlano?.length > 0 && (
+                <div className={`mt-4 pt-4 border-t space-y-3 ${isDark ? 'border-white/10' : 'border-neutral-100'}`}>
                   {strategic.destaquesPlano.map((h, i) => (
                     <div key={i} className={`rounded-xl border p-4 ${isDark ? 'border-white/[0.06] bg-white/[0.02]' : 'border-neutral-100 bg-neutral-50'}`}>
                       <div className="flex items-center gap-2 mb-1">
@@ -947,14 +1054,14 @@ export default function CampaignPlanner() {
                       <div className={`flex flex-wrap gap-3 text-xs mb-2 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>
                         <span>{h.tipo}</span>
                         <span>•</span>
-                        <span>{h.fluxo} impactos/mês</span>
+                        <span className="text-brand-orange font-semibold">{h.fluxo} impactos/mês</span>
                       </div>
                       <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>{h.motivo}</p>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
