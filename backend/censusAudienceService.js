@@ -42,10 +42,10 @@ const PROFILES = {
       amenity: ['bank', 'bureau_de_change', 'clinic', 'doctors', 'dentist', 'spa', 'coworking_space'],
       shop: ['department_store', 'jewelry', 'watches', 'perfumery', 'wine', 'cosmetics', 'beauty', 'optician', 'bag'],
       leisure: ['fitness_centre', 'sports_centre', 'swimming_pool'],
-      office: ['__any__'],
+      office: ['lawyer', 'financial', 'insurance', 'consulting', 'accountant', 'it', 'architect', 'estate_agent', 'investment'],
       tourism: ['hotel']
     },
-    expectedPois: 15
+    expectedPois: 30
   },
   massa_varejo: {
     label: 'Massa / Varejo',
@@ -53,11 +53,12 @@ const PROFILES = {
     color: '#3b82f6',
     description: 'Público de renda média, alta concentração demográfica e consumo cotidiano.',
     osmMatch: {
-      amenity: ['marketplace', 'post_office', 'bus_station', 'fuel', 'parking'],
-      shop: ['supermarket', 'convenience', 'clothes', 'mobile_phone', 'variety_store', 'hardware', 'shoes', 'electronics', 'butcher', 'greengrocer'],
-      building: ['commercial']
+      amenity: ['marketplace', 'post_office', 'bus_station', 'fuel', 'parking', 'taxi', 'car_wash', 'fast_food'],
+      shop: ['supermarket', 'convenience', 'clothes', 'mobile_phone', 'variety_store', 'hardware', 'shoes', 'electronics', 'butcher', 'greengrocer', 'bakery', 'lottery', 'tyres', 'car_repair'],
+      building: ['commercial'],
+      office: ['__any__']
     },
-    expectedPois: 20
+    expectedPois: 40
   },
   jovem_universitario: {
     label: 'Jovem / Universitário',
@@ -65,11 +66,11 @@ const PROFILES = {
     color: '#8b5cf6',
     description: 'Público jovem (18–29), universitário, conectado e vida social ativa.',
     osmMatch: {
-      amenity: ['university', 'college', 'language_school', 'bar', 'pub', 'nightclub', 'cafe', 'fast_food', 'bicycle_rental', 'library', 'cinema'],
-      shop: ['books', 'computer', 'mobile_phone'],
-      leisure: ['dance', 'escape_game', 'amusement_arcade']
+      amenity: ['university', 'college', 'language_school', 'bar', 'pub', 'nightclub', 'cafe', 'fast_food', 'bicycle_rental', 'library', 'cinema', 'coworking_space', 'food_court'],
+      shop: ['books', 'computer', 'mobile_phone', 'coffee', 'sports'],
+      leisure: ['dance', 'escape_game', 'amusement_arcade', 'fitness_centre', 'sports_centre']
     },
-    expectedPois: 10
+    expectedPois: 20
   },
   terceira_idade: {
     label: 'Terceira Idade',
@@ -77,12 +78,12 @@ const PROFILES = {
     color: '#10b981',
     description: 'Público 60 + anos, frequentador de saúde, espaços religiosos e lazer.',
     osmMatch: {
-      amenity: ['hospital', 'clinic', 'doctors', 'place_of_worship', 'social_facility', 'community_centre'],
+      amenity: ['hospital', 'clinic', 'doctors', 'place_of_worship', 'social_facility', 'community_centre', 'pharmacy'],
       healthcare: ['__any__'],
-      leisure: ['park', 'garden', 'playground'],
-      shop: ['pharmacy', 'chemist', 'hearing_aids', 'medical_supply']
+      leisure: ['park', 'garden', 'playground', 'nature_reserve'],
+      shop: ['pharmacy', 'chemist', 'hearing_aids', 'medical_supply', 'herbalist']
     },
-    expectedPois: 10
+    expectedPois: 20
   }
 };
 
@@ -574,8 +575,8 @@ function scoreProfiles(poiCounts, census) {
     }
 
     scores.alta_renda = censusWeight > 0
-      ? Number((poiSignal * 0.45 + (censusSignal / censusWeight) * 0.55).toFixed(4))
-      : Number(poiSignal.toFixed(4));
+      ? Number((poiSignal * 0.35 + (censusSignal / censusWeight) * 0.65).toFixed(4))
+      : Number((poiSignal * 0.70).toFixed(4));
   }
 
   // ── massa_varejo ────────────────────────────────────────────
