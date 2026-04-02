@@ -43,18 +43,14 @@ function makeCirclePolygon(lng, lat, radiusMeters, steps = 48) {
   return coords;
 }
 
-function buildRasterFallbackStyle(isDark) {
-  const darkTiles = [
-    'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  ];
-  const lightTiles = [
-    'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    'https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+const EMPTY_FC = { type: 'FeatureCollection', features: [] };
+
+function buildRasterFallbackStyle() {
+  const voyagerTiles = [
+    'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
   ];
 
   return {
@@ -62,7 +58,7 @@ function buildRasterFallbackStyle(isDark) {
     sources: {
       basemap: {
         type: 'raster',
-        tiles: isDark ? darkTiles : lightTiles,
+        tiles: voyagerTiles,
         tileSize: 256,
         attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
       },
@@ -107,17 +103,15 @@ function SmartMap({
   const shouldAutoFitRef = useRef(true);
 
   const styleUrl = useMemo(() => {
-    const darkStyle = import.meta.env.VITE_TILE_CDN_STYLE_DARK;
-    const lightStyle = import.meta.env.VITE_TILE_CDN_STYLE_LIGHT;
-    if (isDark && darkStyle) return darkStyle;
-    if (!isDark && lightStyle) return lightStyle;
-    return buildRasterFallbackStyle(isDark);
-  }, [isDark]);
+    const cdnStyle = import.meta.env.VITE_TILE_CDN_STYLE;
+    if (cdnStyle) return cdnStyle;
+    return buildRasterFallbackStyle();
+  }, []);
 
   const valid = useMemo(() => sanitizePoints(pontos), [pontos]);
 
   const censusCirclesGeoJson = useMemo(() => {
-    if (!censusProfiles || !valid.length) return null;
+    if (!censusProfiles || !valid.length) return EMPTY_FC;
     const features = [];
     for (const pt of valid) {
       const cp = censusProfiles[pt.id];
@@ -133,7 +127,7 @@ function SmartMap({
         },
       });
     }
-    return features.length ? { type: 'FeatureCollection', features } : null;
+    return features.length ? { type: 'FeatureCollection', features } : EMPTY_FC;
   }, [valid, censusProfiles]);
 
   const pointsGeoJson = useMemo(() => ({
@@ -234,7 +228,7 @@ function SmartMap({
   }, [onSelect, valid]);
 
   return (
-    <div className={`smart-map h-full w-full rounded-2xl overflow-hidden border relative ${isDark ? 'smart-map-dark border-white/10' : 'smart-map-light border-neutral-200'}`}>
+    <div className={`smart-map h-full w-full rounded-2xl overflow-hidden border relative smart-map-light border-neutral-200`}>
       <Map
         ref={mapRef}
         mapLib={maplibregl}
@@ -252,27 +246,25 @@ function SmartMap({
       >
         <NavigationControl position="top-left" showCompass={false} />
 
-        {censusCirclesGeoJson && (
-          <Source id="census-circles" type="geojson" data={censusCirclesGeoJson}>
-            <Layer
-              id="census-circles-fill"
-              type="fill"
-              paint={{
-                'fill-color': ['get', 'color'],
-                'fill-opacity': 0.15,
-              }}
-            />
-            <Layer
-              id="census-circles-stroke"
-              type="line"
-              paint={{
-                'line-color': ['get', 'color'],
-                'line-width': 1.5,
-                'line-opacity': 0.5,
-              }}
-            />
-          </Source>
-        )}
+        <Source id="census-circles" type="geojson" data={censusCirclesGeoJson}>
+          <Layer
+            id="census-circles-fill"
+            type="fill"
+            paint={{
+              'fill-color': ['get', 'color'],
+              'fill-opacity': 0.18,
+            }}
+          />
+          <Layer
+            id="census-circles-stroke"
+            type="line"
+            paint={{
+              'line-color': ['get', 'color'],
+              'line-width': 1.5,
+              'line-opacity': 0.55,
+            }}
+          />
+        </Source>
 
         <Source
           id="points"
@@ -319,8 +311,8 @@ function SmartMap({
         ) : null}
       </Map>
 
-      {censusCirclesGeoJson && (
-        <div className={`absolute right-3 bottom-3 z-[500] rounded-lg border px-3 py-2 text-xs ${isDark ? 'bg-black/75 border-white/15 text-white backdrop-blur-sm' : 'bg-white/90 border-neutral-200 text-neutral-800 backdrop-blur-sm shadow-sm'}`}>
+      {censusProfiles && (
+        <div className={`absolute right-3 bottom-3 z-[500] rounded-lg border px-3 py-2 text-xs bg-white/90 border-neutral-200 text-neutral-800 backdrop-blur-sm shadow-sm`}>
           <div className="font-semibold mb-1.5" style={{ fontSize: 11 }}>Perfil Censitário (800 m)</div>
           {Object.entries(CENSUS_PROFILE_LABELS).map(([key, label]) => (
             <div key={key} className="flex items-center gap-1.5 mb-0.5 last:mb-0">
@@ -335,7 +327,7 @@ function SmartMap({
       )}
 
       {selectedId && (
-        <div className={`absolute left-3 bottom-3 z-[500] rounded-lg border border-brand-orange/40 px-3 py-2 text-xs ${isDark ? 'bg-brand-orange/20 text-white' : 'bg-brand-orange/12 text-neutral-800'}`}>
+        <div className="absolute left-3 bottom-3 z-[500] rounded-lg border border-brand-orange/40 px-3 py-2 text-xs bg-brand-orange/12 text-neutral-800">
           Ponto selecionado no mapa sincronizado com a listagem.
         </div>
       )}
