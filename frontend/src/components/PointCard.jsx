@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { MapPin, Users, Monitor, Heart } from 'lucide-react';
+import { MapPin, Users, Monitor, Heart, Sparkles, BarChart3 } from 'lucide-react';
 import { useFavorites } from '../context/FavoritesContext';
 import { getPrimaryPointScreenImage } from '../lib/pointImages';
 
@@ -17,7 +17,14 @@ function getPointTypeLabel(ponto) {
   return ponto.tipo || '';
 }
 
-export default function PointCard({ ponto, onSelect, index = 0, isDark = true }) {
+const CENSUS_PROFILE_SHORT = {
+  alta_renda: 'Alta Renda',
+  massa_varejo: 'Massa/Varejo',
+  jovem_universitario: 'Jovem/Univ.',
+  terceira_idade: '3ª Idade'
+};
+
+export default function PointCard({ ponto, onSelect, index = 0, isDark = true, geoProfile, censusProfile }) {
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const fav = isFavorite(ponto.id);
   const displayImage = getPrimaryPointScreenImage(ponto);
@@ -105,6 +112,29 @@ export default function PointCard({ ponto, onSelect, index = 0, isDark = true })
           </span>
           <span className={`ml-auto ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>{formatNumber(ponto.fluxo)}/mês</span>
         </div>
+
+        {/* Intelligence tags */}
+        {(geoProfile || censusProfile || (ponto.audience_tags && ponto.audience_tags.length > 0)) && (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {geoProfile?.neighborhood_label && (
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium ${isDark ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                <Sparkles size={9} />
+                {geoProfile.neighborhood_label}
+              </span>
+            )}
+            {censusProfile?.perfil_dominante && (
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium ${isDark ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' : 'bg-sky-50 text-sky-700 border border-sky-200'}`}>
+                <BarChart3 size={9} />
+                {CENSUS_PROFILE_SHORT[censusProfile.perfil_dominante] || censusProfile.perfil_dominante}
+              </span>
+            )}
+            {ponto.audience_tags && ponto.audience_tags.slice(0, 2).map((tag) => (
+              <span key={tag.key} className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium ${isDark ? 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20' : 'bg-orange-50 text-orange-600 border border-orange-200'}`}>
+                {tag.label}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Price + CTA */}
         <div className="flex items-center justify-between pt-2">

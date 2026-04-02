@@ -2,10 +2,17 @@ import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, MapPin, Clock, Users, Monitor, Play, RotateCcw, Hash,
-  DollarSign, Heart, Building2
+  DollarSign, Heart, Building2, Sparkles, BarChart3, TrendingUp, Tag
 } from 'lucide-react';
 import { useFavorites } from '../context/FavoritesContext';
 import { getPrimaryPointScreenImage } from '../lib/pointImages';
+
+const CENSUS_PROFILE_LABELS = {
+  alta_renda: 'Alta Renda',
+  massa_varejo: 'Massa / Varejo',
+  jovem_universitario: 'Jovem / Universitário',
+  terceira_idade: 'Terceira Idade'
+};
 
 const DEFAULT_IMAGE_FOCUS = { x: 50, y: 50, zoom: 100 };
 
@@ -72,7 +79,7 @@ function buildMapEmbedUrl(lat, lng) {
   return `https://www.openstreetmap.org/export/embed.html?bbox=${minLon}%2C${minLat}%2C${maxLon}%2C${maxLat}&layer=mapnik&marker=${lat.toFixed(6)}%2C${lng.toFixed(6)}`;
 }
 
-export default function PointModal({ ponto, onClose, isDark = true }) {
+export default function PointModal({ ponto, onClose, isDark = true, geoProfile, censusProfile }) {
   if (!ponto) return null;
 
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
@@ -225,7 +232,7 @@ export default function PointModal({ ponto, onClose, isDark = true }) {
               )}
 
               {/* Details grid */}
-              <div className="space-y-3 mb-8">
+              <div className="space-y-3 mb-6">
                 {details.map(({ icon: Icon, label, value }) => (
                   value && (
                     <div key={label} className="flex items-start gap-3">
@@ -238,6 +245,120 @@ export default function PointModal({ ponto, onClose, isDark = true }) {
                   )
                 ))}
               </div>
+
+              {/* Audience Tags */}
+              {ponto.audience_tags && ponto.audience_tags.length > 0 && (
+                <div className={`rounded-xl p-4 mb-4 ${isDark ? 'bg-white/[0.03] border border-white/5' : 'bg-neutral-50 border border-neutral-200'}`}>
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <Tag size={14} className="text-brand-orange" />
+                    <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Tags de audiência</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ponto.audience_tags.map((tag) => (
+                      <span key={tag.key} className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium ${isDark ? 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20' : 'bg-orange-50 text-orange-600 border border-orange-200'}`}>
+                        {tag.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* GeoAudience Intelligence */}
+              {geoProfile && (
+                <div className={`rounded-xl p-4 mb-4 ${isDark ? 'bg-emerald-500/[0.04] border border-emerald-500/15' : 'bg-emerald-50 border border-emerald-200'}`}>
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <Sparkles size={14} className="text-emerald-500" />
+                    <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>Inteligência GeoAudiência</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {geoProfile.neighborhood_label && (
+                      <div>
+                        <div className={`text-[10px] uppercase tracking-wider mb-0.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Tipo de bairro</div>
+                        <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-800'}`}>{geoProfile.neighborhood_label}</div>
+                      </div>
+                    )}
+                    {geoProfile.socioeconomic_level && (
+                      <div>
+                        <div className={`text-[10px] uppercase tracking-wider mb-0.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Nível socioeconômico</div>
+                        <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-800'}`}>{geoProfile.socioeconomic_level}</div>
+                      </div>
+                    )}
+                    {geoProfile.environment_type && (
+                      <div>
+                        <div className={`text-[10px] uppercase tracking-wider mb-0.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Ambiente</div>
+                        <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-800'}`}>{geoProfile.environment_type}</div>
+                      </div>
+                    )}
+                    {geoProfile.dominant_activity && (
+                      <div>
+                        <div className={`text-[10px] uppercase tracking-wider mb-0.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Atividade dominante</div>
+                        <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-800'}`}>{geoProfile.dominant_activity}</div>
+                      </div>
+                    )}
+                    {geoProfile.urban_density && (
+                      <div>
+                        <div className={`text-[10px] uppercase tracking-wider mb-0.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Densidade urbana</div>
+                        <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-800'}`}>{geoProfile.urban_density}</div>
+                      </div>
+                    )}
+                    {geoProfile.total_pois > 0 && (
+                      <div>
+                        <div className={`text-[10px] uppercase tracking-wider mb-0.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>POIs no entorno</div>
+                        <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-800'}`}>{geoProfile.total_pois}</div>
+                      </div>
+                    )}
+                  </div>
+                  {geoProfile.audience_narrative && (
+                    <p className={`mt-3 text-xs leading-relaxed ${isDark ? 'text-emerald-300/70' : 'text-emerald-700/80'}`}>{geoProfile.audience_narrative}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Census Profile (IBGE) */}
+              {censusProfile && (
+                <div className={`rounded-xl p-4 mb-4 ${isDark ? 'bg-sky-500/[0.04] border border-sky-500/15' : 'bg-sky-50 border border-sky-200'}`}>
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <BarChart3 size={14} className="text-sky-500" />
+                    <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-sky-400' : 'text-sky-700'}`}>Perfil demográfico IBGE</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {censusProfile.perfil_dominante && (
+                      <div>
+                        <div className={`text-[10px] uppercase tracking-wider mb-0.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Classificação</div>
+                        <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-800'}`}>{CENSUS_PROFILE_LABELS[censusProfile.perfil_dominante] || censusProfile.perfil_dominante}</div>
+                      </div>
+                    )}
+                    {censusProfile.score_geral > 0 && (
+                      <div>
+                        <div className={`text-[10px] uppercase tracking-wider mb-0.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Score censo</div>
+                        <div className="flex items-center gap-1.5">
+                          <TrendingUp size={12} className="text-sky-500" />
+                          <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-800'}`}>{Number(censusProfile.score_geral).toFixed(1)}</span>
+                        </div>
+                      </div>
+                    )}
+                    {censusProfile.perfis && (
+                      <div className="col-span-2">
+                        <div className={`text-[10px] uppercase tracking-wider mb-1.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Perfis de audiência</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Object.entries(censusProfile.perfis)
+                            .filter(([, v]) => v > 0)
+                            .sort(([, a], [, b]) => b - a)
+                            .map(([key, val]) => (
+                              <span key={key} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium ${key === censusProfile.perfil_dominante ? (isDark ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' : 'bg-sky-100 text-sky-800 border border-sky-300') : (isDark ? 'bg-white/5 text-brand-gray-400 border border-white/10' : 'bg-neutral-100 text-neutral-600 border border-neutral-200')}`}>
+                                {CENSUS_PROFILE_LABELS[key] || key}
+                                <span className="opacity-60">{Number(val).toFixed(1)}</span>
+                              </span>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {censusProfile.municipio && (
+                    <p className={`mt-3 text-[11px] ${isDark ? 'text-sky-300/50' : 'text-sky-700/60'}`}>Setor censitário em {censusProfile.municipio}</p>
+                  )}
+                </div>
+              )}
 
               {/* Price */}
               <div className={`rounded-xl p-4 mb-6 ${isDark ? 'bg-white/[0.03] border border-white/5' : 'bg-orange-50 border border-orange-100'}`}>

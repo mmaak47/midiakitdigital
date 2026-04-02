@@ -14,7 +14,7 @@ import CampaignMetrics from '../components/CampaignMetrics';
 import CampaignScore from '../components/CampaignScore';
 import RecommendationEngine from '../components/RecommendationEngine';
 import ImpactSimulator from '../components/ImpactSimulator';
-import { fetchPontos } from '../lib/api';
+import { fetchPontos, fetchGeoAudienceProfiles, fetchCensusProfiles } from '../lib/api';
 import { useFavorites } from '../context/FavoritesContext';
 import { calculateCampaignScore, calculateCoverageLevel, campaignTotals } from '../lib/strategy';
 import { computeCityBoundingBoxes } from '../lib/geo';
@@ -43,6 +43,8 @@ export default function Explorer() {
   const [mobileFilters, setMobileFilters] = useState(false);
   const [plannerSuggestion, setPlannerSuggestion] = useState(null);
   const { favorites, addFavorites, history, registerView } = useFavorites();
+  const [geoProfiles, setGeoProfiles] = useState(null);
+  const [censusProfiles, setCensusProfiles] = useState(null);
 
   const selectedForMetrics = useMemo(() => {
     if (favorites.length) return favorites;
@@ -87,7 +89,21 @@ export default function Explorer() {
   }, [loadPontos]);
 
   useEffect(() => {
-    fetchPontos().then(setAllPontos).catch(() => setAllPontos([]));
+    Promise.all([
+      fetchPontos(),
+      fetchGeoAudienceProfiles().catch(() => ({ profiles: {} })),
+      fetchCensusProfiles().catch(() => ({ profiles: [] }))
+    ]).then(([data, geo, census]) => {
+      setAllPontos(data);
+      setGeoProfiles(geo?.profiles || null);
+      const censusMap = {};
+      if (Array.isArray(census?.profiles)) {
+        for (const p of census.profiles) {
+          if (p?.ponto_id) censusMap[p.ponto_id] = p;
+        }
+      }
+      setCensusProfiles(Object.keys(censusMap).length ? censusMap : null);
+    }).catch(() => setAllPontos([]));
   }, []);
 
   useEffect(() => {
@@ -282,6 +298,8 @@ export default function Explorer() {
                     onSelect={handleSelectPoint}
                     index={i}
                     isDark={isDark}
+                    geoProfile={geoProfiles?.[ponto.id]}
+                    censusProfile={censusProfiles?.[ponto.id]}
                   />
                 ))}
               </div>
@@ -333,7 +351,7 @@ export default function Explorer() {
       </AnimatePresence>
 
       {/* Point detail modal */}
-      {selected && <PointModal ponto={selected} onClose={() => setSelected(null)} isDark={isDark} />}
+      {selected && <PointModal ponto={selected} onClose={() => setSelected(null)} isDark={isDark} geoProfile={geoProfiles?.[selected.id]} censusProfile={censusProfiles?.[selected.id]} />}
 
       {/* Favorites bar */}
       <FavoritesBar isDark={isDark} />
