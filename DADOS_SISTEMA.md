@@ -223,7 +223,7 @@ Classifica cada ponto em 4 perfis demográficos usando dados do Censo IBGE 2022 
 
 | Perfil | Label | Critérios de Scoring |
 |--------|-------|---------------------|
-| `alta_renda` | Alta Renda | Renda média ≥ R$5.000, % superior completo > 40%, POIs premium (joalheria, spa, concessionária) |
+| `alta_renda` | Alta Renda | Renda média ≥ R$5.000, % superior completo > 40%, POIs premium (joalheria, spa, escritórios de advocacia/financeiro/seguros). Peso: 35% POI / 65% censo |
 | `massa_varejo` | Massa / Varejo | Renda R$1.500–5.000, alta densidade, POIs de comércio popular, supermercados, lotéricas |
 | `jovem_universitario` | Jovem Universitário | % população 18–29 > 35%, POIs: universidades, bares, coworkings, academias |
 | `terceira_idade` | Terceira Idade | % população 60+ > 25%, POIs: farmácias, igrejas, praças, clínicas |
@@ -694,28 +694,31 @@ Ponto (lat,lng,cidade) → IBGE Localidades (nome→código)
 
 Cada perfil tem uma lista de **POIs indicadores** (tags OSM que sinalizam afinidade) e um `expectedPois` (valor de normalização):
 
-**Alta Renda** (`alta_renda`) — expectedPois: 15
+**Alta Renda** (`alta_renda`) — expectedPois: 30
 - `amenity`: bank, bureau_de_change, clinic, doctors, dentist, spa, coworking_space
 - `shop`: department_store, jewelry, watches, perfumery, wine, cosmetics, beauty, optician, bag
 - `leisure`: fitness_centre, sports_centre, swimming_pool
-- `office`: qualquer
+- `office`: lawyer, financial, insurance, consulting, accountant, it, architect, estate_agent, investment
 - `tourism`: hotel
 
-**Massa / Varejo** (`massa_varejo`) — expectedPois: 20
-- `amenity`: marketplace, post_office, bus_station, fuel, parking
-- `shop`: supermarket, convenience, clothes, mobile_phone, variety_store, hardware, shoes, electronics, butcher, greengrocer
+> **Nota:** Até commit 8a5fbe4 o perfil `alta_renda` usava `office: ['__any__']` (qualquer escritório), o que causava todos os pontos serem classificados como Alta Renda em raio 800 m. Corrigido no commit 2cf1927 para tipos premium específicos.
+
+**Massa / Varejo** (`massa_varejo`) — expectedPois: 40
+- `amenity`: marketplace, post_office, bus_station, fuel, parking, taxi, car_wash, fast_food
+- `shop`: supermarket, convenience, clothes, mobile_phone, variety_store, hardware, shoes, electronics, butcher, greengrocer, bakery, lottery, tyres, car_repair
 - `building`: commercial
+- `office`: qualquer (escritórios genéricos são indicadores comerciais)
 
-**Jovem / Universitário** (`jovem_universitario`) — expectedPois: 10
-- `amenity`: university, college, language_school, bar, pub, nightclub, cafe, fast_food, bicycle_rental, library, cinema
-- `shop`: books, computer, mobile_phone
-- `leisure`: dance, escape_game, amusement_arcade
+**Jovem / Universitário** (`jovem_universitario`) — expectedPois: 20
+- `amenity`: university, college, language_school, bar, pub, nightclub, cafe, fast_food, bicycle_rental, library, cinema, coworking_space, food_court
+- `shop`: books, computer, mobile_phone, coffee, sports
+- `leisure`: dance, escape_game, amusement_arcade, fitness_centre, sports_centre
 
-**Terceira Idade** (`terceira_idade`) — expectedPois: 10
-- `amenity`: hospital, clinic, doctors, place_of_worship, social_facility, community_centre
+**Terceira Idade** (`terceira_idade`) — expectedPois: 20
+- `amenity`: hospital, clinic, doctors, place_of_worship, social_facility, community_centre, pharmacy
 - `healthcare`: qualquer
-- `leisure`: park, garden, playground
-- `shop`: pharmacy, chemist, hearing_aids, medical_supply
+- `leisure`: park, garden, playground, nature_reserve
+- `shop`: pharmacy, chemist, hearing_aids, medical_supply, herbalist
 
 > **Nota:** Um mesmo POI pode contar para múltiplos perfis (ex: farmácia conta para `massa_varejo` se for supermercado e para `terceira_idade` se for farmácia).
 
@@ -761,11 +764,11 @@ $$
 \text{score} = \text{poiSignal} \times w_{poi} + \frac{\text{censusSignal}}{\text{censusWeight}} \times w_{census}
 $$
 
-Se dados censitários não estiverem disponíveis, `score = poiSignal`.
+Se dados censitários não estiverem disponíveis, `score = poiSignal` (exceto `alta_renda`, que é limitado a `poiSignal × 0.70` para evitar falsos positivos sem dados censitários).
 
 ---
 
-**Alta Renda** — `poiWeight = 0.45`, `censusWeight = 0.55`
+**Alta Renda** — `poiWeight = 0.35`, `censusWeight = 0.65`
 
 | Componente censitário | Fórmula | Peso interno |
 |-----------------------|---------|-------------|
@@ -773,7 +776,9 @@ Se dados censitários não estiverem disponíveis, `score = poiSignal`.
 | PIB per capita | `clamp(pib / 50000)` | 0.30 |
 | % superior completo | `clamp(pctSuperior / 0.40)` | 0.25 |
 
-`poiSignal = clamp(poiCount / 15)`
+`poiSignal = clamp(poiCount / 30)`
+
+> Sem dados censitários: `score = poiSignal × 0.70` (teto de 70% para evitar classificação premium sem confirmação censitária).
 
 ---
 
@@ -784,7 +789,7 @@ Se dados censitários não estiverem disponíveis, `score = poiSignal`.
 | Renda (curva-sino em R$3.000) | `clamp(1 - |renda - 3000| / 3000)` | 0.50 |
 | População | `clamp(pop / 200000)` | 0.50 |
 
-`poiSignal = clamp(poiCount / 20)`
+`poiSignal = clamp(poiCount / 40)`
 
 > A renda usa uma **curva-sino** com pico em R$ 3.000 — pontuação máxima para classe média, decaindo para rendas muito altas ou baixas.
 
@@ -797,7 +802,7 @@ Se dados censitários não estiverem disponíveis, `score = poiSignal`.
 | % jovens 18-29 | `clamp(pctJovem / 0.35)` | 1.0 |
 | Fallback (pop > 100k) | `clamp(pop / 500000) × 0.3` | 0.3 |
 
-`poiSignal = clamp(poiCount / 10)`
+`poiSignal = clamp(poiCount / 20)`
 
 > Fallback: cidades maiores tendem a ter mais jovens; usado quando dados de faixa etária não estão disponíveis.
 
@@ -809,7 +814,7 @@ Se dados censitários não estiverem disponíveis, `score = poiSignal`.
 |-----------------------|---------|-------------|
 | % idosos 60+ | `clamp(pctIdoso / 0.25)` | 1.0 |
 
-`poiSignal = clamp(poiCount / 10)`
+`poiSignal = clamp(poiCount / 20)`
 
 ---
 
