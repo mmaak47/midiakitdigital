@@ -21,7 +21,8 @@ const AUTO_REFRESH_CITIES = String(process.env.ENTORNO_AUTO_REFRESH_CITIES || ''
   .map((item) => String(item || '').trim())
   .filter(Boolean);
 
-const SEGMENT_CATEGORIES = {
+// Legacy fallback — used only when segment_target_categories table has no data
+const SEGMENT_CATEGORIES_LEGACY = {
   clinica: ['hospital', 'farmacia', 'clinica', 'laboratorio', 'consultorio odontologico', 'pronto atendimento', 'centro medico'],
   hospital: ['hospital', 'farmacia', 'clinica', 'laboratorio', 'pronto atendimento', 'saude', 'centro medico'],
   educacao: ['escola', 'faculdade', 'universidade', 'curso', 'biblioteca', 'colegio'],
@@ -37,6 +38,87 @@ const SEGMENT_CATEGORIES = {
   industria: ['posto de combustivel', 'autopecas', 'logistica', 'transportadora', 'ferramentas'],
   outro: []
 };
+
+// Category search aliases: maps DB category keys to search terms for each provider
+const CATEGORY_SEARCH_TERMS = {
+  pharmacy: ['farmacia', 'drogaria', 'pharmacy'],
+  gym: ['academia', 'gym', 'fitness'],
+  school: ['escola', 'colegio', 'school'],
+  shopping_mall: ['shopping', 'centro comercial', 'mall'],
+  residential_building: ['condominio', 'residencial', 'edificio residencial', 'apartment'],
+  supermarket: ['supermercado', 'mercado', 'supermarket'],
+  park: ['parque', 'praca', 'park'],
+  beauty_salon: ['salao de beleza', 'estetica', 'beauty'],
+  daycare: ['creche', 'berçario', 'daycare'],
+  medical_center: ['centro medico', 'clinica', 'medical'],
+  bus_station: ['rodoviaria', 'terminal', 'ponto de onibus', 'bus station'],
+  parking_lot: ['estacionamento', 'parking'],
+  hotel: ['hotel', 'pousada', 'hostel'],
+  restaurant: ['restaurante', 'lanchonete', 'restaurant'],
+  clinic: ['clinica', 'consultorio', 'clinic'],
+  bookstore: ['livraria', 'bookstore'],
+  stationery: ['papelaria', 'stationery'],
+  church: ['igreja', 'templo', 'church'],
+  coworking: ['coworking', 'escritorio compartilhado', 'cowork'],
+  library: ['biblioteca', 'library'],
+  cafe: ['cafeteria', 'cafe', 'coffee'],
+  copy_shop: ['grafica', 'copiadora', 'copy shop'],
+  bank: ['banco', 'agencia bancaria', 'bank'],
+  office: ['escritorio', 'office', 'centro empresarial'],
+  real_estate_agency: ['imobiliaria', 'real estate'],
+  executive_restaurant: ['restaurante executivo', 'bistrô', 'fine dining'],
+  luxury_condominium: ['condominio de luxo', 'alto padrao', 'luxury residential'],
+  bar: ['bar', 'pub', 'lounge'],
+  movie_theater: ['cinema', 'movie theater'],
+  business_center: ['centro empresarial', 'business center'],
+  registry_office: ['cartorio', 'registro', 'registry'],
+  law_firm: ['advocacia', 'escritorio de advocacia', 'law firm'],
+  court: ['forum', 'tribunal', 'court'],
+  gas_station: ['posto de combustivel', 'gas station', 'fuel'],
+  auto_parts: ['autopecas', 'auto parts'],
+  logistics_center: ['logistica', 'centro de distribuicao', 'logistics'],
+  warehouse: ['armazem', 'galpao', 'warehouse'],
+  truck_stop: ['posto de parada', 'parada de caminhao', 'truck stop'],
+  hardware_store: ['ferramentas', 'material de construcao', 'hardware'],
+  industrial_zone: ['distrito industrial', 'zona industrial', 'industrial'],
+  car_wash: ['lava rapido', 'lava jato', 'car wash'],
+  insurance_agency: ['seguradora', 'seguros', 'insurance'],
+  highway_access: ['acesso rodoviario', 'rodovia', 'highway']
+};
+
+/**
+ * Load target categories for a segment from the DB (audience-location model).
+ * Returns array of { category, weight, searchTerms[] }.
+ * Falls back to legacy categories (weight=5, no audience model) if DB has no data.
+ */
+function loadTargetCategories(segment) {
+  const rows = db.prepare(
+    'SELECT place_category, weight FROM segment_target_categories WHERE segment_id = ? ORDER BY weight DESC'
+  ).all(segment);
+
+  if (rows.length > 0) {
+    return rows.map((row) => ({
+      category: row.place_category,
+      weight: row.weight,
+      searchTerms: CATEGORY_SEARCH_TERMS[row.place_category] || [row.place_category]
+    }));
+  }
+
+  // Legacy fallback
+  const legacy = SEGMENT_CATEGORIES_LEGACY[segment] || [];
+  return legacy.map((cat) => ({
+    category: cat,
+    weight: 5,
+    searchTerms: [cat]
+  }));
+}
+
+// Compat reference for normalizeSegment
+const SEGMENT_CATEGORIES = (() => {
+  const map = { ...SEGMENT_CATEGORIES_LEGACY };
+  // Additional segments from DB will be resolved at runtime via loadTargetCategories
+  return map;
+})();
 
 const jobQueue = [];
 let activeJobId = null;
@@ -160,6 +242,21 @@ function matchesAnyCategory(tagsText, categories) {
   return categories.find((category) => tagsText.includes(normalize(category))) || null;
 }
 
+/**
+ * Match text against target categories (audience-location model).
+ * Returns the matched target category object { category, weight, searchTerms } or null.
+ */
+function matchTargetCategory(tagsText, targetCategories) {
+  for (const target of targetCategories) {
+    for (const term of target.searchTerms) {
+      if (tagsText.includes(normalize(term))) {
+        return target;
+      }
+    }
+  }
+  return null;
+}
+
 function buildProviderChain() {
   if (PLACES_PROVIDER === 'google') return ['google'];
   if (PLACES_PROVIDER === 'foursquare') return ['foursquare'];
@@ -173,20 +270,51 @@ function providerAvailable(provider) {
   return true;
 }
 
-function toMetricsFromMatches({ categories, radius, matchedPlaces, provider }) {
+function toMetricsFromMatches({ targetCategories, radius, matchedPlaces, provider }) {
   const uniqueCategories = [...new Set(matchedPlaces.map((item) => item.category))];
   const total = matchedPlaces.length;
   const avgDistance = total
     ? matchedPlaces.reduce((sum, place) => sum + place.distance, 0) / total
     : null;
-  const diversityRatio = categories.length ? uniqueCategories.length / categories.length : 0;
+  const totalCategories = targetCategories.length || uniqueCategories.length || 1;
+  const diversityRatio = uniqueCategories.length / totalCategories;
+
+  // Build per-category breakdown with weighted affinity scores
+  const categoryBreakdown = {};
+  for (const place of matchedPlaces) {
+    if (!categoryBreakdown[place.category]) {
+      categoryBreakdown[place.category] = { count: 0, weight: place.categoryWeight || 5 };
+    }
+    categoryBreakdown[place.category].count += 1;
+  }
+
+  // Compute affinity score: sum(count * weight) for each category
+  let affinityScore = 0;
+  const categoryContributions = [];
+  for (const [cat, info] of Object.entries(categoryBreakdown)) {
+    const contribution = info.count * info.weight;
+    affinityScore += contribution;
+    categoryContributions.push({
+      category: cat,
+      count: info.count,
+      weight: info.weight,
+      contribution
+    });
+  }
+  categoryContributions.sort((a, b) => b.contribution - a.contribution);
+
+  // Combined score: legacy relevance + affinity
+  const legacyScore = scoreRelevance({ total, avgDistance: avgDistance || radius, diversityRatio, radius });
+  const combinedScore = Number((legacyScore + affinityScore * 0.5).toFixed(2));
 
   return {
     provider,
     total,
     categoriesFound: uniqueCategories,
     avgDistance: avgDistance ? Number(avgDistance.toFixed(2)) : null,
-    score: scoreRelevance({ total, avgDistance: avgDistance || radius, diversityRatio, radius }),
+    score: combinedScore,
+    affinityScore: Number(affinityScore.toFixed(2)),
+    categoryBreakdown: categoryContributions,
     matchedPlaces: matchedPlaces.slice(0, 120)
   };
 }
@@ -209,14 +337,16 @@ function scoreRelevance({ total, avgDistance, diversityRatio, radius }) {
 }
 
 async function fetchNearbyFromOsm({ lat, lng, radius, segment }) {
-  const categories = SEGMENT_CATEGORIES[segment] || [];
-  if (!categories.length) {
+  const targetCategories = loadTargetCategories(segment);
+  if (!targetCategories.length) {
     return {
       provider: 'osm',
       total: 0,
       categoriesFound: [],
       avgDistance: null,
       score: 0,
+      affinityScore: 0,
+      categoryBreakdown: [],
       matchedPlaces: []
     };
   }
@@ -243,8 +373,8 @@ async function fetchNearbyFromOsm({ lat, lng, radius, segment }) {
       tags.description
     ].filter(Boolean).join(' '));
 
-    const categoryHit = matchesAnyCategory(text, categories);
-    if (!categoryHit) continue;
+    const targetHit = matchTargetCategory(text, targetCategories);
+    if (!targetHit) continue;
 
     const placeLat = Number(element.lat ?? element.center?.lat);
     const placeLng = Number(element.lon ?? element.center?.lon);
@@ -255,7 +385,8 @@ async function fetchNearbyFromOsm({ lat, lng, radius, segment }) {
 
     matchedPlaces.push({
       osmId: `${element.type || 'x'}-${element.id}`,
-      category: categoryHit,
+      category: targetHit.category,
+      categoryWeight: targetHit.weight,
       distance,
       name: tags.name || null,
       lat: placeLat,
@@ -263,7 +394,7 @@ async function fetchNearbyFromOsm({ lat, lng, radius, segment }) {
     });
   }
 
-  return toMetricsFromMatches({ categories, radius, matchedPlaces, provider: 'osm' });
+  return toMetricsFromMatches({ targetCategories, radius, matchedPlaces, provider: 'osm' });
 }
 
 async function fetchNearbyFromGoogle({ lat, lng, radius, segment }) {
@@ -271,55 +402,60 @@ async function fetchNearbyFromGoogle({ lat, lng, radius, segment }) {
     throw new Error('Google Places API key nao configurada');
   }
 
-  const categories = SEGMENT_CATEGORIES[segment] || [];
-  if (!categories.length) {
+  const targetCategories = loadTargetCategories(segment);
+  if (!targetCategories.length) {
     return {
       provider: 'google',
       total: 0,
       categoriesFound: [],
       avgDistance: null,
       score: 0,
+      affinityScore: 0,
+      categoryBreakdown: [],
       matchedPlaces: []
     };
   }
 
   const matchedPlaces = [];
 
-  for (const category of categories) {
-    const params = new URLSearchParams({
-      location: `${lat},${lng}`,
-      radius: String(radius),
-      keyword: category,
-      language: 'pt-BR',
-      key: GOOGLE_PLACES_API_KEY
-    });
-
-    const payload = await fetchJson(`${GOOGLE_PLACES_ENDPOINT}?${params.toString()}`);
-    const results = Array.isArray(payload?.results) ? payload.results : [];
-
-    for (const result of results) {
-      const placeLat = Number(result?.geometry?.location?.lat);
-      const placeLng = Number(result?.geometry?.location?.lng);
-      if (!Number.isFinite(placeLat) || !Number.isFinite(placeLng)) continue;
-
-      const distance = haversineMeters(lat, lng, placeLat, placeLng);
-      if (distance > radius) continue;
-
-      const osmLikeId = result.place_id || `${category}-${result.name || 'place'}`;
-      if (matchedPlaces.some((item) => item.osmId === osmLikeId)) continue;
-
-      matchedPlaces.push({
-        osmId: osmLikeId,
-        category,
-        distance,
-        name: result.name || null,
-        lat: placeLat,
-        lng: placeLng
+  for (const target of targetCategories) {
+    for (const keyword of target.searchTerms.slice(0, 2)) {
+      const params = new URLSearchParams({
+        location: `${lat},${lng}`,
+        radius: String(radius),
+        keyword,
+        language: 'pt-BR',
+        key: GOOGLE_PLACES_API_KEY
       });
+
+      const payload = await fetchJson(`${GOOGLE_PLACES_ENDPOINT}?${params.toString()}`);
+      const results = Array.isArray(payload?.results) ? payload.results : [];
+
+      for (const result of results) {
+        const placeLat = Number(result?.geometry?.location?.lat);
+        const placeLng = Number(result?.geometry?.location?.lng);
+        if (!Number.isFinite(placeLat) || !Number.isFinite(placeLng)) continue;
+
+        const distance = haversineMeters(lat, lng, placeLat, placeLng);
+        if (distance > radius) continue;
+
+        const osmLikeId = result.place_id || `${target.category}-${result.name || 'place'}`;
+        if (matchedPlaces.some((item) => item.osmId === osmLikeId)) continue;
+
+        matchedPlaces.push({
+          osmId: osmLikeId,
+          category: target.category,
+          categoryWeight: target.weight,
+          distance,
+          name: result.name || null,
+          lat: placeLat,
+          lng: placeLng
+        });
+      }
     }
   }
 
-  return toMetricsFromMatches({ categories, radius, matchedPlaces, provider: 'google' });
+  return toMetricsFromMatches({ targetCategories, radius, matchedPlaces, provider: 'google' });
 }
 
 async function fetchNearbyFromFoursquare({ lat, lng, radius, segment }) {
@@ -327,59 +463,64 @@ async function fetchNearbyFromFoursquare({ lat, lng, radius, segment }) {
     throw new Error('Foursquare API key nao configurada');
   }
 
-  const categories = SEGMENT_CATEGORIES[segment] || [];
-  if (!categories.length) {
+  const targetCategories = loadTargetCategories(segment);
+  if (!targetCategories.length) {
     return {
       provider: 'foursquare',
       total: 0,
       categoriesFound: [],
       avgDistance: null,
       score: 0,
+      affinityScore: 0,
+      categoryBreakdown: [],
       matchedPlaces: []
     };
   }
 
   const matchedPlaces = [];
 
-  for (const category of categories) {
-    const params = new URLSearchParams({
-      ll: `${lat},${lng}`,
-      radius: String(radius),
-      query: category,
-      limit: '30'
-    });
-
-    const payload = await fetchJson(`${FOURSQUARE_PLACES_ENDPOINT}?${params.toString()}`, {
-      headers: {
-        Authorization: FOURSQUARE_API_KEY,
-        accept: 'application/json'
-      }
-    });
-    const results = Array.isArray(payload?.results) ? payload.results : [];
-
-    for (const result of results) {
-      const fsqId = result.fsq_id || `${category}-${result.name || 'place'}`;
-      if (matchedPlaces.some((item) => item.osmId === fsqId)) continue;
-
-      const distance = parseFoursquareDistance(result.distance);
-      if (distance === null || distance > radius) continue;
-
-      const placeLat = Number(result?.geocodes?.main?.latitude);
-      const placeLng = Number(result?.geocodes?.main?.longitude);
-      const hasCoords = Number.isFinite(placeLat) && Number.isFinite(placeLng);
-
-      matchedPlaces.push({
-        osmId: fsqId,
-        category,
-        distance,
-        name: result.name || null,
-        lat: hasCoords ? placeLat : null,
-        lng: hasCoords ? placeLng : null
+  for (const target of targetCategories) {
+    for (const keyword of target.searchTerms.slice(0, 2)) {
+      const params = new URLSearchParams({
+        ll: `${lat},${lng}`,
+        radius: String(radius),
+        query: keyword,
+        limit: '30'
       });
+
+      const payload = await fetchJson(`${FOURSQUARE_PLACES_ENDPOINT}?${params.toString()}`, {
+        headers: {
+          Authorization: FOURSQUARE_API_KEY,
+          accept: 'application/json'
+        }
+      });
+      const results = Array.isArray(payload?.results) ? payload.results : [];
+
+      for (const result of results) {
+        const fsqId = result.fsq_id || `${target.category}-${result.name || 'place'}`;
+        if (matchedPlaces.some((item) => item.osmId === fsqId)) continue;
+
+        const distance = parseFoursquareDistance(result.distance);
+        if (distance === null || distance > radius) continue;
+
+        const placeLat = Number(result?.geocodes?.main?.latitude);
+        const placeLng = Number(result?.geocodes?.main?.longitude);
+        const hasCoords = Number.isFinite(placeLat) && Number.isFinite(placeLng);
+
+        matchedPlaces.push({
+          osmId: fsqId,
+          category: target.category,
+          categoryWeight: target.weight,
+          distance,
+          name: result.name || null,
+          lat: hasCoords ? placeLat : null,
+          lng: hasCoords ? placeLng : null
+        });
+      }
     }
   }
 
-  return toMetricsFromMatches({ categories, radius, matchedPlaces, provider: 'foursquare' });
+  return toMetricsFromMatches({ targetCategories, radius, matchedPlaces, provider: 'foursquare' });
 }
 
 async function fetchNearbyForSegment({ lat, lng, radius, segment }) {
@@ -445,6 +586,8 @@ function upsertEntornoCache({ pointId, lat, lng, segment, radius, metrics }) {
       total: metrics.total,
       categoriesFound: metrics.categoriesFound,
       avgDistance: metrics.avgDistance,
+      affinityScore: metrics.affinityScore || 0,
+      categoryBreakdown: metrics.categoryBreakdown || [],
       places: metrics.matchedPlaces || []
     }),
     cacheExpiryIso()
@@ -516,6 +659,8 @@ function listScores({ segment, radius, city }) {
       categorias_encontradas: JSON.parse(row.categorias_encontradas || '[]'),
       distancia_media: row.distancia_media,
       score_relevancia: row.score_relevancia,
+      affinity_score: raw.affinityScore || 0,
+      category_breakdown: Array.isArray(raw.categoryBreakdown) ? raw.categoryBreakdown : [],
       provider: raw.provider || 'osm',
       places: Array.isArray(raw.places) ? raw.places.slice(0, 12) : [],
       updated_at: row.updated_at,
@@ -530,9 +675,11 @@ function invalidatePointCache(pointId) {
 
 function getSegmentCategories(segment) {
   const normalized = normalizeSegment(segment);
+  const targets = loadTargetCategories(normalized);
   return {
     segment: normalized,
-    categories: SEGMENT_CATEGORIES[normalized] || []
+    categories: targets.map((t) => t.category),
+    targetCategories: targets
   };
 }
 
@@ -898,6 +1045,7 @@ function stopAutoRefreshScheduler() {
 module.exports = {
   DEFAULT_RADIUS,
   SEGMENT_CATEGORIES,
+  loadTargetCategories,
   getSegmentCategories,
   normalizeSegment,
   normalizeRadius,

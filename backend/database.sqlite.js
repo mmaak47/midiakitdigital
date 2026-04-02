@@ -204,6 +204,107 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS segment_target_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    segment_id TEXT NOT NULL,
+    place_category TEXT NOT NULL,
+    weight INTEGER NOT NULL DEFAULT 5,
+    UNIQUE(segment_id, place_category)
+  )
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_segment_target_categories_segment
+  ON segment_target_categories (segment_id)
+`);
+
+// Seed segment_target_categories if empty — audience-location model
+// Categories represent where the segment's TARGET AUDIENCE is found,
+// NOT competitors of the segment.
+(function seedSegmentTargetCategories() {
+  const count = db.prepare('SELECT COUNT(*) as c FROM segment_target_categories').get();
+  if (count.c > 0) return;
+
+  const data = {
+    clinica: [
+      ['pharmacy', 10], ['gym', 8], ['school', 7], ['shopping_mall', 7],
+      ['residential_building', 9], ['supermarket', 6], ['park', 5],
+      ['beauty_salon', 6], ['daycare', 5], ['medical_center', 4]
+    ],
+    hospital: [
+      ['pharmacy', 10], ['residential_building', 9], ['bus_station', 7],
+      ['parking_lot', 6], ['shopping_mall', 6], ['supermarket', 5],
+      ['hotel', 5], ['gym', 4], ['restaurant', 4], ['clinic', 4]
+    ],
+    escola: [
+      ['residential_building', 10], ['daycare', 8], ['bookstore', 7],
+      ['stationery', 7], ['supermarket', 6], ['park', 6],
+      ['bus_station', 5], ['gym', 5], ['restaurant', 4], ['church', 4]
+    ],
+    faculdade: [
+      ['coworking', 9], ['library', 8], ['restaurant', 7], ['bus_station', 7],
+      ['bookstore', 7], ['gym', 6], ['cafe', 6], ['parking_lot', 5],
+      ['bank', 5], ['copy_shop', 5]
+    ],
+    construtora: [
+      ['bank', 10], ['coworking', 9], ['office', 8], ['real_estate_agency', 7],
+      ['executive_restaurant', 6], ['luxury_condominium', 8],
+      ['shopping_mall', 6], ['hotel', 5], ['parking_lot', 5], ['gym', 4]
+    ],
+    imobiliaria: [
+      ['bank', 10], ['real_estate_agency', 8], ['luxury_condominium', 9],
+      ['office', 7], ['coworking', 7], ['shopping_mall', 6],
+      ['executive_restaurant', 6], ['gym', 5], ['school', 5], ['park', 4]
+    ],
+    varejo: [
+      ['shopping_mall', 10], ['supermarket', 9], ['bus_station', 8],
+      ['parking_lot', 7], ['residential_building', 7], ['restaurant', 6],
+      ['bank', 5], ['beauty_salon', 5], ['pharmacy', 4], ['gas_station', 4]
+    ],
+    restaurante: [
+      ['office', 9], ['shopping_mall', 8], ['residential_building', 7],
+      ['gym', 6], ['parking_lot', 6], ['hotel', 6], ['bus_station', 5],
+      ['coworking', 5], ['bar', 5], ['movie_theater', 4]
+    ],
+    contabilidade: [
+      ['office', 10], ['bank', 9], ['coworking', 8], ['business_center', 8],
+      ['registry_office', 6], ['restaurant', 5], ['parking_lot', 5],
+      ['law_firm', 5], ['real_estate_agency', 4], ['hotel', 4]
+    ],
+    advocacia: [
+      ['court', 10], ['registry_office', 9], ['office', 8], ['bank', 7],
+      ['coworking', 6], ['business_center', 6], ['restaurant', 5],
+      ['parking_lot', 5], ['law_firm', 5], ['hotel', 4]
+    ],
+    industria: [
+      ['gas_station', 8], ['auto_parts', 7], ['logistics_center', 9],
+      ['warehouse', 8], ['truck_stop', 7], ['restaurant', 5],
+      ['bus_station', 5], ['hardware_store', 6], ['parking_lot', 5],
+      ['industrial_zone', 9]
+    ],
+    automotivo: [
+      ['gas_station', 10], ['parking_lot', 9], ['auto_parts', 8],
+      ['car_wash', 7], ['shopping_mall', 6], ['residential_building', 6],
+      ['office', 5], ['insurance_agency', 5], ['bank', 5], ['highway_access', 7]
+    ]
+  };
+
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO segment_target_categories (segment_id, place_category, weight) VALUES (?, ?, ?)'
+  );
+
+  const tx = db.transaction(() => {
+    for (const [segment, categories] of Object.entries(data)) {
+      for (const [category, weight] of categories) {
+        insert.run(segment, category, weight);
+      }
+    }
+  });
+
+  tx();
+})();
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS cidade_fotos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     cidade TEXT NOT NULL,

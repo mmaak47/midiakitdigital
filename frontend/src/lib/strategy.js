@@ -345,7 +345,9 @@ export function buildAudienceQualification(point = {}) {
 export function buildEntornoSummary(metrics = null, segmento = '') {
   const total = Number(metrics?.total_estabelecimentos_relacionados) || 0;
   const score = Number(metrics?.score_relevancia) || 0;
+  const affinityScore = Number(metrics?.affinity_score) || 0;
   const categories = Array.isArray(metrics?.categorias_encontradas) ? metrics.categorias_encontradas : [];
+  const categoryBreakdown = Array.isArray(metrics?.category_breakdown) ? metrics.category_breakdown : [];
   const places = Array.isArray(metrics?.places) ? metrics.places : [];
   const segmentLabel = getSegmentDisplayName(segmento);
 
@@ -362,17 +364,32 @@ export function buildEntornoSummary(metrics = null, segmento = '') {
   if (!total) {
     return {
       headline: `Entorno do segmento ${segmentLabel} ainda sem evidências suficientes.`,
-      summary: 'Não há locais aderentes em cache para destacar neste ponto agora.',
+      summary: 'Não há locais de público-alvo em cache para destacar neste ponto agora.',
       places: [],
-      categories: []
+      categories: [],
+      categoryBreakdown: [],
+      affinityScore: 0
     };
   }
 
+  // Build human-readable description from category breakdown
+  const topContributions = categoryBreakdown
+    .filter((c) => c.count > 0)
+    .slice(0, 4)
+    .map((c) => `${c.count} ${c.category.replace(/_/g, ' ')}`)
+    .join(', ');
+
+  const affinityLabel = affinityScore >= 60 ? 'alta' : affinityScore >= 30 ? 'moderada' : 'baixa';
+
   return {
-    headline: `${total} locais aderentes ao segmento ${segmentLabel} no raio analisado.`,
-    summary: `Score de relevância ${score.toFixed(1).replace('.', ',')} com ${categories.length} categoria${categories.length === 1 ? '' : 's'} relacionada${categories.length === 1 ? '' : 's'} ao redor do ponto.`,
+    headline: `Este ponto possui ${affinityLabel} afinidade com o público-alvo da campanha.`,
+    summary: topContributions
+      ? `Presença de ${topContributions} no raio analisado (score de afinidade: ${affinityScore.toFixed(0)}).`
+      : `${total} locais de público potencial no raio analisado (score: ${score.toFixed(1).replace('.', ',')}).`,
     places: nearestPlaces,
-    categories
+    categories,
+    categoryBreakdown,
+    affinityScore
   };
 }
 
@@ -710,10 +727,17 @@ function scoreSegmentEnvironment(point, entornoByPoint = null) {
 
   const total = Number(metrics.total_estabelecimentos_relacionados) || 0;
   const score = Number(metrics.score_relevancia) || 0;
+  const affinityScore = Number(metrics.affinity_score) || 0;
   const categories = Array.isArray(metrics.categorias_encontradas)
     ? metrics.categorias_encontradas.length
     : 0;
 
+  // Affinity-based scoring (audience-location model) takes priority
+  if (affinityScore > 0) {
+    return Math.min(48, affinityScore * 0.45 + categories * 2.0 + total * 0.5);
+  }
+
+  // Legacy fallback
   return Math.min(48, score * 0.62 + total * 1.35 + categories * 2.8);
 }
 
@@ -901,7 +925,7 @@ export function suggestIdealPlan({
     `Plano recomendado com ${totals.quantidade} ponto${totals.quantidade > 1 ? 's' : ''} e ${formatos} formato${formatos > 1 ? 's' : ''}, priorizando ${foco}`,
     `Fluxo potencial de ${new Intl.NumberFormat('pt-BR').format(totals.fluxoTotal)} impactos/mensais e CPM estimado em R$ ${totals.cpmEstimado.toFixed(2)}.`,
     withEntorno > 0
-      ? `${withEntorno} ponto${withEntorno > 1 ? 's' : ''} recebeu ganho de aderência por entorno relevante ao segmento selecionado.`
+      ? `${withEntorno} ponto${withEntorno > 1 ? 's' : ''} recebeu ganho de afinidade por presença de público-alvo potencial no entorno analisado.`
       : 'Sem dados de entorno suficientes no momento, o plano foi calculado apenas com comportamento, público e eficiência.',
     `Reach efetivo estimado em ${reachFrequency.effectiveReachPct.toFixed(1).replace('.', ',')}% com frequência média ${reachFrequency.avgFrequency.toFixed(2).replace('.', ',')} no período de ${reachFrequency.periodWeeks} semanas (R&F).`,
     budget > 0

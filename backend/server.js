@@ -1058,10 +1058,11 @@ app.get('/api/geocode', requireRoles(['admin', 'gerente_comercial', 'vendedor'])
 // List available segment categories for entorno analysis
 app.get('/api/entorno/categories', (req, res) => {
   const requested = req.query.segmento;
-  const { segment, categories } = getSegmentCategories(requested);
+  const { segment, categories, targetCategories } = getSegmentCategories(requested);
   res.json({
     segmento: segment,
     categorias: categories,
+    targetCategories: targetCategories || [],
     raioPadrao: DEFAULT_RADIUS,
     providers: getProviderRuntimeInfo()
   });
