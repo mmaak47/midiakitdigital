@@ -127,25 +127,28 @@ function corsOriginValidator(origin, callback) {
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.API_RATE_LIMIT_MAX || 100),
+  max: Number(process.env.API_RATE_LIMIT_MAX || 600),
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
   message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' }
 });
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.LOGIN_RATE_LIMIT_MAX || 8),
+  max: Number(process.env.LOGIN_RATE_LIMIT_MAX || 15),
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
   message: { error: 'Muitas tentativas de login. Tente novamente em alguns minutos.' }
 });
 
 const pdfRenderLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.PDF_RENDER_RATE_LIMIT_MAX || 25),
+  max: Number(process.env.PDF_RENDER_RATE_LIMIT_MAX || 50),
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
   message: { error: 'Limite de geração de PDF atingido. Tente novamente em alguns minutos.' }
 });
 
