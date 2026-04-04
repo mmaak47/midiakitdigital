@@ -624,11 +624,12 @@ export default function Landing() {
               className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0a0a] p-8 text-center shadow-2xl"
             >
               {/* Logo / brand */}
-              <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-orange/10 border border-brand-orange/20">
-                <i className="ri-projector-2-line text-brand-orange" style={{ fontSize: 28 }} />
+              <div className="mx-auto mb-5 flex h-16 w-auto px-4 items-center justify-center rounded-2xl bg-brand-orange/10 border border-brand-orange/20 py-3">
+                <img src={isDark ? '/logo.png' : '/logo-light.png'} alt="Intermidia" className="h-8 w-auto" />
               </div>
-              <h2 className="text-xl font-bold text-white mb-2">
-                Bem-vindo ao Mídia Kit Digital
+              <h2 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, Poppins, system-ui', letterSpacing: '-0.01em' }}>
+                Bem-vindo ao<br />
+                <span style={{ color: '#FF6B35' }}>Mídia Kit Digital</span>
               </h2>
               <p className="text-sm text-brand-gray-400 mb-8 leading-relaxed max-w-sm mx-auto">
                 Escolha o que deseja fazer para direcionarmos você à melhor experiência.
@@ -683,9 +684,9 @@ export default function Landing() {
       </AnimatePresence>
 
       {/* ── Hero ─────────────────────────────────────────────── */}
-      <section className={`pt-20 pb-10 border-b relative overflow-visible ${t.sectionBorder}`} style={{ background: isDark ? undefined : '#FFF8F5' }}>
+      <section className={`pt-24 pb-14 border-b landing-divider relative overflow-visible ${t.sectionBorder}`} style={{ background: isDark ? undefined : '#FFF8F5' }}>
         <div
-          className={`absolute inset-0 bg-cover bg-center ${isDark ? 'opacity-35' : 'opacity-[0.08] saturate-[0.75]'}`}
+          className={`absolute inset-0 bg-cover bg-center ${isDark ? 'opacity-50' : 'opacity-[0.08] saturate-[0.75]'}`}
           style={{
             backgroundImage: "url('/city-bg.jpg')",
             filter: isDark ? 'none' : 'blur(1.8px)'
@@ -709,6 +710,7 @@ export default function Landing() {
         )}
         <div className={`absolute inset-0 bg-gradient-to-b ${t.heroOverlay}`} />
         <div className="absolute -top-16 left-10 w-64 h-64 bg-brand-orange/20 rounded-full blur-[90px]" />
+        <div className="absolute top-[30%] left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-brand-orange/8 rounded-full blur-[100px] pointer-events-none" />
 
         <div className="relative max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between mb-6">
@@ -738,15 +740,30 @@ export default function Landing() {
             </motion.button>
           </div>
 
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={0.5}
+            className="mt-4 mb-2"
+          >
+            <span
+              className="inline-block text-[11px] font-bold tracking-[0.22em] uppercase"
+              style={{ color: isDark ? 'rgba(255,107,53,0.75)' : '#C94A1A' }}
+            >
+              Publicidade Out-of-Home · Intermidia
+            </span>
+          </motion.div>
+
           <motion.h1
             variants={fadeUp}
             initial="hidden"
             animate="visible"
             custom={1}
             className="font-display max-w-4xl mb-4"
-            style={{ fontSize: '36px', fontWeight: 800, lineHeight: 1.15, letterSpacing: '-0.01em', color: isDark ? '#fff' : '#1A1008' }}
+            style={{ fontSize: 'clamp(44px, 5.5vw, 72px)', fontWeight: 900, lineHeight: 1.08, letterSpacing: '-0.03em', color: isDark ? '#fff' : '#1A1008' }}
           >
-            Planejamento por praça com inventário real, <span style={{ color: '#FF6B35' }}>audiência</span> e oportunidades de mídia.
+            Presença real. <span style={{ color: '#FF6B35' }}>Audiência</span> certa. Resultado mensurável.
           </motion.h1>
 
           <motion.p
@@ -757,7 +774,7 @@ export default function Landing() {
             className="font-sans max-w-3xl mb-8"
             style={{ fontSize: '14px', fontWeight: 400, lineHeight: 1.6, color: isDark ? undefined : '#7A6155' }}
           >
-            Selecione uma praça para gerar um mídia kit focado na cidade ou visualize o consolidado de todas as praças.
+            Mídia Kit Digital da Intermidia — selecione praça e formato para filtrar o inventário, gerar PDF ou abrir a apresentação em slides.
           </motion.p>
 
           <motion.div
@@ -767,9 +784,13 @@ export default function Landing() {
             custom={3}
             className="p-6 rounded-[16px] backdrop-blur-xl"
             style={{
-              background: isDark ? 'linear-gradient(to bottom right, rgba(255,255,255,0.06), rgba(255,255,255,0.02))' : '#FFFFFF',
-              border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#EFE0D8'}`,
-              boxShadow: isDark ? '0 20px 40px rgba(0,0,0,0.30)' : '0 4px 24px rgba(0,0,0,0.06)',
+              background: isDark
+                ? 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)'
+                : '#FFFFFF',
+              border: `1px solid ${isDark ? 'rgba(255,107,53,0.15)' : '#EFE0D8'}`,
+              boxShadow: isDark
+                ? '0 24px 64px rgba(0,0,0,0.50), inset 0 1px 0 rgba(255,255,255,0.08)'
+                : '0 4px 24px rgba(0,0,0,0.06)',
             }}
           >
             {/* ── 3-column form fields ── */}
@@ -911,8 +932,18 @@ export default function Landing() {
       </section>
 
       {/* ── Stats ────────────────────────────────────────────── */}
-      <section className={`py-10 border-b relative ${t.sectionBorder}`}>
+      <section className={`py-10 border-b landing-divider relative ${t.sectionBorder}`}>
         <div className="max-w-7xl mx-auto px-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <span
+                className="text-[11px] font-bold tracking-[0.18em] uppercase"
+                style={{ color: isDark ? 'rgba(255,107,53,0.75)' : '#C94A1A' }}
+              >Visão geral</span>
+              <h2 className="text-xl font-bold mt-0.5">Inventário em números</h2>
+            </div>
+            <span className={`text-xs uppercase tracking-wide ${t.textMuted}`}>{selectedPracaLabel}</span>
+          </div>
           {loading ? (
             <div className={`text-sm ${t.textMuted}`}>Carregando inventário...</div>
           ) : (
@@ -933,8 +964,11 @@ export default function Landing() {
                   transition={{ delay: i * 0.08, duration: 0.4 }}
                   className={`rounded-2xl border p-4 transition-colors group ${t.statsCard}`}
                 >
-                  <i className={`${card.iconClass} text-brand-orange mb-3 group-hover:scale-110 transition-transform inline-block`} style={{ fontSize: 18 }} />
-                  <div className="text-lg md:text-2xl font-bold mb-1">
+                  <div className="mb-3 w-10 h-10 rounded-xl flex items-center justify-center"
+                    style={{ background: isDark ? 'rgba(255,107,53,0.12)' : '#FFF0EA', border: `1px solid ${isDark ? 'rgba(255,107,53,0.25)' : '#FFCFB8'}` }}>
+                    <i className={`${card.iconClass} text-brand-orange group-hover:scale-110 transition-transform inline-block`} style={{ fontSize: 20 }} />
+                  </div>
+                  <div className="text-xl md:text-3xl font-bold mb-1">
                     <AnimatedCounter value={card.raw} formatter={card.fmt} />
                   </div>
                   <div className={`text-xs uppercase tracking-wide ${t.textMuted}`}>{card.label}</div>
@@ -946,7 +980,7 @@ export default function Landing() {
       </section>
 
       {/* ── Inventário + Público ──────────────────────────────── */}
-      <section className={`py-12 border-b relative ${t.sectionBorder}`}>
+      <section className={`py-12 border-b landing-divider relative ${t.sectionBorder}`}>
         {isDark && <div className="absolute inset-0 opacity-[0.03] bg-cover bg-top" style={{ backgroundImage: "url('/about-2.jpg')", filter: 'blur(1px)' }} />}
         <div className="relative max-w-7xl mx-auto px-6 grid lg:grid-cols-3 gap-6">
 
@@ -957,10 +991,16 @@ export default function Landing() {
             className={`lg:col-span-2 rounded-2xl border backdrop-blur overflow-hidden ${t.card}`}
           >
             <div className={`p-5 flex items-center justify-between ${isDark ? 'border-b border-white/10' : 'border-b border-neutral-200'}`}>
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <i className="ri-layers-line text-brand-orange" style={{ fontSize: 18 }} />
-                Inventário por formato
-              </h2>
+              <div>
+                <span
+                  className="text-[11px] font-bold tracking-[0.18em] uppercase block mb-0.5"
+                  style={{ color: isDark ? 'rgba(255,107,53,0.75)' : '#C94A1A' }}
+                >Formatos disponíveis</span>
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <i className="ri-layers-line text-brand-orange" style={{ fontSize: 18 }} />
+                  Inventário por formato
+                </h2>
+              </div>
               <span className={`text-xs uppercase tracking-wide ${t.textMuted}`}>{selectedPracaLabel}</span>
             </div>
             <div className="overflow-x-auto">
@@ -1032,11 +1072,17 @@ export default function Landing() {
       </section>
 
       {/* ── Catálogo ─────────────────────────────────────────── */}
-      <section className={`py-12 border-b relative ${t.sectionBorder}`}>
+      <section className={`py-12 border-b landing-divider relative ${t.sectionBorder}`}>
         {isDark && <div className="absolute inset-0 opacity-[0.022] bg-cover" style={{ backgroundImage: "url('/stock-wallpaper.jpg')", filter: 'blur(2px)' }} />}
         <div className="relative max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-2xl font-bold">Catálogo completo da seleção</h2>
+            <div>
+              <span
+                className="text-[11px] font-bold tracking-[0.18em] uppercase block mb-0.5"
+                style={{ color: isDark ? 'rgba(255,107,53,0.75)' : '#C94A1A' }}
+              >Inventário completo</span>
+              <h2 className="text-2xl font-bold">Catálogo da seleção atual</h2>
+            </div>
             <span className={`text-xs uppercase tracking-wide ${t.textMuted}`}>{formatInt(pontos.length)} pontos</span>
           </div>
 
@@ -1158,8 +1204,8 @@ export default function Landing() {
       </section>
 
       {/* ── CTA ──────────────────────────────────────────────── */}
-      <section className={`py-16 border-b relative overflow-hidden ${t.sectionBorder}`}>
-        <div className="absolute inset-0 opacity-12 bg-cover bg-center" style={{ backgroundImage: "url('/city-bg.jpg')" }} />
+      <section className={`py-16 border-b landing-divider relative overflow-hidden ${t.sectionBorder}`}>
+        <div className="absolute inset-0 opacity-20 bg-cover bg-center" style={{ backgroundImage: "url('/city-bg.jpg')" }} />
         <div className={`absolute inset-0 ${t.ctaOverlay}`} />
         <div className="absolute inset-0 bg-gradient-to-r from-brand-orange/10 via-transparent to-transparent" />
         <div className="absolute top-0 left-[20%] w-[40vw] h-full bg-brand-orange/9 blur-[100px] rounded-full" />
@@ -1171,9 +1217,16 @@ export default function Landing() {
             className="grid lg:grid-cols-[1fr_auto] gap-6 items-center"
           >
             <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-3">Quer fechar o plano desta seleção?</h2>
+              <span
+                className="text-[11px] font-bold tracking-[0.18em] uppercase block mb-2"
+                style={{ color: isDark ? 'rgba(255,107,53,0.80)' : '#C94A1A' }}
+              >Próximo passo</span>
+              <h2 className="font-display font-black mb-3"
+                style={{ fontSize: 'clamp(32px, 4vw, 52px)', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
+                Pronto para <span style={{ color: '#FF6B35' }}>fechar</span> o plano?
+              </h2>
               <p className={t.textSec}>
-                Continue para o explorador com filtros aplicados e selecione os pontos para montar sua proposta comercial.
+                Continue para o explorador com os filtros aplicados e monte sua proposta comercial.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
@@ -1197,22 +1250,36 @@ export default function Landing() {
       </section>
 
       {/* ── Footer ───────────────────────────────────────────── */}
-      <footer className={`py-12 border-t relative ${t.footerBorder}`}>
+      <footer className={`py-10 border-t relative ${t.footerBorder}`}>
         <div className={`absolute inset-0 ${t.footerBg}`} />
-        <div className="relative max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <img src={isDark ? '/logo.png' : '/logo-light.png'} alt="Intermidia" className="h-6" />
-            <span className={`text-sm ${t.footerText}`}>© {new Date().getFullYear()}</span>
+        <div className="relative max-w-6xl mx-auto px-6">
+          {/* Row 1: Logo + tagline / nav links */}
+          <div
+            className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-6 mb-6"
+            style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : '#EFE0D8'}` }}
+          >
+            <div className="flex items-center gap-3">
+              <img src={isDark ? '/logo.png' : '/logo-light.png'} alt="Intermidia" className="h-7" />
+              <span className={`text-sm font-medium ${t.footerText}`}>Publicidade Out-of-Home</span>
+            </div>
+            <div className={`flex items-center gap-6 text-sm ${t.footerText}`}>
+              <Link to="/explorar" className={`transition-colors ${t.footerLink}`}>Pontos</Link>
+              <button onClick={() => setSelectedPracas([])} className={`transition-colors ${t.footerLink}`}>Todas as praças</button>
+              <button onClick={() => navigate('/planejar')} className={`transition-colors ${t.footerLink}`}>Planejar Campanha</button>
+            </div>
           </div>
-          <div className={`flex items-center gap-6 text-sm ${t.footerText}`}>
-            <Link to="/explorar" className={`transition-colors ${t.footerLink}`}>Pontos</Link>
-            <button onClick={() => setSelectedPracas([])} className={`transition-colors ${t.footerLink}`}>Todas as praças</button>
-            <span className="inline-flex items-center gap-2">
-              <i className="ri-building-2-line" style={{ fontSize: 14 }} /> {formatInt(pracas.length)} praças
-            </span>
-            <span className={`inline-flex items-center gap-1.5 ${t.footerText}`}>
-              <span>Desenvolvido por</span>
-              <span className="font-semibold text-brand-orange animate-pulse">Maitê Doin</span>
+          {/* Row 2: Copyright + metadata */}
+          <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs ${t.footerText}`}>
+            <span>© {new Date().getFullYear()} Intermidia · Todos os direitos reservados</span>
+            <span className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5">
+                <i className="ri-building-2-line" style={{ fontSize: 13 }} />
+                {formatInt(pracas.length)} praças atendidas
+              </span>
+              <span className="flex items-center gap-1">
+                Desenvolvido por{' '}
+                <span className="font-semibold text-brand-orange animate-pulse ml-1">Maitê Doin</span>
+              </span>
             </span>
           </div>
         </div>

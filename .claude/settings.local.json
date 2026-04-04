@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(ls -1 /c/midiakitdigital/frontend/src/components/*.jsx)"
+    ]
+  }
+}

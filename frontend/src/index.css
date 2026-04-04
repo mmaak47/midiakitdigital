@@ -355,3 +355,34 @@ select option:checked {
 .smart-map-light .leaflet-popup-close-button {
   color: #4b5563 !important;
 }
+
+/* ===== Landing Page: Agency Visual Enhancements ===== */
+
+/* Gradient section dividers */
+.landing-divider {
+  border-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(254, 92, 43, 0.25) 20%,
+    rgba(254, 92, 43, 0.25) 80%,
+    transparent 100%
+  ) 1;
+}
+
+[data-theme="light"] .landing-divider {
+  border-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(194, 74, 26, 0.20) 20%,
+    rgba(194, 74, 26, 0.20) 80%,
+    transparent 100%
+  ) 1;
+}
+
+/* Agency heading utility */
+.heading-agency {
+  font-family: 'Syne', 'Poppins', system-ui, sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+}
