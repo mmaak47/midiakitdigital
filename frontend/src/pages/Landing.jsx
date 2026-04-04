@@ -7,7 +7,7 @@ import CustomSelect from '../components/CustomSelect';
 import SmartMap from '../components/SmartMap';
 import { fetchPontos } from '../lib/api';
 import { getPointDisplayImages, getPrimaryPointMediaKitImage } from '../lib/pointImages';
-import { campaignTotals, sortFormatos } from '../lib/strategy';
+import { campaignTotals, sortFormatos, estimateReachFrequency } from '../lib/strategy';
 
 const MidiaKitSlidesMode = lazy(() => import('../components/MidiaKitSlidesMode'));
 
@@ -376,6 +376,8 @@ export default function Landing() {
   const [lightbox, setLightbox] = useState({ ponto: null, imageIndex: 0 });
   const [isDark, setIsDark] = useState(true);
   const [showCommercialShortcut, setShowCommercialShortcut] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('tipo');
   const [showWelcome, setShowWelcome] = useState(() => {
     if (typeof window === 'undefined') return false;
     return !sessionStorage.getItem('intermidia_welcome_seen');
@@ -503,17 +505,26 @@ export default function Landing() {
     };
   }, [pontos]);
 
+  const reachFrequency = useMemo(() => {
+    if (!pontos.length) return { estimatedUnique: 0, effectiveReachPct: 0, grps: 0, avgFrequency: 0 };
+    return estimateReachFrequency({ selected: pontos, cityInventory: allPontos });
+  }, [pontos, allPontos]);
+
   const formatos = useMemo(() => {
     const map = new Map();
     pontos.forEach((p) => {
       const tipo = p.tipo || 'Sem tipo';
-      if (!map.has(tipo)) map.set(tipo, { tipo, quantidade: 0, telas: 0, fluxo: 0 });
+      if (!map.has(tipo)) map.set(tipo, { tipo, quantidade: 0, telas: 0, fluxo: 0, preco: 0 });
       const current = map.get(tipo);
       current.quantidade += 1;
       current.telas += Number(p.telas) || 0;
       current.fluxo += Number(p.fluxo) || 0;
+      current.preco += Number(p.preco) || 0;
     });
-    return sortFormatos(Array.from(map.values()));
+    return sortFormatos(Array.from(map.values()).map((f) => ({
+      ...f,
+      cpm: f.fluxo > 0 ? f.preco / (f.fluxo / 1000) : 0,
+    })));
   }, [pontos]);
 
   const publicos = useMemo(() => {
@@ -531,18 +542,38 @@ export default function Landing() {
     return formatos.map((f) => ({ ...f, anchorId: anchorIdFromTipo(f.tipo) }));
   }, [formatos]);
 
+  const pontosFiltrados = useMemo(() => {
+    if (!searchQuery.trim()) return pontos;
+    const q = searchQuery.toLowerCase();
+    return pontos.filter((p) =>
+      (p.nome || '').toLowerCase().includes(q) ||
+      (p.endereco || '').toLowerCase().includes(q) ||
+      (p.cidade || '').toLowerCase().includes(q)
+    );
+  }, [pontos, searchQuery]);
+
   const pontosPorTipo = useMemo(() => {
     const map = new Map();
-    pontos.forEach((p) => {
+    pontosFiltrados.forEach((p) => {
       const tipo = p.tipo || 'Sem tipo';
       if (!map.has(tipo)) map.set(tipo, []);
       map.get(tipo).push(p);
     });
-    return tiposComAncora.map((tipoInfo) => ({
-      ...tipoInfo,
-      pontos: (map.get(tipoInfo.tipo) || []).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-    }));
-  }, [pontos, tiposComAncora]);
+    const comparators = {
+      tipo: (a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'),
+      fluxo_desc: (a, b) => (Number(b.fluxo) || 0) - (Number(a.fluxo) || 0),
+      preco_asc: (a, b) => (Number(a.preco) || 0) - (Number(b.preco) || 0),
+      preco_desc: (a, b) => (Number(b.preco) || 0) - (Number(a.preco) || 0),
+      nome: (a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'),
+    };
+    const cmp = comparators[sortBy] || comparators.tipo;
+    return tiposComAncora
+      .map((tipoInfo) => ({
+        ...tipoInfo,
+        pontos: (map.get(tipoInfo.tipo) || []).sort(cmp),
+      }))
+      .filter((g) => g.pontos.length > 0);
+  }, [pontosFiltrados, tiposComAncora, sortBy]);
 
   const explorerPath = useMemo(() => {
     const params = new URLSearchParams();
@@ -951,8 +982,8 @@ export default function Landing() {
               {[
                 { label: 'Pontos', raw: resumo.pontos, iconClass: 'ri-pin-distance-line', fmt: formatInt },
                 { label: 'Telas', raw: resumo.telas, iconClass: 'ri-tv-2-line', fmt: formatInt },
-                { label: 'Fluxo estimado', raw: resumo.fluxo, iconClass: 'ri-group-line', fmt: formatInt },
-                { label: 'Inserções', raw: resumo.insercoes, iconClass: 'ri-pulse-line', fmt: formatInt },
+                { label: 'Fluxo mensal', raw: resumo.fluxo, iconClass: 'ri-group-line', fmt: formatInt },
+                { label: 'Alcance estimado', raw: reachFrequency.estimatedUnique, iconClass: 'ri-user-star-line', fmt: formatInt },
                 { label: 'Ticket médio', raw: resumo.ticketMedio, iconClass: 'ri-coins-line', fmt: formatMoney },
                 { label: 'CPM médio', raw: resumo.cpm, iconClass: 'ri-focus-3-line', fmt: (v) => `R$ ${formatInt(v)}` },
               ].map((card, i) => (
@@ -1011,6 +1042,7 @@ export default function Landing() {
                     <th className="text-left font-medium px-5 py-3">Pontos</th>
                     <th className="text-left font-medium px-5 py-3">Telas</th>
                     <th className="text-left font-medium px-5 py-3">Fluxo</th>
+                    <th className="text-left font-medium px-5 py-3">CPM est.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1020,6 +1052,9 @@ export default function Landing() {
                       <td className={`px-5 py-3 ${t.tableCellSec}`}>{formatInt(f.quantidade)}</td>
                       <td className={`px-5 py-3 ${t.tableCellSec}`}>{formatInt(f.telas)}</td>
                       <td className={`px-5 py-3 ${t.tableCellSec}`}>{formatInt(f.fluxo)}</td>
+                      <td className={`px-5 py-3 font-medium ${f.cpm > 0 ? 'text-brand-orange' : t.tableCellSec}`}>
+                        {f.cpm > 0 ? `R$ ${formatInt(f.cpm)}` : '—'}
+                      </td>
                     </tr>
                   ))}
                   {!loading && formatos.length === 0 && (
@@ -1051,8 +1086,8 @@ export default function Landing() {
                 return (
                   <div key={item.label} className={t.audienceCard}>
                     <div className={`flex items-center justify-between text-sm mb-2`}>
-                      <span>{item.label}</span>
-                      <span className={t.textSec}>{item.total} pontos</span>
+                      <span className="font-medium">{item.label}</span>
+                      <span className={`tabular-nums ${t.textSec}`}>{item.total} pontos · <span className="text-brand-orange font-semibold">{pct}%</span></span>
                     </div>
                     <div className={t.vizBar}>
                       <motion.div
@@ -1075,7 +1110,7 @@ export default function Landing() {
       <section className={`py-12 border-b landing-divider relative ${t.sectionBorder}`}>
         {isDark && <div className="absolute inset-0 opacity-[0.022] bg-cover" style={{ backgroundImage: "url('/stock-wallpaper.jpg')", filter: 'blur(2px)' }} />}
         <div className="relative max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <span
                 className="text-[11px] font-bold tracking-[0.18em] uppercase block mb-0.5"
@@ -1083,7 +1118,51 @@ export default function Landing() {
               >Inventário completo</span>
               <h2 className="text-2xl font-bold">Catálogo da seleção atual</h2>
             </div>
-            <span className={`text-xs uppercase tracking-wide ${t.textMuted}`}>{formatInt(pontos.length)} pontos</span>
+            <span className={`text-xs uppercase tracking-wide ${t.textMuted}`}>
+              {searchQuery ? `${formatInt(pontosFiltrados.length)} de ${formatInt(pontos.length)}` : formatInt(pontos.length)} pontos
+            </span>
+          </div>
+
+          {/* Search + sort controls */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-5">
+            <div className="relative flex-1">
+              <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray-500" style={{ fontSize: 14 }} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar por nome, endereço ou cidade..."
+                className={`w-full h-[42px] pl-9 pr-9 rounded-[10px] border text-sm transition-colors outline-none ${
+                  isDark
+                    ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/40 focus:bg-white/[0.06]'
+                    : 'bg-white border-[#EFE0D8] text-[#1A1008] placeholder:text-[#9A8178] focus:border-brand-orange/50'
+                }`}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${isDark ? 'text-brand-gray-500 hover:text-white' : 'text-[#9A8178] hover:text-[#1A1008]'}`}
+                  aria-label="Limpar busca"
+                >
+                  <i className="ri-close-line" style={{ fontSize: 14 }} />
+                </button>
+              )}
+            </div>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className={`h-[42px] px-4 rounded-[10px] border text-sm font-medium outline-none transition-colors ${
+                isDark
+                  ? 'bg-white/[0.04] border-white/10 text-white'
+                  : 'bg-white border-[#EFE0D8] text-[#1A1008]'
+              }`}
+            >
+              <option value="tipo">Ordenar: por tipo</option>
+              <option value="fluxo_desc">Maior fluxo</option>
+              <option value="preco_asc">Menor preço</option>
+              <option value="preco_desc">Maior preço</option>
+              <option value="nome">Nome A–Z</option>
+            </select>
           </div>
 
           {!loading && tiposComAncora.length > 0 && (
