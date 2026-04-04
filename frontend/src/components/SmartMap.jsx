@@ -6,18 +6,129 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 const DEFAULT_CENTER = { latitude: -23.32, longitude: -51.16, zoom: 11 };
 
-function buildRasterFallbackStyle(isDark) {
-  const darkTiles = [
-    'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  ];
-  const lightTiles = [
-    'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    'https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+const CENSUS_PROFILE_COLORS = {
+  alta_renda:          '#f59e0b',
+  massa_varejo:        '#3b82f6',
+  jovem_universitario: '#8b5cf6',
+  terceira_idade:      '#10b981',
+  misto:               '#a3a3a3',
+  indefinido:          '#525252',
+};
+
+const CENSUS_PROFILE_LABELS = {
+  alta_renda:          'Público A/B',
+  massa_varejo:        'Massa / Varejo',
+  jovem_universitario: 'Jovem / Universitário',
+  terceira_idade:      'Terceira Idade',
+  misto:               'Perfil Misto',
+  indefinido:          'Sem perfil',
+};
+
+/** Generate a GeoJSON polygon approximating a circle of `radiusMeters` around [lng, lat]. */
+function makeCirclePolygon(lng, lat, radiusMeters, steps = 48) {
+  const earthRadius = 6_371_008.8;
+  const latRad = (lat * Math.PI) / 180;
+  const angularDist = radiusMeters / earthRadius;
+  const coords = [];
+  for (let i = 0; i <= steps; i++) {
+    const bearing = (2 * Math.PI * i) / steps;
+    const dLat = Math.asin(
+      Math.sin(latRad) * Math.cos(angularDist) +
+      Math.cos(latRad) * Math.sin(angularDist) * Math.cos(bearing),
+    );
+    const dLng =
+      (lng * Math.PI) / 180 +
+      Math.atan2(
+        Math.sin(bearing) * Math.sin(angularDist) * Math.cos(latRad),
+        Math.cos(angularDist) - Math.sin(latRad) * Math.sin(dLat),
+      );
+    coords.push([(dLng * 180) / Math.PI, (dLat * 180) / Math.PI]);
+  }
+  return coords;
+}
+
+/** Haversine distance in meters between two lat/lng pairs. */
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6_371_008.8;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Cluster nearby points into neighborhoods and return one feature per cluster. */
+const CLUSTER_MERGE_DISTANCE = 1200; // meters — points within this range merge into one neighborhood
+
+function buildNeighborhoodCircles(points, censusProfiles) {
+  // Build list of points with census data
+  const items = [];
+  for (const pt of points) {
+    const cp = censusProfiles[pt.id];
+    if (!cp?.perfil_dominante) continue;
+    items.push({ lat: pt.lat, lng: pt.lng, profile: cp.perfil_dominante });
+  }
+  if (!items.length) return [];
+
+  // Greedy distance-based clustering
+  const clusters = []; // each: { lats: [], lngs: [], profiles: [] }
+  for (const item of items) {
+    let merged = false;
+    for (const cl of clusters) {
+      const cLat = cl.lats.reduce((a, b) => a + b, 0) / cl.lats.length;
+      const cLng = cl.lngs.reduce((a, b) => a + b, 0) / cl.lngs.length;
+      if (haversineMeters(item.lat, item.lng, cLat, cLng) <= CLUSTER_MERGE_DISTANCE) {
+        cl.lats.push(item.lat);
+        cl.lngs.push(item.lng);
+        cl.profiles.push(item.profile);
+        merged = true;
+        break;
+      }
+    }
+    if (!merged) {
+      clusters.push({ lats: [item.lat], lngs: [item.lng], profiles: [item.profile] });
+    }
+  }
+
+  // Build one feature per cluster
+  return clusters.map((cl) => {
+    const centLat = cl.lats.reduce((a, b) => a + b, 0) / cl.lats.length;
+    const centLng = cl.lngs.reduce((a, b) => a + b, 0) / cl.lngs.length;
+
+    // Majority vote for dominant profile
+    const counts = {};
+    for (const p of cl.profiles) counts[p] = (counts[p] || 0) + 1;
+    const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+    const color = CENSUS_PROFILE_COLORS[dominant];
+
+    // Radius: covers the cluster spread + 800m analysis buffer
+    let maxDist = 0;
+    for (let i = 0; i < cl.lats.length; i++) {
+      const d = haversineMeters(cl.lats[i], cl.lngs[i], centLat, centLng);
+      if (d > maxDist) maxDist = d;
+    }
+    const radius = Math.max(800, maxDist + 800);
+
+    return {
+      type: 'Feature',
+      properties: { color, profile: dominant, count: cl.profiles.length },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [makeCirclePolygon(centLng, centLat, radius)],
+      },
+    };
+  });
+}
+
+const EMPTY_FC = { type: 'FeatureCollection', features: [] };
+
+function buildRasterFallbackStyle() {
+  const voyagerTiles = [
+    'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
   ];
 
   return {
@@ -25,7 +136,7 @@ function buildRasterFallbackStyle(isDark) {
     sources: {
       basemap: {
         type: 'raster',
-        tiles: isDark ? darkTiles : lightTiles,
+        tiles: voyagerTiles,
         tileSize: 256,
         attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
       },
@@ -63,20 +174,26 @@ function SmartMap({
   focusCoords = null,
   selectedCidades = [],
   cityBounds = {},
+  censusProfiles = null,
 }) {
   const [popupPoint, setPopupPoint] = useState(null);
+  const [showCircles, setShowCircles] = useState(true);
   const mapRef = useRef(null);
   const shouldAutoFitRef = useRef(true);
 
   const styleUrl = useMemo(() => {
-    const darkStyle = import.meta.env.VITE_TILE_CDN_STYLE_DARK;
-    const lightStyle = import.meta.env.VITE_TILE_CDN_STYLE_LIGHT;
-    if (isDark && darkStyle) return darkStyle;
-    if (!isDark && lightStyle) return lightStyle;
-    return buildRasterFallbackStyle(isDark);
-  }, [isDark]);
+    const cdnStyle = import.meta.env.VITE_TILE_CDN_STYLE;
+    if (cdnStyle) return cdnStyle;
+    return buildRasterFallbackStyle();
+  }, []);
 
   const valid = useMemo(() => sanitizePoints(pontos), [pontos]);
+
+  const censusCirclesGeoJson = useMemo(() => {
+    if (!censusProfiles || !valid.length) return EMPTY_FC;
+    const features = buildNeighborhoodCircles(valid, censusProfiles);
+    return features.length ? { type: 'FeatureCollection', features } : EMPTY_FC;
+  }, [valid, censusProfiles]);
 
   const pointsGeoJson = useMemo(() => ({
     type: 'FeatureCollection',
@@ -176,7 +293,7 @@ function SmartMap({
   }, [onSelect, valid]);
 
   return (
-    <div className={`smart-map h-full w-full rounded-2xl overflow-hidden border relative ${isDark ? 'smart-map-dark border-white/10' : 'smart-map-light border-neutral-200'}`}>
+    <div className={`smart-map h-full w-full rounded-2xl overflow-hidden border relative smart-map-light border-neutral-200`}>
       <Map
         ref={mapRef}
         mapLib={maplibregl}
@@ -193,6 +310,28 @@ function SmartMap({
         }}
       >
         <NavigationControl position="top-left" showCompass={false} />
+
+        <Source id="census-circles" type="geojson" data={censusCirclesGeoJson}>
+          <Layer
+            id="census-circles-fill"
+            type="fill"
+            layout={{ visibility: showCircles ? 'visible' : 'none' }}
+            paint={{
+              'fill-color': ['get', 'color'],
+              'fill-opacity': 0.18,
+            }}
+          />
+          <Layer
+            id="census-circles-stroke"
+            type="line"
+            layout={{ visibility: showCircles ? 'visible' : 'none' }}
+            paint={{
+              'line-color': ['get', 'color'],
+              'line-width': 1.5,
+              'line-opacity': 0.55,
+            }}
+          />
+        </Source>
 
         <Source
           id="points"
@@ -239,8 +378,43 @@ function SmartMap({
         ) : null}
       </Map>
 
+      {censusProfiles && (
+        <div className="absolute right-3 bottom-3 z-[500] rounded-lg border bg-white/90 border-neutral-200 text-neutral-800 backdrop-blur-sm shadow-sm overflow-hidden">
+          {/* Header com toggle */}
+          <button
+            onClick={() => setShowCircles(v => !v)}
+            className="w-full flex items-center justify-between gap-3 px-3 py-2 hover:bg-neutral-100 transition-colors"
+          >
+            <span className="font-semibold" style={{ fontSize: 11 }}>Perfil Censitário (800 m)</span>
+            <span
+              className="flex-shrink-0 w-7 h-4 rounded-full transition-colors duration-200 relative"
+              style={{ background: showCircles ? '#FE5C2B' : '#D1D5DB' }}
+            >
+              <span
+                className="absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200"
+                style={{ left: showCircles ? '14px' : '2px' }}
+              />
+            </span>
+          </button>
+          {/* Legenda */}
+          {showCircles && (
+            <div className="px-3 pb-2 border-t border-neutral-100">
+              {Object.entries(CENSUS_PROFILE_LABELS).map(([key, label]) => (
+                <div key={key} className="flex items-center gap-1.5 mt-1">
+                  <span
+                    className="inline-block w-3 h-3 rounded-sm flex-shrink-0"
+                    style={{ background: CENSUS_PROFILE_COLORS[key], opacity: 0.8 }}
+                  />
+                  <span style={{ fontSize: 11 }}>{label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {selectedId && (
-        <div className={`absolute left-3 bottom-3 z-[500] rounded-lg border border-brand-orange/40 px-3 py-2 text-xs ${isDark ? 'bg-brand-orange/20 text-white' : 'bg-brand-orange/12 text-neutral-800'}`}>
+        <div className="absolute left-3 bottom-3 z-[500] rounded-lg border border-brand-orange/40 px-3 py-2 text-xs bg-brand-orange/12 text-neutral-800">
           Ponto selecionado no mapa sincronizado com a listagem.
         </div>
       )}
@@ -257,5 +431,6 @@ export default memo(SmartMap, (prevProps, nextProps) => {
     && prevProps.focusCoords?.lat === nextProps.focusCoords?.lat
     && prevProps.focusCoords?.lng === nextProps.focusCoords?.lng
     && prevProps.selectedCidades === nextProps.selectedCidades
-    && prevProps.cityBounds === nextProps.cityBounds;
+    && prevProps.cityBounds === nextProps.cityBounds
+    && prevProps.censusProfiles === nextProps.censusProfiles;
 });

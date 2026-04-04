@@ -1440,9 +1440,8 @@ function buildCampaignScorePage({ proposalPoints, segmento, assets }) {
                 <div style="margin-top:3px;font-size:13px;color:rgba(255,255,255,0.55);">${escapeHtml(row.cidade)} · ${row.total} locais relevantes</div>
               </div>
               <div style="text-align:center;font-size:28px;font-weight:700;line-height:1;color:${row.score <= 0 ? 'rgba(255,255,255,0.25)' : color};font-family:Poppins, system-ui, sans-serif;">${row.score.toFixed(1).replace('.', ',')}</div>
-              <div style="text-align:center;font-size:18px;font-weight:700;line-height:1;color:${score >= 6 ? PROPOSAL_ACCENT : 'rgba(255,255,255,0.4)'};font-family:Poppins;">${score.toFixed(1).replace('.', ',')}</div>
               <div style="display:flex;align-items:center;height:8px;border-radius:100px;background:rgba(255,255,255,0.08);overflow:hidden;">
-                <div style="height:100%;width:${bar}%;border-radius:100px;background:${score >= 6 ? PROPOSAL_ACCENT : 'rgba(255,255,255,0.4)'};"></div>
+                <div style="height:100%;width:${bar}%;border-radius:100px;background:${row.score >= 6 ? PROPOSAL_ACCENT : 'rgba(255,255,255,0.4)'};"></div>
               </div>
             </div>
           `;
@@ -1511,63 +1510,93 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
   `, BRAND_DARK);
 }
 
-function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, assets }) {
+function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico, assets }) {
   const segmentLabel = getSegmentDisplayName(segmento);
-  const fluxoTotal = Number(proposalTotals?.fluxoTotal) || 0;
-  const insercoesTotal = Number(proposalTotals?.insercoesTotal) || 0;
-  const cpm = Number(proposalTotals?.cpmEstimado) || 0;
+  const pointCount = proposalPoints.length;
   const finalTotal = pricingSummary?.finalTotal ?? proposalTotals?.valorTotal ?? 0;
-  const mesesCampanha = 3;
-  const impactos3m = fluxoTotal * mesesCampanha;
+  const originalTotal = pricingSummary?.originalTotal ?? finalTotal;
+  const hasDiscount = pricingSummary?.hasDiscount && pricingSummary?.discountTotal > 0;
+  const discountTotal = pricingSummary?.discountTotal ?? 0;
+  const publicoLabel = Array.isArray(publico) ? publico.filter(Boolean).join(', ') : (publico || '—');
+  const cityLabel = Array.isArray(proposalCity) ? proposalCity.join(', ') : (proposalCity || '—');
+
+  const pointRows = proposalPoints.map((p) => `
+    <tr>
+      <td style="padding:10px 14px;font-size:13px;font-weight:600;color:#fff;border-bottom:1px solid rgba(255,255,255,0.06);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.nome || 'Ponto')}</td>
+      <td style="padding:10px 14px;font-size:12px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.06);">${escapeHtml(p.cidade || '—')}</td>
+      <td style="padding:10px 14px;font-size:12px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.06);">${escapeHtml(getPointTypeLabel(p) || '—')}</td>
+      <td style="padding:10px 14px;font-size:13px;font-weight:700;color:${PROPOSAL_ACCENT};border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;white-space:nowrap;">${formatMoney(p.precoFinal ?? p.preco ?? 0)}</td>
+    </tr>
+  `).join('');
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
-    <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(254,92,43,0.1) 0%,transparent 50%);"></div>
-    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;">
+    <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(254,92,43,0.08) 0%,transparent 50%);"></div>
+    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:42px 52px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;">
+
+      <!-- Header -->
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
-        <div style="display:flex;align-items:center;gap:16px;">
-          <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;" />
-          <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 18px;border-radius:100px;background:rgba(255,90,31,0.12);border:1px solid rgba(255,90,31,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Impacto da campanha</div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:36px;width:auto;object-fit:contain;" />
+          <div style="display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 16px;border-radius:100px;background:rgba(255,90,31,0.12);border:1px solid rgba(255,90,31,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Resumo da Proposta</div>
         </div>
-        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">${escapeHtml(segmentLabel)}</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="padding:6px 14px;border-radius:100px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Pontos</div>
+          <div style="padding:6px 14px;border-radius:100px;background:rgba(255,90,31,0.15);border:1px solid rgba(255,90,31,0.3);font-size:16px;font-weight:800;color:${PROPOSAL_ACCENT};font-family:Poppins, system-ui, sans-serif;">${pointCount}</div>
+        </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+      <!-- Summary cards -->
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;">
         ${[
-          { label: 'Impactos/mês', value: formatInt(fluxoTotal) },
-          { label: `Impactos em ${mesesCampanha} meses`, value: formatInt(impactos3m) },
-          { label: 'CPM estimado', value: formatDecimalMoney(cpm) }
+          { label: 'Cliente', value: proposalClient || '—' },
+          { label: 'Cidades', value: cityLabel },
+          { label: 'Segmento', value: segmentLabel },
+          { label: 'Públicos', value: publicoLabel },
+          { label: 'Pontos', value: String(pointCount) }
         ].map((card) => `
-          <div style="padding:24px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
-            <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(card.label)}</div>
-            <div style="margin-top:12px;font-size:48px;line-height:1;font-weight:800;color:#fff;font-family:Poppins, system-ui, sans-serif;">${escapeHtml(card.value)}</div>
+          <div style="padding:14px 16px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">${escapeHtml(card.label)}</div>
+            <div style="margin-top:6px;font-size:14px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(card.value)}">${escapeHtml(card.value)}</div>
           </div>
         `).join('')}
       </div>
 
-      <div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:20px;flex:1;">
-        <div style="padding:24px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};display:flex;flex-direction:column;gap:12px;">
-          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};border-top:2px solid ${PROPOSAL_ACCENT};padding-top:8px;">Impacto por ponto</div>
-          ${proposalPoints.map((p) => `
-            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.06);">
-              <div style="font-size:16px;color:#fff;font-weight:600;min-width:0;max-width:72%;line-height:1.25;white-space:normal;word-break:break-word;">${escapeHtml(p.nome || 'Ponto')}</div>
-              <div style="flex-shrink:0;font-size:15px;color:rgba(255,255,255,0.72);">${formatInt(p.fluxo || 0)}/mês</div>
-            </div>
-          `).join('')}
-        </div>
+      <!-- Points table header -->
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.45);border-bottom:2px solid ${PROPOSAL_ACCENT};padding-bottom:6px;">Pontos da campanha</div>
 
-        <div style="padding:24px;border-radius:12px;background:rgba(255,90,31,0.06);border:1px solid rgba(255,90,31,0.3);display:flex;flex-direction:column;gap:16px;">
-          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Resumo financeiro</div>
-          ${[
-            { label: 'Inserções/mês', value: `Mínimo de ${formatInt(insercoesTotal)}` },
-            { label: 'Valor Negociado', value: formatMoney(finalTotal) },
-            { label: 'Custo por impacto', value: formatCostPerImpact(fluxoTotal > 0 ? (finalTotal / fluxoTotal) : 0) }
-          ].map((row) => `
-            <div>
-              <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">${escapeHtml(row.label)}</div>
-              <div style="margin-top:6px;font-size:26px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${escapeHtml(row.value)}</div>
-            </div>
-          `).join('')}
+      <!-- Points table -->
+      <div style="flex:1;overflow:hidden;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr>
+              <th style="padding:10px 14px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Ponto</th>
+              <th style="padding:10px 14px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Cidade</th>
+              <th style="padding:10px 14px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Tipo</th>
+              <th style="padding:10px 14px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:right;border-bottom:1px solid rgba(255,255,255,0.1);">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pointRows}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Total footer -->
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:20px;padding:14px 20px;border-radius:12px;background:rgba(255,90,31,0.08);border:1px solid rgba(255,90,31,0.25);">
+        ${hasDiscount ? `
+          <div style="text-align:right;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);">Valor original</div>
+            <div style="margin-top:4px;font-size:16px;font-weight:600;color:rgba(255,255,255,0.45);text-decoration:line-through;font-family:Poppins, system-ui, sans-serif;">${formatMoney(originalTotal)}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);">Desconto</div>
+            <div style="margin-top:4px;font-size:16px;font-weight:600;color:#facc15;font-family:Poppins, system-ui, sans-serif;">-${formatMoney(discountTotal)}</div>
+          </div>
+        ` : ''}
+        <div style="text-align:right;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Total mensal</div>
+          <div style="margin-top:4px;font-size:28px;font-weight:800;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatMoney(finalTotal)}</div>
         </div>
       </div>
     </div>
@@ -1651,6 +1680,7 @@ export async function generateProposalPdf({
   strategicSubtitle,
   simulationSummary,
   pricingSummary,
+  publico,
   pointMapImages = [],
   showMetricsMethodology = true,
   showCampaignScore = true,
@@ -1726,7 +1756,7 @@ export async function generateProposalPdf({
   }
 
   if (showImpactSection) {
-    pages.push(buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, assets }));
+    pages.push(buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico, assets }));
   }
 
   const fileName = `proposta-${slugify(proposalClient)}-${new Date().toISOString().slice(0, 10)}.pdf`;

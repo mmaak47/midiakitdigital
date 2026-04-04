@@ -17,6 +17,7 @@ import {
   fetchEntornoJobs,
   fetchEntornoJobStatus,
   requestEntornoAnalysis,
+  requestCensusAnalysis,
   fetchAdminUsers,
   createAdminUser,
   deleteAdminUser,
@@ -162,6 +163,10 @@ export default function Admin() {
   const [entornoError, setEntornoError] = useState('');
   const [entornoJobs, setEntornoJobs] = useState([]);
   const [entornoCurrentJob, setEntornoCurrentJob] = useState(null);
+
+  const [censusBusy, setCensusBusy] = useState(false);
+  const [censusStatus, setCensusStatus] = useState('');
+  const [censusCidade, setCensusCidade] = useState('');
 
   const [cidades, setCidades] = useState([]);
   const [tipos, setTipos] = useState([]);
@@ -616,6 +621,19 @@ export default function Admin() {
     }
   };
 
+  const handleRunCensusAnalysis = async (force = false) => {
+    setCensusBusy(true);
+    setCensusStatus('');
+    try {
+      const result = await requestCensusAnalysis({ municipio: censusCidade || null, force });
+      setCensusStatus(result?.message || 'Análise censitária iniciada com sucesso.');
+    } catch (err) {
+      setCensusStatus(`Erro: ${err.message || 'Falha ao iniciar análise'}`);
+    } finally {
+      setCensusBusy(false);
+    }
+  };
+
   const updateField = (key, value) => {
     setForm((prev) => {
       const next = { ...prev, [key]: value };
@@ -996,19 +1014,72 @@ export default function Admin() {
         ) : null}
 
         {activeTab === 'entorno' ? (
-          <EntornoAdminPanel
-            form={entornoForm}
-            setForm={setEntornoForm}
-            cidades={cidades}
-            categories={entornoCategories}
-            providers={entornoProviders}
-            busy={entornoBusy}
-            error={entornoError}
-            onRun={handleRunEntorno}
-            currentJob={entornoCurrentJob}
-            jobs={entornoJobs}
-            isDark={isDark}
-          />
+          <>
+            <EntornoAdminPanel
+              form={entornoForm}
+              setForm={setEntornoForm}
+              cidades={cidades}
+              categories={entornoCategories}
+              providers={entornoProviders}
+              busy={entornoBusy}
+              error={entornoError}
+              onRun={handleRunEntorno}
+              currentJob={entornoCurrentJob}
+              jobs={entornoJobs}
+              isDark={isDark}
+            />
+
+            {/* Census Audience Profile Analysis */}
+            <section className="mb-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Perfis Censitários (IBGE + OSM)</h3>
+                  <p className="text-xs text-brand-gray-500 mt-1">
+                    Classifica os pontos por perfil de audiência (Alta Renda, Massa/Varejo, Jovem/Universitário, Terceira Idade)
+                    usando dados do Censo 2022 (IBGE) e POIs do OpenStreetMap. Use &ldquo;Forçar Reanálise&rdquo; após atualizar pontos.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap items-end gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-brand-gray-400">Cidade (deixe em branco para todas)</label>
+                  <select
+                    value={censusCidade}
+                    onChange={(e) => setCensusCidade(e.target.value)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-brand-orange/50 focus:outline-none"
+                  >
+                    <option value="">Todas as cidades</option>
+                    {cidades.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRunCensusAnalysis(false)}
+                  disabled={censusBusy}
+                  className="inline-flex items-center gap-2 rounded-xl border border-sky-500/40 bg-sky-500/15 px-4 py-2 text-sm font-semibold text-sky-400 hover:bg-sky-500/25 disabled:opacity-50"
+                >
+                  {censusBusy ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+                  Analisar novos pontos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRunCensusAnalysis(true)}
+                  disabled={censusBusy}
+                  className="inline-flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-400 hover:bg-amber-500/25 disabled:opacity-50"
+                >
+                  {censusBusy ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+                  Forçar Reanálise (aplicar novo algoritmo)
+                </button>
+              </div>
+              {censusStatus && (
+                <p className={`mt-3 text-xs ${censusStatus.startsWith('Erro') ? 'text-red-400' : 'text-sky-400'}`}>
+                  {censusStatus}
+                </p>
+              )}
+            </section>
+          </>
         ) : null}
 
         {activeTab === 'usuarios' ? (

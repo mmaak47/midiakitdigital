@@ -39,13 +39,16 @@ const PROFILES = {
     color: '#f59e0b',
     description: 'Público de alto poder aquisitivo, formação universitária e consumo premium.',
     osmMatch: {
-      amenity: ['bank', 'bureau_de_change', 'clinic', 'doctors', 'dentist', 'spa', 'coworking_space'],
-      shop: ['department_store', 'jewelry', 'watches', 'perfumery', 'wine', 'cosmetics', 'beauty', 'optician', 'bag'],
+      // Removed: bank, clinic, doctors, dentist — ubíquos em bairros populares no Brasil e não são
+      // indicadores confiáveis de renda alta. Mantemos apenas POIs genuinamente premium.
+      amenity: ['bureau_de_change', 'spa', 'coworking_space'],
+      shop: ['department_store', 'jewelry', 'watches', 'perfumery', 'wine', 'cosmetics', 'optician', 'bag'],
       leisure: ['fitness_centre', 'sports_centre', 'swimming_pool'],
-      office: ['lawyer', 'financial', 'insurance', 'consulting', 'accountant', 'it', 'architect', 'estate_agent', 'investment'],
+      office: ['lawyer', 'financial', 'insurance', 'consulting', 'architect', 'estate_agent', 'investment'],
       tourism: ['hotel']
     },
-    expectedPois: 30
+    // Aumentado de 30 para 50: requer mais POIs premium para saturar o sinal
+    expectedPois: 50
   },
   massa_varejo: {
     label: 'Massa / Varejo',
@@ -53,7 +56,8 @@ const PROFILES = {
     color: '#3b82f6',
     description: 'Público de renda média, alta concentração demográfica e consumo cotidiano.',
     osmMatch: {
-      amenity: ['marketplace', 'post_office', 'bus_station', 'fuel', 'parking', 'taxi', 'car_wash', 'fast_food'],
+      // bank adicionado aqui: agências bancárias são ubíquas em centros comerciais populares
+      amenity: ['marketplace', 'post_office', 'bus_station', 'fuel', 'parking', 'taxi', 'car_wash', 'fast_food', 'bank'],
       shop: ['supermarket', 'convenience', 'clothes', 'mobile_phone', 'variety_store', 'hardware', 'shoes', 'electronics', 'butcher', 'greengrocer', 'bakery', 'lottery', 'tyres', 'car_repair'],
       building: ['commercial'],
       office: ['__any__']
@@ -66,11 +70,17 @@ const PROFILES = {
     color: '#8b5cf6',
     description: 'Público jovem (18–29), universitário, conectado e vida social ativa.',
     osmMatch: {
-      amenity: ['university', 'college', 'language_school', 'bar', 'pub', 'nightclub', 'cafe', 'fast_food', 'bicycle_rental', 'library', 'cinema', 'coworking_space', 'food_court'],
-      shop: ['books', 'computer', 'mobile_phone', 'coffee', 'sports'],
-      leisure: ['dance', 'escape_game', 'amusement_arcade', 'fitness_centre', 'sports_centre']
+      amenity: [
+        'university', 'college', 'language_school', 'school',
+        'bar', 'pub', 'nightclub', 'cafe', 'fast_food', 'food_court',
+        'bicycle_rental', 'library', 'cinema', 'coworking_space',
+        'arts_centre', 'theatre', 'music_venue', 'studio'
+      ],
+      shop: ['books', 'computer', 'video_games', 'music', 'sports', 'coffee', 'tattoo'],
+      leisure: ['dance', 'escape_game', 'amusement_arcade', 'fitness_centre', 'sports_centre', 'skatepark', 'pitch']
     },
-    expectedPois: 20
+    // Reduzido de 20 para 15: áreas universitárias têm POIs concentrados mas em menor variedade
+    expectedPois: 15
   },
   terceira_idade: {
     label: 'Terceira Idade',
@@ -78,12 +88,18 @@ const PROFILES = {
     color: '#10b981',
     description: 'Público 60 + anos, frequentador de saúde, espaços religiosos e lazer.',
     osmMatch: {
-      amenity: ['hospital', 'clinic', 'doctors', 'place_of_worship', 'social_facility', 'community_centre', 'pharmacy'],
+      amenity: [
+        'hospital', 'clinic', 'doctors', 'dentist',
+        'place_of_worship', 'social_facility', 'community_centre', 'social_centre',
+        'pharmacy', 'post_office'
+      ],
       healthcare: ['__any__'],
-      leisure: ['park', 'garden', 'playground', 'nature_reserve'],
-      shop: ['pharmacy', 'chemist', 'hearing_aids', 'medical_supply', 'herbalist']
+      leisure: ['park', 'garden', 'nature_reserve', 'bowling_alley', 'dance'],
+      // lottery (casa lotérica) é fortemente frequentado por idosos no Brasil para
+      // receber aposentadoria/benefícios — indicador muito relevante culturalmente
+      shop: ['pharmacy', 'chemist', 'hearing_aids', 'medical_supply', 'herbalist', 'lottery', 'optician']
     },
-    expectedPois: 20
+    expectedPois: 18
   }
 };
 
@@ -379,14 +395,11 @@ function parseAgeBrackets(resultados) {
     const ageNums = catName.match(/(\d+)/g);
     if (ageNums) {
       const low = parseInt(ageNums[0], 10);
-      if (low >= 15 && low < 30) jovem += val;
+      // Jovem: 18-29 anos (excluímos 15-17 para ser mais específico de universitários)
+      if (low >= 18 && low < 30) jovem += val;
+      // Idoso: 60+ anos — "ou mais" é tratado aqui também (ex: "75 anos ou mais")
+      // Bug anterior: condição !idoso impedia que grupos subsequentes fossem contabilizados
       if (low >= 60) idoso += val;
-    }
-
-    // Handle "ou mais" (e.g., "80 anos ou mais")
-    if (catName.includes('ou mais') && ageNums) {
-      const age = parseInt(ageNums[0], 10);
-      if (age >= 60 && !idoso) idoso += val;
     }
   }
 
@@ -551,9 +564,25 @@ async function fetchAndClassifyPOIs(lat, lng) {
 }
 
 // ─── Scoring Engine ─────────────────────────────────────────────────────────
+//
+// Estratégia de pontuação revisada para evitar viés de "Alta Renda universal":
+//
+// Problema anterior: o PIB per capita municipal (dado de NÍVEL DE CIDADE) era usado
+// com peso elevado para todos os pontos da mesma cidade, fazendo cidades com PIB
+// mediano (Londrina ~R$40k, Maringá ~R$40k) ou alto (Balneário Camboriú ~R$60k)
+// classificarem TODOS seus pontos como Alta Renda, independente do bairro real.
+//
+// Solução: distinguir entre renda REAL do setor (quando disponível via IBGE_9606 ou
+// IBGE_N8) vs. estimativa derivada do PIB municipal (fallback). Dar peso muito maior
+// ao sinal de POI local (que é específico do raio de 800m ao redor do ponto).
 
 function scoreProfiles(poiCounts, census) {
   const scores = {};
+
+  // Verifica se a renda vem de dado censitário real (não fallback de PIB)
+  const hasRealIncomeData = Array.isArray(census.fontes) &&
+    (census.fontes.includes('IBGE_9606') || census.fontes.includes('IBGE_N8_renda'));
+  const hasSetorIncome = Array.isArray(census.fontes) && census.fontes.includes('IBGE_N8_renda');
 
   // ── alta_renda ──────────────────────────────────────────────
   {
@@ -562,21 +591,39 @@ function scoreProfiles(poiCounts, census) {
     let censusWeight = 0;
 
     if (census.rendaMediaDomiciliar) {
-      censusSignal += clamp(census.rendaMediaDomiciliar / 5000) * 0.45;
-      censusWeight += 0.45;
+      if (hasSetorIncome) {
+        // Renda real do SETOR CENSITÁRIO — máxima confiabilidade (nível bairro)
+        censusSignal += clamp(census.rendaMediaDomiciliar / 5000) * 0.55;
+        censusWeight += 0.55;
+      } else if (hasRealIncomeData) {
+        // Renda real do município (Table 9606) — confiável mas nível cidade
+        censusSignal += clamp(census.rendaMediaDomiciliar / 5000) * 0.30;
+        censusWeight += 0.30;
+        // PIB como sinal complementar moderado
+        if (census.pibPerCapita) {
+          censusSignal += clamp(census.pibPerCapita / 70000) * 0.10;
+          censusWeight += 0.10;
+        }
+      } else if (census.pibPerCapita) {
+        // Apenas PIB disponível (fallback estimado) — peso baixo para evitar
+        // inflacionar Alta Renda em cidades com PIB mediano/alto uniformemente
+        censusSignal += clamp(census.pibPerCapita / 70000) * 0.15;
+        censusWeight += 0.15;
+      }
+    } else if (census.pibPerCapita) {
+      censusSignal += clamp(census.pibPerCapita / 70000) * 0.15;
+      censusWeight += 0.15;
     }
-    if (census.pibPerCapita) {
-      censusSignal += clamp(census.pibPerCapita / 50000) * 0.30;
-      censusWeight += 0.30;
-    }
+
     if (census.pctInstrucaoSuperior != null) {
       censusSignal += clamp(census.pctInstrucaoSuperior / 0.40) * 0.25;
       censusWeight += 0.25;
     }
 
+    // POI recebe peso maior (60%) — é o único sinal local/bairro disponível na maioria dos casos
     scores.alta_renda = censusWeight > 0
-      ? Number((poiSignal * 0.35 + (censusSignal / censusWeight) * 0.65).toFixed(4))
-      : Number((poiSignal * 0.70).toFixed(4));
+      ? Number((poiSignal * 0.60 + (censusSignal / censusWeight) * 0.40).toFixed(4))
+      : Number((poiSignal * 0.90).toFixed(4));
   }
 
   // ── massa_varejo ────────────────────────────────────────────
@@ -585,19 +632,26 @@ function scoreProfiles(poiCounts, census) {
     let censusSignal = 0;
     let censusWeight = 0;
 
-    if (census.rendaMediaDomiciliar) {
-      // Bell-curve: peaks at R$ 3 000
-      const dist = Math.abs(census.rendaMediaDomiciliar - 3000);
-      censusSignal += clamp(1 - dist / 3000) * 0.50;
-      censusWeight += 0.50;
+    if (census.rendaMediaDomiciliar && hasRealIncomeData) {
+      // Bell-curve: pico em R$ 2.500 (renda típica de bairros populares em cidades médias BR)
+      const dist = Math.abs(census.rendaMediaDomiciliar - 2500);
+      censusSignal += clamp(1 - dist / 2500) * 0.55;
+      censusWeight += 0.55;
+    } else if (census.pibPerCapita) {
+      // Cidades com PIB per capita entre R$25k-45k/ano têm perfil de massa/varejo mais forte
+      const pibSignal = clamp(1 - Math.abs(census.pibPerCapita - 35000) / 35000);
+      censusSignal += pibSignal * 0.25;
+      censusWeight += 0.25;
     }
     if (census.population) {
-      censusSignal += clamp(census.population / 200000) * 0.50;
-      censusWeight += 0.50;
+      // Reduzido de 0.50 para 0.25: tamanho de cidade não indica perfil massa/varejo isoladamente —
+      // o sinal de POI local é muito mais relevante para diferenciar o perfil real do bairro
+      censusSignal += clamp(census.population / 300000) * 0.25;
+      censusWeight += 0.25;
     }
 
     scores.massa_varejo = censusWeight > 0
-      ? Number((poiSignal * 0.50 + (censusSignal / censusWeight) * 0.50).toFixed(4))
+      ? Number((poiSignal * 0.60 + (censusSignal / censusWeight) * 0.40).toFixed(4))
       : Number(poiSignal.toFixed(4));
   }
 
@@ -608,16 +662,19 @@ function scoreProfiles(poiCounts, census) {
     let censusWeight = 0;
 
     if (census.pctJovem18_29 != null) {
-      censusSignal += clamp(census.pctJovem18_29 / 0.35);
+      // Threshold reduzido de 0.35 → 0.25: cidades brasileiras têm em média 20-25% jovens,
+      // exigir 35% era irrealista e impedia que o perfil emergisse
+      censusSignal += clamp(census.pctJovem18_29 / 0.25);
       censusWeight += 1;
-    } else if (census.population && census.population > 100000) {
-      // Larger cities tend to be younger
-      censusSignal += clamp(census.population / 500000) * 0.3;
-      censusWeight += 0.3;
+    } else if (census.population) {
+      // Fallback: cidades universitárias (Londrina, Maringá, Florianópolis) tendem a ser maiores
+      // e mais jovens — sinal fraco mas melhor do que zero
+      censusSignal += clamp(census.population / 400000) * 0.25;
+      censusWeight += 0.25;
     }
 
     scores.jovem_universitario = censusWeight > 0
-      ? Number((poiSignal * 0.55 + (censusSignal / censusWeight) * 0.45).toFixed(4))
+      ? Number((poiSignal * 0.60 + (censusSignal / censusWeight) * 0.40).toFixed(4))
       : Number(poiSignal.toFixed(4));
   }
 
@@ -628,21 +685,40 @@ function scoreProfiles(poiCounts, census) {
     let censusWeight = 0;
 
     if (census.pctIdoso60plus != null) {
-      censusSignal += clamp(census.pctIdoso60plus / 0.25);
+      // Threshold ajustado: média BR é ~13%, exigir 25% era alto demais.
+      // 15% é um limiar mais razoável para identificar concentração de idosos
+      censusSignal += clamp(census.pctIdoso60plus / 0.15);
       censusWeight += 1;
+    } else if (census.population) {
+      // Fallback: cidades menores e cidades litorâneas/interior tendem a ter mais idosos
+      // proporcionalmente; grandes metrópoles diluem esse perfil
+      censusSignal += clamp(1 - census.population / 600000) * 0.25;
+      censusWeight += 0.25;
     }
 
     scores.terceira_idade = censusWeight > 0
-      ? Number((poiSignal * 0.50 + (censusSignal / censusWeight) * 0.50).toFixed(4))
+      ? Number((poiSignal * 0.55 + (censusSignal / censusWeight) * 0.45).toFixed(4))
       : Number(poiSignal.toFixed(4));
   }
 
   // ── aggregate ───────────────────────────────────────────────
   const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-  const perfilDominante = sorted[0][0];
   const maxScore = sorted[0][1];
   const avgScore = sorted.reduce((s, [, v]) => s + v, 0) / sorted.length;
   const scoreGeral = Number((maxScore * 0.6 + avgScore * 0.4).toFixed(4));
+
+  // Dominance margin: se a diferença entre o 1º e 2º perfil for < 0.08 (8pp),
+  // a classificação não é confiável — marcar como "misto" para não enganar o usuário.
+  // Excepção: se o score máximo < 0.20, nenhum perfil tem sinal forte → "indefinido".
+  const DOMINANCE_MARGIN = 0.08;
+  let perfilDominante;
+  if (maxScore < 0.20) {
+    perfilDominante = 'indefinido';
+  } else if (sorted.length >= 2 && (sorted[0][1] - sorted[1][1]) < DOMINANCE_MARGIN) {
+    perfilDominante = 'misto';
+  } else {
+    perfilDominante = sorted[0][0];
+  }
 
   return { perfis: scores, perfilDominante, scoreGeral };
 }
@@ -676,6 +752,26 @@ async function analyzePoint(point) {
           || null;
       }
     } catch { /* non-critical */ }
+  }
+
+  // 3b. Try to fetch income data at setor censitário level (N8) via IBGE SIDRA.
+  // Tabela 9606 (classes de rendimento) pode estar disponível em N8 para o Censo 2022.
+  // Se funcionar, substitui a estimativa de renda derivada do PIB municipal — muito mais preciso.
+  if (setorCensitario && !census.fontes.includes('IBGE_9606')) {
+    try {
+      const setorUrl = `${IBGE_AGREGADOS_URL}/9606/periodos/2022/variaveis/93?localidades=N8[${encodeURIComponent(setorCensitario)}]`;
+      const setorRes = await fetchJson(setorUrl);
+      const setorResultados = setorRes?.[0]?.resultados || [];
+      if (setorResultados.length > 0) {
+        const setorRenda = estimateRendaFromBrackets(setorResultados);
+        if (setorRenda != null && setorRenda > 0) {
+          // Dado de setor real disponível — muito mais preciso que nível municipal
+          census = { ...census, rendaMediaDomiciliar: setorRenda };
+          census.fontes = [...census.fontes, 'IBGE_N8_renda'];
+          console.log(`[census] Setor-level renda for ${setorCensitario}: R$${setorRenda.toFixed(0)}/mês`);
+        }
+      }
+    } catch { /* N8 não disponível para esta tabela — fallback gracioso */ }
   }
 
   // 4. Overpass POI analysis

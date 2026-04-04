@@ -571,3 +571,115 @@ export async function updateAdminUserRole(id, role) {
   }
   return res.json();
 }
+
+// ============== AUDIENCE INTELLIGENCE ==============
+
+export async function fetchAudienceProfiles() {
+  const res = await apiRequest('/audience-intel/profiles');
+  if (!res.ok) throw new Error('Erro ao buscar perfis de audiência');
+  return res.json();
+}
+
+export async function upsertAudienceProfile(name, { label, description, weights }) {
+  const res = await apiRequest(`/audience-intel/profiles/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ label, description, weights })
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao salvar perfil');
+  }
+  return res.json();
+}
+
+export async function deleteAudienceProfile(name) {
+  const res = await apiRequest(`/audience-intel/profiles/${encodeURIComponent(name)}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao excluir perfil');
+  }
+  return res.json();
+}
+
+export async function fetchAudienceScores({ cidade, profile, minScore } = {}) {
+  const params = new URLSearchParams();
+  if (cidade) params.set('cidade', cidade);
+  if (profile) params.set('profile', profile);
+  if (minScore) params.set('minScore', minScore);
+  const qs = params.toString();
+  const res = await apiRequest(`/audience-intel/scores${qs ? '?' + qs : ''}`);
+  if (!res.ok) throw new Error('Erro ao buscar scores');
+  return res.json();
+}
+
+export async function fetchAudiencePointScores(pontoId) {
+  const res = await apiRequest(`/audience-intel/scores/${pontoId}`);
+  if (!res.ok) throw new Error('Erro ao buscar scores do ponto');
+  return res.json();
+}
+
+export async function fetchAudienceRanking({ profile, cidade, limit } = {}) {
+  const params = new URLSearchParams();
+  if (profile) params.set('profile', profile);
+  if (cidade) params.set('cidade', cidade);
+  if (limit) params.set('limit', String(limit));
+  const qs = params.toString();
+  const res = await apiRequest(`/audience-intel/ranking${qs ? '?' + qs : ''}`);
+  if (!res.ok) throw new Error('Erro ao buscar ranking');
+  return res.json();
+}
+
+export async function requestAudienceAnalysis(pontoId, { force = false } = {}) {
+  const res = await apiRequest(`/audience-intel/analyze/${pontoId}${force ? '?force=1' : ''}`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao analisar ponto');
+  }
+  return res.json();
+}
+
+export async function requestAudienceCityAnalysis({ cidade, force = false } = {}) {
+  const res = await apiRequest('/audience-intel/analyze-city', {
+    method: 'POST',
+    body: JSON.stringify({ cidade, force })
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao iniciar análise');
+  }
+  return res.json();
+}
+
+export async function fetchAudienceJob(jobId) {
+  const res = await apiRequest(`/audience-intel/jobs/${jobId}`);
+  if (!res.ok) throw new Error('Erro ao buscar status do job');
+  return res.json();
+}
+
+export async function fetchAudienceHeatmap({ profile, cidade, bounds, cellSize } = {}) {
+  const params = new URLSearchParams();
+  if (profile) params.set('profile', profile);
+  if (cidade) params.set('cidade', cidade);
+  if (bounds) params.set('bounds', bounds.join(','));
+  if (cellSize) params.set('cellSize', String(cellSize));
+  const qs = params.toString();
+  const res = await apiRequest(`/audience-intel/heatmap${qs ? '?' + qs : ''}`);
+  if (!res.ok) throw new Error('Erro ao buscar heatmap');
+  return res.json();
+}
+
+export async function simulateCampaign({ selectedPoints, investment, periodDays }) {
+  const res = await apiRequest('/audience-intel/simulate', {
+    method: 'POST',
+    body: JSON.stringify({ selectedPoints, investment, periodDays })
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro na simulação');
+  }
+  return res.json();
+}

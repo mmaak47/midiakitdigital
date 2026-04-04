@@ -613,7 +613,7 @@ export function estimateReachFrequency({ selected = [], cityInventory = [], peri
   const marketUniqueBase = Math.max(45000, Math.round((cityTotals.fluxoTotal || totals.fluxoTotal) / 6.8));
   const estimatedUnique = Math.max(1, Math.round(marketUniqueBase * (effectiveReachPct / 100)));
   const avgFrequency = totals.fluxoTotal / estimatedUnique;
-  const grps = (effectiveReachPct * avgFrequency) / 100;
+  const grps = effectiveReachPct * avgFrequency;
 
   return {
     grossReachPct: Number(grossReachPct.toFixed(1)),
@@ -919,6 +919,7 @@ function buildCandidate(point, {
   segmento,
   medianPrice,
   maxPrice,
+  maxFluxo,
   entornoByPoint,
   audienceTags,
   availabilityPreference,
@@ -945,6 +946,13 @@ function buildCandidate(point, {
     _entornoScore: entornoScore,
     _geoAudienceScore: geoAudienceScore,
     _censusScore: censusScore,
+    _screenScore: computeScreenScore(point, {
+      geoProfile: geoProfilesByPoint?.[point.id] || geoProfilesByPoint?.[String(point.id)] || null,
+      censusProfile: censusProfilesByPoint?.[point.id] || censusProfilesByPoint?.[String(point.id)] || null,
+      entornoMetrics: entornoByPoint?.[point.id] || entornoByPoint?.[String(point.id)] || null,
+      maxFluxo: maxFluxo || 500000,
+      medianPrice
+    }),
     _baseScore:
       objectiveScore * 1.25 +
       efficiencyScore * 0.9 +
@@ -1041,6 +1049,7 @@ export function suggestIdealPlan({
   const prices = filtered.map((p) => Math.max(0, toNumber(p.preco))).sort((a, b) => a - b);
   const medianPrice = prices[Math.floor(prices.length / 2)] || 0;
   const maxPrice = prices[prices.length - 1] || 0;
+  const maxFluxo = Math.max(1, ...filtered.map((p) => toNumber(p.fluxo)));
 
   const candidates = filtered
     .map((point) => buildCandidate(point, {
@@ -1049,6 +1058,7 @@ export function suggestIdealPlan({
       segmento,
       medianPrice,
       maxPrice,
+      maxFluxo,
       entornoByPoint,
       audienceTags,
       availabilityPreference,
@@ -1876,3 +1886,131 @@ export function rankPointsWithScore({
 }
 
 export { DEFAULT_WEIGHTS as RECOMMENDATION_WEIGHTS };
+
+// ---------------------------------------------------------------------------
+// ScreenScore — 0-100 composite quality metric per DOOH point
+// ---------------------------------------------------------------------------
+
+const SCREEN_SCORE_WEIGHTS = {
+  fluxo: 25,
+  eficiencia: 20,
+  entorno: 15,
+  geoaudience: 15,
+  census: 10,
+  formato: 10,
+  cobertura: 5
+};
+
+function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+
+/**
+ * Compute a 0-100 ScreenScore for a single DOOH point.
+ * Aggregates traffic, cost-efficiency, entorno, geo-audience neighourhood,
+ * census demographic, format quality and coverage signals.
+ *
+ * @param {object} point — ponto row (id, fluxo, preco, insercoes, tipo, publico, ...)
+ * @param {object} opts
+ * @param {object|null} opts.geoProfile — geo_audience_profiles row for this point
+ * @param {object|null} opts.censusProfile — census_audience_profiles row for this point
+ * @param {object|null} opts.entornoMetrics — entorno_cache metrics for this point
+ * @param {number}      opts.maxFluxo — max fluxo across inventory (for normalisation)
+ * @param {number}      opts.medianPrice — median price across inventory
+ * @returns {{ score: number, breakdown: Record<string, number>, grade: string }}
+ */
+export function computeScreenScore(point, {
+  geoProfile = null,
+  censusProfile = null,
+  entornoMetrics = null,
+  maxFluxo = 1,
+  medianPrice = 1
+} = {}) {
+  const fluxo = toNumber(point.fluxo);
+  const preco = Math.max(1, toNumber(point.preco));
+  const insercoes = toNumber(point.insercoes);
+  const tipo = String(point.tipo || '').toLowerCase();
+
+  // ── Dimension 1: Traffic volume (0-1)
+  const dimFluxo = clamp01(fluxo / Math.max(maxFluxo, 1));
+
+  // ── Dimension 2: Cost-efficiency (0-1)
+  const cpm = fluxo > 0 ? preco / (fluxo / 1000) : 999;
+  const cpmNorm = clamp01(1 - (cpm / 80)); // CPM < 80 = good
+  const insercoesPerReal = insercoes / preco;
+  const insNorm = clamp01(insercoesPerReal / 200);
+  const dimEficiencia = cpmNorm * 0.65 + insNorm * 0.35;
+
+  // ── Dimension 3: Entorno / POI affinity (0-1)
+  let dimEntorno = 0;
+  if (entornoMetrics) {
+    const affinity = Number(entornoMetrics.affinity_score) || Number(entornoMetrics.score_relevancia) || 0;
+    dimEntorno = clamp01(affinity / 100);
+  }
+
+  // ── Dimension 4: GeoAudience neighbourhood quality (0-1)
+  let dimGeo = 0;
+  if (geoProfile && geoProfile.neighborhood_type !== 'indefinido') {
+    const conf = clamp01((geoProfile.confidence || 0) / 100);
+    const socio = clamp01((geoProfile.socioeconomic_score || 0) / 100);
+    const density = { 'muito alta': 1, alta: 0.8, media: 0.55, baixa: 0.3, 'muito baixa': 0.1 };
+    const densNorm = density[geoProfile.urban_density] || 0.3;
+    const poisNorm = clamp01((geoProfile.total_pois || 0) / 80);
+    dimGeo = conf * 0.3 + socio * 0.3 + densNorm * 0.2 + poisNorm * 0.2;
+  }
+
+  // ── Dimension 5: Census demographic (0-1)
+  let dimCensus = 0;
+  if (censusProfile && censusProfile.perfis) {
+    const perfis = censusProfile.perfis;
+    const maxPerfil = Math.max(
+      perfis.alta_renda || 0,
+      perfis.massa_varejo || 0,
+      perfis.jovem_universitario || 0,
+      perfis.terceira_idade || 0
+    );
+    const scoreGeral = censusProfile.score_geral || 0;
+    dimCensus = clamp01(maxPerfil * 0.6 + scoreGeral * 0.4);
+  }
+
+  // ── Dimension 6: Format quality (0-1)
+  let dimFormato = 0.4; // default baseline
+  if (tipo.includes('elevador'))  dimFormato = 0.85;
+  else if (tipo.includes('painel led')) dimFormato = 0.90;
+  else if (tipo.includes('indoor') || tipo.includes('video wall')) dimFormato = 0.75;
+  else if (tipo.includes('frontlight') || tipo.includes('backlight')) dimFormato = 0.80;
+  else if (tipo.includes('totem')) dimFormato = 0.60;
+
+  // ── Dimension 7: Coverage / price positioning (0-1)
+  const priceFactor = medianPrice > 0 ? preco / medianPrice : 1;
+  const dimCobertura = clamp01(1.2 - priceFactor * 0.4); // cheaper = better coverage potential
+
+  // Weighted average → 0-100
+  const w = SCREEN_SCORE_WEIGHTS;
+  const totalW = Object.values(w).reduce((s, v) => s + v, 0);
+  const raw = (
+    dimFluxo * w.fluxo +
+    dimEficiencia * w.eficiencia +
+    dimEntorno * w.entorno +
+    dimGeo * w.geoaudience +
+    dimCensus * w.census +
+    dimFormato * w.formato +
+    dimCobertura * w.cobertura
+  ) / totalW;
+
+  const score = Math.round(raw * 100);
+
+  const breakdown = {
+    fluxo: Math.round(dimFluxo * 100),
+    eficiencia: Math.round(dimEficiencia * 100),
+    entorno: Math.round(dimEntorno * 100),
+    geoaudience: Math.round(dimGeo * 100),
+    census: Math.round(dimCensus * 100),
+    formato: Math.round(dimFormato * 100),
+    cobertura: Math.round(dimCobertura * 100)
+  };
+
+  const grade = score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : 'D';
+
+  return { score, breakdown, grade };
+}
+
+export { SCREEN_SCORE_WEIGHTS };
