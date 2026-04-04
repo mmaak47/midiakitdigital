@@ -6,7 +6,7 @@ const PRINTS_DIR = path.join(ROOT, 'frontend', 'public', 'prints');
 const PUBLIC_DIR = path.join(ROOT, 'frontend', 'public');
 const OUTPUT_DIR = path.join(ROOT, 'docs');
 const OUTPUT_FILE = path.join(OUTPUT_DIR, 'Sistema_Intermidia_Funcionalidades_Light.pdf');
-const ENDPOINT = 'http://REDACTED_OLD_VPS_IP/api/pdf/render';
+const ENDPOINT = process.env.PDF_ENDPOINT || 'http://localhost:3002/api/pdf/render';
 
 function readAsDataUrl(filePath) {
   const ext = path.extname(filePath).toLowerCase();

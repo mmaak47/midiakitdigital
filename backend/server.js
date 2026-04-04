@@ -110,10 +110,7 @@ function getAllowedOrigins() {
 
   return new Set([
     'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://REDACTED_VPS_IP',
-    'http://REDACTED_OLD_VPS_IP',
-    'http://REDACTED_OLD_VPS_IP'
+    'http://127.0.0.1:5173'
   ]);
 }
 
