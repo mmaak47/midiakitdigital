@@ -4,10 +4,11 @@ import { fetchVendas, updateVendaStatus, fetchVendaEtapas } from '../../lib/api'
 
 // Definição ordenada das etapas pós-venda
 const ETAPAS_DEF = [
-  { key: 'faturado',         label: 'Faturado',            emoji: '\u2705' },
-  { key: 'followup_criacao', label: 'Follow up Criação',  emoji: '\uD83C\uDFA8' },
-  { key: 'contrato',         label: 'Contrato',            emoji: '\uD83D\uDCC4' },
-  { key: 'assinatura',       label: 'Assinatura',          emoji: '\u270D\uFE0F' },
+  { key: 'contrato_enviado',  label: 'Contrato Enviado',    emoji: '📤' },
+  { key: 'contrato_assinado', label: 'Contrato Assinado',   emoji: '✅' },
+  { key: 'cobranca_material', label: 'Cobrança de Material', emoji: '📦' },
+  { key: 'material_recebido', label: 'Material Recebido',   emoji: '🎨' },
+  { key: 'veiculando',        label: 'Veiculando',          emoji: '📡' },
 ];
 
 const STATUS_CONFIG = {

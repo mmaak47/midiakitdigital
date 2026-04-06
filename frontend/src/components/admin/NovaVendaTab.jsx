@@ -2,21 +2,24 @@ import { useState } from 'react';
 import { Loader2, Upload, X, Send, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
 import { submitNovaVenda } from '../../lib/api';
 
-const FORMAS_PAGAMENTO = ['Pix', 'Boleto', 'Cartão de Crédito', 'Cartão de Débito', 'Permuta', 'Outro'];
 const TIPOS_NEGOCIO = ['Nova Venda', 'Renovação'];
+const TIPOS_VALOR = ['Líquido', 'Bruto'];
 
 const emptyForm = {
   tipo: 'Nova Venda',
   razao_social: '',
   cnpj: '',
   valor_mensal: '',
+  tipo_valor: 'Líquido',
+  via_agencia: false,
+  agencia_nome: '',
+  comissao_pct: '',
+  troca_material: false,
   periodo_tipo: 'meses',
   periodo_meses: '',
   periodo_inicio: '',
   periodo_fim: '',
   dia_pagamento: '',
-  forma_pagamento: 'Pix',
-  forma_pagamento_outro: '',
   responsavel_nome: '',
   responsavel_whatsapp: '',
 };
@@ -85,14 +88,18 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       fd.append('razao_social', form.razao_social.trim());
       fd.append('cnpj', form.cnpj.trim());
       fd.append('valor_mensal', form.valor_mensal.trim());
+      fd.append('tipo_valor', form.tipo_valor);
+      fd.append('via_agencia', form.via_agencia ? 'true' : 'false');
+      if (form.via_agencia) {
+        fd.append('agencia_nome', form.agencia_nome.trim());
+        fd.append('comissao_pct', form.comissao_pct.trim());
+      }
+      fd.append('troca_material', form.troca_material ? 'true' : 'false');
       fd.append('periodo_tipo', form.periodo_tipo);
       fd.append('periodo_meses', form.periodo_meses);
       fd.append('periodo_inicio', form.periodo_inicio);
       fd.append('periodo_fim', form.periodo_fim);
       fd.append('dia_pagamento', form.dia_pagamento.trim());
-      fd.append('forma_pagamento',
-        form.forma_pagamento === 'Outro' ? form.forma_pagamento_outro.trim() : form.forma_pagamento
-      );
       fd.append('responsavel_nome', form.responsavel_nome.trim());
       fd.append('responsavel_whatsapp', form.responsavel_whatsapp.trim());
       fd.append('pontos_nomes', JSON.stringify(selectedPontos.map(p => p.nome)));
@@ -275,20 +282,17 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
               />
             </div>
             <div>
-              <label className={lbl}>Forma de pagamento</label>
-              <select className={inp} value={form.forma_pagamento} onChange={e => set('forma_pagamento', e.target.value)}>
-                {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
+              <label className={lbl}>Tipo de valor</label>
+              <div className="flex gap-2">
+                {TIPOS_VALOR.map(t => (
+                  <button key={t} type="button" onClick={() => set('tipo_valor', t)} className={toggleBtn(form.tipo_valor === t)}>
+                    {t}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-          {form.forma_pagamento === 'Outro' && (
-            <input
-              className={inp}
-              value={form.forma_pagamento_outro}
-              onChange={e => set('forma_pagamento_outro', e.target.value)}
-              placeholder="Descreva a forma de pagamento..."
-            />
-          )}
+
           <div>
             <label className={lbl}>Dia do pagamento</label>
             <input
@@ -298,6 +302,50 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
               placeholder="Ex: Dia 10 de cada mês"
             />
           </div>
+
+          {/* Via agência */}
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <button
+                type="button"
+                onClick={() => set('via_agencia', !form.via_agencia)}
+                className={`w-10 h-5 rounded-full transition-colors relative ${form.via_agencia ? 'bg-brand-orange' : isDark ? 'bg-white/20' : 'bg-neutral-300'}`}
+              >
+                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.via_agencia ? 'left-5' : 'left-0.5'}`} />
+              </button>
+              <label className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                Venda via agência
+              </label>
+            </div>
+            {form.via_agencia && (
+              <div className="grid sm:grid-cols-2 gap-4 mt-2">
+                <div>
+                  <label className={lbl}>Nome da agência</label>
+                  <input className={inp} value={form.agencia_nome} onChange={e => set('agencia_nome', e.target.value)} placeholder="Nome da agência" />
+                </div>
+                <div>
+                  <label className={lbl}>Comissão (%)</label>
+                  <input className={inp} type="number" min="0" max="100" step="0.1" value={form.comissao_pct} onChange={e => set('comissao_pct', e.target.value)} placeholder="Ex: 15" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Troca de material — só para Renovação */}
+          {form.tipo === 'Renovação' && (
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => set('troca_material', !form.troca_material)}
+                className={`w-10 h-5 rounded-full transition-colors relative ${form.troca_material ? 'bg-brand-orange' : isDark ? 'bg-white/20' : 'bg-neutral-300'}`}
+              >
+                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.troca_material ? 'left-5' : 'left-0.5'}`} />
+              </button>
+              <label className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                Haverá troca de material
+              </label>
+            </div>
+          )}
         </section>
 
         {/* Período de veiculação */}
@@ -455,9 +503,10 @@ function buildMsgPreview({ form, selectedPontos, currentUser }) {
     ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username || 'Vendedor'
     : 'Vendedor';
 
+  const isRenovacao = form.tipo === 'Renovação';
   const pontosList = selectedPontos.length
-    ? selectedPontos.map(p => `• ${p.nome}`).join('\n')
-    : '• (nenhum selecionado)';
+    ? selectedPontos.map(p => `  • ${p.nome}`).join('\n')
+    : '  • (nenhum selecionado)';
 
   let periodo = '';
   if (form.periodo_tipo === 'meses' && form.periodo_meses) {
@@ -466,27 +515,30 @@ function buildMsgPreview({ form, selectedPontos, currentUser }) {
     periodo = `${fmtDate(form.periodo_inicio)} à ${fmtDate(form.periodo_fim)}`;
   }
 
-  const fpago = form.forma_pagamento === 'Outro' ? form.forma_pagamento_outro : form.forma_pagamento;
-
-  return [
-    `${form.tipo === 'Renovação' ? 'RENOVAÇÃO' : 'NOVA VENDA'} DE *${vendedorNome}*`,
+  const lines = [
+    `${isRenovacao ? '🔄 *RENOVAÇÃO*' : '🟠 *NOVA VENDA*'} — ${vendedorNome}`,
+    '━━━━━━━━━━━━━━━━━━━━━━━━━',
     '',
-    `RAZÃO SOCIAL: ${form.razao_social || '—'}`,
+    '🏢 *CLIENTE*',
+    `*${form.razao_social || '—'}*`,
     form.cnpj ? `CNPJ: ${form.cnpj}` : null,
     '',
-    'PONTOS CONTRATADOS:',
-    '',
+    `📍 *PONTO${selectedPontos.length !== 1 ? 'S' : ''} CONTRATADO${selectedPontos.length !== 1 ? 'S' : ''}*`,
     pontosList,
     '',
-    form.valor_mensal ? `VALOR MENSAL: ${form.valor_mensal}` : null,
-    periodo ? `PERÍODO DE VEICULAÇÃO: ${periodo}` : null,
-    form.dia_pagamento ? `DIA DO PAGAMENTO: ${form.dia_pagamento}` : null,
-    fpago ? `FORMA DE PAGAMENTO: ${fpago}` : null,
+    '💼 *CONDIÇÕES COMERCIAIS*',
+    form.valor_mensal ? `💰 Valor mensal: *R$ ${form.valor_mensal}* _(${form.tipo_valor})_` : null,
+    periodo ? `📅 Período: *${periodo}*` : null,
+    form.dia_pagamento ? `📆 Dia de pagamento: *dia ${form.dia_pagamento}*` : null,
+    form.via_agencia && form.agencia_nome ? `🤝 Via agência: *${form.agencia_nome}*${form.comissao_pct ? ` · Comissão: *${form.comissao_pct}%*` : ''}` : null,
+    isRenovacao ? `🔁 Troca de material: *${form.troca_material ? 'Sim' : 'Não'}*` : null,
     '',
-    'RESPONSÁVEL PELA COMPRA:',
+    form.responsavel_nome || form.responsavel_whatsapp ? '👤 *RESPONSÁVEL PELO CLIENTE*' : null,
     form.responsavel_nome ? `Nome: ${form.responsavel_nome}` : null,
     form.responsavel_whatsapp ? `WhatsApp: ${form.responsavel_whatsapp}` : null,
-  ].filter(l => l !== null).join('\n');
+  ].filter(l => l !== null);
+
+  return lines.join('\n');
 }
 
 function fmtDate(iso) {
