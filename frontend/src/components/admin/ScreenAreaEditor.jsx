@@ -12,7 +12,7 @@ import {
 const HANDLE_RADIUS = 0.55;
 const EDGE_HIT_STROKE = 1.8;
 const HANDLE_HIT_RADIUS = 2;
-const SELECTION_STROKE = 0.1;
+const SELECTION_STROKE = 0.05;
 const GRID_STROKE = 0.05;
 const MIN_ZOOM = 100;
 const MAX_ZOOM = 300;
@@ -497,7 +497,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
 
               {hasSelection && (
                 <>
-                  <path d={selectionPath} fill="rgba(254,92,43,0.08)" stroke="rgba(254,92,43,0.38)" strokeWidth={SELECTION_STROKE} />
+                  <path d={selectionPath} fill="rgba(254,92,43,0.05)" stroke="rgba(254,92,43,0.55)" strokeWidth={SELECTION_STROKE} />
 
                   {Array.from({ length: 4 }).map((_, index) => (
                     <polyline key={`grid-h-${index}`} points={polylineForInterpolation(activeCorners, 'v', (index + 1) / 5)} fill="none" stroke="rgba(255,255,255,0.11)" strokeWidth={GRID_STROKE} />
