@@ -2218,6 +2218,14 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, cnpj, pont
   if (responsavelNome) lines.push(`Nome: ${responsavelNome}`);
   if (responsavelWhatsapp) lines.push(`WhatsApp: ${responsavelWhatsapp}`);
 
+  lines.push('');
+  lines.push('─────────────────────────');
+  lines.push('✅ Faturado');
+  lines.push('🎨 Follow up Criação');
+  lines.push('📄 Contrato');
+  lines.push('✍️ Assinatura');
+  lines.push('_Reaja com o emoji para confirmar cada etapa_');
+
   return lines.join('\n');
 }
 
