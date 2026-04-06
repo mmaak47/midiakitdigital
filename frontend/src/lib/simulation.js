@@ -8,13 +8,13 @@ export const defaultSelectionCorners = [
 const EDGE_POINT_COUNT = 8;
 
 export const defaultDisplaySettings = {
-  opacity: 0.96,
-  brightness: 1.08,
-  reflection: 0.18,
-  spill: 0.14,
-  ledPixelIntensity: 0.1,
+  opacity: 0.97,
+  brightness: 1.04,
+  reflection: 0.08,
+  spill: 0.12,
+  ledPixelIntensity: 0.22,
   ledPixelSize: 5,
-  glare: 0.12
+  glare: 0.06
 };
 
 export const defaultMediaParams = {
@@ -512,24 +512,18 @@ function drawCreativeIntoQuad(ctx, creative, corners, display, style, options = 
 }
 
 function drawScreenGlow(ctx, corners, settings, style, canvasWidth, canvasHeight) {
+  if (settings.brightness <= 1 && settings.glare <= 0) return;
   const bounds = getSelectionBoundsRaw(corners);
-  const glowRadius = Math.max(canvasWidth, canvasHeight) * (0.14 + settings.spill * 0.25);
 
   ctx.save();
   createQuadPath(ctx, corners, style);
   ctx.clip();
-  ctx.globalCompositeOperation = 'screen';
-  const radial = ctx.createRadialGradient(bounds.centerX, bounds.centerY, 0, bounds.centerX, bounds.centerY, glowRadius);
-  radial.addColorStop(0, `rgba(255,255,255,${0.06 + (settings.brightness - 1) * 0.12})`);
-  radial.addColorStop(0.55, `rgba(255,196,120,${settings.glare * 0.34})`);
-  radial.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = radial;
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
+  // Very subtle brightness lift — just enough to make the screen look lit
   if (settings.brightness > 1) {
+    ctx.globalCompositeOperation = 'screen';
     ctx.fillStyle = `rgba(255,255,255,${(settings.brightness - 1) * 0.08})`;
-    createQuadPath(ctx, corners, style);
-    ctx.fill();
+    ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
   }
   ctx.restore();
 }
@@ -557,60 +551,26 @@ function drawReflection(ctx, corners, settings, style) {
 function getLedPattern(size, intensity) {
   const key = `${size}-${intensity}`;
   if (!getLedPattern.cache.has(key)) {
-    const pitch = Math.max(4, Math.round(size));
-    const tile = pitch * 3;
+    const pitch = Math.max(3, Math.round(size));
+    // Gap is always just 1px — thin separator between pixels, not a thick grid
+    const gap = 1;
+    const pixW = pitch - gap * 2;
+    const pixH = pitch - gap * 2;
+
     const canvas = document.createElement('canvas');
-    canvas.width = tile;
-    canvas.height = tile;
+    canvas.width = pitch;
+    canvas.height = pitch;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      // Dark base — the gaps between LED dots
-      ctx.fillStyle = `rgba(0,0,0,${0.35 + intensity * 0.45})`;
-      ctx.fillRect(0, 0, tile, tile);
+      // Background: nearly-black gap (just 1px border between each pixel)
+      ctx.fillStyle = `rgba(0,0,0,${0.38 + intensity * 0.20})`;
+      ctx.fillRect(0, 0, pitch, pitch);
 
-      // Draw illuminated LED dots in an RGB sub-pixel pattern
-      const dotRadius = Math.max(1.2, pitch * 0.38);
-      const cols = 3;
-      const rows = 3;
-      const spacingX = tile / cols;
-      const spacingY = tile / rows;
-
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++) {
-          const cx = spacingX * (col + 0.5);
-          const cy = spacingY * (row + 0.5);
-          const alpha = 0.55 + intensity * 0.45;
-
-          // Each dot is a bright circle with soft falloff
-          const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, dotRadius * 1.2);
-          gradient.addColorStop(0, `rgba(255,255,255,${alpha})`);
-          gradient.addColorStop(0.55, `rgba(255,255,255,${alpha * 0.6})`);
-          gradient.addColorStop(0.85, `rgba(255,255,255,${alpha * 0.15})`);
-          gradient.addColorStop(1, 'rgba(255,255,255,0)');
-
-          ctx.globalCompositeOperation = 'lighter';
-          ctx.fillStyle = gradient;
-          ctx.beginPath();
-          ctx.arc(cx, cy, dotRadius * 1.2, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-
-      // Subtle dark grid lines between dots
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = `rgba(0,0,0,${0.15 + intensity * 0.25})`;
-      ctx.lineWidth = Math.max(0.5, pitch * 0.08);
-      for (let i = 0; i <= cols; i++) {
-        ctx.beginPath();
-        ctx.moveTo(spacingX * i, 0);
-        ctx.lineTo(spacingX * i, tile);
-        ctx.stroke();
-      }
-      for (let i = 0; i <= rows; i++) {
-        ctx.beginPath();
-        ctx.moveTo(0, spacingY * i);
-        ctx.lineTo(tile, spacingY * i);
-        ctx.stroke();
+      if (pixW > 0 && pixH > 0) {
+        // Pixel: white fill — multiply blend preserves the creative colour
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = 'rgba(255,255,255,0.96)';
+        ctx.fillRect(gap, gap, pixW, pixH);
       }
     }
     getLedPattern.cache.set(key, canvas);
@@ -622,24 +582,30 @@ getLedPattern.cache = new Map();
 
 function drawLedPixels(ctx, corners, settings, style) {
   if (settings.ledPixelIntensity <= 0) return;
-  const patternCanvas = getLedPattern(settings.ledPixelSize, settings.ledPixelIntensity);
+  const bounds = getSelectionBoundsRaw(corners);
+
+  // Adaptive pixel pitch: scale with the actual rendered screen width.
+  // A real P4 panel has ~75 LEDs across 30 cm.
+  // We approximate: 1 LED ≈ screenWidth / 80.
+  // Clamp between 2px (small/distant screen) and the user's setting.
+  const screenW = bounds.width;
+
+  // Skip entirely when the screen is too small — LED pixels would look chunky
+  if (screenW < 60) return;
+
+  const adaptivePitch = Math.max(2, Math.min(settings.ledPixelSize, screenW / 70));
+  const patternCanvas = getLedPattern(adaptivePitch, settings.ledPixelIntensity);
   const pattern = ctx.createPattern(patternCanvas, 'repeat');
   if (!pattern) return;
-  const bounds = getSelectionBoundsRaw(corners);
 
   ctx.save();
   createQuadPath(ctx, corners, style);
   ctx.clip();
 
-  // Multiply pass — darkens gaps between LED dots
+  // Multiply pass: the 1px black gap darkens the image at grid lines.
+  // Alpha kept low so it reads as texture, not as a heavy grid overlay.
   ctx.globalCompositeOperation = 'multiply';
-  ctx.globalAlpha = 0.4 + settings.ledPixelIntensity * 0.5;
-  ctx.fillStyle = pattern;
-  ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
-
-  // Screen pass — brightens the LED dot centers
-  ctx.globalCompositeOperation = 'screen';
-  ctx.globalAlpha = 0.08 + settings.ledPixelIntensity * 0.22;
+  ctx.globalAlpha = 0.18 + settings.ledPixelIntensity * 0.32;
   ctx.fillStyle = pattern;
   ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
   ctx.restore();
@@ -683,13 +649,24 @@ function drawPrintedTexture(ctx, corners, settings, style) {
 
 function drawLightSpill(ctx, corners, settings, style) {
   if (settings.spill <= 0) return;
+  const bounds = getSelectionBoundsRaw(corners);
+
+  // Soft warm glow outside the screen — simulates light cast onto surrounding surfaces.
+  // Kept intentionally subtle so it doesn't overpower the photo.
   ctx.save();
   ctx.globalCompositeOperation = 'screen';
-  ctx.shadowColor = `rgba(255,175,106,${0.28 + settings.spill * 0.55})`;
-  ctx.shadowBlur = 30 + settings.spill * 90;
-  ctx.fillStyle = `rgba(255,255,255,${0.018 + settings.spill * 0.04})`;
-  createQuadPath(ctx, corners, style);
-  ctx.fill();
+  const maxDim = Math.max(bounds.width, bounds.height);
+  const outerR = maxDim * (0.8 + settings.spill * 1.0);
+  const glow = ctx.createRadialGradient(
+    bounds.centerX, bounds.centerY, maxDim * 0.28,
+    bounds.centerX, bounds.centerY, outerR
+  );
+  glow.addColorStop(0, `rgba(255,200,140,${0.06 + settings.spill * 0.14})`);
+  glow.addColorStop(0.5, `rgba(255,180,110,${0.02 + settings.spill * 0.06})`);
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  const pad = outerR;
+  ctx.fillRect(bounds.minX - pad, bounds.minY - pad, bounds.width + pad * 2, bounds.height + pad * 2);
   ctx.restore();
 }
 

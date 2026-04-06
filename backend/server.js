@@ -2570,140 +2570,58 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
   try {
     const payload = req.body;
     const event = payload?.event;
-    console.log(`[webhook] event="${event}" keys=${JSON.stringify(Object.keys(payload?.data || {}))}`);
 
-    // Suporta messages.upsert (nova msg) e messages.update (voto em poll)
-    const HANDLED_EVENTS = ['messages.upsert', 'message', 'messages.update', 'MESSAGES_UPDATE'];
-    if (!HANDLED_EVENTS.includes(event)) {
-      return res.json({ ok: true, ignored: 'event-not-handled', event });
+    // Só processa votos em poll (messages.update) e mensagens normais
+    const HANDLED = ['messages.upsert', 'message', 'messages.update', 'MESSAGES_UPDATE'];
+    if (!HANDLED.includes(event)) {
+      return res.json({ ok: true, ignored: 'event-not-handled' });
     }
 
-    // messages.update pode vir como array; normaliza para objeto único
     let data = payload?.data;
     if (Array.isArray(data)) data = data[0];
 
-    const senderJid = data?.key?.remoteJid || data?.participant || '';
-
-    // ── Resposta de lista interativa (listResponseMessage) ──────────────────
-    const listResp = data?.message?.listResponseMessage;
-    if (listResp) {
-      const replyMsgId = data?.message?.extendedTextMessage?.contextInfo?.stanzaId
-        || data?.contextInfo?.stanzaId
-        || data?.key?.contextInfo?.stanzaId
-        || listResp?.singleSelectReply?.selectedRowId
-          ? null : null; // rowId não é o id da mensagem
-
-      // Busca a venda pelo whatsapp_list_id (id da mensagem que enviamos a lista)
-      const ctxId = data?.message?.extendedTextMessage?.contextInfo?.stanzaId
-        || listResp?.contextInfo?.stanzaId
-        || data?.contextInfo?.stanzaId;
-
-      const selectedRowId = listResp?.singleSelectReply?.selectedRowId || '';
-      const selectedTitle = listResp?.title || '';
-      console.log(`[webhook] listResponse rowId=${selectedRowId} title="${selectedTitle}" ctxId=${ctxId}`);
-
-      // Tenta encontrar a venda pelo contextInfo (id da mensagem original) ou pela linha
-      let venda = ctxId ? db.prepare('SELECT id FROM vendas WHERE whatsapp_list_id = ?').get(ctxId) : null;
-      // Fallback: última venda com list_id não nulo do mesmo sender (para testes)
-      if (!venda) {
-        venda = db.prepare('SELECT id FROM vendas WHERE whatsapp_list_id IS NOT NULL ORDER BY id DESC LIMIT 1').get();
-      }
-      if (!venda) return res.json({ ok: true, ignored: 'list-venda-not-found' });
-
-      // Encontra a etapa pelo rowId ou pelo título
-      const etapa = ETAPAS_VENDA.find(e => e.key === selectedRowId)
-        || LIST_OPTION_MAP[selectedTitle.trim()]
-        || ETAPAS_VENDA.find(e => `${e.emoji} ${e.label}` === selectedTitle.trim());
-
-      if (!etapa) return res.json({ ok: true, ignored: 'etapa-not-found', rowId: selectedRowId });
-
-      db.prepare(`
-        INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_por, confirmado_at, removido)
-        VALUES (?, ?, ?, ?, ?, datetime('now'), 0)
-        ON CONFLICT(venda_id, etapa_key) DO UPDATE SET
-          confirmado_por = excluded.confirmado_por,
-          confirmado_at = excluded.confirmado_at,
-          removido = 0
-      `).run(venda.id, etapa.key, etapa.label, etapa.emoji, senderJid);
-      console.log(`[webhook] Etapa "${etapa.label}" confirmada via lista por ${senderJid}`);
-
-      return res.json({ ok: true, action: 'list-etapa-registrada', venda_id: venda.id, etapa: etapa.key });
-    }
-
-    // ── Resposta de enquete legada (pollUpdateMessage) — mantido para retrocompatibilidade ──
-    const pollUpdate = data?.message?.pollUpdateMessage;
+    // ── Voto em enquete (poll vote) ──────────────────────────────────────────
+    const pollUpdate = data?.pollUpdates?.[0] || data?.update?.pollUpdates?.[0];
     if (pollUpdate) {
-      const pollId = pollUpdate?.pollCreationMessageKey?.id;
-      if (!pollId) return res.json({ ok: true, ignored: 'no-poll-id' });
-
-      const venda = db.prepare('SELECT id FROM vendas WHERE whatsapp_poll_id = ?').get(pollId);
-      if (!venda) return res.json({ ok: true, ignored: 'poll-venda-not-found' });
-
-      const selectedOptions = pollUpdate?.vote?.selectedOptions || [];
-      console.log(`[webhook] poll response vendaId=${venda.id} opts=${JSON.stringify(selectedOptions)}`);
-
-      for (const opt of selectedOptions) {
-        const optName = (opt?.name || opt || '').trim();
-        const etapa = LIST_OPTION_MAP[optName] || ETAPAS_VENDA.find(e => `${e.emoji} ${e.label}` === optName);
-        if (!etapa) continue;
-        db.prepare(`
-          INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_por, confirmado_at, removido)
-          VALUES (?, ?, ?, ?, ?, datetime('now'), 0)
-          ON CONFLICT(venda_id, etapa_key) DO UPDATE SET
-            confirmado_por = excluded.confirmado_por,
-            confirmado_at = excluded.confirmado_at,
-            removido = 0
-        `).run(venda.id, etapa.key, etapa.label, etapa.emoji, senderJid);
-        console.log(`[webhook] Etapa "${etapa.label}" confirmada via poll por ${senderJid}`);
+      const pollId = data?.key?.id || data?.update?.key?.id;
+      if (!pollUpdate.vote?.selectedOptions?.length || !pollId) {
+        return res.json({ ok: true, ignored: 'empty-vote' });
       }
 
-      return res.json({ ok: true, action: 'poll-etapas-registradas', venda_id: venda.id, count: selectedOptions.length });
+      const venda = db.prepare(`SELECT id FROM vendas WHERE whatsapp_poll_id = ?`).get(pollId);
+      if (!venda) {
+        return res.json({ ok: true, ignored: 'poll-not-found', pollId });
+      }
+
+      const ETAPAS_MAP = {
+        '📤 Contrato Enviado':    { key: 'contrato_enviado',  label: 'Contrato Enviado'    },
+        '✅ Contrato Assinado':   { key: 'contrato_assinado', label: 'Contrato Assinado'   },
+        '📦 Cobrança de Material':{ key: 'cobranca_material', label: 'Cobrança de Material' },
+        '🎨 Material Recebido':   { key: 'material_recebido', label: 'Material Recebido'   },
+        '📡 Veiculando':          { key: 'veiculando',        label: 'Veiculando'          },
+      };
+
+      for (const option of pollUpdate.vote.selectedOptions) {
+        const etapa = ETAPAS_MAP[option];
+        if (!etapa) continue;
+        try {
+          db.prepare(`
+            INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_at, confirmado_por)
+            VALUES (?, ?, ?, '', NOW(), 'webhook')
+            ON CONFLICT (venda_id, etapa_key) DO NOTHING
+          `).run(venda.id, etapa.key, etapa.label);
+        } catch { /* ignore */ }
+      }
+
+      return res.json({ ok: true, processed: 'poll-vote' });
     }
 
-    // ── Reação emoji (fallback) ──────────────
-    const reactionMsg = data?.message?.reactionMessage;
-    if (!reactionMsg) return res.json({ ok: true, ignored: 'not-a-reaction' });
-
-    const targetMsgId = reactionMsg?.key?.id;
-    // Normaliza emoji removendo variation selectors (U+FE0F)
-    const emoji = (reactionMsg?.text || '').replace(/\uFE0F/g, '').trim();
-
-    if (!targetMsgId) return res.json({ ok: true, ignored: 'no-target-id' });
-
-    // Busca a venda pelo whatsapp_message_id
-    const venda = db.prepare('SELECT id FROM vendas WHERE whatsapp_message_id = ?').get(targetMsgId);
-    if (!venda) return res.json({ ok: true, ignored: 'venda-not-found' });
-
-    // Reação removida (emoji vazio) → marca etapa como removida
-    if (emoji === '') {
-      db.prepare(
-        "UPDATE venda_etapas SET removido = 1 WHERE venda_id = ? AND confirmado_por = ?"
-      ).run(venda.id, senderJid);
-      return res.json({ ok: true, action: 'reaction-removed' });
-    }
-
-    const etapaInfo = EMOJI_ETAPA_MAP[emoji];
-    if (!etapaInfo) return res.json({ ok: true, ignored: 'emoji-not-mapped' });
-
-    const { key, label } = etapaInfo;
-    db.prepare(`
-      INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_por, confirmado_at, removido)
-      VALUES (?, ?, ?, ?, ?, datetime('now'), 0)
-      ON CONFLICT(venda_id, etapa_key) DO UPDATE SET
-        emoji = excluded.emoji,
-        confirmado_por = excluded.confirmado_por,
-        confirmado_at = excluded.confirmado_at,
-        removido = 0
-    `).run(venda.id, key, label, emoji, senderJid);
-
-    console.log(`[webhook] Etapa "${label}" confirmada por emoji para venda ${venda.id} por ${senderJid}`);
-    return res.json({ ok: true, action: 'etapa-registrada', etapa: key, venda_id: venda.id });
+    res.json({ ok: true, ignored: 'no-handler' });
   } catch (err) {
-    console.error('[webhook/whatsapp] erro:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[webhook] erro:', err.message);
+    res.json({ ok: true, error: err.message });
   }
 });
-// ─────────────────────────────────────────────────────────────────────────────
 
 // SPA fallback
 app.get('*', (req, res) => {
@@ -2716,120 +2634,33 @@ app.use((err, req, res, next) => {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: 'Arquivo excede o limite de 50MB.' });
     }
-    if (err.code === 'LIMIT_FIELD_COUNT') {
-      return res.status(400).json({ error: 'Quantidade de campos do formulário excedeu o limite permitido.' });
-    }
     return res.status(400).json({ error: 'Erro de upload.', details: err.message });
   }
-
   if (err?.message === 'Origem não permitida pelo CORS') {
     return res.status(403).json({ error: err.message });
   }
-
   if (err?.message) {
     return res.status(400).json({ error: err.message });
   }
-
   next(err);
 });
 
-// Only bind to a port when run directly (node server.js).
-// When required by passenger_app.js, Passenger manages the socket itself.
-if (require.main === module) {
-  // Verify DB connection before accepting traffic
-  try {
-    const testRow = db.prepare('SELECT 1 AS ok').get();
-    if (!testRow || testRow.ok !== 1) throw new Error('DB returned unexpected result');
-    console.log(`[db] Connection OK (engine=${DB_ENGINE})`);
-  } catch (dbErr) {
-    console.error(`[FATAL] Database connection failed (engine=${DB_ENGINE}):`, dbErr.message);
-    process.exit(1);
-  }
-
-  const server = app.listen(PORT, () => {
-    console.log(`Intermidia Mídia Kit API running on port ${PORT}`);
-    startLicenseWatcher().catch((err) => {
-      console.error('[license] Watcher failed to start:', err.message);
-      process.exit(1);
-    });
-    if (DB_ENGINE === 'sqlite' && String(process.env.SQLITE_BACKUP_ENABLED || 'true').toLowerCase() !== 'false') {
-      createBackupScheduler(db);
-    } else if (DB_ENGINE === 'sqlite') {
-      console.log('[backup] Automatic SQLite backup disabled by SQLITE_BACKUP_ENABLED=false');
-    } else {
-      console.log('[backup] SQLite backup scheduler skipped (DB_ENGINE=postgres)');
-    }
-
-    const scheduler = startAutoRefreshScheduler();
-    if (scheduler) {
-      const config = getAutoRefreshConfig();
-      console.log(`[entorno-auto] enabled. interval=${config.intervalMinutes}min radius=${config.radius}m segments=${config.segments.join(',') || 'clinica'} cities=${config.cities.join(',') || 'todas'}`);
-    } else {
-      console.log('[entorno-auto] disabled by ENTORNO_AUTO_REFRESH_ENABLED=false');
-    }
-
-    // GeoAudience + Census auto-refresh
-    const geoAutoEnabled = String(process.env.GEO_CENSUS_AUTO_REFRESH_ENABLED || 'true').toLowerCase() !== 'false';
-    const geoAutoIntervalMin = Math.max(10, Number(process.env.GEO_CENSUS_AUTO_REFRESH_INTERVAL_MINUTES) || 120);
-    if (geoAutoEnabled) {
-      const runGeoCensusRefresh = () => {
-        geoAudience.analyzeCity(null, { force: false }).then((r) => {
-          console.log(`[geoaudience-auto] cycle done: ${r.analyzed} analyzed, ${r.skipped} skipped, ${r.errors} errors`);
-        }).catch((err) => {
-          console.error('[geoaudience-auto] cycle error:', err.message);
-        }).then(() => {
-          return censusAudience.analyzeCity(null, { force: false });
-        }).then((r) => {
-          console.log(`[census-auto] cycle done: ${r.analyzed} analyzed, ${r.skipped} skipped, ${r.errors} errors`);
-        }).catch((err) => {
-          console.error('[census-auto] cycle error:', err.message);
-        });
-      };
-      // First run after a short delay to let the server stabilize
-      setTimeout(runGeoCensusRefresh, 30_000);
-      const geoCensusTimer = setInterval(runGeoCensusRefresh, geoAutoIntervalMin * 60 * 1000);
-      if (typeof geoCensusTimer.unref === 'function') geoCensusTimer.unref();
-      console.log(`[geo-census-auto] enabled. interval=${geoAutoIntervalMin}min`);
-    } else {
-      console.log('[geo-census-auto] disabled by GEO_CENSUS_AUTO_REFRESH_ENABLED=false');
-    }
-  });
-
-  server.on('error', (err) => {
-    console.error('[server] Failed to bind:', err.message);
-    process.exit(1);
-  });
-} else {
-  // Passenger / require() path — run startup tasks without binding
+app.listen(PORT, () => {
+  console.log(`Intermidia Mídia Kit API running on port ${PORT}`);
   startLicenseWatcher().catch((err) => {
     console.error('[license] Watcher failed to start:', err.message);
+    process.exit(1);
   });
-  if (DB_ENGINE === 'sqlite' && String(process.env.SQLITE_BACKUP_ENABLED || 'true').toLowerCase() !== 'false') {
+  if (String(process.env.SQLITE_BACKUP_ENABLED || 'true').toLowerCase() !== 'false') {
     createBackupScheduler(db);
+  } else {
+    console.log('[backup] Automatic SQLite backup disabled by SQLITE_BACKUP_ENABLED=false');
   }
-  startAutoRefreshScheduler();
-
-  // GeoAudience + Census auto-refresh (Passenger path)
-  const geoAutoEnabledP = String(process.env.GEO_CENSUS_AUTO_REFRESH_ENABLED || 'true').toLowerCase() !== 'false';
-  const geoAutoIntervalMinP = Math.max(10, Number(process.env.GEO_CENSUS_AUTO_REFRESH_INTERVAL_MINUTES) || 120);
-  if (geoAutoEnabledP) {
-    const runGeoCensusRefresh = () => {
-      geoAudience.analyzeCity(null, { force: false }).then((r) => {
-        console.log(`[geoaudience-auto] cycle done: ${r.analyzed} analyzed, ${r.skipped} skipped, ${r.errors} errors`);
-      }).catch((err) => {
-        console.error('[geoaudience-auto] cycle error:', err.message);
-      }).then(() => {
-        return censusAudience.analyzeCity(null, { force: false });
-      }).then((r) => {
-        console.log(`[census-auto] cycle done: ${r.analyzed} analyzed, ${r.skipped} skipped, ${r.errors} errors`);
-      }).catch((err) => {
-        console.error('[census-auto] cycle error:', err.message);
-      });
-    };
-    setTimeout(runGeoCensusRefresh, 30_000);
-    const geoCensusTimerP = setInterval(runGeoCensusRefresh, geoAutoIntervalMinP * 60 * 1000);
-    if (typeof geoCensusTimerP.unref === 'function') geoCensusTimerP.unref();
+  const scheduler = startAutoRefreshScheduler();
+  if (scheduler) {
+    const config = getAutoRefreshConfig();
+    console.log(`[entorno-auto] enabled. interval=${config.intervalMinutes}min radius=${config.radius}m`);
+  } else {
+    console.log('[entorno-auto] disabled by ENTORNO_AUTO_REFRESH_ENABLED=false');
   }
-}
-
-module.exports = app;
+});

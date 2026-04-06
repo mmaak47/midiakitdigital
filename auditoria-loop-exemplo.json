@@ -1,0 +1,183 @@
+{
+  "contexto": "Atualmente obtemos os dados abaixo via web scraping no sistema.redeintermidia.com. Precisamos que esses dados sejam expostos via API para eliminar a dependência de scraping.",
+
+  "endpoints_necessarios": [
+
+    {
+      "endpoint": "GET /api/monitors",
+      "descricao": "Lista todos os monitores com ciclo de loop e inserções ativas",
+      "dados_necessarios": {
+        "id": "integer — ID do monitor no sistema (ex: 159). Já temos via scraping.",
+        "nome": "string — Nome do monitor (ex: 'Arnaldo's - Tela 1'). Já temos via scraping.",
+        "local": "string — Local/grupo ao qual pertence (ex: 'Arnaldo's'). Já temos via scraping.",
+        "cidade": "string — Cidade (ex: 'LONDRINA'). Já temos via scraping.",
+        "ciclo_segundos": "integer — Duração total do loop em segundos. Hoje extraímos via scraping do tooltip do player, mas o valor nem sempre está disponível.",
+        "total_insercoes_ativas": "integer — Quantidade de spots/inserções atualmente ativas no loop. Não conseguimos obter isso via scraping de forma confiável.",
+        "status": "string — Status atual do monitor: 'online' | 'offline'. Já temos via scraping."
+      },
+      "exemplo_resposta": [
+        {
+          "id": 159,
+          "nome": "Arnaldo's - Tela 1",
+          "local": "Arnaldo's",
+          "cidade": "LONDRINA",
+          "ciclo_segundos": 112,
+          "total_insercoes_ativas": 9,
+          "status": "offline"
+        },
+        {
+          "id": 204,
+          "nome": "Palhano Business T1",
+          "local": "Palhano Business",
+          "cidade": "LONDRINA",
+          "ciclo_segundos": 180,
+          "total_insercoes_ativas": 6,
+          "status": "online"
+        }
+      ]
+    },
+
+    {
+      "endpoint": "GET /api/monitors/{id}",
+      "descricao": "Detalhe de um monitor específico (mesmos campos acima, para consulta pontual)"
+    }
+
+  ],
+
+  "o_que_ja_temos_via_scraping": [
+    "ID do monitor",
+    "Nome do monitor",
+    "Local/grupo",
+    "Cidade",
+    "Status online/offline",
+    "Tempo offline (ex: 'Offline desde 06/04/2026 11:14')",
+    "Orientação da tela (vertical/horizontal)",
+    "Sistema operacional do player (Linux/Windows)"
+  ],
+
+  "o_que_nao_conseguimos_via_scraping": [
+    "ciclo_segundos — aparece às vezes no tooltip mas de forma inconsistente",
+    "total_insercoes_ativas — não está acessível na interface pública"
+  ]
+}
+
+  "objetivo": "Precisamos que a API de vocês retorne os dados abaixo por player, para que possamos calcular o tempo livre de loop em tempo real dentro do nosso sistema de gestão.",
+  "endpoint_sugerido": "GET /players ou GET /players/{player_id}",
+  "formato_resposta_esperado": {
+    "player_id": "string — ID único do player no sistema de vocês (ex: '159')",
+    "ciclo_total_seg": "integer — duração total do loop em segundos (ex: 112)",
+    "tempo_insercao_seg": "integer — duração padrão de cada inserção/spot em segundos (ex: 15)",
+    "insercoes_ativas": "integer — quantidade de spots atualmente ativos no loop (ex: 9)"
+  },
+  "exemplo_resposta": [
+    {
+      "player_id": "159",
+      "ciclo_total_seg": 112,
+      "tempo_insercao_seg": 15,
+      "insercoes_ativas": 9
+    },
+    {
+      "player_id": "204",
+      "ciclo_total_seg": 180,
+      "tempo_insercao_seg": 15,
+      "insercoes_ativas": 6
+    }
+  ],
+  "observacoes": [
+    "O player_id deve ser o mesmo ID exibido na interface do sistema de vocês (ex: #159 conforme screenshot).",
+    "Se o ciclo variar por horário ou dia da semana, retornar o ciclo atual do momento da consulta.",
+    "Se houver players com duração de inserção variável, retornar a duração mais comum ou a configurada como padrão.",
+    "Campos extras são bem-vindos mas os 4 acima são os mínimos necessários."
+  ]
+}
+
+    "cidade": "Londrina",
+    "tipo": "Tela Indoor",
+    "endereco": "Av. Maringá, 1234 - Londrina/PR",
+    "coordenadas": {
+      "lat": -23.3045,
+      "lng": -51.1696
+    },
+    "horario_funcionamento": "08:00 às 22:00",
+    "fluxo_estimado_pessoas": 1200,
+    "telas": 1,
+    "publico_alvo": "A/B",
+    "veiculacao": "Vídeo sem áudio",
+    "resolucao_arte": "1080x1920",
+    "loop": {
+      "ciclo_total_seg": 112,
+      "ciclo_total_fmtd": "01:52",
+      "tempo_insercao_seg": 15,
+      "insercoes_atuais": 9,
+      "tempo_ocupado_seg": 135,
+      "tempo_ocupado_fmtd": "01:37",
+      "tempo_livre_seg": 0,
+      "tempo_livre_fmtd": "00:00",
+      "pct_livre": 0,
+      "inserções_disponiveis": 0
+    },
+    "gerado_em": "2026-04-06T18:20:00.000Z"
+  },
+  {
+    "player_id": "204",
+    "ponto_id": 87,
+    "nome": "Shopping Catuaí - Elevador 3",
+    "cidade": "Londrina",
+    "tipo": "Elevador",
+    "endereco": "Rod. Pr 445, Km 0 - Londrina/PR",
+    "coordenadas": {
+      "lat": -23.3581,
+      "lng": -51.1218
+    },
+    "horario_funcionamento": "10:00 às 22:00",
+    "fluxo_estimado_pessoas": 4500,
+    "telas": 2,
+    "publico_alvo": "A",
+    "veiculacao": "Vídeo sem áudio",
+    "resolucao_arte": "1080x1920",
+    "loop": {
+      "ciclo_total_seg": 180,
+      "ciclo_total_fmtd": "03:00",
+      "tempo_insercao_seg": 15,
+      "insercoes_atuais": 6,
+      "tempo_ocupado_seg": 90,
+      "tempo_ocupado_fmtd": "01:30",
+      "tempo_livre_seg": 90,
+      "tempo_livre_fmtd": "01:30",
+      "pct_livre": 50,
+      "inserções_disponiveis": 6
+    },
+    "gerado_em": "2026-04-06T18:20:00.000Z"
+  },
+  {
+    "player_id": null,
+    "ponto_id": 115,
+    "nome": "Divesa - Painel LED Externo",
+    "cidade": "Maringá",
+    "tipo": "Painel LED",
+    "endereco": "Av. Brasil, 5678 - Maringá/PR",
+    "coordenadas": {
+      "lat": -23.4273,
+      "lng": -51.9375
+    },
+    "horario_funcionamento": "06:00 às 00:00",
+    "fluxo_estimado_pessoas": 8000,
+    "telas": 1,
+    "publico_alvo": "A/B",
+    "veiculacao": "Vídeo com áudio",
+    "resolucao_arte": "1920x1080",
+    "loop": {
+      "ciclo_total_seg": 600,
+      "ciclo_total_fmtd": "10:00",
+      "tempo_insercao_seg": 10,
+      "insercoes_atuais": 38,
+      "tempo_ocupado_seg": 380,
+      "tempo_ocupado_fmtd": "06:20",
+      "tempo_livre_seg": 220,
+      "tempo_livre_fmtd": "03:40",
+      "pct_livre": 37,
+      "inserções_disponiveis": 22
+    },
+    "gerado_em": "2026-04-06T18:20:00.000Z"
+  }
+]
