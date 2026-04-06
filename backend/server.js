@@ -2208,7 +2208,7 @@ async function sendEvolutionPoll({ apiUrl, instance, apiKey, number, name, value
   return res.json();
 }
 
-async function sendEvolutionList({ apiUrl, instance, apiKey, number, title, description, buttonText, sections }) {
+async function sendEvolutionList({ apiUrl, instance, apiKey, number, title, description, footerText, buttonText, sections }) {
   const base = apiUrl.replace(/\/$/, '');
   const url = `${base}/message/sendList/${encodeURIComponent(instance)}`;
   const res = await fetch(url, {
@@ -2218,6 +2218,7 @@ async function sendEvolutionList({ apiUrl, instance, apiKey, number, title, desc
       number: String(number).trim(),
       title,
       description,
+      footerText: footerText || '',
       buttonText,
       sections
     })
@@ -2268,9 +2269,12 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, cnpj, pont
   lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━');
   lines.push('');
 
-  lines.push('🏢 *CLIENTE*');
-  lines.push(`*${razaoSocial}*`);
-  if (cnpj) lines.push(`CNPJ: ${cnpj}`);
+  if (cnpj) {
+    lines.push(`🏢 *${razaoSocial}*`);
+    lines.push(`_CNPJ: ${cnpj}_`);
+  } else {
+    lines.push(`🏢 *${razaoSocial}*`);
+  }
   lines.push('');
 
   const nomes = Array.isArray(pontosNomes) ? pontosNomes : JSON.parse(pontosNomes || '[]');
@@ -2417,7 +2421,7 @@ app.post(
               number: evo.evolution_dest_number,
               caption: mensagem,
               filePath: piPath,
-              fileName: 'PI.pdf'
+              fileName: req.file?.originalname || 'PI.pdf'
             });
             waMsgId = evoResp?.key?.id || evoResp?.[0]?.key?.id || null;
           } else {
@@ -2442,6 +2446,7 @@ app.post(
               number: evo.evolution_dest_number,
               title: `📋 Etapas — ${String(razao_social).trim()}`,
               description: 'Marque as etapas conforme forem concluídas:',
+              footerText: 'Intermidia Mídia Kit',
               buttonText: 'Ver etapas',
               sections: [{
                 title: 'ETAPAS DE VENDA',

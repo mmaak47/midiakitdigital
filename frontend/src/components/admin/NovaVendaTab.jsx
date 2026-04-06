@@ -519,9 +519,9 @@ function buildMsgPreview({ form, selectedPontos, currentUser }) {
     `${isRenovacao ? '🔄 *RENOVAÇÃO*' : '🟠 *NOVA VENDA*'} — ${vendedorNome}`,
     '━━━━━━━━━━━━━━━━━━━━━━━━━',
     '',
-    '🏢 *CLIENTE*',
-    `*${form.razao_social || '—'}*`,
-    form.cnpj ? `CNPJ: ${form.cnpj}` : null,
+    form.cnpj
+      ? `🏢 *${form.razao_social || '—'}*\n_CNPJ: ${form.cnpj}_`
+      : `🏢 *${form.razao_social || '—'}*`,
     '',
     `📍 *PONTO${selectedPontos.length !== 1 ? 'S' : ''} CONTRATADO${selectedPontos.length !== 1 ? 'S' : ''}*`,
     pontosList,
