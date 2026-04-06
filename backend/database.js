@@ -19,7 +19,8 @@ function escapeLiteral(value) {
 function rewriteSqliteSyntax(sql) {
   let out = String(sql);
 
-  out = out.replace(/datetime\('now'\)/gi, 'NOW()');
+  // Use placeholder so that NOW() inner parens don't break the VALUES regex below
+  out = out.replace(/datetime\('now'\)/gi, '__DTNOW__');
   out = out.replace(/\bINSERT\s+OR\s+IGNORE\s+INTO\b/gi, 'INSERT INTO');
 
   out = out.replace(
@@ -39,6 +40,9 @@ function rewriteSqliteSyntax(sql) {
       return `INSERT INTO ${tableName} (${columnsRaw}) VALUES (${valuesRaw}) ON CONFLICT (${conflictKey}) DO UPDATE SET ${updateSet}`;
     }
   );
+
+  // Restore placeholder as actual NOW()
+  out = out.replace(/__DTNOW__/g, 'NOW()');
 
   return out;
 }
