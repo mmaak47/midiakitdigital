@@ -17,6 +17,15 @@ export const defaultDisplaySettings = {
   glare: 0.12
 };
 
+export const defaultMediaParams = {
+  mediaMode: 'led',       // 'led' | 'backlight' | 'frontlight'
+  colorTemp: 4000,        // 3000=quente | 4000=neutro | 6500=frio
+  textureIntensity: 0.5,  // 0-1
+  lightAngle: 135,        // graus (frontlight)
+  lightIntensity: 0.7,    // 0-1
+  worn: false             // material novo/usado
+};
+
 export const defaultScreenStyle = {
   cornerRadius: 0
 };
@@ -684,6 +693,246 @@ function drawLightSpill(ctx, corners, settings, style) {
   ctx.restore();
 }
 
+// ─────────────────────────────────────────────
+// MÍDIA IMPRESSA: BACKLIGHT & FRONTLIGHT
+// ─────────────────────────────────────────────
+
+function getWeaveTexture(type) {
+  const key = `weave-${type}`;
+  if (!getWeaveTexture.cache.has(key)) {
+    const isCoarse = type === 'coarse';
+    // Coarse = trama aberta (frontlight), Fine = trama fechada (backlight)
+    const pitch = isCoarse ? 13 : 8;
+    const threadW = isCoarse ? 2 : 1;
+    const baseAlpha = isCoarse ? 0.32 : 0.18;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = pitch;
+    canvas.height = pitch;
+    const ctx = canvas.getContext('2d');
+
+    if (ctx) {
+      ctx.clearRect(0, 0, pitch, pitch);
+
+      // Fio horizontal
+      ctx.strokeStyle = `rgba(0,0,0,${baseAlpha * 0.65})`;
+      ctx.lineWidth = threadW;
+      ctx.beginPath();
+      ctx.moveTo(0, pitch / 2);
+      ctx.lineTo(pitch, pitch / 2);
+      ctx.stroke();
+
+      // Fio vertical
+      ctx.beginPath();
+      ctx.moveTo(pitch / 2, 0);
+      ctx.lineTo(pitch / 2, pitch);
+      ctx.stroke();
+
+      // Nó de cruzamento (mais escuro)
+      ctx.fillStyle = `rgba(0,0,0,${baseAlpha})`;
+      ctx.beginPath();
+      ctx.arc(pitch / 2, pitch / 2, threadW * 1.15, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    getWeaveTexture.cache.set(key, canvas);
+  }
+  return getWeaveTexture.cache.get(key);
+}
+getWeaveTexture.cache = new Map();
+
+function colorTempTint(kelvin) {
+  // Retorna { r, g, b, a } para overlay de temperatura de cor
+  if (kelvin <= 3200) {
+    return { r: 255, g: 170, b: 70, a: 0.10 };   // quente âmbar
+  } else if (kelvin >= 5800) {
+    return { r: 180, g: 210, b: 255, a: 0.09 };   // frio azulado
+  } else {
+    return { r: 255, g: 230, b: 195, a: 0.05 };   // neutro, leve quente
+  }
+}
+
+function drawWeaveOverlay(ctx, corners, style, type, intensity) {
+  if (intensity <= 0) return;
+  const bounds = getSelectionBoundsRaw(corners);
+  const weaveCanvas = getWeaveTexture(type);
+  const pattern = ctx.createPattern(weaveCanvas, 'repeat');
+  if (!pattern) return;
+
+  ctx.save();
+  createQuadPath(ctx, corners, style);
+  ctx.clip();
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.globalAlpha = 0.12 + intensity * 0.30;
+  ctx.fillStyle = pattern;
+  ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
+  ctx.restore();
+}
+
+function drawColorTempOverlay(ctx, corners, style, kelvin, intensity) {
+  const tint = colorTempTint(kelvin);
+  if (tint.a <= 0) return;
+  const bounds = getSelectionBoundsRaw(corners);
+
+  ctx.save();
+  createQuadPath(ctx, corners, style);
+  ctx.clip();
+  ctx.globalCompositeOperation = 'soft-light';
+  ctx.fillStyle = `rgba(${tint.r},${tint.g},${tint.b},${tint.a * intensity})`;
+  ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
+  ctx.restore();
+}
+
+function drawBacklightMode(ctx, corners, style, params) {
+  const bounds = getSelectionBoundsRaw(corners);
+  const textureIntensity = clamp(params.textureIntensity ?? 0.5, 0, 1);
+  const lightIntensity = clamp(params.lightIntensity ?? 0.7, 0, 1);
+  const kelvin = params.colorTemp ?? 4000;
+
+  // 1. Trama de tecido fina (multiply)
+  drawWeaveOverlay(ctx, corners, style, 'fine', textureIntensity);
+
+  // 2. Glow difuso do backlight (screen) — luz vem de trás, distribui-se do centro
+  const cx = bounds.centerX;
+  const cy = bounds.centerY;
+  const glowR = Math.max(bounds.width, bounds.height) * 0.75;
+
+  ctx.save();
+  createQuadPath(ctx, corners, style);
+  ctx.clip();
+  ctx.globalCompositeOperation = 'screen';
+  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
+  glow.addColorStop(0,   `rgba(255,255,255,${0.08 + lightIntensity * 0.14})`);
+  glow.addColorStop(0.55, `rgba(255,255,255,${0.03 + lightIntensity * 0.05})`);
+  glow.addColorStop(1,   'rgba(255,255,255,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
+  ctx.restore();
+
+  // 3. Vinheta nas bordas (menos luz nas extremidades)
+  ctx.save();
+  createQuadPath(ctx, corners, style);
+  ctx.clip();
+  const vigR = Math.max(bounds.width, bounds.height) * 0.65;
+  const vignette = ctx.createRadialGradient(cx, cy, vigR * 0.52, cx, cy, vigR);
+  vignette.addColorStop(0, 'rgba(0,0,0,0)');
+  vignette.addColorStop(1, `rgba(0,0,0,${0.18 + (1 - lightIntensity) * 0.14})`);
+  ctx.fillStyle = vignette;
+  ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
+  ctx.restore();
+
+  // 4. Desaturação leve (luz atravessa o tecido, lava as cores)
+  ctx.save();
+  createQuadPath(ctx, corners, style);
+  ctx.clip();
+  ctx.globalCompositeOperation = 'saturation';
+  ctx.fillStyle = 'rgba(128,128,128,0.12)';
+  ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
+  ctx.restore();
+
+  // 5. Temperatura de cor
+  drawColorTempOverlay(ctx, corners, style, kelvin, lightIntensity);
+}
+
+function drawFrontlightMode(ctx, corners, style, params) {
+  const bounds = getSelectionBoundsRaw(corners);
+  const textureIntensity = clamp(params.textureIntensity ?? 0.5, 0, 1);
+  const lightIntensity = clamp(params.lightIntensity ?? 0.7, 0, 1);
+  const lightAngleRad = ((params.lightAngle ?? 135) * Math.PI) / 180;
+  const kelvin = params.colorTemp ?? 4000;
+  const worn = params.worn ?? false;
+
+  // 1. Trama de lona grossa (multiply)
+  drawWeaveOverlay(ctx, corners, style, 'coarse', textureIntensity);
+
+  // 2. Highlight direcional (holofote frontal)
+  const dx = Math.cos(lightAngleRad);
+  const dy = Math.sin(lightAngleRad);
+  const halfW = bounds.width / 2;
+  const halfH = bounds.height / 2;
+  const lightX = bounds.centerX - dx * halfW * 1.2;
+  const lightY = bounds.centerY - dy * halfH * 1.2;
+  const shadowX = bounds.centerX + dx * halfW * 1.2;
+  const shadowY = bounds.centerY + dy * halfH * 1.2;
+
+  // Highlight (screen)
+  ctx.save();
+  createQuadPath(ctx, corners, style);
+  ctx.clip();
+  ctx.globalCompositeOperation = 'screen';
+  const hilight = ctx.createLinearGradient(lightX, lightY, shadowX, shadowY);
+  hilight.addColorStop(0,    `rgba(255,255,255,${0.16 + lightIntensity * 0.22})`);
+  hilight.addColorStop(0.40, `rgba(255,255,255,${0.05 + lightIntensity * 0.07})`);
+  hilight.addColorStop(1,    'rgba(255,255,255,0)');
+  ctx.fillStyle = hilight;
+  ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
+  ctx.restore();
+
+  // Sombra no lado oposto (multiply)
+  ctx.save();
+  createQuadPath(ctx, corners, style);
+  ctx.clip();
+  ctx.globalCompositeOperation = 'multiply';
+  const shadow = ctx.createLinearGradient(lightX, lightY, shadowX, shadowY);
+  shadow.addColorStop(0,    'rgba(255,255,255,1)');   // lado iluminado — sem escurecimento
+  shadow.addColorStop(0.55, `rgba(215,215,215,${0.55 + (1 - lightIntensity) * 0.2})`);
+  shadow.addColorStop(1,    `rgba(140,140,140,${0.45 + (1 - lightIntensity) * 0.25})`);
+  ctx.fillStyle = shadow;
+  ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
+  ctx.restore();
+
+  // 3. Micro-sombras na trama via normal-map simplificado (overlay escuro deslocado)
+  if (textureIntensity > 0.15) {
+    const coarseCanvas = getWeaveTexture('coarse');
+    const pattern = ctx.createPattern(coarseCanvas, 'repeat');
+    if (pattern) {
+      ctx.save();
+      createQuadPath(ctx, corners, style);
+      ctx.clip();
+      ctx.translate(dx * 1.2, dy * 1.2);   // desloca sombra na direção da luz
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.globalAlpha = 0.08 + textureIntensity * 0.12;
+      ctx.fillStyle = pattern;
+      ctx.fillRect(bounds.minX - 4, bounds.minY - 4, bounds.width + 8, bounds.height + 8);
+      ctx.restore();
+    }
+  }
+
+  // 4. Temperatura de cor
+  drawColorTempOverlay(ctx, corners, style, kelvin, lightIntensity);
+
+  // 5. Efeitos de material usado (opcional)
+  if (worn) {
+    // Sujeira acumulada na borda inferior
+    ctx.save();
+    createQuadPath(ctx, corners, style);
+    ctx.clip();
+    ctx.globalCompositeOperation = 'multiply';
+    const dirt = ctx.createLinearGradient(bounds.minX, bounds.minY, bounds.minX, bounds.maxY);
+    dirt.addColorStop(0.65, 'rgba(80,60,40,0)');
+    dirt.addColorStop(1,    'rgba(80,60,40,0.18)');
+    ctx.fillStyle = dirt;
+    ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
+    ctx.restore();
+
+    // Vincos de tensão horizontais suaves
+    ctx.save();
+    createQuadPath(ctx, corners, style);
+    ctx.clip();
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.strokeStyle = 'rgba(0,0,0,0.07)';
+    ctx.lineWidth = 0.9;
+    for (let i = 1; i <= 4; i++) {
+      const wy = bounds.minY + bounds.height * (i / 5);
+      ctx.beginPath();
+      ctx.moveTo(bounds.minX, wy);
+      ctx.lineTo(bounds.maxX, wy);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
 function drawRoundedCornerMask(ctx, corners, style) {
   const normalizedStyle = normalizeScreenStyle(style);
   if (normalizedStyle.cornerRadius <= 0) return;
@@ -727,6 +976,7 @@ export async function generateSimulationPreview({
   screen,
   displaySettings,
   panelType,
+  mediaParams,
   maxWidth = 1800
 }) {
   const parsedConfig = screen?.corners ? screen : parseSimulationConfig(screen);
@@ -776,19 +1026,28 @@ export async function generateSimulationPreview({
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(base, 0, 0, outW, outH);
 
+  // Determina o modo de mídia: parâmetro explícito prevalece,
+  // fallback para inferência pelo tipo do painel (legado)
+  const resolvedParams = { ...defaultMediaParams, ...mediaParams };
+  const mode = resolvedParams.mediaMode || (isPrintedSurface(panelType) ? 'backlight' : 'led');
+  const isLed = mode === 'led';
+
   scaledFaces.forEach((face) => {
     drawCreativeIntoQuad(ctx, creative, face.corners, face.settings, face.style, {
-      highQuality: isPrintedSurface(panelType)
+      highQuality: !isLed
     });
     drawRoundedCornerMask(ctx, face.corners, face.style);
-    drawLightSpill(ctx, face.corners, face.settings, face.style);
-    drawScreenGlow(ctx, face.corners, face.settings, face.style, outW, outH);
-    drawReflection(ctx, face.corners, face.settings, face.style);
 
-    if (isPrintedSurface(panelType)) {
-      drawPrintedTexture(ctx, face.corners, face.settings, face.style);
-    } else {
+    if (isLed) {
+      // Modo LED — comportamento original inalterado
+      drawLightSpill(ctx, face.corners, face.settings, face.style);
+      drawScreenGlow(ctx, face.corners, face.settings, face.style, outW, outH);
+      drawReflection(ctx, face.corners, face.settings, face.style);
       drawLedPixels(ctx, face.corners, face.settings, face.style);
+    } else if (mode === 'backlight') {
+      drawBacklightMode(ctx, face.corners, face.style, resolvedParams);
+    } else if (mode === 'frontlight') {
+      drawFrontlightMode(ctx, face.corners, face.style, resolvedParams);
     }
 
     drawQuadOutline(ctx, face.corners, face.settings, face.style);

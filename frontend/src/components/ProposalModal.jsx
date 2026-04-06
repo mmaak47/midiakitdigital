@@ -33,6 +33,7 @@ import { buildProposalImagePromptsByFormat, buildProposalPricing } from '../lib/
 import { generateProposalPdf } from '../lib/midiaKitPdf';
 import {
   defaultDisplaySettings,
+  defaultMediaParams,
   generateSimulationPreview,
   normalizeDisplaySettings,
   parseSimulationConfig
@@ -140,6 +141,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [simulationError, setSimulationError] = useState('');
   const [simulationResults, setSimulationResults] = useState({});
   const [simulationSettings, setSimulationSettings] = useState(REALISM_PRESET);
+  const [mediaParams, setMediaParams] = useState({ ...defaultMediaParams });
   const [activePreviewPointId, setActivePreviewPointId] = useState(null);
   const [showPreviewLightbox, setShowPreviewLightbox] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -465,9 +467,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       falhas ? `${falhas} falha${falhas === 1 ? '' : 's'} de processamento` : null,
       `brilho ${simulationSettings.brightness.toFixed(2)}`,
       `reflexo ${simulationSettings.reflection.toFixed(2)}`,
-      `pixel LED ${simulationSettings.ledPixelIntensity.toFixed(2)}`
+      `pixel LED ${simulationSettings.ledPixelIntensity.toFixed(2)}`,
+      `mídia ${mediaParams.mediaMode}`
     ].filter(Boolean).join(' · ');
-  }, [simulationArtFile, simulationResults, simulationSettings]);
+  }, [simulationArtFile, simulationResults, simulationSettings, mediaParams]);
 
   const previewablePoints = useMemo(() => {
     const requireGeneratedPreview = !!simulationArtFile;
@@ -648,7 +651,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           creativeImageUrl: simulationArtUrl,
           screen: config,
           panelType: point.tipo,
-          displaySettings: simulationSettings
+          displaySettings: simulationSettings,
+          mediaParams
         });
         return [point.id, { status: 'Gerada', previewUrl: result.previewUrl }];
       } catch (error) {
@@ -1009,12 +1013,125 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     <StatusCard isDark={isDark} label="Pendências de cadastro" value={Object.values(simulationResults).filter((i) => i.status === 'Área da tela não cadastrada no admin' || i.status === 'Imagem base do ponto não cadastrada').length} tone="warning" />
                   </div>
 
+                  {/* ── Seletor de Tipo de Mídia ── */}
+                  <Card isDark={isDark}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Radio size={15} className={isDark ? 'text-brand-gray-400' : 'text-neutral-500'} />
+                      <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Tipo de mídia</h3>
+                    </div>
+
+                    {/* Botões LED / Backlight / Frontlight */}
+                    <div className="flex gap-2 mb-4">
+                      {[
+                        { key: 'led',        label: 'LED',        desc: 'Emissão direta de luz' },
+                        { key: 'backlight',  label: 'Backlight',  desc: 'Lona iluminada por trás' },
+                        { key: 'frontlight', label: 'Frontlight', desc: 'Lona com holofote frontal' }
+                      ].map(({ key, label, desc }) => {
+                        const active = mediaParams.mediaMode === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setMediaParams((p) => ({ ...p, mediaMode: key }))}
+                            className={`flex-1 rounded-xl border px-3 py-2.5 text-center transition-all ${
+                              active
+                                ? 'border-brand-orange bg-brand-orange/10 text-brand-orange'
+                                : isDark
+                                  ? 'border-white/10 bg-white/[0.03] text-brand-gray-400 hover:border-white/20 hover:text-white'
+                                  : 'border-neutral-200 bg-neutral-50 text-neutral-500 hover:border-neutral-300 hover:text-neutral-800'
+                            }`}
+                          >
+                            <div className="text-xs font-semibold">{label}</div>
+                            <div className={`text-[10px] mt-0.5 ${active ? 'text-brand-orange/80' : isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{desc}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Parâmetros comuns a backlight e frontlight */}
+                    {mediaParams.mediaMode !== 'led' && (
+                      <div className="space-y-4">
+                        {/* Temperatura de cor */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <label className={`text-[11px] uppercase tracking-wide ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Temperatura de cor</label>
+                            <div className="flex gap-1.5">
+                              {[
+                                { k: 3000, label: 'Quente', color: '#ffb347' },
+                                { k: 4000, label: 'Neutro', color: '#ffe0b0' },
+                                { k: 6500, label: 'Frio',   color: '#b0c8ff' }
+                              ].map(({ k, label, color }) => (
+                                <button
+                                  key={k}
+                                  type="button"
+                                  onClick={() => setMediaParams((p) => ({ ...p, colorTemp: k }))}
+                                  className={`px-2 py-1 rounded-md text-[10px] font-medium border transition-all ${
+                                    mediaParams.colorTemp === k
+                                      ? 'border-transparent text-black'
+                                      : isDark
+                                        ? 'border-white/10 text-brand-gray-400 bg-white/[0.04] hover:border-white/20'
+                                        : 'border-neutral-200 text-neutral-500 bg-neutral-50 hover:border-neutral-300'
+                                  }`}
+                                  style={mediaParams.colorTemp === k ? { backgroundColor: color } : {}}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <SliderField
+                            isDark={isDark}
+                            label="Intensidade da luz"
+                            value={Math.round(mediaParams.lightIntensity * 100)}
+                            min={0} max={100} step={1}
+                            onChange={(v) => setMediaParams((p) => ({ ...p, lightIntensity: v / 100 }))}
+                          />
+                          <SliderField
+                            isDark={isDark}
+                            label="Textura do tecido"
+                            value={Math.round(mediaParams.textureIntensity * 100)}
+                            min={0} max={100} step={1}
+                            onChange={(v) => setMediaParams((p) => ({ ...p, textureIntensity: v / 100 }))}
+                          />
+                        </div>
+
+                        {/* Ângulo da luz — apenas frontlight */}
+                        {mediaParams.mediaMode === 'frontlight' && (
+                          <div className="grid md:grid-cols-2 gap-4">
+                            <SliderField
+                              isDark={isDark}
+                              label="Ângulo da luz (°)"
+                              value={mediaParams.lightAngle}
+                              min={0} max={180} step={5}
+                              onChange={(v) => setMediaParams((p) => ({ ...p, lightAngle: v }))}
+                            />
+                            <div className="flex items-center gap-3 pt-5">
+                              <button
+                                type="button"
+                                onClick={() => setMediaParams((p) => ({ ...p, worn: !p.worn }))}
+                                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors ${mediaParams.worn ? 'bg-brand-orange' : isDark ? 'bg-white/10' : 'bg-neutral-200'}`}
+                              >
+                                <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition-transform ${mediaParams.worn ? 'translate-x-4' : 'translate-x-0'}`} />
+                              </button>
+                              <label className={`text-[11px] uppercase tracking-wide cursor-pointer ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`} onClick={() => setMediaParams((p) => ({ ...p, worn: !p.worn }))}>
+                                Material usado
+                              </label>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Card>
+
                   {/* Ajustes avançados (colapsável) */}
                   <Card isDark={isDark}>
                     <button type="button" onClick={() => setAdvancedRealismOpen(!advancedRealismOpen)} className="w-full flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <Settings2 size={16} className={isDark ? 'text-brand-gray-400' : 'text-neutral-500'} />
-                        <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Ajustes avançados</h3>
+                        <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Ajustes avançados{mediaParams.mediaMode !== 'led' ? ' (LED)' : ''}</h3>
                       </div>
                       <ChevronDown size={18} className={`shrink-0 transition-transform ${isDark ? 'text-brand-gray-400' : 'text-neutral-400'} ${advancedRealismOpen ? 'rotate-180' : ''}`} />
                     </button>
