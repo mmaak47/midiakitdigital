@@ -2499,13 +2499,18 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
   try {
     const payload = req.body;
     const event = payload?.event;
+    console.log(`[webhook] event="${event}" keys=${JSON.stringify(Object.keys(payload?.data || {}))}`);
 
-    // Suporta eventos do tipo messages.upsert (Evolution API v1/v2)
-    if (event !== 'messages.upsert' && event !== 'message') {
-      return res.json({ ok: true, ignored: 'event-not-handled' });
+    // Suporta messages.upsert (nova msg) e messages.update (voto em poll)
+    const HANDLED_EVENTS = ['messages.upsert', 'message', 'messages.update', 'MESSAGES_UPDATE'];
+    if (!HANDLED_EVENTS.includes(event)) {
+      return res.json({ ok: true, ignored: 'event-not-handled', event });
     }
 
-    const data = payload?.data;
+    // messages.update pode vir como array; normaliza para objeto único
+    let data = payload?.data;
+    if (Array.isArray(data)) data = data[0];
+
     const senderJid = data?.key?.remoteJid || data?.participant || '';
 
     // ── Resposta de enquete (pollUpdateMessage) ───────────────────────────────
