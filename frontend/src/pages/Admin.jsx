@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
   Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings,
-  Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap, ClipboardList
+  Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap, ClipboardList, Activity
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import {
@@ -35,6 +35,7 @@ import CidadeFotosAdmin from '../components/admin/CidadeFotosAdmin';
 import UserModal from '../components/admin/UserModal';
 import NovaVendaTab from '../components/admin/NovaVendaTab';
 import VendasListTab from '../components/admin/VendasListTab';
+import AuditoriaLoopTab from '../components/admin/AuditoriaLoopTab';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
 import { generateTechnicalInfoPdf } from '../lib/technicalInfoPdf';
 
@@ -64,6 +65,7 @@ const ADMIN_TABS = [
   { key: 'usuarios',         label: 'Usuários',           icon: Users,         roles: ['admin'] },
   { key: 'vendas',           label: 'Nova Venda',         icon: Zap,           roles: ['admin', 'gerente_comercial', 'vendedor'] },
   { key: 'historico_vendas', label: 'Vendas',             icon: ClipboardList, roles: ['admin', 'gerente_comercial', 'vendedor'] },
+  { key: 'auditoria_loop',   label: 'Auditoria de Loop', icon: Activity,      roles: ['admin', 'gerente_comercial'] },
   { key: 'configuracoes',    label: 'Configurações',      icon: Settings,      roles: ['admin', 'gerente_comercial'] },
 ];
 
@@ -1167,6 +1169,10 @@ export default function Admin() {
 
         {activeTab === 'historico_vendas' ? (
           <VendasListTab isDark={isDark} />
+        ) : null}
+
+        {activeTab === 'auditoria_loop' ? (
+          <AuditoriaLoopTab isDark={isDark} pontos={pontos} />
         ) : null}
 
         {activeTab === 'configuracoes' ? (
