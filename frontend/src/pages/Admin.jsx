@@ -1369,17 +1369,17 @@ export default function Admin() {
               </div>
             </section>
 
-            {/* Evolution API — WhatsApp */}
+            {/* WAHA — WhatsApp */}
             <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
               <div className="flex items-center gap-2 mb-1">
                 <Zap size={15} className="text-brand-orange" />
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-white">
-                  Integração WhatsApp — Evolution API
+                  Integração WhatsApp — WAHA
                 </h3>
               </div>
               <p className="text-xs text-brand-gray-500 mb-5">
-                Configure aqui os dados da sua instância Evolution API para que o disparo automático de
-                notificações de nova venda funcione. Preencha e salve antes de usar a aba <strong className="text-brand-gray-400">Nova Venda</strong>.
+                Configure aqui os dados do WAHA para disparo automático de notificações de nova venda.
+                Preencha e salve antes de usar a aba <strong className="text-brand-gray-400">Nova Venda</strong>.
               </p>
 
               {evoSaveMsg && (
@@ -1398,7 +1398,7 @@ export default function Admin() {
                     className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
                     value={evoApiUrl}
                     onChange={e => setEvoApiUrl(e.target.value)}
-                    placeholder="https://sua-evolution-api.com.br"
+                    placeholder="https://midiakit.redeintermidia.com/waha"
                   />
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
@@ -1408,7 +1408,7 @@ export default function Admin() {
                       className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
                       value={evoInstance}
                       onChange={e => setEvoInstance(e.target.value)}
-                      placeholder="minha-instancia"
+                      placeholder="default (não alterar)"
                     />
                   </div>
                   <div>
@@ -1434,7 +1434,7 @@ export default function Admin() {
                   />
                   <p className="mt-1.5 text-xs text-brand-gray-500">
                     Para número individual use o formato: 55 + DDD + número (ex: 5543999990000).
-                    Para grupos, use o ID retornado pela Evolution API.
+                    Para grupos, use o ID do grupo com @g.us (ex: 120363XXXXXX@g.us).
                   </p>
                 </div>
                 <button

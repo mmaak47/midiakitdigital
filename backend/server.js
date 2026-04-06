@@ -2121,19 +2121,31 @@ function getEvolutionSettings() {
   return result;
 }
 
+// Formata número/grupo para chatId do WAHA
+// Ex: "5543999990000" → "5543999990000@c.us"
+// Ex: "120363XXXX@g.us" → mantém (já é grupo)
+function formatWahaChatId(number) {
+  if (!number) return '';
+  const n = String(number).trim();
+  if (n.includes('@')) return n;           // já formatado
+  return `${n}@c.us`;
+}
+
 async function sendEvolutionText({ apiUrl, instance, apiKey, number, text }) {
-  const url = `${apiUrl.replace(/\/$/, '')}/message/sendText/${instance}`;
+  const base = apiUrl.replace(/\/$/, '');
+  const chatId = formatWahaChatId(number);
+  const url = `${base}/api/sendText`;
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      apikey: apiKey
+      'X-Api-Key': apiKey
     },
-    body: JSON.stringify({ number, text })
+    body: JSON.stringify({ chatId, text, session: 'default' })
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Evolution API [texto]: ${res.status} ${body.slice(0, 120)}`);
+    throw new Error(`WAHA [texto]: ${res.status} ${body.slice(0, 120)}`);
   }
   return res.json();
 }
@@ -2141,25 +2153,30 @@ async function sendEvolutionText({ apiUrl, instance, apiKey, number, text }) {
 async function sendEvolutionDocument({ apiUrl, instance, apiKey, number, caption, filePath, fileName }) {
   const fileBuffer = fs.readFileSync(filePath);
   const base64 = fileBuffer.toString('base64');
-  const url = `${apiUrl.replace(/\/$/, '')}/message/sendMedia/${instance}`;
+  const base = apiUrl.replace(/\/$/, '');
+  const chatId = formatWahaChatId(number);
+  const url = `${base}/api/sendFile`;
+  const mimeType = 'application/pdf';
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      apikey: apiKey
+      'X-Api-Key': apiKey
     },
     body: JSON.stringify({
-      number,
-      mediatype: 'document',
-      mimetype: 'application/pdf',
+      chatId,
+      session: 'default',
       caption,
-      media: base64,
-      fileName: fileName || 'PI.pdf'
+      file: {
+        mimetype: mimeType,
+        filename: fileName || 'PI.pdf',
+        data: base64
+      }
     })
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Evolution API [documento]: ${res.status} ${body.slice(0, 120)}`);
+    throw new Error(`WAHA [documento]: ${res.status} ${body.slice(0, 120)}`);
   }
   return res.json();
 }
