@@ -2149,11 +2149,11 @@ function getEvolutionSettings() {
 
 // Mapeamento emoji → etapa pós-venda (reações no WhatsApp)
 const EMOJI_ETAPA_MAP = {
-  '\u2705':         { key: 'faturado',          label: 'Faturado' },
-  '\uD83C\uDFA8': { key: 'followup_criacao',   label: 'Follow up Criação' },
-  '\uD83D\uDCC4': { key: 'contrato',            label: 'Contrato' },
-  '\u270D\uFE0F': { key: 'assinatura',          label: 'Assinatura' },
-  '\u270D':         { key: 'assinatura',          label: 'Assinatura' },
+  '\u2705':         { key: 'faturado',          label: 'Faturado',            emoji: '✅' },
+  '\uD83C\uDFA8': { key: 'followup_criacao',   label: 'Follow up Criação',   emoji: '🎨' },
+  '\uD83D\uDCC4': { key: 'contrato',            label: 'Contrato',            emoji: '📄' },
+  '\u270D\uFE0F': { key: 'assinatura',          label: 'Assinatura',          emoji: '✍️' },
+  '\u270D':         { key: 'assinatura',          label: 'Assinatura',          emoji: '✍️' },
 };
 
 async function sendEvolutionText({ apiUrl, instance, apiKey, number, text }) {
@@ -2167,6 +2167,21 @@ async function sendEvolutionText({ apiUrl, instance, apiKey, number, text }) {
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`Evolution [texto]: ${res.status} ${body.slice(0, 120)}`);
+  }
+  return res.json();
+}
+
+async function sendEvolutionList({ apiUrl, instance, apiKey, number, title, description, buttonText, footerText, sections }) {
+  const base = apiUrl.replace(/\/$/, '');
+  const url = `${base}/message/sendList/${encodeURIComponent(instance)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
+    body: JSON.stringify({ number: String(number).trim(), title, description, buttonText, footerText, sections })
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Evolution [lista]: ${res.status} ${body.slice(0, 120)}`);
   }
   return res.json();
 }
@@ -2217,14 +2232,6 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, cnpj, pont
   lines.push('RESPONSÁVEL PELA COMPRA:');
   if (responsavelNome) lines.push(`Nome: ${responsavelNome}`);
   if (responsavelWhatsapp) lines.push(`WhatsApp: ${responsavelWhatsapp}`);
-
-  lines.push('');
-  lines.push('─────────────────────────');
-  lines.push('✅ Faturado');
-  lines.push('🎨 Follow up Criação');
-  lines.push('📄 Contrato');
-  lines.push('✍️ Assinatura');
-  lines.push('_Reaja com o emoji para confirmar cada etapa_');
 
   return lines.join('\n');
 }
@@ -2339,6 +2346,31 @@ app.post(
           }
 
           whatsappStatus = 'enviado';
+
+          // Envia mensagem interativa de etapas (best-effort, não afeta o fluxo principal)
+          try {
+            await sendEvolutionList({
+              apiUrl: evo.evolution_api_url,
+              instance: evo.evolution_instance,
+              apiKey: evo.evolution_api_key,
+              number: evo.evolution_dest_number,
+              title: '📋 Etapas da Venda',
+              description: `Confirme as etapas de: *${String(razao_social).trim()}*`,
+              buttonText: 'Ver etapas',
+              footerText: 'Toque para confirmar',
+              sections: [{
+                title: 'Etapas Pós-Venda',
+                rows: [
+                  { title: '✅ Faturado',            rowId: `venda_${vendaId}_faturado` },
+                  { title: '🎨 Follow up Criação', rowId: `venda_${vendaId}_followup_criacao` },
+                  { title: '📄 Contrato',            rowId: `venda_${vendaId}_contrato` },
+                  { title: '✍️ Assinatura',          rowId: `venda_${vendaId}_assinatura` }
+                ]
+              }]
+            });
+          } catch (listErr) {
+            console.warn('[vendas] falha ao enviar lista de etapas:', listErr.message);
+          }
         } catch (wErr) {
           console.error('[vendas] falha ao enviar WhatsApp:', wErr.message);
           whatsappStatus = 'falha';
@@ -2460,13 +2492,37 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
     }
 
     const data = payload?.data;
+    const senderJid = data?.key?.remoteJid || data?.participant || '';
+
+    // ── Resposta de lista interativa (sendList) ───────────────────────────────
+    const listResp = data?.message?.listResponseMessage;
+    if (listResp) {
+      const rowId = listResp?.singleSelectReply?.selectedRowId || '';
+      const match = rowId.match(/^venda_(\d+)_(.+)$/);
+      if (!match) return res.json({ ok: true, ignored: 'invalid-row-id' });
+      const [, vendaIdStr, etapaKey] = match;
+      const etapaInfo = Object.values(EMOJI_ETAPA_MAP).find(e => e.key === etapaKey);
+      if (!etapaInfo) return res.json({ ok: true, ignored: 'etapa-key-not-found' });
+      const vendaId = parseInt(vendaIdStr);
+      db.prepare(`
+        INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_por, confirmado_at, removido)
+        VALUES (?, ?, ?, ?, ?, datetime('now'), 0)
+        ON CONFLICT(venda_id, etapa_key) DO UPDATE SET
+          confirmado_por = excluded.confirmado_por,
+          confirmado_at = excluded.confirmado_at,
+          removido = 0
+      `).run(vendaId, etapaKey, etapaInfo.label, etapaInfo.emoji || '', senderJid);
+      console.log(`[webhook] Etapa "${etapaInfo.label}" confirmada via lista para venda ${vendaId} por ${senderJid}`);
+      return res.json({ ok: true, action: 'etapa-registrada-lista', etapa: etapaKey, venda_id: vendaId });
+    }
+
+    // ── Reação emoji (fallback para quem usar emoji diretamente) ──────────────
     const reactionMsg = data?.message?.reactionMessage;
     if (!reactionMsg) return res.json({ ok: true, ignored: 'not-a-reaction' });
 
     const targetMsgId = reactionMsg?.key?.id;
     // Normaliza emoji removendo variation selectors (U+FE0F)
     const emoji = (reactionMsg?.text || '').replace(/\uFE0F/g, '').trim();
-    const senderJid = data?.key?.remoteJid || data?.participant || '';
 
     if (!targetMsgId) return res.json({ ok: true, ignored: 'no-target-id' });
 
@@ -2476,7 +2532,6 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
 
     // Reação removida (emoji vazio) → marca etapa como removida
     if (emoji === '') {
-      // Identifica qual etapa estava registrada com essa mensagem/remetente
       db.prepare(
         "UPDATE venda_etapas SET removido = 1 WHERE venda_id = ? AND confirmado_por = ?"
       ).run(venda.id, senderJid);
@@ -2497,7 +2552,7 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
         removido = 0
     `).run(venda.id, key, label, emoji, senderJid);
 
-    console.log(`[webhook] Etapa "${label}" confirmada para venda ${venda.id} por ${senderJid}`);
+    console.log(`[webhook] Etapa "${label}" confirmada por emoji para venda ${venda.id} por ${senderJid}`);
     return res.json({ ok: true, action: 'etapa-registrada', etapa: key, venda_id: venda.id });
   } catch (err) {
     console.error('[webhook/whatsapp] erro:', err.message);
