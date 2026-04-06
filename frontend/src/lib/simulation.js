@@ -458,6 +458,18 @@ function isPrintedSurface(panelType) {
   return value.includes('frontlight') || value.includes('backlight');
 }
 
+function expandQuadCorners(p00, p10, p11, p01, amount) {
+  const cx = (p00.x + p10.x + p11.x + p01.x) / 4;
+  const cy = (p00.y + p10.y + p11.y + p01.y) / 4;
+  function push(p) {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1e-6;
+    return { x: p.x + (dx / len) * amount, y: p.y + (dy / len) * amount };
+  }
+  return [push(p00), push(p10), push(p11), push(p01)];
+}
+
 function drawCreativeIntoQuad(ctx, creative, corners, display, style, options = {}) {
   if (!Array.isArray(corners) || corners.length < 4) return;
   const targetAspect = getQuadAspect(corners);
@@ -486,13 +498,17 @@ function drawCreativeIntoQuad(ctx, creative, corners, display, style, options = 
       const srcW = sw * (u1 - u0);
       const srcH = sh * (v1 - v0);
 
+      // Expand clip region ~0.75px outward from centroid so adjacent tiles
+      // overlap slightly, filling anti-aliasing gaps that cause visible seams.
+      const [ep00, ep10, ep11, ep01] = expandQuadCorners(p00, p10, p11, p01, 0.75);
+
       ctx.save();
       ctx.globalAlpha = display.opacity;
       ctx.beginPath();
-      ctx.moveTo(p00.x, p00.y);
-      ctx.lineTo(p10.x, p10.y);
-      ctx.lineTo(p11.x, p11.y);
-      ctx.lineTo(p01.x, p01.y);
+      ctx.moveTo(ep00.x, ep00.y);
+      ctx.lineTo(ep10.x, ep10.y);
+      ctx.lineTo(ep11.x, ep11.y);
+      ctx.lineTo(ep01.x, ep01.y);
       ctx.closePath();
       ctx.clip();
 
