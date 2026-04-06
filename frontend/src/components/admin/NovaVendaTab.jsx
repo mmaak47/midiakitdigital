@@ -97,7 +97,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       fd.append('responsavel_whatsapp', form.responsavel_whatsapp.trim());
       fd.append('pontos_nomes', JSON.stringify(selectedPontos.map(p => p.nome)));
       fd.append('vendedor_nome', currentUser
-        ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()
+        ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username || 'Vendedor'
         : 'Vendedor'
       );
       if (piFile) fd.append('pi', piFile);
@@ -452,7 +452,7 @@ function buildMsgPreview({ form, selectedPontos, currentUser }) {
   if (!form.razao_social && selectedPontos.length === 0) return '';
 
   const vendedorNome = currentUser
-    ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()
+    ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username || 'Vendedor'
     : 'Vendedor';
 
   const pontosList = selectedPontos.length

@@ -21,6 +21,7 @@ function rewriteSqliteSyntax(sql) {
 
   // Use placeholder so that NOW() inner parens don't break the VALUES regex below
   out = out.replace(/datetime\('now'\)/gi, '__DTNOW__');
+  out = out.replace(/INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT/gi, 'SERIAL PRIMARY KEY');
   out = out.replace(/\bINSERT\s+OR\s+IGNORE\s+INTO\b/gi, 'INSERT INTO');
 
   out = out.replace(

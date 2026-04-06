@@ -456,6 +456,27 @@ export async function fetchCurrentUser() {
   return res.json();
 }
 
+// Listagem de vendas
+export async function fetchVendas({ status, q } = {}) {
+  const params = new URLSearchParams();
+  if (status && status !== 'todas') params.set('status', status);
+  if (q) params.set('q', q);
+  const res = await apiRequest(`/vendas?${params}`);
+  if (!res.ok) throw new Error('Erro ao buscar vendas');
+  return res.json();
+}
+
+// Atualiza status de uma venda
+export async function updateVendaStatus(id, { status, obs }) {
+  const res = await apiRequest(`/vendas/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, obs })
+  });
+  if (!res.ok) throw new Error('Erro ao atualizar venda');
+  return res.json();
+}
+
 // Registra uma nova venda e dispara notificação WhatsApp
 // Aceita FormData (multipart) para suportar upload do P.I. em PDF
 export async function submitNovaVenda(formData) {

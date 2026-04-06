@@ -1573,7 +1573,7 @@ app.delete('/api/pontos/:id', requireRoles(['admin', 'gerente_comercial']), (req
 });
 
 // GET all pontos for admin (including inactive)
-app.get('/api/admin/pontos', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+app.get('/api/admin/pontos', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
     const pontos = db.prepare('SELECT * FROM pontos ORDER BY cidade, nome').all().map(hydratePontoRow);
     res.json(pontos);
@@ -2099,6 +2099,9 @@ try {
       vendedor_nome TEXT,
       whatsapp_status TEXT DEFAULT 'pendente',
       whatsapp_error TEXT,
+      status TEXT DEFAULT 'ativa',
+      obs TEXT,
+      updated_at TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     )
   `).run();
@@ -2121,31 +2124,17 @@ function getEvolutionSettings() {
   return result;
 }
 
-// Formata número/grupo para chatId do WAHA
-// Ex: "5543999990000" → "5543999990000@c.us"
-// Ex: "120363XXXX@g.us" → mantém (já é grupo)
-function formatWahaChatId(number) {
-  if (!number) return '';
-  const n = String(number).trim();
-  if (n.includes('@')) return n;           // já formatado
-  return `${n}@c.us`;
-}
-
 async function sendEvolutionText({ apiUrl, instance, apiKey, number, text }) {
   const base = apiUrl.replace(/\/$/, '');
-  const chatId = formatWahaChatId(number);
-  const url = `${base}/api/sendText`;
+  const url = `${base}/message/sendText/${encodeURIComponent(instance)}`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Api-Key': apiKey
-    },
-    body: JSON.stringify({ chatId, text, session: 'default' })
+    headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
+    body: JSON.stringify({ number: String(number).trim(), text })
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`WAHA [texto]: ${res.status} ${body.slice(0, 120)}`);
+    throw new Error(`Evolution [texto]: ${res.status} ${body.slice(0, 120)}`);
   }
   return res.json();
 }
@@ -2154,29 +2143,21 @@ async function sendEvolutionDocument({ apiUrl, instance, apiKey, number, caption
   const fileBuffer = fs.readFileSync(filePath);
   const base64 = fileBuffer.toString('base64');
   const base = apiUrl.replace(/\/$/, '');
-  const chatId = formatWahaChatId(number);
-  const url = `${base}/api/sendFile`;
-  const mimeType = 'application/pdf';
+  const url = `${base}/message/sendMedia/${encodeURIComponent(instance)}`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Api-Key': apiKey
-    },
+    headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
     body: JSON.stringify({
-      chatId,
-      session: 'default',
+      number: String(number).trim(),
+      mediatype: 'document',
       caption,
-      file: {
-        mimetype: mimeType,
-        filename: fileName || 'PI.pdf',
-        data: base64
-      }
+      media: base64,
+      fileName: fileName || 'PI.pdf'
     })
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`WAHA [documento]: ${res.status} ${body.slice(0, 120)}`);
+    throw new Error(`Evolution [documento]: ${res.status} ${body.slice(0, 120)}`);
   }
   return res.json();
 }
@@ -2350,6 +2331,59 @@ app.post(
     }
   }
 );
+
+// ─── Listagem de vendas ───────────────────────────────────────────────────────
+app.get('/api/vendas', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { status, q } = req.query;
+    const { role, id: userId } = req.authUser;
+    let sql = `SELECT * FROM vendas`;
+    const conditions = [];
+    const params = [];
+    // Vendedor só vê as próprias vendas
+    if (role === 'vendedor') {
+      conditions.push(`vendedor_id = ?`);
+      params.push(userId);
+    }
+    if (status && status !== 'todas') {
+      conditions.push(`status = ?`);
+      params.push(status);
+    }
+    if (q) {
+      conditions.push(`(razao_social ILIKE ? OR cnpj ILIKE ? OR vendedor_nome ILIKE ?)`);
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    }
+    if (conditions.length) sql += ` WHERE ${conditions.join(' AND ')}`;
+    sql += ` ORDER BY created_at DESC`;
+    const rows = db.prepare(sql).all(...params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Atualizar status de uma venda ───────────────────────────────────────────
+app.patch('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, obs } = req.body;
+    const { role, id: userId } = req.authUser;
+    const allowed = ['ativa', 'renovada', 'cancelada', 'pendente'];
+    if (!allowed.includes(status)) return res.status(400).json({ error: 'Status inválido.' });
+    // Vendedor só pode atualizar as próprias vendas
+    if (role === 'vendedor') {
+      const venda = db.prepare(`SELECT vendedor_id FROM vendas WHERE id = ?`).get(id);
+      if (!venda || Number(venda.vendedor_id) !== Number(userId)) {
+        return res.status(403).json({ error: 'Acesso negado.' });
+      }
+    }
+    db.prepare(`UPDATE vendas SET status = ?, obs = ?, updated_at = datetime('now') WHERE id = ?`).run(status, obs || null, id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 // SPA fallback
 app.get('*', (req, res) => {

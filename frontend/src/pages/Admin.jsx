@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
   Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings,
-  Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap
+  Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap, ClipboardList
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import {
@@ -34,6 +34,7 @@ import FocalPointSelector from '../components/admin/FocalPointSelector';
 import CidadeFotosAdmin from '../components/admin/CidadeFotosAdmin';
 import UserModal from '../components/admin/UserModal';
 import NovaVendaTab from '../components/admin/NovaVendaTab';
+import VendasListTab from '../components/admin/VendasListTab';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
 import { generateTechnicalInfoPdf } from '../lib/technicalInfoPdf';
 
@@ -58,12 +59,22 @@ const USER_ROLES = [
 ];
 
 const ADMIN_TABS = [
-  { key: 'pontos', label: 'Pontos', icon: PanelsTopLeft },
-  { key: 'entorno', label: 'Análise de entorno', icon: MapPinned },
-  { key: 'usuarios', label: 'Usuários', icon: Users },
-  { key: 'vendas', label: 'Nova Venda', icon: Zap },
-  { key: 'configuracoes', label: 'Configurações', icon: Settings }
+  { key: 'pontos',           label: 'Pontos',             icon: PanelsTopLeft, roles: ['admin', 'gerente_comercial'] },
+  { key: 'entorno',          label: 'Análise de entorno', icon: MapPinned,     roles: ['admin', 'gerente_comercial'] },
+  { key: 'usuarios',         label: 'Usuários',           icon: Users,         roles: ['admin'] },
+  { key: 'vendas',           label: 'Nova Venda',         icon: Zap,           roles: ['admin', 'gerente_comercial', 'vendedor'] },
+  { key: 'historico_vendas', label: 'Vendas',             icon: ClipboardList, roles: ['admin', 'gerente_comercial', 'vendedor'] },
+  { key: 'configuracoes',    label: 'Configurações',      icon: Settings,      roles: ['admin', 'gerente_comercial'] },
 ];
+
+function getVisibleTabs(role) {
+  return ADMIN_TABS.filter(t => !t.roles || t.roles.includes(role));
+}
+
+function getDefaultTab(role) {
+  if (role === 'vendedor') return 'vendas';
+  return 'pontos';
+}
 
 const emptyForm = {
   nome: '', cidade: 'Londrina', tipo: 'Elevador', endereco: '',
@@ -366,9 +377,16 @@ export default function Admin() {
     if (auth) {
       loadPontos();
       loadUsers();
-      // Carrega usuário atual para exibição no formulário de venda
+      // Carrega usuário atual e ajusta tab inicial pelo role
       fetchCurrentUser()
-        .then(u => setCurrentUser(u))
+        .then(u => {
+          setCurrentUser(u);
+          setActiveTab(prev => {
+            const visible = getVisibleTabs(u?.role);
+            if (visible.find(t => t.key === prev)) return prev;
+            return getDefaultTab(u?.role);
+          });
+        })
         .catch(() => {});
     }
   }, [auth]);
@@ -919,7 +937,7 @@ export default function Admin() {
 
         <div className="mb-6">
           <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-2">
-            {ADMIN_TABS.map((tab) => {
+            {getVisibleTabs(currentUser?.role).map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.key;
               return (
@@ -1145,6 +1163,10 @@ export default function Admin() {
             pontos={pontos.filter(p => Number(p.ativo) === 1)}
             currentUser={currentUser}
           />
+        ) : null}
+
+        {activeTab === 'historico_vendas' ? (
+          <VendasListTab isDark={isDark} />
         ) : null}
 
         {activeTab === 'configuracoes' ? (
