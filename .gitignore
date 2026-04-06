@@ -38,9 +38,14 @@ check_logs.py
 check_nginx_config.py
 configure_subdomain_ssl.py
 configure_www_redirect.py
+configure_webhook.py
+debug_webhook.py
 download_db.py
+evolution_connect_whatsapp.py
 fix_cors_new_vps.py
+fix_encoding.py
 migrate_to_new_vps.py
+setup_evolution_api.py
 
 # One-time migration/seed scripts (may reference credentials)
 _migration_helper.py
@@ -51,6 +56,10 @@ test_remote_real.py
 write_landing.py
 _expire_census_cache.py
 _trigger_census_reanalysis.py
+
+# Build artifacts accidentally committed with credentials in path
+"frontend/sshpass*"
+frontend/sshpass*
 
 # Python cache
 __pycache__/
