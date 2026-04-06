@@ -2149,13 +2149,11 @@ function getEvolutionSettings() {
 
 // Mapeamento emoji → etapa pós-venda (reações no WhatsApp)
 const EMOJI_ETAPA_MAP = {
-  '\u2705':         { key: 'faturada',          label: 'Faturada' },
-  '\uD83D\uDCE6': { key: 'material_entregue',  label: 'Material Entregue' },
-  '\uD83D\uDEE0':  { key: 'instalacao',         label: 'Instalação Concluída' },
-  '\uD83D\uDEE0\uFE0F': { key: 'instalacao',   label: 'Instalação Concluída' },
-  '\uD83D\uDCF8': { key: 'comprovacao',        label: 'Comprovação Enviada' },
-  '\uD83D\uDCB0': { key: 'recebida',           label: 'Recebida' },
-  '\u274C':         { key: 'pendencia',          label: 'Pendência' },
+  '\u2705':         { key: 'faturado',          label: 'Faturado' },
+  '\uD83C\uDFA8': { key: 'followup_criacao',   label: 'Follow up Criação' },
+  '\uD83D\uDCC4': { key: 'contrato',            label: 'Contrato' },
+  '\u270D\uFE0F': { key: 'assinatura',          label: 'Assinatura' },
+  '\u270D':         { key: 'assinatura',          label: 'Assinatura' },
 };
 
 async function sendEvolutionText({ apiUrl, instance, apiKey, number, text }) {
