@@ -2110,7 +2110,8 @@ try {
   console.error('[vendas] falha ao criar tabela vendas:', dbInitErr.message);
 }
 // Migração: adiciona colunas novas a tabelas existentes (idempotente)
-['ALTER TABLE vendas ADD COLUMN whatsapp_message_id TEXT'].forEach(sql => {
+['ALTER TABLE vendas ADD COLUMN whatsapp_message_id TEXT',
+ 'ALTER TABLE vendas ADD COLUMN whatsapp_poll_id TEXT'].forEach(sql => {
   try { db.prepare(sql).run(); } catch { /* coluna já existe */ }
 });
 // Tabela de etapas pós-venda validadas por reação emoji no WhatsApp
@@ -2171,17 +2172,17 @@ async function sendEvolutionText({ apiUrl, instance, apiKey, number, text }) {
   return res.json();
 }
 
-async function sendEvolutionList({ apiUrl, instance, apiKey, number, title, description, buttonText, footerText, sections }) {
+async function sendEvolutionPoll({ apiUrl, instance, apiKey, number, name, values }) {
   const base = apiUrl.replace(/\/$/, '');
-  const url = `${base}/message/sendList/${encodeURIComponent(instance)}`;
+  const url = `${base}/message/sendPoll/${encodeURIComponent(instance)}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
-    body: JSON.stringify({ number: String(number).trim(), title, description, buttonText, footerText, sections })
+    body: JSON.stringify({ number: String(number).trim(), name, values, selectableCount: values.length })
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Evolution [lista]: ${res.status} ${body.slice(0, 120)}`);
+    throw new Error(`Evolution [poll]: ${res.status} ${body.slice(0, 120)}`);
   }
   return res.json();
 }
@@ -2347,29 +2348,24 @@ app.post(
 
           whatsappStatus = 'enviado';
 
-          // Envia mensagem interativa de etapas (best-effort, não afeta o fluxo principal)
+          // Envia enquete interativa de etapas (best-effort)
           try {
-            await sendEvolutionList({
+            const pollResp = await sendEvolutionPoll({
               apiUrl: evo.evolution_api_url,
               instance: evo.evolution_instance,
               apiKey: evo.evolution_api_key,
               number: evo.evolution_dest_number,
-              title: '📋 Etapas da Venda',
-              description: `Confirme as etapas de: *${String(razao_social).trim()}*`,
-              buttonText: 'Ver etapas',
-              footerText: 'Toque para confirmar',
-              sections: [{
-                title: 'Etapas Pós-Venda',
-                rows: [
-                  { title: '✅ Faturado',            rowId: `venda_${vendaId}_faturado` },
-                  { title: '🎨 Follow up Criação', rowId: `venda_${vendaId}_followup_criacao` },
-                  { title: '📄 Contrato',            rowId: `venda_${vendaId}_contrato` },
-                  { title: '✍️ Assinatura',          rowId: `venda_${vendaId}_assinatura` }
-                ]
-              }]
+              name: `📋 Etapas da venda: ${String(razao_social).trim()}`,
+              values: ['✅ Faturado', '🎨 Follow up Criação', '📄 Contrato', '✍️ Assinatura']
             });
-          } catch (listErr) {
-            console.warn('[vendas] falha ao enviar lista de etapas:', listErr.message);
+            const pollId = pollResp?.key?.id || null;
+            if (pollId) {
+              try {
+                db.prepare('UPDATE vendas SET whatsapp_poll_id = ? WHERE id = ?').run(pollId, vendaId);
+              } catch { /* ignora */ }
+            }
+          } catch (pollErr) {
+            console.warn('[vendas] falha ao enviar enquete de etapas:', pollErr.message);
           }
         } catch (wErr) {
           console.error('[vendas] falha ao enviar WhatsApp:', wErr.message);
@@ -2494,29 +2490,45 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
     const data = payload?.data;
     const senderJid = data?.key?.remoteJid || data?.participant || '';
 
-    // ── Resposta de lista interativa (sendList) ───────────────────────────────
-    const listResp = data?.message?.listResponseMessage;
-    if (listResp) {
-      const rowId = listResp?.singleSelectReply?.selectedRowId || '';
-      const match = rowId.match(/^venda_(\d+)_(.+)$/);
-      if (!match) return res.json({ ok: true, ignored: 'invalid-row-id' });
-      const [, vendaIdStr, etapaKey] = match;
-      const etapaInfo = Object.values(EMOJI_ETAPA_MAP).find(e => e.key === etapaKey);
-      if (!etapaInfo) return res.json({ ok: true, ignored: 'etapa-key-not-found' });
-      const vendaId = parseInt(vendaIdStr);
-      db.prepare(`
-        INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_por, confirmado_at, removido)
-        VALUES (?, ?, ?, ?, ?, datetime('now'), 0)
-        ON CONFLICT(venda_id, etapa_key) DO UPDATE SET
-          confirmado_por = excluded.confirmado_por,
-          confirmado_at = excluded.confirmado_at,
-          removido = 0
-      `).run(vendaId, etapaKey, etapaInfo.label, etapaInfo.emoji || '', senderJid);
-      console.log(`[webhook] Etapa "${etapaInfo.label}" confirmada via lista para venda ${vendaId} por ${senderJid}`);
-      return res.json({ ok: true, action: 'etapa-registrada-lista', etapa: etapaKey, venda_id: vendaId });
+    // ── Resposta de enquete (pollUpdateMessage) ───────────────────────────────
+    const pollUpdate = data?.message?.pollUpdateMessage;
+    if (pollUpdate) {
+      const pollId = pollUpdate?.pollCreationMessageKey?.id;
+      if (!pollId) return res.json({ ok: true, ignored: 'no-poll-id' });
+
+      const venda = db.prepare('SELECT id FROM vendas WHERE whatsapp_poll_id = ?').get(pollId);
+      if (!venda) return res.json({ ok: true, ignored: 'poll-venda-not-found' });
+
+      // Evolution API decifra o voto e entrega os options selecionados
+      const selectedOptions = pollUpdate?.vote?.selectedOptions || [];
+      console.log(`[webhook] poll response vendaId=${venda.id} opts=${JSON.stringify(selectedOptions)}`);
+
+      const POLL_OPTION_MAP = {
+        '✅ Faturado':            { key: 'faturado',          label: 'Faturado',          emoji: '✅' },
+        '🎨 Follow up Criação': { key: 'followup_criacao',   label: 'Follow up Criação',  emoji: '🎨' },
+        '📄 Contrato':            { key: 'contrato',           label: 'Contrato',          emoji: '📄' },
+        '✍️ Assinatura':          { key: 'assinatura',         label: 'Assinatura',        emoji: '✍️' },
+      };
+
+      for (const opt of selectedOptions) {
+        const optName = (opt?.name || opt || '').trim();
+        const etapa = POLL_OPTION_MAP[optName];
+        if (!etapa) continue;
+        db.prepare(`
+          INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_por, confirmado_at, removido)
+          VALUES (?, ?, ?, ?, ?, datetime('now'), 0)
+          ON CONFLICT(venda_id, etapa_key) DO UPDATE SET
+            confirmado_por = excluded.confirmado_por,
+            confirmado_at = excluded.confirmado_at,
+            removido = 0
+        `).run(venda.id, etapa.key, etapa.label, etapa.emoji, senderJid);
+        console.log(`[webhook] Etapa "${etapa.label}" confirmada via enquete por ${senderJid}`);
+      }
+
+      return res.json({ ok: true, action: 'poll-etapas-registradas', venda_id: venda.id, count: selectedOptions.length });
     }
 
-    // ── Reação emoji (fallback para quem usar emoji diretamente) ──────────────
+    // ── Reação emoji (fallback) ──────────────
     const reactionMsg = data?.message?.reactionMessage;
     if (!reactionMsg) return res.json({ ok: true, ignored: 'not-a-reaction' });
 
