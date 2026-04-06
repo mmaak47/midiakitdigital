@@ -12,7 +12,7 @@ export const defaultDisplaySettings = {
   brightness: 1.04,
   reflection: 0.08,
   spill: 0.12,
-  ledPixelIntensity: 0.22,
+  ledPixelIntensity: 0,
   ledPixelSize: 5,
   glare: 0.06
 };
@@ -87,7 +87,7 @@ export function normalizeDisplaySettings(input) {
     brightness: clamp(toNumber(input?.brightness, defaultDisplaySettings.brightness), 0.7, 1.8),
     reflection: clamp(toNumber(input?.reflection, defaultDisplaySettings.reflection), 0, 0.55),
     spill: clamp(toNumber(input?.spill, defaultDisplaySettings.spill), 0, 0.45),
-    ledPixelIntensity: clamp(toNumber(input?.ledPixelIntensity, defaultDisplaySettings.ledPixelIntensity), 0, 0.45),
+    ledPixelIntensity: clamp(toNumber(input?.ledPixelIntensity, defaultDisplaySettings.ledPixelIntensity), 0, 0.20),
     ledPixelSize: clamp(toNumber(input?.ledPixelSize, defaultDisplaySettings.ledPixelSize), 3, 14),
     glare: clamp(toNumber(input?.glare, defaultDisplaySettings.glare), 0, 0.4)
   };
@@ -602,10 +602,10 @@ function drawLedPixels(ctx, corners, settings, style) {
   createQuadPath(ctx, corners, style);
   ctx.clip();
 
-  // Multiply pass: the 1px black gap darkens the image at grid lines.
-  // Alpha kept low so it reads as texture, not as a heavy grid overlay.
+  // Multiply pass: the thin dark gap darkens the image at pixel edges.
+  // Alpha intentionally very low — just a hint of texture, not a grid.
   ctx.globalCompositeOperation = 'multiply';
-  ctx.globalAlpha = 0.18 + settings.ledPixelIntensity * 0.32;
+  ctx.globalAlpha = 0.10 + settings.ledPixelIntensity * 0.20;
   ctx.fillStyle = pattern;
   ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
   ctx.restore();
