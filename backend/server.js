@@ -2099,6 +2099,7 @@ try {
       vendedor_nome TEXT,
       whatsapp_status TEXT DEFAULT 'pendente',
       whatsapp_error TEXT,
+      whatsapp_message_id TEXT,
       status TEXT DEFAULT 'ativa',
       obs TEXT,
       updated_at TEXT,
@@ -2107,6 +2108,28 @@ try {
   `).run();
 } catch (dbInitErr) {
   console.error('[vendas] falha ao criar tabela vendas:', dbInitErr.message);
+}
+// Migração: adiciona colunas novas a tabelas existentes (idempotente)
+['ALTER TABLE vendas ADD COLUMN whatsapp_message_id TEXT'].forEach(sql => {
+  try { db.prepare(sql).run(); } catch { /* coluna já existe */ }
+});
+// Tabela de etapas pós-venda validadas por reação emoji no WhatsApp
+try {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS venda_etapas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      venda_id INTEGER NOT NULL REFERENCES vendas(id),
+      etapa_key TEXT NOT NULL,
+      etapa_label TEXT NOT NULL,
+      emoji TEXT NOT NULL,
+      confirmado_por TEXT,
+      confirmado_at TEXT,
+      removido INTEGER DEFAULT 0,
+      UNIQUE(venda_id, etapa_key)
+    )
+  `).run();
+} catch (dbInitErr) {
+  console.error('[venda_etapas] falha ao criar tabela:', dbInitErr.message);
 }
 
 function getEvolutionSettings() {
@@ -2123,6 +2146,17 @@ function getEvolutionSettings() {
   });
   return result;
 }
+
+// Mapeamento emoji → etapa pós-venda (reações no WhatsApp)
+const EMOJI_ETAPA_MAP = {
+  '\u2705':         { key: 'faturada',          label: 'Faturada' },
+  '\uD83D\uDCE6': { key: 'material_entregue',  label: 'Material Entregue' },
+  '\uD83D\uDEE0':  { key: 'instalacao',         label: 'Instalação Concluída' },
+  '\uD83D\uDEE0\uFE0F': { key: 'instalacao',   label: 'Instalação Concluída' },
+  '\uD83D\uDCF8': { key: 'comprovacao',        label: 'Comprovação Enviada' },
+  '\uD83D\uDCB0': { key: 'recebida',           label: 'Recebida' },
+  '\u274C':         { key: 'pendencia',          label: 'Pendência' },
+};
 
 async function sendEvolutionText({ apiUrl, instance, apiKey, number, text }) {
   const base = apiUrl.replace(/\/$/, '');
@@ -2274,9 +2308,10 @@ app.post(
             responsavelWhatsapp: responsavel_whatsapp || ''
           });
 
+          let waMsgId = null;
           if (piPath) {
             // Envia o PDF com a mensagem como caption
-            await sendEvolutionDocument({
+            const evoResp = await sendEvolutionDocument({
               apiUrl: evo.evolution_api_url,
               instance: evo.evolution_instance,
               apiKey: evo.evolution_api_key,
@@ -2285,14 +2320,16 @@ app.post(
               filePath: piPath,
               fileName: 'PI.pdf'
             });
+            waMsgId = evoResp?.key?.id || evoResp?.[0]?.key?.id || null;
           } else {
-            await sendEvolutionText({
+            const evoResp = await sendEvolutionText({
               apiUrl: evo.evolution_api_url,
               instance: evo.evolution_instance,
               apiKey: evo.evolution_api_key,
               number: evo.evolution_dest_number,
               text: mensagem
             });
+            waMsgId = evoResp?.key?.id || evoResp?.[0]?.key?.id || null;
           }
 
           whatsappStatus = 'enviado';
@@ -2304,8 +2341,8 @@ app.post(
 
         // Atualiza status no banco
         try {
-          db.prepare("UPDATE vendas SET whatsapp_status = ?, whatsapp_error = ? WHERE id = ?")
-            .run(whatsappStatus, whatsappError || null, vendaId);
+          db.prepare("UPDATE vendas SET whatsapp_status = ?, whatsapp_error = ?, whatsapp_message_id = COALESCE(?, whatsapp_message_id) WHERE id = ?")
+            .run(whatsappStatus, whatsappError || null, waMsgId || null, vendaId);
         } catch { /* ignora falha de update */ }
       } else {
         whatsappStatus = 'nao_configurado';
@@ -2380,6 +2417,84 @@ app.patch('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial', 'vended
     db.prepare(`UPDATE vendas SET status = ?, obs = ?, updated_at = datetime('now') WHERE id = ?`).run(status, obs || null, id);
     res.json({ ok: true });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Etapas pós-venda (checklist por reação emoji) ───────────────────────────
+app.get('/api/vendas/:id/etapas', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, id: userId } = req.authUser;
+    if (role === 'vendedor') {
+      const venda = db.prepare('SELECT vendedor_id FROM vendas WHERE id = ?').get(id);
+      if (!venda || Number(venda.vendedor_id) !== Number(userId)) {
+        return res.status(403).json({ error: 'Acesso negado.' });
+      }
+    }
+    const etapas = db.prepare(
+      'SELECT * FROM venda_etapas WHERE venda_id = ? AND removido = 0 ORDER BY confirmado_at ASC'
+    ).all(id);
+    res.json(etapas);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Webhook Evolution API — reações emoji pós-venda ─────────────────────────
+app.post('/api/webhooks/whatsapp', (req, res) => {
+  try {
+    const payload = req.body;
+    const event = payload?.event;
+
+    // Suporta eventos do tipo messages.upsert (Evolution API v1/v2)
+    if (event !== 'messages.upsert' && event !== 'message') {
+      return res.json({ ok: true, ignored: 'event-not-handled' });
+    }
+
+    const data = payload?.data;
+    const reactionMsg = data?.message?.reactionMessage;
+    if (!reactionMsg) return res.json({ ok: true, ignored: 'not-a-reaction' });
+
+    const targetMsgId = reactionMsg?.key?.id;
+    // Normaliza emoji removendo variation selectors (U+FE0F)
+    const emoji = (reactionMsg?.text || '').replace(/\uFE0F/g, '').trim();
+    const senderJid = data?.key?.remoteJid || data?.participant || '';
+
+    if (!targetMsgId) return res.json({ ok: true, ignored: 'no-target-id' });
+
+    // Busca a venda pelo whatsapp_message_id
+    const venda = db.prepare('SELECT id FROM vendas WHERE whatsapp_message_id = ?').get(targetMsgId);
+    if (!venda) return res.json({ ok: true, ignored: 'venda-not-found' });
+
+    // Reação removida (emoji vazio) → marca etapa como removida
+    if (emoji === '') {
+      // Identifica qual etapa estava registrada com essa mensagem/remetente
+      db.prepare(
+        "UPDATE venda_etapas SET removido = 1 WHERE venda_id = ? AND confirmado_por = ?"
+      ).run(venda.id, senderJid);
+      return res.json({ ok: true, action: 'reaction-removed' });
+    }
+
+    const etapaInfo = EMOJI_ETAPA_MAP[emoji];
+    if (!etapaInfo) return res.json({ ok: true, ignored: 'emoji-not-mapped' });
+
+    const { key, label } = etapaInfo;
+    db.prepare(`
+      INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_por, confirmado_at, removido)
+      VALUES (?, ?, ?, ?, ?, datetime('now'), 0)
+      ON CONFLICT(venda_id, etapa_key) DO UPDATE SET
+        emoji = excluded.emoji,
+        confirmado_por = excluded.confirmado_por,
+        confirmado_at = excluded.confirmado_at,
+        removido = 0
+    `).run(venda.id, key, label, emoji, senderJid);
+
+    console.log(`[webhook] Etapa "${label}" confirmada para venda ${venda.id} por ${senderJid}`);
+    return res.json({ ok: true, action: 'etapa-registrada', etapa: key, venda_id: venda.id });
+  } catch (err) {
+    console.error('[webhook/whatsapp] erro:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

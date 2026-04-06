@@ -466,6 +466,13 @@ export async function fetchVendas({ status, q } = {}) {
   return res.json();
 }
 
+// Etapas pós-venda de uma venda (checklist validado por reação emoji)
+export async function fetchVendaEtapas(vendaId) {
+  const res = await apiRequest(`/vendas/${vendaId}/etapas`);
+  if (!res.ok) throw new Error('Erro ao buscar etapas');
+  return res.json();
+}
+
 // Atualiza status de uma venda
 export async function updateVendaStatus(id, { status, obs }) {
   const res = await apiRequest(`/vendas/${id}`, {

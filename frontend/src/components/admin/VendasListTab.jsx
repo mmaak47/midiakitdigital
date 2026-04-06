@@ -1,6 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, RefreshCw, CheckCircle2, XCircle, RotateCcw, Clock, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
-import { fetchVendas, updateVendaStatus } from '../../lib/api';
+import { Search, RefreshCw, CheckCircle2, XCircle, RotateCcw, Clock, ChevronDown, ChevronUp, MessageCircle, Circle } from 'lucide-react';
+import { fetchVendas, updateVendaStatus, fetchVendaEtapas } from '../../lib/api';
+
+// Definição ordenada das etapas pós-venda
+const ETAPAS_DEF = [
+  { key: 'faturada',          label: 'Faturada',             emoji: '\u2705' },
+  { key: 'material_entregue', label: 'Material Entregue',    emoji: '\uD83D\uDCE6' },
+  { key: 'instalacao',        label: 'Instalação',           emoji: '\uD83D\uDEE0\uFE0F' },
+  { key: 'comprovacao',       label: 'Comprovação',         emoji: '\uD83D\uDCF8' },
+  { key: 'recebida',          label: 'Recebida',             emoji: '\uD83D\uDCB0' },
+  { key: 'pendencia',         label: 'Pendência',            emoji: '\u274C' },
+];
 
 const STATUS_CONFIG = {
   ativa:     { label: 'Ativa',     light: 'bg-green-50 text-green-700 border-green-200',   dark: 'bg-green-500/10 text-green-400 border-green-500/20' },
@@ -119,7 +129,13 @@ function StatusModal({ venda, isDark, onClose, onSaved }) {
 
 function VendaRow({ venda, isDark, onEdit }) {
   const [expanded, setExpanded] = useState(false);
+  const [etapas, setEtapas] = useState([]);
   const pontos = parsePontos(venda.pontos_nomes);
+
+  useEffect(() => {
+    if (!expanded) return;
+    fetchVendaEtapas(venda.id).then(setEtapas).catch(() => {});
+  }, [expanded, venda.id]);
   const waCfg = WA_STATUS[venda.whatsapp_status] || { label: venda.whatsapp_status, light: 'text-neutral-400', dark: 'text-brand-gray-500' };
   const waColor = isDark ? waCfg.dark : waCfg.light;
 
@@ -198,6 +214,34 @@ function VendaRow({ venda, isDark, onEdit }) {
                   <span className="font-medium">Erro WhatsApp: </span>{venda.whatsapp_error}
                 </div>
               )}
+            </div>
+            {/* Checklist de etapas pós-venda */}
+            <div className={`pt-2.5 mt-2 border-t ${expandBorder}`}>
+              <p className={`text-xs font-medium mb-1.5 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>Etapas pós-venda</p>
+              <div className="flex flex-wrap gap-1.5">
+                {ETAPAS_DEF.map(etapa => {
+                  const done = etapas.find(e => e.etapa_key === etapa.key);
+                  return (
+                    <span
+                      key={etapa.key}
+                      title={done ? `Confirmado em ${fmtDate(done.confirmado_at)}` : 'Pendente'}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border select-none ${
+                        done
+                          ? isDark
+                            ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                            : 'bg-green-50 text-green-700 border-green-200'
+                          : isDark
+                            ? 'bg-white/5 text-brand-gray-500 border-white/10'
+                            : 'bg-neutral-100 text-neutral-400 border-neutral-200'
+                      }`}
+                    >
+                      <span>{etapa.emoji}</span>
+                      {etapa.label}
+                      {done ? <CheckCircle2 size={10} /> : <Circle size={10} />}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
           </td>
         </tr>
