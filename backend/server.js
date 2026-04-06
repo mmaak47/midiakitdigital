@@ -2211,28 +2211,46 @@ async function sendEvolutionDocument({ apiUrl, instance, apiKey, number, caption
 }
 
 function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, cnpj, pontosNomes, valorMensal, periodo, diaPagamento, formaPagamento, responsavelNome, responsavelWhatsapp }) {
-  const header = tipo === 'Renovação' ? `RENOVAÇÃO DE *${vendedorNome}*` : `NOVA VENDA DE *${vendedorNome}*`;
-  const lines = [header, ''];
+  const isRenovacao = tipo === 'Renovação';
+  const headerEmoji = isRenovacao ? '🔄' : '🟠';
+  const headerLabel = isRenovacao ? 'RENOVAÇÃO' : 'NOVA VENDA';
 
-  lines.push(`RAZÃO SOCIAL: ${razaoSocial}`);
+  const lines = [];
+
+  lines.push(`${headerEmoji} *${headerLabel}* — ${vendedorNome}`);
+  lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━');
+  lines.push('');
+
+  lines.push('🏢 *CLIENTE*');
+  lines.push(`*${razaoSocial}*`);
   if (cnpj) lines.push(`CNPJ: ${cnpj}`);
   lines.push('');
 
-  lines.push('PONTOS CONTRATADOS:');
-  lines.push('');
   const nomes = Array.isArray(pontosNomes) ? pontosNomes : JSON.parse(pontosNomes || '[]');
-  nomes.forEach(n => lines.push(`• ${n}`));
-  lines.push('');
+  if (nomes.length > 0) {
+    lines.push(`📍 *PONTO${nomes.length > 1 ? 'S' : ''} CONTRATADO${nomes.length > 1 ? 'S' : ''}*`);
+    nomes.forEach(n => lines.push(`  • ${n}`));
+    lines.push('');
+  }
 
-  if (valorMensal) lines.push(`VALOR MENSAL: ${valorMensal}`);
-  if (periodo) lines.push(`PERÍODO DE VEICULAÇÃO: ${periodo}`);
-  if (diaPagamento) lines.push(`DIA DO PAGAMENTO: ${diaPagamento}`);
-  if (formaPagamento) lines.push(`FORMA DE PAGAMENTO: ${formaPagamento}`);
+  const financeiro = [
+    valorMensal   ? `💰 Valor mensal: *R$ ${valorMensal}*`           : null,
+    periodo       ? `📅 Período: *${periodo}*`                        : null,
+    diaPagamento  ? `📆 Dia de pagamento: *dia ${diaPagamento}*`      : null,
+    formaPagamento? `💳 Forma de pagamento: *${formaPagamento}*`      : null,
+  ].filter(Boolean);
 
-  lines.push('');
-  lines.push('RESPONSÁVEL PELA COMPRA:');
-  if (responsavelNome) lines.push(`Nome: ${responsavelNome}`);
-  if (responsavelWhatsapp) lines.push(`WhatsApp: ${responsavelWhatsapp}`);
+  if (financeiro.length > 0) {
+    lines.push('💼 *CONDIÇÕES COMERCIAIS*');
+    financeiro.forEach(l => lines.push(l));
+    lines.push('');
+  }
+
+  if (responsavelNome || responsavelWhatsapp) {
+    lines.push('👤 *RESPONSÁVEL PELO CLIENTE*');
+    if (responsavelNome)      lines.push(`Nome: ${responsavelNome}`);
+    if (responsavelWhatsapp)  lines.push(`WhatsApp: ${responsavelWhatsapp}`);
+  }
 
   return lines.join('\n');
 }
