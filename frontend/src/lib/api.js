@@ -446,6 +446,30 @@ export async function updateAdminSettings(settings) {
   return res.json();
 }
 
+// Retorna o usuário autenticado atual
+export async function fetchCurrentUser() {
+  const res = await apiRequest('/users/me');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao carregar usuário');
+  }
+  return res.json();
+}
+
+// Registra uma nova venda e dispara notificação WhatsApp
+// Aceita FormData (multipart) para suportar upload do P.I. em PDF
+export async function submitNovaVenda(formData) {
+  const res = await apiRequest('/vendas', {
+    method: 'POST',
+    body: formData
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao registrar venda');
+  }
+  return res.json();
+}
+
 export async function fetchCidadeFotos() {
   const res = await apiRequest('/cidade-fotos');
   if (!res.ok) throw new Error('Erro ao carregar fotos das cidades');

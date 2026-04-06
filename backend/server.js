@@ -1742,24 +1742,40 @@ app.delete('/api/admin/pdf-cache/:id', requireRoles(['admin']), (req, res) => {
 
 app.put('/api/admin/settings', requireRoles(['admin']), (req, res) => {
   try {
-    const { lucro_minimo_percentual } = req.body;
-    
+    const {
+      lucro_minimo_percentual,
+      evolution_api_url,
+      evolution_instance,
+      evolution_api_key,
+      evolution_dest_number
+    } = req.body;
+
     if (lucro_minimo_percentual !== undefined) {
       const value = Number(lucro_minimo_percentual);
       if (!Number.isFinite(value) || value < 0 || value > 100) {
         return res.status(400).json({ error: 'lucro_minimo_percentual deve ser um número entre 0 e 100' });
       }
-      
       db.prepare("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))").run(
-        'lucro_minimo_percentual', 
+        'lucro_minimo_percentual',
         String(value)
       );
     }
 
+    // Evolution API settings (string values — salva independente do valor)
+    const evoFields = { evolution_api_url, evolution_instance, evolution_api_key, evolution_dest_number };
+    Object.entries(evoFields).forEach(([key, val]) => {
+      if (val !== undefined) {
+        db.prepare("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))").run(
+          key,
+          String(val || '')
+        );
+      }
+    });
+
     const settings = db.prepare('SELECT key, value FROM app_settings').all();
     const result = {};
     settings.forEach(s => {
-      result[s.key] = isNaN(s.value) ? s.value : Number(s.value);
+      result[s.key] = isNaN(s.value) || s.key.startsWith('evolution_') ? s.value : Number(s.value);
     });
     res.json(result);
   } catch (err) {
@@ -2031,6 +2047,292 @@ app.delete('/api/admin/pdf-layout', requireRoles(['admin']), (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ==================== USUÁRIO ATUAL ====================
+
+app.get('/api/users/me', resolveAuthenticatedUser, (req, res) => {
+  const { id, first_name, last_name, username, email, whatsapp, role } = req.authUser;
+  res.json({ id, first_name, last_name, username, email, whatsapp, role });
+});
+
+// ==================== VENDAS ====================
+
+// Multer config para PDFs do P.I. (pedido de inserção)
+const piStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const piPath = path.join(__dirname, 'uploads', 'pi');
+    fs.mkdirSync(piPath, { recursive: true });
+    cb(null, piPath);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `pi-${randomUUID()}.pdf`);
+  }
+});
+const uploadPi = multer({
+  storage: piStorage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype !== 'application/pdf') {
+      return cb(new Error('Apenas PDFs são aceitos para o P.I.'));
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 20 }
+});
+
+// Inicializa tabela de vendas (se não existir)
+try {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS vendas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tipo TEXT NOT NULL DEFAULT 'Nova Venda',
+      razao_social TEXT NOT NULL,
+      cnpj TEXT,
+      pontos_nomes TEXT,
+      valor_mensal TEXT,
+      periodo TEXT,
+      dia_pagamento TEXT,
+      forma_pagamento TEXT,
+      responsavel_nome TEXT,
+      responsavel_whatsapp TEXT,
+      pi_path TEXT,
+      vendedor_id INTEGER,
+      vendedor_nome TEXT,
+      whatsapp_status TEXT DEFAULT 'pendente',
+      whatsapp_error TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `).run();
+} catch (dbInitErr) {
+  console.error('[vendas] falha ao criar tabela vendas:', dbInitErr.message);
+}
+
+function getEvolutionSettings() {
+  const keys = [
+    'evolution_api_url',
+    'evolution_instance',
+    'evolution_api_key',
+    'evolution_dest_number'
+  ];
+  const result = {};
+  keys.forEach(k => {
+    const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(k);
+    result[k] = row?.value || '';
+  });
+  return result;
+}
+
+async function sendEvolutionText({ apiUrl, instance, apiKey, number, text }) {
+  const url = `${apiUrl.replace(/\/$/, '')}/message/sendText/${instance}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: apiKey
+    },
+    body: JSON.stringify({ number, text })
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Evolution API [texto]: ${res.status} ${body.slice(0, 120)}`);
+  }
+  return res.json();
+}
+
+async function sendEvolutionDocument({ apiUrl, instance, apiKey, number, caption, filePath, fileName }) {
+  const fileBuffer = fs.readFileSync(filePath);
+  const base64 = fileBuffer.toString('base64');
+  const url = `${apiUrl.replace(/\/$/, '')}/message/sendMedia/${instance}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: apiKey
+    },
+    body: JSON.stringify({
+      number,
+      mediatype: 'document',
+      mimetype: 'application/pdf',
+      caption,
+      media: base64,
+      fileName: fileName || 'PI.pdf'
+    })
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Evolution API [documento]: ${res.status} ${body.slice(0, 120)}`);
+  }
+  return res.json();
+}
+
+function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, cnpj, pontosNomes, valorMensal, periodo, diaPagamento, formaPagamento, responsavelNome, responsavelWhatsapp }) {
+  const header = tipo === 'Renovação' ? `RENOVAÇÃO DE *${vendedorNome}*` : `NOVA VENDA DE *${vendedorNome}*`;
+  const lines = [header, ''];
+
+  lines.push(`RAZÃO SOCIAL: ${razaoSocial}`);
+  if (cnpj) lines.push(`CNPJ: ${cnpj}`);
+  lines.push('');
+
+  lines.push('PONTOS CONTRATADOS:');
+  lines.push('');
+  const nomes = Array.isArray(pontosNomes) ? pontosNomes : JSON.parse(pontosNomes || '[]');
+  nomes.forEach(n => lines.push(`• ${n}`));
+  lines.push('');
+
+  if (valorMensal) lines.push(`VALOR MENSAL: ${valorMensal}`);
+  if (periodo) lines.push(`PERÍODO DE VEICULAÇÃO: ${periodo}`);
+  if (diaPagamento) lines.push(`DIA DO PAGAMENTO: ${diaPagamento}`);
+  if (formaPagamento) lines.push(`FORMA DE PAGAMENTO: ${formaPagamento}`);
+
+  lines.push('');
+  lines.push('RESPONSÁVEL PELA COMPRA:');
+  if (responsavelNome) lines.push(`Nome: ${responsavelNome}`);
+  if (responsavelWhatsapp) lines.push(`WhatsApp: ${responsavelWhatsapp}`);
+
+  return lines.join('\n');
+}
+
+app.post(
+  '/api/vendas',
+  resolveAuthenticatedUser,
+  uploadPi.single('pi'),
+  async (req, res) => {
+    try {
+      const {
+        tipo = 'Nova Venda',
+        razao_social,
+        cnpj,
+        valor_mensal,
+        periodo_tipo,
+        periodo_meses,
+        periodo_inicio,
+        periodo_fim,
+        dia_pagamento,
+        forma_pagamento,
+        responsavel_nome,
+        responsavel_whatsapp,
+        pontos_nomes,
+        vendedor_nome
+      } = req.body;
+
+      if (!razao_social || !String(razao_social).trim()) {
+        return res.status(400).json({ error: 'Razão Social é obrigatória.' });
+      }
+
+      // Monta string de período
+      let periodo = '';
+      if (periodo_tipo === 'meses' && periodo_meses) {
+        periodo = `${periodo_meses} ${Number(periodo_meses) === 1 ? 'mês' : 'meses'}`;
+      } else if (periodo_tipo === 'datas' && periodo_inicio && periodo_fim) {
+        const fmt = d => { const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y}`; };
+        periodo = `${fmt(periodo_inicio)} à ${fmt(periodo_fim)}`;
+      }
+
+      const piPath = req.file ? req.file.path : null;
+
+      // Salva no banco
+      const stmt = db.prepare(`
+        INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal, periodo,
+          dia_pagamento, forma_pagamento, responsavel_nome, responsavel_whatsapp,
+          pi_path, vendedor_id, vendedor_nome, whatsapp_status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
+      `);
+
+      const dbResult = stmt.run(
+        tipo,
+        String(razao_social).trim(),
+        cnpj || null,
+        pontos_nomes || '[]',
+        valor_mensal || null,
+        periodo || null,
+        dia_pagamento || null,
+        forma_pagamento || null,
+        responsavel_nome || null,
+        responsavel_whatsapp || null,
+        piPath || null,
+        req.authUser?.id || null,
+        vendedor_nome || req.authUser?.username || null
+      );
+
+      const vendaId = dbResult.lastInsertRowid;
+
+      // Disparo WhatsApp via Evolution API
+      const evo = getEvolutionSettings();
+      let whatsappStatus = 'pendente';
+      let whatsappError = null;
+
+      if (evo.evolution_api_url && evo.evolution_instance && evo.evolution_api_key && evo.evolution_dest_number) {
+        try {
+          const mensagem = buildVendaWhatsappMessage({
+            tipo,
+            vendedorNome: vendedor_nome || req.authUser?.username || 'Vendedor',
+            razaoSocial: String(razao_social).trim(),
+            cnpj: cnpj || '',
+            pontosNomes: pontos_nomes || '[]',
+            valorMensal: valor_mensal || '',
+            periodo,
+            diaPagamento: dia_pagamento || '',
+            formaPagamento: forma_pagamento || '',
+            responsavelNome: responsavel_nome || '',
+            responsavelWhatsapp: responsavel_whatsapp || ''
+          });
+
+          if (piPath) {
+            // Envia o PDF com a mensagem como caption
+            await sendEvolutionDocument({
+              apiUrl: evo.evolution_api_url,
+              instance: evo.evolution_instance,
+              apiKey: evo.evolution_api_key,
+              number: evo.evolution_dest_number,
+              caption: mensagem,
+              filePath: piPath,
+              fileName: 'PI.pdf'
+            });
+          } else {
+            await sendEvolutionText({
+              apiUrl: evo.evolution_api_url,
+              instance: evo.evolution_instance,
+              apiKey: evo.evolution_api_key,
+              number: evo.evolution_dest_number,
+              text: mensagem
+            });
+          }
+
+          whatsappStatus = 'enviado';
+        } catch (wErr) {
+          console.error('[vendas] falha ao enviar WhatsApp:', wErr.message);
+          whatsappStatus = 'falha';
+          whatsappError = wErr.message;
+        }
+
+        // Atualiza status no banco
+        try {
+          db.prepare("UPDATE vendas SET whatsapp_status = ?, whatsapp_error = ? WHERE id = ?")
+            .run(whatsappStatus, whatsappError || null, vendaId);
+        } catch { /* ignora falha de update */ }
+      } else {
+        whatsappStatus = 'nao_configurado';
+        console.warn('[vendas] Evolution API não configurada — WhatsApp não disparado.');
+        try {
+          db.prepare("UPDATE vendas SET whatsapp_status = 'nao_configurado' WHERE id = ?").run(vendaId);
+        } catch { /* ignora */ }
+      }
+
+      res.json({
+        success: true,
+        id: vendaId,
+        whatsapp_status: whatsappStatus,
+        message: whatsappStatus === 'enviado'
+          ? 'Venda registrada e notificação enviada via WhatsApp!'
+          : whatsappStatus === 'nao_configurado'
+            ? 'Venda registrada. Configure a Evolution API nas Configurações para ativar o disparo automático.'
+            : `Venda registrada. Falha no WhatsApp: ${whatsappError || 'erro desconhecido'}`
+      });
+    } catch (err) {
+      console.error('[vendas] erro:', err.message);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 // SPA fallback
 app.get('*', (req, res) => {

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
   Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings,
-  Copy, Check, MapPin, FileText, Download, Square, CheckSquare
+  Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import {
@@ -26,12 +26,14 @@ import {
   fetchAdminPdfCache,
   invalidateAdminPdfCache,
   updateAdminSettings,
-  geocodePoint
+  geocodePoint,
+  fetchCurrentUser
 } from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
 import FocalPointSelector from '../components/admin/FocalPointSelector';
 import CidadeFotosAdmin from '../components/admin/CidadeFotosAdmin';
 import UserModal from '../components/admin/UserModal';
+import NovaVendaTab from '../components/admin/NovaVendaTab';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
 import { generateTechnicalInfoPdf } from '../lib/technicalInfoPdf';
 
@@ -59,6 +61,7 @@ const ADMIN_TABS = [
   { key: 'pontos', label: 'Pontos', icon: PanelsTopLeft },
   { key: 'entorno', label: 'Análise de entorno', icon: MapPinned },
   { key: 'usuarios', label: 'Usuários', icon: Users },
+  { key: 'vendas', label: 'Nova Venda', icon: Zap },
   { key: 'configuracoes', label: 'Configurações', icon: Settings }
 ];
 
@@ -141,6 +144,17 @@ export default function Admin() {
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsError, setSettingsError] = useState('');
   const [lucroMinimoValue, setLucroMinimoValue] = useState(15);
+
+  // Evolution API
+  const [evoApiUrl, setEvoApiUrl] = useState('');
+  const [evoInstance, setEvoInstance] = useState('');
+  const [evoApiKey, setEvoApiKey] = useState('');
+  const [evoDestNumber, setEvoDestNumber] = useState('');
+  const [evoSaving, setEvoSaving] = useState(false);
+  const [evoSaveMsg, setEvoSaveMsg] = useState('');
+
+  // Usuário logado
+  const [currentUser, setCurrentUser] = useState(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [pdfCacheRows, setPdfCacheRows] = useState([]);
   const [pdfCacheLoading, setPdfCacheLoading] = useState(false);
@@ -352,6 +366,10 @@ export default function Admin() {
     if (auth) {
       loadPontos();
       loadUsers();
+      // Carrega usuário atual para exibição no formulário de venda
+      fetchCurrentUser()
+        .then(u => setCurrentUser(u))
+        .catch(() => {});
     }
   }, [auth]);
 
@@ -546,6 +564,11 @@ export default function Admin() {
       const data = await fetchAdminSettings();
       setSettings(data);
       setLucroMinimoValue(data.lucro_minimo_percentual || 15);
+      // Evolution API settings
+      setEvoApiUrl(data.evolution_api_url || '');
+      setEvoInstance(data.evolution_instance || '');
+      setEvoApiKey(data.evolution_api_key || '');
+      setEvoDestNumber(data.evolution_dest_number || '');
     } catch (err) {
       if (!handleSessionError(err)) {
         setSettingsError(err.message || 'Falha ao carregar configurações');
@@ -566,6 +589,26 @@ export default function Admin() {
       setSettingsError(err.message || 'Falha ao salvar configurações');
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleSaveEvoSettings = async (e) => {
+    e.preventDefault();
+    setEvoSaving(true);
+    setEvoSaveMsg('');
+    try {
+      await updateAdminSettings({
+        evolution_api_url: evoApiUrl.trim(),
+        evolution_instance: evoInstance.trim(),
+        evolution_api_key: evoApiKey.trim(),
+        evolution_dest_number: evoDestNumber.trim()
+      });
+      setEvoSaveMsg('Configurações salvas!');
+      setTimeout(() => setEvoSaveMsg(''), 3000);
+    } catch (err) {
+      setEvoSaveMsg(`Erro: ${err.message}`);
+    } finally {
+      setEvoSaving(false);
     }
   };
 
@@ -1096,6 +1139,14 @@ export default function Admin() {
           />
         ) : null}
 
+        {activeTab === 'vendas' ? (
+          <NovaVendaTab
+            isDark={isDark}
+            pontos={pontos.filter(p => Number(p.ativo) === 1)}
+            currentUser={currentUser}
+          />
+        ) : null}
+
         {activeTab === 'configuracoes' ? (
           <div className="space-y-5">
             <CidadeFotosAdmin />
@@ -1316,6 +1367,85 @@ export default function Admin() {
                   </tbody>
                 </table>
               </div>
+            </section>
+
+            {/* Evolution API — WhatsApp */}
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <Zap size={15} className="text-brand-orange" />
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-white">
+                  Integração WhatsApp — Evolution API
+                </h3>
+              </div>
+              <p className="text-xs text-brand-gray-500 mb-5">
+                Configure aqui os dados da sua instância Evolution API para que o disparo automático de
+                notificações de nova venda funcione. Preencha e salve antes de usar a aba <strong className="text-brand-gray-400">Nova Venda</strong>.
+              </p>
+
+              {evoSaveMsg && (
+                <p className={`text-xs mb-4 rounded-xl px-3 py-2 border ${evoSaveMsg.startsWith('Erro')
+                  ? 'text-red-300 bg-red-500/10 border-red-500/20'
+                  : 'text-green-300 bg-green-500/10 border-green-500/20'}`}>
+                  {evoSaveMsg}
+                </p>
+              )}
+
+              <form onSubmit={handleSaveEvoSettings} className="space-y-4 max-w-lg">
+                <div>
+                  <label className="block text-xs text-brand-gray-400 mb-1.5">URL da API</label>
+                  <input
+                    type="url"
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                    value={evoApiUrl}
+                    onChange={e => setEvoApiUrl(e.target.value)}
+                    placeholder="https://sua-evolution-api.com.br"
+                  />
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-brand-gray-400 mb-1.5">Nome da Instância</label>
+                    <input
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                      value={evoInstance}
+                      onChange={e => setEvoInstance(e.target.value)}
+                      placeholder="minha-instancia"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-brand-gray-400 mb-1.5">API Key</label>
+                    <input
+                      type="password"
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                      value={evoApiKey}
+                      onChange={e => setEvoApiKey(e.target.value)}
+                      placeholder="••••••••••••"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-brand-gray-400 mb-1.5">
+                    Número / Grupo de destino
+                  </label>
+                  <input
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                    value={evoDestNumber}
+                    onChange={e => setEvoDestNumber(e.target.value)}
+                    placeholder="5543999999999 ou ID do grupo"
+                  />
+                  <p className="mt-1.5 text-xs text-brand-gray-500">
+                    Para número individual use o formato: 55 + DDD + número (ex: 5543999990000).
+                    Para grupos, use o ID retornado pela Evolution API.
+                  </p>
+                </div>
+                <button
+                  type="submit"
+                  disabled={evoSaving}
+                  className="inline-flex items-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 text-brand-orange px-4 py-2.5 text-sm font-semibold hover:bg-brand-orange/25 disabled:opacity-50 transition-colors"
+                >
+                  {evoSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  {evoSaving ? 'Salvando...' : 'Salvar configuração'}
+                </button>
+              </form>
             </section>
           </div>
         ) : null}
