@@ -2437,33 +2437,24 @@ app.post(
 
           whatsappStatus = 'enviado';
 
-          // Envia lista interativa de etapas pós-venda (best-effort)
+          // Envia enquete de etapas pós-venda (best-effort)
           try {
-            const listResp = await sendEvolutionList({
+            const pollResp = await sendEvolutionPoll({
               apiUrl: evo.evolution_api_url,
               instance: evo.evolution_instance,
               apiKey: evo.evolution_api_key,
               number: evo.evolution_dest_number,
-              title: `📋 Etapas — ${String(razao_social).trim()}`,
-              description: 'Marque as etapas conforme forem concluídas:',
-              footerText: 'Intermidia Mídia Kit',
-              buttonText: 'Ver etapas',
-              sections: [{
-                title: 'ETAPAS DE VENDA',
-                rows: ETAPAS_VENDA.map(e => ({
-                  rowId: e.key,
-                  title: `${e.emoji} ${e.label}`
-                }))
-              }]
+              name: `📋 Etapas — ${String(razao_social).trim()}`,
+              values: ETAPAS_VENDA.map(e => `${e.emoji} ${e.label}`)
             });
-            const listId = listResp?.key?.id || listResp?.[0]?.key?.id || null;
-            if (listId) {
+            const pollId = pollResp?.key?.id || pollResp?.[0]?.key?.id || null;
+            if (pollId) {
               try {
-                db.prepare('UPDATE vendas SET whatsapp_list_id = ? WHERE id = ?').run(listId, vendaId);
+                db.prepare('UPDATE vendas SET whatsapp_poll_id = ? WHERE id = ?').run(pollId, vendaId);
               } catch { /* ignora */ }
             }
-          } catch (listErr) {
-            console.warn('[vendas] falha ao enviar lista de etapas:', listErr.message);
+          } catch (pollErr) {
+            console.warn('[vendas] falha ao enviar enquete de etapas:', pollErr.message);
           }
         } catch (wErr) {
           console.error('[vendas] falha ao enviar WhatsApp:', wErr.message);
