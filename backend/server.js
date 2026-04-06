@@ -360,6 +360,9 @@ function authenticateSensitiveApi(req, res, next) {
 
   if (routePath === '/auth/login') return next();
 
+  // Webhook da Evolution API — não exige autenticação
+  if (routePath.startsWith('/webhooks/')) return next();
+
   const publicGetPrefixes = [
     '/pontos',
     '/publicos',
