@@ -372,7 +372,8 @@ function authenticateSensitiveApi(req, res, next) {
     '/geoaudience/profiles',
     '/census/profiles',
     '/audience-intel/profiles',
-    '/monitors'
+    '/monitors',
+    '/loop-audit'
   ];
 
   if (method === 'GET' && publicGetPrefixes.some((prefix) => routePath === prefix || routePath.startsWith(`${prefix}/`))) {
@@ -983,6 +984,102 @@ app.get('/api/monitors/:id', openCors, (req, res) => {
     res.json(formatMonitorRow(row));
   } catch (err) {
     res.status(500).json({ error: 'Erro interno ao buscar monitor.' });
+  }
+});
+
+// ── Loop Audit — dados reais da API de origem ────────────────────────────────
+const ORIGIN_API_URL = 'https://sistema.redeintermidia.com/api/monitors';
+const LOOP_DEFAULT_TEMPO_SEG = 15; // duração estimada por inserção
+
+// Cache simples em memória (TTL 5 min)
+let _loopCache = null;
+let _loopCacheAt = 0;
+const LOOP_CACHE_TTL = 5 * 60 * 1000;
+
+function fetchOriginMonitors() {
+  return new Promise((resolve, reject) => {
+    const now = Date.now();
+    if (_loopCache && (now - _loopCacheAt) < LOOP_CACHE_TTL) return resolve(_loopCache);
+    const https = require('https');
+    https.get(ORIGIN_API_URL, { timeout: 15000, rejectUnauthorized: false }, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (!Array.isArray(parsed)) return reject(new Error('Resposta inválida da API de origem'));
+          _loopCache = parsed;
+          _loopCacheAt = Date.now();
+          resolve(parsed);
+        } catch (e) { reject(e); }
+      });
+    }).on('error', reject);
+  });
+}
+
+function classifyRisk(pctOcupado) {
+  if (pctOcupado >= 100) return { level: 'critical', msg: 'Lotado — sem cotas', color: 'red' };
+  if (pctOcupado >= 90)  return { level: 'high',     msg: 'Quase lotado',      color: 'orange' };
+  if (pctOcupado >= 75)  return { level: 'medium',   msg: 'Atenção comercial',  color: 'yellow' };
+  return                         { level: 'low',      msg: 'Saudável',           color: 'green' };
+}
+
+app.get('/api/loop-audit', openCors, async (req, res) => {
+  try {
+    const monitors = await fetchOriginMonitors();
+    const cidadeFilter = req.query.cidade || null;
+
+    const items = monitors.map(m => {
+      const cicloSeg = m.ciclo_segundos || 180;
+      const insercoes = m.total_insercoes_ativas || 0;
+      const tempoSeg = LOOP_DEFAULT_TEMPO_SEG;
+      const ocupadoSeg = insercoes * tempoSeg;
+      const livreSeg = Math.max(0, cicloSeg - ocupadoSeg);
+      const cotasPorLoop = Math.floor(cicloSeg / tempoSeg);
+      const cotasOcupadas = insercoes;
+      const cotasLivres = Math.max(0, cotasPorLoop - cotasOcupadas);
+      const pctOcupado = cicloSeg > 0 ? Math.min(100, Math.round((ocupadoSeg / cicloSeg) * 100)) : 0;
+      const risk = classifyRisk(pctOcupado);
+      return {
+        origin_id: m.id,
+        nome: (m.nome || '').trim(),
+        local: m.local || null,
+        cidade: m.cidade || null,
+        status: m.status || 'unknown',
+        ciclo_seg: cicloSeg,
+        tempo_insercao_seg: tempoSeg,
+        insercoes_ativas: insercoes,
+        cotas_por_loop: cotasPorLoop,
+        cotas_ocupadas: cotasOcupadas,
+        cotas_livres: cotasLivres,
+        ocupado_seg: ocupadoSeg,
+        livre_seg: livreSeg,
+        pct_ocupado: pctOcupado,
+        risk_level: risk.level,
+        risk_msg: risk.msg,
+        risk_color: risk.color,
+      };
+    }).filter(item => !cidadeFilter || item.cidade === cidadeFilter);
+
+    // Summary
+    const total = items.length;
+    const critical = items.filter(i => i.risk_level === 'critical').length;
+    const high = items.filter(i => i.risk_level === 'high').length;
+    const medium = items.filter(i => i.risk_level === 'medium').length;
+    const low = items.filter(i => i.risk_level === 'low').length;
+    const totalCotasLivres = items.reduce((s, i) => s + i.cotas_livres, 0);
+    const cidades = [...new Set(items.map(i => i.cidade).filter(Boolean))].sort();
+
+    res.json({
+      target_seg: 180,
+      tempo_insercao_seg: LOOP_DEFAULT_TEMPO_SEG,
+      cache_age_ms: Date.now() - _loopCacheAt,
+      summary: { total, critical, high, medium, low, totalCotasLivres, cidades },
+      items
+    });
+  } catch (err) {
+    console.error('Loop audit fetch error:', err.message);
+    res.status(502).json({ error: 'Não foi possível obter dados da API de origem.' });
   }
 });
 
