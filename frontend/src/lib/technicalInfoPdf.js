@@ -112,44 +112,6 @@ function createPage(content) {
   `;
 }
 
-function buildCoverPage(points) {
-  const total = points.length;
-  return createPage(`
-    <div style="position:absolute;inset:0;background:radial-gradient(circle at 0% 0%, rgba(232,89,26,0.3), transparent 50%),linear-gradient(140deg,#090909,#111 46%,#1b120d 100%);"></div>
-    <div style="position:relative;z-index:2;padding:48px;height:100%;display:flex;flex-direction:column;justify-content:center;gap:32px;align-items:center;text-align:center;">
-      <img src="${resolveAssetUrl('/logo.png')}" alt="Intermídia" style="height:56px;object-fit:contain;margin-bottom:20px;" />
-      
-      <div style="display:inline-flex;align-items:center;gap:10px;padding:12px 20px;border:1px solid rgba(255,255,255,0.15);border-radius:999px;background:rgba(255,255,255,0.04);font-size:14px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:${BRAND_ORANGE};">
-        Manual de Especificações Técnicas
-      </div>
-
-      <h1 style="margin:0;font-size:82px;line-height:1;font-weight:900;letter-spacing:-.04em;">Informações Técnicas</h1>
-      <p style="margin:0;font-size:24px;color:${BRAND_MUTED};max-width:800px;line-height:1.4;">Diretrizes de resolução, formatos e regras criativas dos pontos selecionados.</p>
-
-      <div style="display:flex;gap:32px;margin-top:32px;">
-        <div style="text-align:center;">
-          <div style="font-size:56px;font-weight:900;color:#fff;line-height:1;">${total}</div>
-          <div style="font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:${BRAND_ORANGE};margin-top:8px;">Ponto${total > 1 ? 's' : ''}</div>
-        </div>
-      </div>
-    </div>
-  `);
-}
-
-function buildSpecItem(title, value, iconSvg) {
-  return `
-    <div style="display:flex;gap:14px;align-items:flex-start;">
-      <div style="width:38px;height:38px;border-radius:10px;background:rgba(232,89,26,0.1);border:1px solid rgba(232,89,26,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-        ${iconSvg}
-      </div>
-      <div>
-        <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.55);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">${title}</div>
-        <div style="font-size:15px;font-weight:600;color:#fff;line-height:1.2;">${value}</div>
-      </div>
-    </div>
-  `;
-}
-
 function buildIcons() {
   const S = `stroke="${BRAND_ORANGE}" stroke-width="1.8"`;
   return {
@@ -167,11 +129,105 @@ function buildIcons() {
   };
 }
 
+function buildSpecItem(title, value, iconSvg) {
+  return `
+    <div style="display:flex;gap:14px;align-items:flex-start;">
+      <div style="width:38px;height:38px;border-radius:10px;background:rgba(232,89,26,0.1);border:1px solid rgba(232,89,26,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        ${iconSvg}
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.55);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">${title}</div>
+        <div style="font-size:15px;font-weight:600;color:#fff;line-height:1.2;">${value}</div>
+      </div>
+    </div>
+  `;
+}
+
+function buildHeroImageFrame(image, focalPoint) {
+  if (!image) {
+    return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:${BRAND_MUTED};font-size:18px;background:#111;">Sem foto cadastrada</div>`;
+  }
+  const fp = String(focalPoint || 'center center').trim() || 'center center';
+  
+  return `
+    <div style="position:absolute;inset:0;background:#000;">
+      <!-- Underlay - blurred copy -->
+      <img src="${image}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(fp)};filter:blur(26px) saturate(1.1);transform:scale(1.08);opacity:0.45;" />
+      
+      <!-- Overlay blur darkener -->
+      <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,7,7,0.12),rgba(7,7,7,0.62));"></div>
+      
+      <!-- Actual contained image so important parts are never cut off. Or we can use cover but with the exact focal point ensuring it's centered -->
+      <img src="${image}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:${escapeHtml(fp)};filter:drop-shadow(0 24px 44px rgba(0,0,0,0.45));" />
+    </div>
+  `;
+}
+
+function buildCoverPage(points) {
+  const total = points.length;
+  const icons = buildIcons();
+
+  return createPage(`
+    <div style="position:absolute;inset:0;background:radial-gradient(circle at 0% 0%, rgba(232,89,26,0.3), transparent 50%),linear-gradient(140deg,#090909,#111 46%,#1b120d 100%);"></div>
+    <div style="position:relative;z-index:2;padding:64px;height:100%;display:flex;flex-direction:column;justify-content:space-between;">
+      
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <img src="${resolveAssetUrl('/logo.png')}" alt="Intermídia" style="height:48px;object-fit:contain;" />
+        <div style="display:inline-flex;align-items:center;gap:10px;padding:10px 18px;border:1px solid rgba(255,255,255,0.15);border-radius:999px;background:rgba(255,255,255,0.04);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${BRAND_ORANGE};">
+          Manual de Especificações
+        </div>
+      </div>
+      
+      <!-- Title Area -->
+      <div style="margin-top:40px;">
+        <h1 style="margin:0;font-size:72px;line-height:1.05;font-weight:900;letter-spacing:-.04em;max-width:800px;">Informações<br>Técnicas</h1>
+        <p style="margin:16px 0 0;font-size:22px;color:${BRAND_MUTED};max-width:700px;line-height:1.4;">Diretrizes de resolução, formatos e regras criativas dos pontos selecionados.</p>
+        <div style="display:inline-flex;align-items:baseline;gap:6px;margin-top:24px;">
+           <span style="font-size:36px;font-weight:900;color:#fff;">${total}</span>
+           <span style="font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:${BRAND_ORANGE};">Ponto${total > 1 ? 's' : ''}</span>
+        </div>
+      </div>
+
+      <!-- Global Specs -->
+      <div style="margin-top:48px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;">
+         <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;">
+            ${buildSpecItem('Tipos de arquivo', 'Vídeo (mp4, mov) ou<br/>Imagem (jpg, png, pdf)', icons.file)}
+         </div>
+         <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;">
+            ${buildSpecItem('Prazo para envio', 'Até 48h antes<br/>do início', icons.calendar)}
+         </div>
+         <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;">
+            ${buildSpecItem('Áudio', 'Campanhas<br/>sem áudio', icons.audio)}
+         </div>
+      </div>
+
+      <!-- RODAPÉ DE CONTATO (Apenas na Capa) -->
+      <div style="margin-top:48px;padding:24px 32px;background:rgba(232,89,26,0.05);border:1px solid rgba(232,89,26,0.2);border-radius:16px;display:flex;justify-content:space-between;align-items:center;">
+         <div>
+           <div style="font-size:12px;font-weight:700;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Dúvidas? Fale com a criação</div>
+           <div style="display:flex;align-items:baseline;gap:10px;">
+             <div style="font-size:24px;font-weight:800;color:#fff;">Maite Doin</div>
+             <div style="font-size:15px;color:rgba(255,255,255,0.6);">criacao@redeintermidia.com</div>
+           </div>
+         </div>
+         <div>
+           <span style="display:inline-flex;align-items:center;gap:10px;padding:12px 24px;background:rgba(232,89,26,0.15);border:1px solid rgba(232,89,26,0.3);border-radius:999px;font-size:18px;font-weight:700;color:#fff;">
+             <svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" stroke="${BRAND_ORANGE}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+             43 8800-5719
+           </span>
+         </div>
+      </div>
+
+    </div>
+  `);
+}
+
 function buildPointPage(point, index, total) {
   const image = pickPointImage(point);
-  const imageBlock = image
-    ? `<img src="${image}" alt="${escapeHtml(point?.nome || 'Ponto')}" style="width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(point?.foto_focal_point || 'center center')};opacity:0.65;"/>`
-    : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:${BRAND_MUTED};font-size:18px;background:#111;">Sem foto</div>`;
+  
+  const focalPoint = point?.foto_focal_point || 'center center';
+  const imageContainer = buildHeroImageFrame(image, focalPoint);
 
   const widthPx = Math.max(1, Math.round(normalizeNumber(point?.arte_largura, 1080) || 1080));
   const heightPx = Math.max(1, Math.round(normalizeNumber(point?.arte_altura, 1920) || 1920));
@@ -195,93 +251,74 @@ function buildPointPage(point, index, total) {
 
   return createPage(`
     <div style="display:flex;height:100%;background:#0A0A0A;">
-      <!-- COLUNA DA ESQUERDA: IMAGEM + INFO PONTO -->
-      <div style="flex:0 0 540px;position:relative;background:#050505;border-right:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;overflow:hidden;">
-          <div style="flex:1;position:relative;">
-             ${imageBlock}
-             <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,0.85) 100%);"></div>
-             
-             <img src="${resolveAssetUrl('/logo.png')}" alt="Intermídia" style="position:absolute;top:38px;left:38px;height:24px;object-fit:contain;" />
-             
-             <div style="position:absolute;top:38px;right:38px;padding:6px 12px;border-radius:999px;background:rgba(232,89,26,0.2);border:1px solid rgba(232,89,26,0.45);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#ffd3bf;">
+      <!-- COLUNA DA ESQUERDA: IMAGEM + DADOS DO PONTO -->
+      <div style="flex:0 0 580px;padding:32px 20px 32px 36px;display:flex;flex-direction:column;gap:20px;">
+          
+          <div style="flex:1;position:relative;border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);">
+             ${imageContainer}
+             <img src="${resolveAssetUrl('/logo.png')}" alt="Intermídia" style="position:absolute;top:24px;left:24px;height:24px;object-fit:contain;" />
+             <div style="position:absolute;top:24px;right:24px;padding:6px 12px;border-radius:999px;background:rgba(232,89,26,0.3);backdrop-filter:blur(8px);border:1px solid rgba(232,89,26,0.5);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#ffd3bf;">
                 Ponto ${index} de ${total}
              </div>
-
-             <div style="position:absolute;bottom:38px;left:38px;right:38px;">
-                <div style="font-size:11px;font-weight:800;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.12em;margin-bottom:6px;">Dados do ponto</div>
-                <div style="font-size:36px;font-weight:800;color:#fff;line-height:1.1;margin-bottom:20px;letter-spacing:-0.03em;word-break:break-word;">${escapeHtml(point?.nome || 'Ponto')}</div>
-                
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                   <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;">
-                     <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Ambiente</div>
-                     <div style="font-size:13px;color:#fff;font-weight:600;">${ambiente}</div>
-                   </div>
-                   <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;">
-                     <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Perfil de Público</div>
-                     <div style="font-size:13px;color:#fff;font-weight:600;">${perfil}</div>
-                   </div>
-                   <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;">
-                     <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Fluxo</div>
-                     <div style="font-size:13px;color:#fff;font-weight:600;">${fluxo}</div>
-                   </div>
-                   <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;">
-                     <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Distância Leitura</div>
-                     <div style="font-size:13px;color:#fff;font-weight:600;">${distancia}</div>
-                   </div>
+          </div>
+          
+          <div style="flex-shrink:0;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:20px;padding:24px;">
+             <div style="font-size:11px;font-weight:800;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.12em;margin-bottom:6px;">Dados do ponto</div>
+             <div style="font-size:32px;font-weight:800;color:#fff;line-height:1.1;margin-bottom:20px;letter-spacing:-0.03em;word-break:break-word;">${escapeHtml(point?.nome || 'Ponto')}</div>
+             
+             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px;">
+                  <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Ambiente</div>
+                  <div style="font-size:13px;color:#fff;font-weight:600;">${ambiente}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px;">
+                  <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Perfil de Público</div>
+                  <div style="font-size:13px;color:#fff;font-weight:600;">${perfil}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px;">
+                  <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Fluxo</div>
+                  <div style="font-size:13px;color:#fff;font-weight:600;">${fluxo}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px;">
+                  <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Distância Leitura</div>
+                  <div style="font-size:13px;color:#fff;font-weight:600;">${distancia}</div>
                 </div>
              </div>
           </div>
+
       </div>
 
-      <!-- COLUNA DA DIREITA: ESPECIFICAÇÕES -->
-      <div style="flex:1;padding:48px 56px;display:flex;flex-direction:column;justify-content:space-between;background:radial-gradient(ellipse at 100% 0%, rgba(232,89,26,0.05) 0%, transparent 40%), #080808;">
-          <div>
-             <div style="font-size:11px;font-weight:700;color:${BRAND_ORANGE};letter-spacing:0.18em;text-transform:uppercase;margin-bottom:4px;">Especificações de campanha</div>
-             <div style="font-size:42px;font-weight:900;color:#fff;letter-spacing:-0.03em;margin-bottom:32px;">Diretrizes Técnicas</div>
-             
-             <div style="display:grid;grid-template-columns:1fr 1fr;column-gap:16px;row-gap:20px;">
-               <div style="display:flex;flex-direction:column;gap:20px;">
-                 ${buildSpecItem('Formato', formatAspect, icons.aspect)}
-                 ${buildSpecItem('Tipos de arquivo', 'Vídeo (mp4, mov, wmv, flv)<br>Imagem (jpg, png, pdf)', icons.file)}
-                 ${buildSpecItem('Duração', '15 segundos', icons.clock)}
-                 ${buildSpecItem('Exibição média', '20 inserções/hora', icons.activity)}
-                 ${buildSpecItem('Áudio', 'Não disponível', icons.audio)}
-               </div>
-               <div style="display:flex;flex-direction:column;gap:20px;">
-                 ${buildSpecItem('Resolução', `${widthPx}x${heightPx} px`, icons.res)}
-                 ${buildSpecItem('Tamanho máximo', '50MB', icons.weight)}
-                 ${buildSpecItem('Loop', '180 segundos', icons.loop)}
-                 ${buildSpecItem('Funcionamento', '6h às 23h', icons.sun)}
-                 ${buildSpecItem('Prazo para envio', 'Até 48h antes do início', icons.calendar)}
-               </div>
-               <div style="grid-column: 1 / -1;background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;margin-top:2px;">
-                 ${buildSpecItem('Regras criativas', 'Texto curto, alto contraste e logo em destaque', icons.alert)}
-               </div>
-             </div>
-
-             <div style="margin-top:24px;padding:12px 16px;background:rgba(232,89,26,0.1);border-left:3px solid ${BRAND_ORANGE};border-radius:6px;display:flex;align-items:center;gap:12px;">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none"><circle cx="12" cy="12" r="10" stroke="${BRAND_ORANGE}" stroke-width="1.8"/><path d="M12 8v4M12 16h.01" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round"/></svg>
-                <div>
-                  <span style="font-size:14px;font-weight:700;color:#fff;">Operação:</span> 
-                  <span style="font-size:14px;color:rgba(255,255,255,0.85);margin-left:4px;">Material sujeito à aprovação técnica.</span>
-                </div>
-             </div>
+      <!-- COLUNA DA DIREITA: ESPECIFICAÇÕES LOCAIS -->
+      <div style="flex:1;padding:48px 56px;display:flex;flex-direction:column;justify-content:center;background:radial-gradient(ellipse at 100% 0%, rgba(232,89,26,0.05) 0%, transparent 40%), #080808;">
+          <div style="font-size:11px;font-weight:700;color:${BRAND_ORANGE};letter-spacing:0.18em;text-transform:uppercase;margin-bottom:4px;">Especificações da tela</div>
+          <div style="font-size:42px;font-weight:900;color:#fff;letter-spacing:-0.03em;margin-bottom:40px;">Diretrizes Técnicas</div>
+          
+          <div style="display:grid;grid-template-columns:1fr 1fr;column-gap:16px;row-gap:28px;">
+            <div style="display:flex;flex-direction:column;gap:28px;">
+              ${buildSpecItem('Formato', formatAspect, icons.aspect)}
+              ${buildSpecItem('Duração', '15 segundos', icons.clock)}
+              ${buildSpecItem('Exibição média', '20 inserções/hora', icons.activity)}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:28px;">
+              ${buildSpecItem('Resolução', `${widthPx}x${heightPx} px`, icons.res)}
+              ${buildSpecItem('Tamanho máximo', '50MB', icons.weight)}
+              ${buildSpecItem('Loop', '180 segundos', icons.loop)}
+            </div>
+            
+            <div style="grid-column: 1 / -1; display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;">
+              ${buildSpecItem('Funcionamento', '6h às 23h', icons.sun)}
+            </div>
+            
+            <div style="grid-column: 1 / -1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;margin-top:12px;">
+              ${buildSpecItem('Regras criativas', 'Texto curto, alto contraste e logo em destaque', icons.alert)}
+            </div>
           </div>
 
-          <!-- RODAPÉ DE CONTATO -->
-          <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:20px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="margin-top:32px;padding:16px 20px;background:rgba(232,89,26,0.08);border-left:4px solid ${BRAND_ORANGE};border-radius:8px;display:flex;align-items:center;gap:14px;">
+             <svg viewBox="0 0 24 24" width="22" height="22" fill="none"><circle cx="12" cy="12" r="10" stroke="${BRAND_ORANGE}" stroke-width="1.8"/><path d="M12 8v4M12 16h.01" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round"/></svg>
              <div>
-               <div style="font-size:10px;font-weight:700;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Dúvidas? Fale com a criação</div>
-               <div style="display:flex;align-items:baseline;gap:8px;">
-                 <div style="font-size:18px;font-weight:800;color:#fff;">Maite Doin</div>
-                 <div style="font-size:13px;color:rgba(255,255,255,0.6);">criacao@redeintermidia.com</div>
-               </div>
-             </div>
-             <div>
-               <span style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;background:rgba(255,255,255,0.06);border-radius:999px;font-size:14px;font-weight:700;color:#fff;">
-                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" stroke="${BRAND_ORANGE}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                 43 8800-5719
-               </span>
+               <span style="font-size:15px;font-weight:700;color:#fff;">Operação:</span> 
+               <span style="font-size:15px;color:rgba(255,255,255,0.85);margin-left:4px;">Material sujeito à aprovação técnica.</span>
              </div>
           </div>
       </div>
