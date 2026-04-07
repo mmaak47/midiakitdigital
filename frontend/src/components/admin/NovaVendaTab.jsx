@@ -130,7 +130,9 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
   const lbl = `block text-xs font-medium uppercase tracking-wide mb-1.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`;
   const sectionTitle = `text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`;
   const toggleBtn = (active) => `flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all ${active
-    ? 'border-brand-orange bg-brand-orange/10 text-brand-orange'
+    ? isDark
+      ? 'border-brand-orange bg-brand-orange/10 text-brand-orange'
+      : 'border-orange-400 bg-orange-100 text-orange-700'
     : isDark
       ? 'border-white/10 bg-white/[0.03] text-brand-gray-400 hover:border-white/20 hover:text-white'
       : 'border-neutral-200 bg-neutral-50 text-neutral-500 hover:border-neutral-300 hover:text-neutral-900'}`;
@@ -213,10 +215,10 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
               {selectedPontos.map(p => (
                 <span
                   key={p.id}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-brand-orange/15 border border-brand-orange/30 text-brand-orange text-xs px-2.5 py-1 font-medium"
+                  className={`inline-flex items-center gap-1.5 rounded-lg border text-xs px-2.5 py-1 font-medium ${isDark ? 'bg-brand-orange/15 border-brand-orange/30 text-brand-orange' : 'bg-orange-100 border-orange-300 text-orange-700'}`}
                 >
                   {p.nome}
-                  <button type="button" onClick={() => togglePonto(p)} className="hover:text-white transition-colors">
+                  <button type="button" onClick={() => togglePonto(p)} className={`transition-colors ${isDark ? 'hover:text-white' : 'hover:text-orange-900'}`}>
                     <X size={11} />
                   </button>
                 </span>

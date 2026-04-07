@@ -29,24 +29,24 @@ function RiskBadge({ level, cotasLivres }) {
   );
 }
 
-function OccupationBar({ pct }) {
+function OccupationBar({ pct, isDark }) {
   const cor = pct >= 100 ? 'bg-red-500' : pct >= 90 ? 'bg-orange-500' : pct >= 75 ? 'bg-yellow-500' : 'bg-green-500/70';
   return (
     <div>
-      <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+      <div className={`w-full h-2 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`}>
         <div className={`h-full rounded-full transition-all ${cor}`} style={{ width: `${Math.min(100, pct)}%` }} />
       </div>
-      <div className="text-[10px] text-brand-gray-500 mt-1 text-right">{pct}%</div>
+      <div className={`text-[10px] mt-1 text-right ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{pct}%</div>
     </div>
   );
 }
 
-function MonitorRow({ item, onHide }) {
+function MonitorRow({ item, onHide, isDark }) {
   const isOnline = item.status === 'online';
   const telas = item.telas || 1;
   const diverge = item.divergente;
   return (
-    <tr className={`border-t border-white/10 hover:bg-white/[0.02] transition-colors ${diverge ? 'bg-yellow-500/[0.03]' : ''}`}>
+    <tr className={`border-t ${isDark ? 'border-white/10 hover:bg-white/[0.02]' : 'border-neutral-100 hover:bg-neutral-50'} transition-colors ${diverge ? 'bg-yellow-500/[0.03]' : ''}`}>
       <td className="px-3 py-3">
         <div className="flex items-center gap-2">
           <span title={isOnline ? 'Online' : 'Offline'} className="flex-shrink-0">
@@ -55,7 +55,7 @@ function MonitorRow({ item, onHide }) {
               : <WifiOff size={12} className="text-red-400/60" />}
           </span>
           <div className="min-w-0 flex-1">
-            <div className="font-medium text-white text-sm flex items-center gap-1.5 flex-wrap">
+            <div className={`font-medium text-sm flex items-center gap-1.5 flex-wrap ${isDark ? 'text-white' : 'text-neutral-900'}`}>
               {item.local || item.nome}
               {telas > 1 && !diverge && (
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-brand-orange/15 text-brand-orange rounded px-1.5 py-0.5">
@@ -68,12 +68,12 @@ function MonitorRow({ item, onHide }) {
                 </span>
               )}
             </div>
-            <div className="text-[10px] text-brand-gray-500">{item.cidade}</div>
+            <div className={`text-[10px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{item.cidade}</div>
           </div>
           <button
             type="button"
             onClick={() => onHide(item)}
-            className="flex-shrink-0 p-1 rounded hover:bg-white/10 text-brand-gray-600 hover:text-red-400 transition-colors"
+            className={`flex-shrink-0 p-1 rounded transition-colors ${isDark ? 'hover:bg-white/10 text-brand-gray-600 hover:text-red-400' : 'hover:bg-neutral-100 text-neutral-400 hover:text-red-500'}`}
             title="Ocultar este monitor da auditoria"
           >
             <EyeOff size={13} />
@@ -81,19 +81,19 @@ function MonitorRow({ item, onHide }) {
         </div>
       </td>
       <td className="px-3 py-3 text-center">
-        <div className="text-xs font-mono text-white">{fmtSeg(item.ciclo_seg)}</div>
-        <div className="text-[10px] text-brand-gray-500">~{item.avg_insercao_seg}s/ins</div>
+        <div className={`text-xs font-mono ${isDark ? 'text-white' : 'text-neutral-900'}`}>{fmtSeg(item.ciclo_seg)}</div>
+        <div className={`text-[10px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>~{item.avg_insercao_seg}s/ins</div>
       </td>
       <td className="px-3 py-3 text-center">
-        <div className="text-sm font-bold text-white">{item.insercoes_ativas}</div>
-        <div className="text-[10px] text-brand-gray-500">~{fmtSeg(item.ocupado_seg)} usado</div>
+        <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{item.insercoes_ativas}</div>
+        <div className={`text-[10px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>~{fmtSeg(item.ocupado_seg)} usado</div>
       </td>
       <td className="px-3 py-3 text-center">
         <RiskBadge level={item.risk_level} cotasLivres={item.cotas_livres} />
-        <div className="text-[10px] text-brand-gray-500 mt-0.5">{fmtSeg(item.livre_seg)} livres</div>
+        <div className={`text-[10px] mt-0.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{fmtSeg(item.livre_seg)} livres</div>
       </td>
       <td className="px-3 py-3 min-w-[100px]">
-        <OccupationBar pct={item.pct_ocupado} />
+        <OccupationBar pct={item.pct_ocupado} isDark={isDark} />
       </td>
     </tr>
   );
@@ -101,7 +101,7 @@ function MonitorRow({ item, onHide }) {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export default function AuditoriaLoopTab() {
+export default function AuditoriaLoopTab({ isDark = true }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -213,7 +213,7 @@ export default function AuditoriaLoopTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-brand-gray-400 gap-2">
+      <div className={`flex items-center justify-center py-20 gap-2 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
         <Loader2 size={18} className="animate-spin" />
         <span className="text-sm">Carregando dados da API de origem...</span>
       </div>
@@ -235,22 +235,22 @@ export default function AuditoriaLoopTab() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold text-white">Auditoria de Loop</h2>
-          <p className="text-xs text-brand-gray-400 mt-1">
+          <h2 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Auditoria de Loop</h2>
+          <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
             Dados em tempo real via API de origem — média dinâmica por inserção (10–15s), ciclo padrão 3 min.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
           <button type="button" onClick={fetchData} disabled={loading}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10 disabled:opacity-50">
+            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs disabled:opacity-50 ${isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
             <RefreshCcw size={12} className={loading ? 'animate-spin' : ''} /> Atualizar
           </button>
           <button type="button" onClick={() => setShowJson(v => !v)}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10">
+            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs ${isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
             {showJson ? 'Ocultar JSON' : 'Ver JSON'}
           </button>
           <button type="button" onClick={downloadJson}
-            className="inline-flex items-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/10 px-3 py-2 text-xs font-semibold text-brand-orange hover:bg-brand-orange/20">
+            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${isDark ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}>
             <Download size={13} /> Exportar
           </button>
         </div>
@@ -264,10 +264,14 @@ export default function AuditoriaLoopTab() {
           { label: 'Cotas livres', value: filteredStats.totalCotasLivres, sub: 'total vendável', ok: true },
           { label: 'Lotados', value: filteredStats.lotados, sub: 'sem cotas', warn: true },
         ].map(c => (
-          <div key={c.label} className={`rounded-xl border p-3 ${c.warn && c.value > 0 ? 'border-red-500/30 bg-red-500/5' : c.ok && c.value > 0 ? 'border-green-500/30 bg-green-500/5' : 'border-white/10 bg-white/[0.03]'}`}>
-            <div className={`text-xl font-bold ${c.warn && c.value > 0 ? 'text-red-400' : c.ok && c.value > 0 ? 'text-green-400' : 'text-white'}`}>{c.value}</div>
-            <div className="text-xs font-medium text-brand-gray-300 mt-0.5">{c.label}</div>
-            <div className="text-[10px] text-brand-gray-500">{c.sub}</div>
+          <div key={c.label} className={`rounded-xl border p-3 ${c.warn && c.value > 0
+            ? 'border-red-500/30 bg-red-500/5'
+            : c.ok && c.value > 0
+              ? 'border-green-500/30 bg-green-500/5'
+              : isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-white shadow-sm'}`}>
+            <div className={`text-xl font-bold ${c.warn && c.value > 0 ? 'text-red-400' : c.ok && c.value > 0 ? 'text-green-400' : isDark ? 'text-white' : 'text-neutral-900'}`}>{c.value}</div>
+            <div className={`text-xs font-medium mt-0.5 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{c.label}</div>
+            <div className={`text-[10px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{c.sub}</div>
           </div>
         ))}
       </div>
@@ -275,42 +279,48 @@ export default function AuditoriaLoopTab() {
       {/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray-500" />
+          <Search size={13} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`} />
           <input type="text" placeholder="Buscar nome ou local..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 text-xs bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40" />
+            className={`w-full pl-8 pr-3 py-2 text-xs rounded-xl focus:outline-none ${isDark
+              ? 'bg-white/5 border border-white/10 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/40'
+              : 'bg-white border border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-brand-orange/60'}`} />
         </div>
         <select value={filterCidade} onChange={e => setFilterCidade(e.target.value)}
-          className="px-3 py-2 text-xs bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-brand-orange/40">
-          {cidades.map(c => <option key={c} value={c} className="bg-gray-900">{c === 'todas' ? 'Todas as cidades' : c}</option>)}
+          className={`px-3 py-2 text-xs rounded-xl focus:outline-none ${isDark
+            ? 'bg-white/5 border border-white/10 text-white focus:border-brand-orange/40'
+            : 'bg-white border border-neutral-200 text-neutral-900 focus:border-brand-orange/60'}`}>
+          {cidades.map(c => <option key={c} value={c} className={isDark ? 'bg-gray-900' : 'bg-white'}>{c === 'todas' ? 'Todas as cidades' : c}</option>)}
         </select>
         <select value={`${sortKey}:${sortDir}`} onChange={e => { const [k, d] = e.target.value.split(':'); setSortKey(k); setSortDir(d); }}
-          className="px-3 py-2 text-xs bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-brand-orange/40">
-          <option value="nome:asc" className="bg-gray-900">Nome A-Z</option>
-          <option value="nome:desc" className="bg-gray-900">Nome Z-A</option>
-          <option value="livre:desc" className="bg-gray-900">Mais cotas livres</option>
-          <option value="livre:asc" className="bg-gray-900">Menos cotas livres</option>
-          <option value="ocupado:desc" className="bg-gray-900">Mais lotados</option>
-          <option value="cidade:asc" className="bg-gray-900">Cidade A-Z</option>
+          className={`px-3 py-2 text-xs rounded-xl focus:outline-none ${isDark
+            ? 'bg-white/5 border border-white/10 text-white focus:border-brand-orange/40'
+            : 'bg-white border border-neutral-200 text-neutral-900 focus:border-brand-orange/60'}`}>
+          <option value="nome:asc" className={isDark ? 'bg-gray-900' : 'bg-white'}>Nome A-Z</option>
+          <option value="nome:desc" className={isDark ? 'bg-gray-900' : 'bg-white'}>Nome Z-A</option>
+          <option value="livre:desc" className={isDark ? 'bg-gray-900' : 'bg-white'}>Mais cotas livres</option>
+          <option value="livre:asc" className={isDark ? 'bg-gray-900' : 'bg-white'}>Menos cotas livres</option>
+          <option value="ocupado:desc" className={isDark ? 'bg-gray-900' : 'bg-white'}>Mais lotados</option>
+          <option value="cidade:asc" className={isDark ? 'bg-gray-900' : 'bg-white'}>Cidade A-Z</option>
         </select>
       </div>
 
       {/* Tabela */}
-      <div className="rounded-2xl border border-white/10 overflow-x-auto">
+      <div className={`rounded-2xl border overflow-x-auto ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
         <table className="w-full text-sm min-w-[560px]">
-          <thead className="bg-white/[0.04]">
+          <thead className={isDark ? 'bg-white/[0.04]' : 'bg-neutral-50'}>
             <tr>
-              <th className="px-3 py-2 text-left text-xs font-medium text-brand-gray-400">Local</th>
-              <th className="px-3 py-2 text-center text-xs font-medium text-brand-gray-400">Ciclo</th>
-              <th className="px-3 py-2 text-center text-xs font-medium text-brand-gray-400">Inserções ativas</th>
-              <th className="px-3 py-2 text-center text-xs font-medium text-brand-gray-400">Cotas livres</th>
-              <th className="px-3 py-2 text-center text-xs font-medium text-brand-gray-400">Ocupação</th>
+              <th className={`px-3 py-2 text-left text-xs font-medium ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Local</th>
+              <th className={`px-3 py-2 text-center text-xs font-medium ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Ciclo</th>
+              <th className={`px-3 py-2 text-center text-xs font-medium ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Inserções ativas</th>
+              <th className={`px-3 py-2 text-center text-xs font-medium ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Cotas livres</th>
+              <th className={`px-3 py-2 text-center text-xs font-medium ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Ocupação</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={5} className="px-3 py-10 text-center text-xs text-brand-gray-500">Nenhum monitor encontrado.</td></tr>
+              <tr><td colSpan={5} className={`px-3 py-10 text-center text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Nenhum monitor encontrado.</td></tr>
             ) : (
-              filtered.map(item => <MonitorRow key={item.origin_id} item={item} onHide={hideMonitor} />)
+              filtered.map(item => <MonitorRow key={item.origin_id} item={item} onHide={hideMonitor} isDark={isDark} />)
             )}
           </tbody>
         </table>
@@ -318,23 +328,23 @@ export default function AuditoriaLoopTab() {
 
       {/* Ocultos */}
       {(hiddenCount > 0 || exclusions.length > 0) && (
-        <div className="rounded-2xl border border-white/10 overflow-hidden">
+        <div className={`rounded-2xl border overflow-hidden ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
           <button type="button" onClick={() => setShowExclusions(v => !v)}
-            className="flex items-center justify-between w-full px-4 py-2.5 bg-white/[0.04] hover:bg-white/[0.06] transition-colors text-left">
-            <span className="text-xs font-semibold text-brand-gray-300 flex items-center gap-1.5">
+            className={`flex items-center justify-between w-full px-4 py-2.5 transition-colors text-left ${isDark ? 'bg-white/[0.04] hover:bg-white/[0.06]' : 'bg-neutral-50 hover:bg-neutral-100'}`}>
+            <span className={`text-xs font-semibold flex items-center gap-1.5 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
               <EyeOff size={12} /> {exclusions.length} monitor{exclusions.length !== 1 ? 'es' : ''} oculto{exclusions.length !== 1 ? 's' : ''}
             </span>
-            <span className="text-[10px] text-brand-gray-500">{showExclusions ? 'Ocultar' : 'Mostrar'}</span>
+            <span className={`text-[10px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{showExclusions ? 'Ocultar' : 'Mostrar'}</span>
           </button>
           {showExclusions && (
-            <div className="divide-y divide-white/5">
+            <div className={`divide-y ${isDark ? 'divide-white/5' : 'divide-neutral-100'}`}>
               {exclusions.length === 0 ? (
-                <div className="px-4 py-3 text-xs text-brand-gray-500">Nenhum monitor oculto.</div>
+                <div className={`px-4 py-3 text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Nenhum monitor oculto.</div>
               ) : exclusions.map(ex => (
-                <div key={ex.origin_id} className="flex items-center justify-between px-4 py-2.5 hover:bg-white/[0.02]">
+                <div key={ex.origin_id} className={`flex items-center justify-between px-4 py-2.5 ${isDark ? 'hover:bg-white/[0.02]' : 'hover:bg-neutral-50'}`}>
                   <div>
-                    <div className="text-xs text-brand-gray-300">{ex.nome || `ID ${ex.origin_id}`}</div>
-                    {ex.motivo && <div className="text-[10px] text-brand-gray-500 mt-0.5">{ex.motivo}</div>}
+                    <div className={`text-xs ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{ex.nome || `ID ${ex.origin_id}`}</div>
+                    {ex.motivo && <div className={`text-[10px] mt-0.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{ex.motivo}</div>}
                   </div>
                   <button type="button" onClick={() => unhideMonitor(ex.origin_id)}
                     className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold text-green-400 hover:bg-green-500/10 transition-colors">
@@ -349,10 +359,10 @@ export default function AuditoriaLoopTab() {
 
       {/* Preview JSON */}
       {showJson && (
-        <div className="rounded-2xl border border-white/10 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2.5 bg-white/[0.04] border-b border-white/10">
-            <span className="text-xs font-semibold text-white">JSON — {filtered.length} ite{filtered.length !== 1 ? 'ns' : 'm'}</span>
-            <button type="button" onClick={copyJson} className="text-xs text-brand-gray-400 hover:text-white transition-colors">
+        <div className={`rounded-2xl border overflow-hidden ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
+          <div className={`flex items-center justify-between px-4 py-2.5 border-b ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-neutral-50 border-neutral-200'}`}>
+            <span className={`text-xs font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>JSON — {filtered.length} ite{filtered.length !== 1 ? 'ns' : 'm'}</span>
+            <button type="button" onClick={copyJson} className={`text-xs transition-colors ${isDark ? 'text-brand-gray-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'}`}>
               {copied ? '✓ Copiado!' : 'Copiar'}
             </button>
           </div>

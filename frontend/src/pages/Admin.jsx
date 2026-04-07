@@ -913,7 +913,30 @@ export default function Admin() {
     );
   }
 
-  // Admin panel
+  // Admin panel — theme helpers
+  const th = {
+    card: isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-white shadow-sm',
+    inp: isDark
+      ? 'bg-white/5 border border-white/10 text-white placeholder:text-brand-gray-500 focus:border-brand-orange/40'
+      : 'bg-white border border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-brand-orange/60',
+    lbl: isDark ? 'text-brand-gray-400' : 'text-neutral-600',
+    sectionTitle: isDark ? 'text-white' : 'text-neutral-900',
+    sectionDesc: isDark ? 'text-brand-gray-500' : 'text-neutral-500',
+    tableHead: isDark ? 'bg-white/[0.03] border-b border-white/5' : 'bg-neutral-50 border-b border-neutral-200',
+    tableHeadText: isDark ? 'text-brand-gray-400' : 'text-neutral-500',
+    tableRow: isDark ? 'border-b border-white/5 hover:bg-white/[0.02]' : 'border-b border-neutral-100 hover:bg-neutral-50',
+    tableCell: isDark ? 'text-brand-gray-400' : 'text-neutral-600',
+    tableName: isDark ? 'text-white' : 'text-neutral-900',
+    btnGhost: isDark ? 'text-brand-gray-400 hover:bg-white/10 hover:text-white' : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900',
+    btnOutline: isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50',
+    tabInactive: isDark ? 'text-brand-gray-300 hover:bg-white/10 hover:text-white' : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900',
+    divider: isDark ? 'divide-white/5' : 'divide-neutral-100',
+    selectOpt: isDark ? 'bg-brand-dark text-white' : 'bg-white text-neutral-900',
+    thumbBg: isDark ? 'bg-brand-gray-800' : 'bg-neutral-100',
+    badge: (ok) => ok
+      ? (isDark ? 'bg-green-500/10 text-green-400' : 'bg-green-50 text-green-700 border border-green-200')
+      : (isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600 border border-red-200'),
+  };
   return (
     <div
       className={`min-h-screen ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
@@ -938,7 +961,7 @@ export default function Admin() {
         </div>
 
         <div className="mb-6">
-          <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-2">
+          <div className={`flex flex-wrap gap-2 rounded-2xl border p-2 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white shadow-sm'}`}>
             {getVisibleTabs(currentUser?.role).map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.key;
@@ -947,7 +970,7 @@ export default function Admin() {
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${active ? 'bg-brand-orange text-white' : 'text-brand-gray-300 hover:bg-white/10 hover:text-white'}`}
+                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${active ? 'bg-brand-orange text-white' : th.tabInactive}`}
                 >
                   <Icon size={15} />
                   {tab.label}
@@ -965,18 +988,18 @@ export default function Admin() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Buscar por nome ou cidade..."
-                className="w-full lg:max-w-md px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-500 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                className={`w-full lg:max-w-md px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
               />
 
               <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
                 <select
                   value={filterCidade}
                   onChange={(e) => setFilterCidade(e.target.value)}
-                  className="w-full sm:w-52 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-brand-orange/40 transition-colors"
+                  className={`w-full sm:w-52 px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                 >
-                  <option value="todas" className="bg-brand-dark text-white">Todas as cidades</option>
+                  <option value="todas" className={th.selectOpt}>Todas as cidades</option>
                   {cidades.map((cidade) => (
-                    <option key={cidade} value={cidade} className="bg-brand-dark text-white">
+                    <option key={cidade} value={cidade} className={th.selectOpt}>
                       {cidade}
                     </option>
                   ))}
@@ -985,11 +1008,11 @@ export default function Admin() {
                 <select
                   value={filterTipo}
                   onChange={(e) => setFilterTipo(e.target.value)}
-                  className="w-full sm:w-52 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-brand-orange/40 transition-colors"
+                  className={`w-full sm:w-52 px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                 >
-                  <option value="todos" className="bg-brand-dark text-white">Todos os tipos</option>
+                  <option value="todos" className={th.selectOpt}>Todos os tipos</option>
                   {tipos.map((tipo) => (
-                    <option key={tipo} value={tipo} className="bg-brand-dark text-white">
+                    <option key={tipo} value={tipo} className={th.selectOpt}>
                       {tipo}
                     </option>
                   ))}
@@ -997,31 +1020,31 @@ export default function Admin() {
               </div>
             </div>
 
-            <div className="border border-white/5 rounded-2xl overflow-hidden">
+            <div className={`border rounded-2xl overflow-hidden ${isDark ? 'border-white/5' : 'border-neutral-200'}`}>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-white/[0.03] border-b border-white/5">
-                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs">Nome</th>
-                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden md:table-cell">Cidade</th>
-                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden md:table-cell">Tipo</th>
-                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Telas</th>
-                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Proporção</th>
-                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs">Preço</th>
-                      <th className="text-left px-4 py-3 text-brand-gray-400 font-medium text-xs hidden lg:table-cell">Status</th>
-                      <th className="text-right px-4 py-3 text-brand-gray-400 font-medium text-xs">Ações</th>
+                    <tr className={th.tableHead}>
+                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs`}>Nome</th>
+                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden md:table-cell`}>Cidade</th>
+                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden md:table-cell`}>Tipo</th>
+                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden lg:table-cell`}>Telas</th>
+                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden lg:table-cell`}>Proporção</th>
+                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs`}>Preço</th>
+                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden lg:table-cell`}>Status</th>
+                      <th className={`text-right px-4 py-3 ${th.tableHeadText} font-medium text-xs`}>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr><td colSpan={8} className="px-4 py-12 text-center text-brand-gray-500">Carregando...</td></tr>
+                      <tr><td colSpan={8} className={`px-4 py-12 text-center ${th.sectionDesc}`}>Carregando...</td></tr>
                     ) : filtered.length === 0 ? (
-                      <tr><td colSpan={8} className="px-4 py-12 text-center text-brand-gray-500">Nenhum ponto encontrado</td></tr>
+                      <tr><td colSpan={8} className={`px-4 py-12 text-center ${th.sectionDesc}`}>Nenhum ponto encontrado</td></tr>
                     ) : filtered.map((p) => (
-                      <tr key={p.id} className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors ${!p.ativo ? 'opacity-40' : ''}`}>
+                      <tr key={p.id} className={`${th.tableRow} transition-colors ${!p.ativo ? 'opacity-40' : ''}`}>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-brand-gray-800 overflow-hidden shrink-0">
+                            <div className={`w-8 h-8 rounded-lg overflow-hidden shrink-0 ${th.thumbBg}`}>
                               {p.imagem ? (
                                 <img src={p.imagem} alt="" className="w-full h-full object-cover" />
                               ) : (
@@ -1030,22 +1053,20 @@ export default function Admin() {
                                 </div>
                               )}
                             </div>
-                            <span className="text-white font-medium">{p.nome}</span>
+                            <span className={`font-medium ${th.tableName}`}>{p.nome}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-brand-gray-400 hidden md:table-cell">{p.cidade}</td>
-                        <td className="px-4 py-3 text-brand-gray-400 hidden md:table-cell">
+                        <td className={`px-4 py-3 ${th.tableCell} hidden md:table-cell`}>{p.cidade}</td>
+                        <td className={`px-4 py-3 ${th.tableCell} hidden md:table-cell`}>
                           {p.tipo}{p.tipo === ELEVADOR_TIPO && p.elevador_categoria ? ` - ${p.elevador_categoria}` : ''}
                         </td>
-                        <td className="px-4 py-3 text-brand-gray-400 hidden lg:table-cell">{p.telas}</td>
-                        <td className="px-4 py-3 text-brand-gray-400 hidden lg:table-cell">{formatRatio(p.arte_largura, p.arte_altura) || '-'}</td>
+                        <td className={`px-4 py-3 ${th.tableCell} hidden lg:table-cell`}>{p.telas}</td>
+                        <td className={`px-4 py-3 ${th.tableCell} hidden lg:table-cell`}>{formatRatio(p.arte_largura, p.arte_altura) || '-'}</td>
                         <td className="px-4 py-3 text-brand-orange font-medium">
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.preco)}
                         </td>
                         <td className="px-4 py-3 hidden lg:table-cell">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                            p.ativo ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
-                          }`}>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${th.badge(p.ativo)}`}>
                             {p.ativo ? 'Ativo' : 'Inativo'}
                           </span>
                         </td>
@@ -1053,14 +1074,14 @@ export default function Admin() {
                           <div className="flex items-center justify-end gap-1">
                             <button
                               onClick={() => openEdit(p)}
-                              className="p-2 hover:bg-white/10 rounded-lg text-brand-gray-400 hover:text-white transition-colors"
+                              className={`p-2 rounded-lg transition-colors ${th.btnGhost}`}
                               title="Editar"
                             >
                               <Pencil size={14} />
                             </button>
                             <button
                               onClick={() => handleDelete(p.id)}
-                              className="p-2 hover:bg-white/10 rounded-lg text-brand-gray-400 hover:text-red-400 transition-colors"
+                              className={`p-2 rounded-lg transition-colors ${isDark ? 'text-brand-gray-400 hover:bg-white/10 hover:text-red-400' : 'text-neutral-500 hover:bg-red-50 hover:text-red-600'}`}
                               title="Excluir"
                             >
                               <Trash2 size={14} />
@@ -1093,11 +1114,11 @@ export default function Admin() {
             />
 
             {/* Census Audience Profile Analysis */}
-            <section className="mb-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+            <section className={`mb-6 rounded-2xl border p-4 sm:p-5 ${th.card}`}>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Perfis Censitários (IBGE + OSM)</h3>
-                  <p className="text-xs text-brand-gray-500 mt-1">
+                  <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Perfis Censitários (IBGE + OSM)</h3>
+                  <p className={`text-xs mt-1 ${th.sectionDesc}`}>
                     Classifica os pontos por perfil de audiência (Alta Renda, Massa/Varejo, Jovem/Universitário, Terceira Idade)
                     usando dados do Censo 2022 (IBGE) e POIs do OpenStreetMap. Use &ldquo;Forçar Reanálise&rdquo; após atualizar pontos.
                   </p>
@@ -1105,11 +1126,11 @@ export default function Admin() {
               </div>
               <div className="mt-4 flex flex-wrap items-end gap-3">
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-brand-gray-400">Cidade (deixe em branco para todas)</label>
+                  <label className={`text-xs ${th.lbl}`}>Cidade (deixe em branco para todas)</label>
                   <select
                     value={censusCidade}
                     onChange={(e) => setCensusCidade(e.target.value)}
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-brand-orange/50 focus:outline-none"
+                    className={`rounded-lg px-3 py-2 text-sm focus:outline-none ${th.inp}`}
                   >
                     <option value="">Todas as cidades</option>
                     {cidades.map((c) => (
@@ -1179,20 +1200,20 @@ export default function Admin() {
           <div className="space-y-5">
             <CidadeFotosAdmin />
 
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+            <section className={`rounded-2xl border p-4 sm:p-5 ${th.card}`}>
               <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Configurações do sistema</h3>
-                <p className="text-xs text-brand-gray-500 mt-1">Configure parâmetros globais para propostas e vendas.</p>
+                <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Configurações do sistema</h3>
+                <p className={`text-xs mt-1 ${th.sectionDesc}`}>Configure parâmetros globais para propostas e vendas.</p>
               </div>
 
               {settingsError && <p className="mt-3 text-xs text-red-300">{settingsError}</p>}
 
               <form onSubmit={handleSaveSettings} className="mt-6 space-y-4 max-w-md">
                 <div>
-                  <label className="block text-xs text-brand-gray-400 mb-2">
+                  <label className={`block text-xs mb-2 ${th.lbl}`}>
                     Lucro Mínimo Obrigatório (%)
                   </label>
-                  <p className="text-xs text-brand-gray-500 mb-2">
+                  <p className={`text-xs mb-2 ${th.sectionDesc}`}>
                     Vendedores precisarão de aprovação do Gerente Comercial se aplicarem desconto acima desse percentual.
                   </p>
                   <div className="flex items-end gap-2">
@@ -1203,7 +1224,7 @@ export default function Admin() {
                       step="1"
                       value={lucroMinimoValue}
                       onChange={e => setLucroMinimoValue(Number(e.target.value))}
-                      className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                      className={`flex-1 px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                     />
                     <button
                       type="submit"
@@ -1224,11 +1245,11 @@ export default function Admin() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+            <section className={`rounded-2xl border p-4 sm:p-5 ${th.card}`}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-white">PDF tecnico por pontos</h3>
-                  <p className="text-xs text-brand-gray-500 mt-1">Escolha os pontos e exporte o arquivo "Informacoes Tecnicas Intermidia" com foto, nome, resolucao e especificacoes de entrega.</p>
+                  <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>PDF tecnico por pontos</h3>
+                  <p className={`text-xs mt-1 ${th.sectionDesc}`}>Escolha os pontos e exporte o arquivo "Informacoes Tecnicas Intermidia" com foto, nome, resolucao e especificacoes de entrega.</p>
                 </div>
                 <button
                   type="button"
@@ -1247,22 +1268,22 @@ export default function Admin() {
                   value={technicalPdfSearch}
                   onChange={(event) => setTechnicalPdfSearch(event.target.value)}
                   placeholder="Buscar ponto por nome, cidade ou tipo..."
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
+                  className={`w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none ${th.inp}`}
                 />
                 <select
                   value={technicalPdfCityFilter}
                   onChange={(event) => setTechnicalPdfCityFilter(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-orange/40"
+                  className={`w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none ${th.inp}`}
                 >
-                  <option value="todas" className="bg-brand-dark text-white">Todas as cidades</option>
+                  <option value="todas" className={th.selectOpt}>Todas as cidades</option>
                   {cidades.map((cidade) => (
-                    <option key={cidade} value={cidade} className="bg-brand-dark text-white">{cidade}</option>
+                    <option key={cidade} value={cidade} className={th.selectOpt}>{cidade}</option>
                   ))}
                 </select>
                 <button
                   type="button"
                   onClick={handleSelectAllTechnicalFiltered}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-xs text-white hover:bg-white/10"
+                  className={`inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-xs ${th.btnOutline}`}
                 >
                   <CheckSquare size={14} />
                   Selecionar filtrados
@@ -1270,34 +1291,34 @@ export default function Admin() {
                 <button
                   type="button"
                   onClick={handleClearTechnicalSelection}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-xs text-white hover:bg-white/10"
+                  className={`inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-xs ${th.btnOutline}`}
                 >
                   <Square size={14} />
                   Limpar
                 </button>
               </div>
 
-              <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className={`mt-4 rounded-xl border p-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
                 <div className="flex items-center justify-between gap-3 text-xs">
-                  <span className="inline-flex items-center gap-1.5 text-brand-gray-300">
+                  <span className={`inline-flex items-center gap-1.5 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
                     <FileText size={14} className="text-brand-orange" />
                     {technicalPdfSelectedPoints.length} ponto(s) selecionado(s)
                   </span>
                   {technicalPdfStatus ? (
-                    <span className="text-brand-orange">{technicalPdfStatus}</span>
+                    <span className={`text-brand-orange`}>{technicalPdfStatus}</span>
                   ) : (
-                    <span className="text-brand-gray-500">Este processo pode levar alguns segundos.</span>
+                    <span className={th.sectionDesc}>Este processo pode levar alguns segundos.</span>
                   )}
                 </div>
 
-                <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-white/10">
+                <div className={`mt-3 max-h-72 overflow-auto rounded-lg border ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
                   {technicalPdfCandidates.length ? (
-                    <ul className="divide-y divide-white/10">
+                    <ul className={`divide-y ${th.divider}`}>
                       {technicalPdfCandidates.map((point) => {
                         const checked = technicalPdfSelectedIds.includes(Number(point.id));
                         return (
                           <li key={point.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                            <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-white">
+                            <label className={`flex min-w-0 flex-1 cursor-pointer items-center gap-3 ${th.tableName}`}>
                               <input
                                 type="checkbox"
                                 checked={checked}
@@ -1306,29 +1327,29 @@ export default function Admin() {
                               />
                               <span className="min-w-0 truncate">{point.nome}</span>
                             </label>
-                            <span className="text-xs text-brand-gray-400">{point.cidade} • {point.tipo}</span>
+                            <span className={`text-xs ${th.tableCell}`}>{point.cidade} • {point.tipo}</span>
                           </li>
                         );
                       })}
                     </ul>
                   ) : (
-                    <p className="px-3 py-6 text-center text-xs text-brand-gray-500">Nenhum ponto encontrado para esse filtro.</p>
+                    <p className={`px-3 py-6 text-center text-xs ${th.sectionDesc}`}>Nenhum ponto encontrado para esse filtro.</p>
                   )}
                 </div>
               </div>
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+            <section className={`rounded-2xl border p-4 sm:p-5 ${th.card}`}>
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Cache de PDFs</h3>
-                  <p className="text-xs text-brand-gray-500 mt-1">Controle de combinações de cidades e validade dos PDFs em cache.</p>
+                  <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Cache de PDFs</h3>
+                  <p className={`text-xs mt-1 ${th.sectionDesc}`}>Controle de combinações de cidades e validade dos PDFs em cache.</p>
                 </div>
                 <button
                   type="button"
                   onClick={loadPdfCache}
                   disabled={pdfCacheLoading}
-                  className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10 disabled:opacity-50"
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs disabled:opacity-50 ${th.btnOutline}`}
                 >
                   <RefreshCcw size={14} className={pdfCacheLoading ? 'animate-spin' : ''} />
                   Atualizar
@@ -1337,9 +1358,9 @@ export default function Admin() {
 
               {pdfCacheError ? <p className="mt-3 text-xs text-red-300">{pdfCacheError}</p> : null}
 
-              <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+              <div className={`mt-4 overflow-x-auto rounded-xl border ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
                 <table className="w-full text-sm">
-                  <thead className="bg-white/[0.04] text-brand-gray-400">
+                  <thead className={`${isDark ? 'bg-white/[0.04] text-brand-gray-400' : 'bg-neutral-50 text-neutral-500'}`}>
                     <tr>
                       <th className="px-3 py-2 text-left font-medium">Combinação</th>
                       <th className="px-3 py-2 text-left font-medium">Cidades</th>
@@ -1357,20 +1378,22 @@ export default function Admin() {
                       </tr>
                     ) : !pdfCacheRows.length ? (
                       <tr>
-                        <td colSpan={7} className="px-3 py-6 text-center text-brand-gray-500">Nenhum PDF em cache.</td>
+                        <td colSpan={7} className={`px-3 py-6 text-center ${th.sectionDesc}`}>Nenhum PDF em cache.</td>
                       </tr>
                     ) : (
                       pdfCacheRows.map((row) => {
                         const valid = Number(row.is_valid) === 1;
                         return (
-                          <tr key={row.id} className="border-t border-white/10 text-white/90">
+                          <tr key={row.id} className={`border-t ${isDark ? 'border-white/10 text-white/90' : 'border-neutral-100 text-neutral-800'}`}>
                             <td className="px-3 py-2 font-mono text-xs">{row.combination_key}</td>
-                            <td className="px-3 py-2 text-xs text-brand-gray-300">{formatCityList(row.city_slugs)}</td>
+                            <td className={`px-3 py-2 text-xs ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{formatCityList(row.city_slugs)}</td>
                             <td className="px-3 py-2 text-xs">{formatCacheSize(row.file_size_kb)}</td>
                             <td className="px-3 py-2 text-xs">{formatDateBr(row.generated_at)}</td>
                             <td className="px-3 py-2 text-xs">{Number(row.download_count || 0)}</td>
                             <td className="px-3 py-2 text-xs">
-                              <span className={`inline-flex rounded-full border px-2 py-0.5 ${valid ? 'border-green-500/30 bg-green-500/10 text-green-300' : 'border-white/15 bg-white/5 text-brand-gray-400'}`}>
+                              <span className={`inline-flex rounded-full border px-2 py-0.5 ${valid
+                                ? (isDark ? 'border-green-500/30 bg-green-500/10 text-green-300' : 'border-green-200 bg-green-50 text-green-700')
+                                : (isDark ? 'border-white/15 bg-white/5 text-brand-gray-400' : 'border-neutral-200 bg-neutral-50 text-neutral-500')}`}>
                                 {valid ? 'Valido' : 'Invalido'}
                               </span>
                             </td>
@@ -1380,12 +1403,12 @@ export default function Admin() {
                                   type="button"
                                   onClick={() => handleInvalidatePdfCache(row.id)}
                                   disabled={invalidatingCacheId === row.id}
-                                  className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-white hover:bg-white/10 disabled:opacity-50"
+                                  className={`rounded-md border px-2 py-1 disabled:opacity-50 ${th.btnOutline}`}
                                 >
                                   {invalidatingCacheId === row.id ? 'Invalidando...' : 'Invalidar'}
                                 </button>
                               ) : (
-                                <span className="text-brand-gray-500">-</span>
+                                <span className={th.sectionDesc}>-</span>
                               )}
                             </td>
                           </tr>
@@ -1398,16 +1421,16 @@ export default function Admin() {
             </section>
 
             {/* WAHA — WhatsApp */}
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+            <section className={`rounded-2xl border p-4 sm:p-5 ${th.card}`}>
               <div className="flex items-center gap-2 mb-1">
                 <Zap size={15} className="text-brand-orange" />
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-white">
+                <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>
                   Integração WhatsApp — WAHA
                 </h3>
               </div>
-              <p className="text-xs text-brand-gray-500 mb-5">
+              <p className={`text-xs mb-5 ${th.sectionDesc}`}>
                 Configure aqui os dados do WAHA para disparo automático de notificações de nova venda.
-                Preencha e salve antes de usar a aba <strong className="text-brand-gray-400">Nova Venda</strong>.
+                Preencha e salve antes de usar a aba <strong className={th.lbl}>Nova Venda</strong>.
               </p>
 
               {evoSaveMsg && (
@@ -1420,10 +1443,10 @@ export default function Admin() {
 
               <form onSubmit={handleSaveEvoSettings} className="space-y-4 max-w-lg">
                 <div>
-                  <label className="block text-xs text-brand-gray-400 mb-1.5">URL da API</label>
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>URL da API</label>
                   <input
                     type="url"
-                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                    className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                     value={evoApiUrl}
                     onChange={e => setEvoApiUrl(e.target.value)}
                     placeholder="https://midiakit.redeintermidia.com/waha"
@@ -1431,19 +1454,19 @@ export default function Admin() {
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs text-brand-gray-400 mb-1.5">Nome da Instância</label>
+                    <label className={`block text-xs mb-1.5 ${th.lbl}`}>Nome da Instância</label>
                     <input
-                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                      className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                       value={evoInstance}
                       onChange={e => setEvoInstance(e.target.value)}
                       placeholder="default (não alterar)"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-brand-gray-400 mb-1.5">API Key</label>
+                    <label className={`block text-xs mb-1.5 ${th.lbl}`}>API Key</label>
                     <input
                       type="password"
-                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                      className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                       value={evoApiKey}
                       onChange={e => setEvoApiKey(e.target.value)}
                       placeholder="••••••••••••"
@@ -1451,16 +1474,16 @@ export default function Admin() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-brand-gray-400 mb-1.5">
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>
                     Número / Grupo de destino
                   </label>
                   <input
-                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                    className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                     value={evoDestNumber}
                     onChange={e => setEvoDestNumber(e.target.value)}
                     placeholder="5543999999999 ou ID do grupo"
                   />
-                  <p className="mt-1.5 text-xs text-brand-gray-500">
+                  <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
                     Para número individual use o formato: 55 + DDD + número (ex: 5543999990000).
                     Para grupos, use o ID do grupo com @g.us (ex: 120363XXXXXX@g.us).
                   </p>
@@ -1468,7 +1491,7 @@ export default function Admin() {
                 <button
                   type="submit"
                   disabled={evoSaving}
-                  className="inline-flex items-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/15 text-brand-orange px-4 py-2.5 text-sm font-semibold hover:bg-brand-orange/25 disabled:opacity-50 transition-colors"
+                  className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 transition-colors ${isDark ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange hover:bg-brand-orange/25' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
                 >
                   {evoSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                   {evoSaving ? 'Salvando...' : 'Salvar configuração'}
@@ -1506,7 +1529,7 @@ export default function Admin() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-brand-dark border border-white/10 rounded-2xl p-6"
+              className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto border rounded-2xl p-6 ${isDark ? 'bg-brand-dark border-white/10' : 'bg-white border-neutral-200 shadow-xl'}`}
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
@@ -1515,7 +1538,7 @@ export default function Admin() {
                 </h2>
                 <button
                   onClick={() => setEditing(null)}
-                  className="p-2 hover:bg-white/10 rounded-lg text-brand-gray-400 hover:text-white transition-colors"
+                  className={`p-2 rounded-lg transition-colors ${th.btnGhost}`}
                 >
                   <X size={18} />
                 </button>
@@ -1538,7 +1561,7 @@ export default function Admin() {
                         type="text"
                         value={form.endereco}
                         onChange={e => updateField('endereco', e.target.value)}
-                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-brand-purple/50"
+                        className={`flex-1 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple/50 ${th.inp}`}
                         placeholder="Ex: Av. Higienópolis, 1234, Londrina"
                       />
                       <button
@@ -1592,15 +1615,15 @@ export default function Admin() {
                     value={form.descricao}
                     onChange={e => updateField('descricao', e.target.value)}
                     rows={3}
-                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors resize-none"
+                    className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors resize-none ${th.inp}`}
                   />
                 </div>
 
                 {/* Image upload */}
                 <div>
-                  <label className="block text-xs text-brand-gray-400 mb-1.5">Imagem</label>
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>Imagem</label>
                   <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-brand-gray-300 hover:bg-white/10 cursor-pointer transition-colors">
+                    <label className={`flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm cursor-pointer transition-colors ${th.btnOutline}`}>
                       <Upload size={16} />
                       {imageFile ? imageFile.name : 'Upload de imagem'}
                       <input
@@ -1620,9 +1643,9 @@ export default function Admin() {
 
                 {/* Imagem 2 upload (Elevador — segunda foto) */}
                 <div>
-                  <label className="block text-xs text-brand-gray-400 mb-1.5">Imagem 2 <span className="text-brand-gray-600">(opcional — segunda foto para Elevador)</span></label>
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>Imagem 2 <span className={th.sectionDesc}>(opcional — segunda foto para Elevador)</span></label>
                   <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-brand-gray-300 hover:bg-white/10 cursor-pointer transition-colors">
+                    <label className={`flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm cursor-pointer transition-colors ${th.btnOutline}`}>
                       <Upload size={16} />
                       {imagem2File ? imagem2File.name : 'Upload de 2ª imagem'}
                       <input
@@ -1672,7 +1695,7 @@ export default function Admin() {
                   />
                 </div>
 
-                <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-4">
+                <section className={`rounded-xl border p-4 space-y-4 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-neutral-50'}`}>
                   <div>
                     <h3 className="text-sm font-semibold">Simulação do ponto</h3>
                     <p className="text-xs text-brand-gray-500 mt-1">
@@ -1685,21 +1708,21 @@ export default function Admin() {
                       <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Faces do painel na simulação</p>
-                          <div className="inline-flex rounded-lg border border-white/10 bg-white/5 p-1">
+                          <div className={`inline-flex rounded-lg border p-1 ${isDark ? 'border-white/10 bg-white/5' : 'border-neutral-200 bg-neutral-50'}`}>
                             <button
                               type="button"
                               onClick={() => {
                                 setSimulationFaceCount(1);
                                 setActiveSimulationFace(0);
                               }}
-                              className={`rounded-md px-3 py-1.5 text-xs transition-colors ${simulationFaceCount === 1 ? 'bg-brand-orange text-white' : 'text-brand-gray-300 hover:bg-white/10 hover:text-white'}`}
+                              className={`rounded-md px-3 py-1.5 text-xs transition-colors ${simulationFaceCount === 1 ? 'bg-brand-orange text-white' : th.tabInactive}`}
                             >
                               1 face
                             </button>
                             <button
                               type="button"
                               onClick={() => setSimulationFaceCount(2)}
-                              className={`rounded-md px-3 py-1.5 text-xs transition-colors ${simulationFaceCount === 2 ? 'bg-brand-orange text-white' : 'text-brand-gray-300 hover:bg-white/10 hover:text-white'}`}
+                              className={`rounded-md px-3 py-1.5 text-xs transition-colors ${simulationFaceCount === 2 ? 'bg-brand-orange text-white' : th.tabInactive}`}
                             >
                               2 faces
                             </button>
@@ -2043,14 +2066,17 @@ function RangeField({ label, value, min, max, step = 1, onChange }) {
 }
 
 function FormField({ label, value, onChange, className = '', type = 'text', ...props }) {
+  const dark = typeof window !== 'undefined' && localStorage.getItem('intermidia_theme') !== 'light';
   return (
     <div className={className}>
-      <label className="block text-xs text-brand-gray-400 mb-1.5">{label}</label>
+      <label className={`block text-xs mb-1.5 ${dark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>{label}</label>
       <input
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+        className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${dark
+          ? 'bg-white/5 border border-white/10 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/40'
+          : 'bg-white border border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-brand-orange/60'}`}
         {...props}
       />
     </div>
@@ -2074,11 +2100,11 @@ function EntornoAdminPanel({
   const processing = currentStatus === 'queued' || currentStatus === 'running';
 
   return (
-    <section className="mb-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+    <section className={`mb-6 rounded-2xl border p-4 sm:p-5 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-white shadow-sm'}`}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Análise de entorno</h3>
-          <p className="text-xs text-brand-gray-500 mt-1">Reprocessamento manual por segmento e cidade, com fila assíncrona e monitoramento de jobs.</p>
+          <h3 className={`text-sm font-semibold uppercase tracking-wide ${isDark ? 'text-white' : 'text-neutral-900'}`}>Análise de entorno</h3>
+          <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Reprocessamento manual por segmento e cidade, com fila assíncrona e monitoramento de jobs.</p>
         </div>
         <button
           type="button"
@@ -2093,34 +2119,34 @@ function EntornoAdminPanel({
 
       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
         <div>
-          <label className="block text-xs text-brand-gray-400 mb-1.5">Segmento</label>
+          <label className={`block text-xs mb-1.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>Segmento</label>
           <select
             value={form.segmento}
             onChange={(e) => setForm((prev) => ({ ...prev, segmento: e.target.value }))}
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+            className={`w-full rounded-xl px-3 py-2 text-sm ${isDark ? 'border border-white/10 bg-white/5 text-white' : 'border border-neutral-200 bg-white text-neutral-900'}`}
           >
             {ENTORNO_SEGMENTOS.map((segmento) => (
-              <option key={segmento} value={segmento} className="bg-brand-dark">{segmento}</option>
+              <option key={segmento} value={segmento} className={isDark ? 'bg-brand-dark' : 'bg-white'}>{segmento}</option>
             ))}
           </select>
         </div>
 
         <div>
-          <label className="block text-xs text-brand-gray-400 mb-1.5">Cidade</label>
+          <label className={`block text-xs mb-1.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>Cidade</label>
           <select
             value={form.cidade}
             onChange={(e) => setForm((prev) => ({ ...prev, cidade: e.target.value }))}
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+            className={`w-full rounded-xl px-3 py-2 text-sm ${isDark ? 'border border-white/10 bg-white/5 text-white' : 'border border-neutral-200 bg-white text-neutral-900'}`}
           >
-            <option value="" className="bg-brand-dark">Todas</option>
+            <option value="" className={isDark ? 'bg-brand-dark' : 'bg-white'}>Todas</option>
             {cidades.map((cidade) => (
-              <option key={cidade} value={cidade} className="bg-brand-dark">{cidade}</option>
+              <option key={cidade} value={cidade} className={isDark ? 'bg-brand-dark' : 'bg-white'}>{cidade}</option>
             ))}
           </select>
         </div>
 
         <div>
-          <label className="block text-xs text-brand-gray-400 mb-1.5">Raio (m)</label>
+          <label className={`block text-xs mb-1.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>Raio (m)</label>
           <input
             type="number"
             min={200}
@@ -2128,12 +2154,12 @@ function EntornoAdminPanel({
             step={50}
             value={form.raio}
             onChange={(e) => setForm((prev) => ({ ...prev, raio: Number(e.target.value) || 800 }))}
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+            className={`w-full rounded-xl px-3 py-2 text-sm ${isDark ? 'border border-white/10 bg-white/5 text-white' : 'border border-neutral-200 bg-white text-neutral-900'}`}
           />
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-brand-gray-300">
-          <p className="font-semibold uppercase tracking-wide text-brand-gray-400 mb-1">Provedores</p>
+        <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-black/20 text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
+          <p className={`font-semibold uppercase tracking-wide mb-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Provedores</p>
           {providers ? (
             <>
               <p>Ordem: {Array.isArray(providers.providerOrder) ? providers.providerOrder.join(' → ') : '-'}</p>
@@ -2145,8 +2171,8 @@ function EntornoAdminPanel({
         </div>
       </div>
 
-      <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-brand-gray-300">
-        <p className="font-semibold uppercase tracking-wide text-brand-gray-400 mb-1">Categorias do segmento</p>
+      <div className={`mt-3 rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-black/20 text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
+        <p className={`font-semibold uppercase tracking-wide mb-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Categorias do segmento</p>
         <p>{categories.length ? categories.join(', ') : 'Nenhuma categoria configurada para este segmento.'}</p>
       </div>
 
@@ -2155,18 +2181,18 @@ function EntornoAdminPanel({
       )}
 
       {currentJob && (
-        <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-brand-gray-300">
-          <p className="font-semibold uppercase tracking-wide text-brand-gray-400">Job atual #{currentJob.id}</p>
+        <div className={`mt-3 rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-black/20 text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
+          <p className={`font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Job atual #{currentJob.id}</p>
           <p className="mt-1">Status: <span className={processing ? 'text-brand-orange' : currentStatus === 'failed' ? 'text-red-300' : 'text-green-300'}>{currentJob.status}</span></p>
           <p className="mt-1">Processados: {currentJob.processed_points || 0}/{currentJob.total_points || 0} • Erros: {currentJob.error_count || 0}</p>
           {currentJob.last_error && <p className="mt-1 text-red-300">Último erro: {currentJob.last_error}</p>}
         </div>
       )}
 
-      <div className="mt-3 overflow-x-auto rounded-xl border border-white/10">
+      <div className={`mt-3 overflow-x-auto rounded-xl border ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
         <table className="w-full text-xs">
           <thead>
-            <tr className="bg-white/[0.03] text-left text-brand-gray-400">
+            <tr className={`text-left ${isDark ? 'bg-white/[0.03] text-brand-gray-400' : 'bg-neutral-50 text-neutral-500'}`}>
               <th className="px-3 py-2">Job</th>
               <th className="px-3 py-2">Segmento</th>
               <th className="px-3 py-2">Cidade</th>
@@ -2211,17 +2237,17 @@ function UsersAdminPanel({
   isDark = true
 }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+    <section className={`rounded-2xl border p-4 sm:p-5 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-white shadow-sm'}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Cadastro de usuários admin</h3>
-          <p className="text-xs text-brand-gray-500 mt-1">Gerencie quem pode acessar o painel administrativo e defina permissões.</p>
+          <h3 className={`text-sm font-semibold uppercase tracking-wide ${isDark ? 'text-white' : 'text-neutral-900'}`}>Cadastro de usuários admin</h3>
+          <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Gerencie quem pode acessar o painel administrativo e defina permissões.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onOpenNew}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#E8591A]/40 bg-[#E8591A]/15 px-4 py-2 text-sm font-semibold text-[#E8591A] hover:bg-[#E8591A]/25"
+            className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold ${isDark ? 'border-[#E8591A]/40 bg-[#E8591A]/15 text-[#E8591A] hover:bg-[#E8591A]/25' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
           >
             <UserPlus size={15} />
             Adicionar Usuário
@@ -2229,7 +2255,7 @@ function UsersAdminPanel({
           <button
             type="button"
             onClick={onReload}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+            className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold ${isDark ? 'border-white/10 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
           >
             <RefreshCcw size={15} />
             Atualizar lista
@@ -2239,10 +2265,10 @@ function UsersAdminPanel({
 
       {error ? <p className="mt-3 text-xs text-red-300">{error}</p> : null}
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+      <div className={`mt-4 overflow-x-auto rounded-xl border ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
         <table className="w-full text-xs">
           <thead>
-            <tr className="bg-white/[0.03] text-left text-brand-gray-400">
+            <tr className={`text-left ${isDark ? 'bg-white/[0.03] text-brand-gray-400' : 'bg-neutral-50 text-neutral-500'}`}>
               <th className="px-3 py-2">Nome</th>
               <th className="px-3 py-2">Usuário</th>
               <th className="px-3 py-2">Contato</th>
@@ -2253,16 +2279,16 @@ function UsersAdminPanel({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-center text-brand-gray-500">Carregando usuários...</td>
+                <td colSpan={5} className={`px-3 py-4 text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Carregando usuários...</td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-center text-brand-gray-500">Nenhum usuário cadastrado.</td>
+                <td colSpan={5} className={`px-3 py-4 text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Nenhum usuário cadastrado.</td>
               </tr>
             ) : users.map((user) => (
-              <tr key={user.id} className="border-t border-white/5 text-brand-gray-300">
+              <tr key={user.id} className={`border-t ${isDark ? 'border-white/5 text-brand-gray-300' : 'border-neutral-100 text-neutral-600'}`}>
                 <td className="px-3 py-2">
-                  <div className="font-medium text-white">{[user.first_name, user.last_name].filter(Boolean).join(' ') || 'Sem nome'}</div>
+                  <div className={`font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>{[user.first_name, user.last_name].filter(Boolean).join(' ') || 'Sem nome'}</div>
                 </td>
                 <td className="px-3 py-2">
                   <div className="font-medium">{user.username}</div>
@@ -2280,7 +2306,7 @@ function UsersAdminPanel({
                   <button
                     type="button"
                     onClick={() => onOpenEdit(user)}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-brand-gray-400 hover:bg-white/10"
+                    className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 ${isDark ? 'text-brand-gray-400 hover:bg-white/10' : 'text-neutral-500 hover:bg-neutral-100'}`}
                   >
                     <Pencil size={12} />
                     Editar
@@ -2288,7 +2314,7 @@ function UsersAdminPanel({
                   <button
                     type="button"
                     onClick={() => onDelete(user.id, user.username)}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-red-300 hover:bg-red-400/10"
+                    className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 ${isDark ? 'text-red-300 hover:bg-red-400/10' : 'text-red-600 hover:bg-red-50'}`}
                   >
                     <Trash2 size={12} />
                     Remover
@@ -2313,15 +2339,18 @@ function UsersAdminPanel({
 }
 
 function FormSelect({ label, value, onChange, options }) {
+  const dark = typeof window !== 'undefined' && localStorage.getItem('intermidia_theme') !== 'light';
   return (
     <div>
-      <label className="block text-xs text-brand-gray-400 mb-1.5">{label}</label>
+      <label className={`block text-xs mb-1.5 ${dark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>{label}</label>
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-brand-orange/40 transition-colors appearance-none"
+        className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors appearance-none ${dark
+          ? 'bg-white/5 border border-white/10 text-white focus:border-brand-orange/40'
+          : 'bg-white border border-neutral-200 text-neutral-900 focus:border-brand-orange/60'}`}
       >
-        {options.map(o => <option key={o} value={o} className="bg-brand-dark">{o}</option>)}
+        {options.map(o => <option key={o} value={o} className={dark ? 'bg-brand-dark' : 'bg-white text-neutral-900'}>{o}</option>)}
       </select>
     </div>
   );
