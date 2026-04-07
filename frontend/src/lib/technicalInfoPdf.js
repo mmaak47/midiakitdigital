@@ -81,6 +81,46 @@ async function compressImageForPdf(url, options = {}) {
   });
 }
 
+function parseDuracaoText(str) {
+  if (!str) return 0;
+  const s = String(str).trim().toLowerCase();
+
+  // formato mm:ss
+  const mmss = s.match(/^(\d+):(\d{2})$/);
+  if (mmss) return parseInt(mmss[1]) * 60 + parseInt(mmss[2]);
+
+  let total = 0;
+  const min = s.match(/(\d+(?:[.,]\d+)?)\s*min/);
+  if (min) total += parseFloat(min[1].replace(',', '.')) * 60;
+  const sec = s.match(/(\d+(?:[.,]\d+)?)\s*s(?:eg)?(?:\b|$)/);
+  if (sec) total += parseFloat(sec[1].replace(',', '.'));
+
+  if (!min && !sec) {
+    const num = parseFloat(s.replace(',', '.'));
+    if (!isNaN(num)) total = num;
+  }
+  return Math.round(total);
+}
+
+function parseOperatingHours(horario) {
+  if (!horario) return 17; // Default: 6h às 23h = 17 horas
+  const h = String(horario).toLowerCase();
+  
+  // Exemplo de parse: "6h às 23h" -> 23 - 6 = 17
+  const matches = h.match(/(\d{1,2})h.*?(?:às|as).*?(\d{1,2})h/);
+  if (matches) {
+    const start = parseInt(matches[1], 10);
+    const end = parseInt(matches[2], 10);
+    let duration = end > start ? end - start : (24 - start) + end; // Se atravessa a meia noite
+    if (duration > 0 && duration <= 24) return duration;
+  }
+  
+  // Tentar 24h
+  if (h.includes("24")) return 24;
+  
+  return 17;
+}
+
 async function preparePointsForPdf(points, onStatusChange) {
   const result = [];
 
@@ -151,13 +191,8 @@ function buildHeroImageFrame(image, focalPoint) {
   
   return `
     <div style="position:absolute;inset:0;background:#000;">
-      <!-- Underlay - blurred copy -->
       <img src="${image}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(fp)};filter:blur(26px) saturate(1.1);transform:scale(1.08);opacity:0.45;" />
-      
-      <!-- Overlay blur darkener -->
       <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,7,7,0.12),rgba(7,7,7,0.62));"></div>
-      
-      <!-- Actual contained image so important parts are never cut off. Or we can use cover but with the exact focal point ensuring it's centered -->
       <img src="${image}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:${escapeHtml(fp)};filter:drop-shadow(0 24px 44px rgba(0,0,0,0.45));" />
     </div>
   `;
@@ -168,15 +203,15 @@ function buildCoverPage(points) {
   const icons = buildIcons();
 
   return createPage(`
-    <div style="position:absolute;inset:0;background:radial-gradient(circle at 0% 0%, rgba(232,89,26,0.3), transparent 50%),linear-gradient(140deg,#090909,#111 46%,#1b120d 100%);"></div>
+    <div style="position:absolute;inset:0;background:radial-gradient(circle at 100% 0%, rgba(232,89,26,0.3), transparent 50%),linear-gradient(140deg,#090909,#111 46%,#1b120d 100%);"></div>
     <div style="position:relative;z-index:2;padding:64px;height:100%;display:flex;flex-direction:column;justify-content:space-between;">
       
       <!-- Header -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <img src="${resolveAssetUrl('/logo.png')}" alt="Intermídia" style="height:48px;object-fit:contain;" />
         <div style="display:inline-flex;align-items:center;gap:10px;padding:10px 18px;border:1px solid rgba(255,255,255,0.15);border-radius:999px;background:rgba(255,255,255,0.04);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${BRAND_ORANGE};">
           Manual de Especificações
         </div>
+        <img src="${resolveAssetUrl('/logo.png')}" alt="Intermídia" style="height:48px;object-fit:contain;" />
       </div>
       
       <!-- Title Area -->
@@ -202,7 +237,7 @@ function buildCoverPage(points) {
          </div>
       </div>
 
-      <!-- RODAPÉ DE CONTATO (Apenas na Capa) -->
+      <!-- RODAPÉ DE CONTATO -->
       <div style="margin-top:48px;padding:24px 32px;background:rgba(232,89,26,0.05);border:1px solid rgba(232,89,26,0.2);border-radius:16px;display:flex;justify-content:space-between;align-items:center;">
          <div>
            <div style="font-size:12px;font-weight:700;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Dúvidas? Fale com a criação</div>
@@ -242,25 +277,39 @@ function buildPointPage(point, index, total) {
   
   const p_perfil = point?.perfil_publico ? String(point.perfil_publico).trim() : 'A/B';
   const perfil = escapeHtml(p_perfil !== '' ? p_perfil : 'A/B');
+
+  const coords = (point?.lat && point?.lng && point.lat !== '0' && point.lng !== '0')
+    ? `${point.lat}, ${point.lng}`
+    : '-';
+    
+  const endereco = escapeHtml(point?.endereco ? String(point.endereco).trim() : (point?.cidade || '-'));
+
+  // Calculando insercoes REAIS/hora baseadas em Inserções/Mês
+  // Fórmula: insercoes_mes / 30 dias / horas_por_dia = insercoes_por_hora
+  const insercoesMesTxt = String(point?.insercoes || '').replace(/\D/g, '');
+  const insercoesMes = parseInt(insercoesMesTxt, 10);
   
-  const p_fluxo = point?.fluxo_tipo ? String(point.fluxo_tipo).trim() : 'Permanência média alta';
-  const fluxo = escapeHtml(p_fluxo !== '' ? p_fluxo : 'Permanência média alta');
+  let insercoesHoraLabel = '';
   
-  const p_distancia = point?.distancia_leitura ? String(point.distancia_leitura).trim() : 'Curta a média';
-  const distancia = escapeHtml(p_distancia !== '' ? p_distancia : 'Curta a média');
+  if (!isNaN(insercoesMes) && insercoesMes > 0) {
+    const horasPorDia = parseOperatingHours(point?.horario);
+    const insercoesPorDia = insercoesMes / 30;
+    const insercoesPorHoraMath = Math.round(insercoesPorDia / horasPorDia);
+    insercoesHoraLabel = `${insercoesPorHoraMath} inserções/h`;
+  } else {
+    // Fallback para calculo baseado no loop (se não houver inserções por mês cadastradas)
+    const loopSegundos = parseDuracaoText(point?.loop) || 180;
+    const fallbackHora = Math.floor(3600 / loopSegundos);
+    insercoesHoraLabel = `${fallbackHora} inserções/h`;
+  }
+  
+  const duracaoItem = (point?.tempo && String(point.tempo).trim() !== '') ? escapeHtml(point.tempo) : '15s';
+  const loopLabel = (point?.loop && String(point.loop).trim() !== '') ? escapeHtml(point.loop) : '180s';
 
   return createPage(`
     <div style="display:flex;height:100%;background:#0A0A0A;">
       <!-- COLUNA DA ESQUERDA: IMAGEM + DADOS DO PONTO -->
       <div style="flex:0 0 580px;padding:32px 20px 32px 36px;display:flex;flex-direction:column;gap:20px;">
-          
-          <div style="flex:1;position:relative;border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);">
-             ${imageContainer}
-             <img src="${resolveAssetUrl('/logo.png')}" alt="Intermídia" style="position:absolute;top:24px;left:24px;height:24px;object-fit:contain;" />
-             <div style="position:absolute;top:24px;right:24px;padding:6px 12px;border-radius:999px;background:rgba(232,89,26,0.3);backdrop-filter:blur(8px);border:1px solid rgba(232,89,26,0.5);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#ffd3bf;">
-                Ponto ${index} de ${total}
-             </div>
-          </div>
           
           <div style="flex-shrink:0;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:20px;padding:24px;">
              <div style="font-size:11px;font-weight:800;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.12em;margin-bottom:6px;">Dados do ponto</div>
@@ -268,22 +317,26 @@ function buildPointPage(point, index, total) {
              
              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                 <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px;">
-                  <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Ambiente</div>
-                  <div style="font-size:13px;color:#fff;font-weight:600;">${ambiente}</div>
+                  <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Ambiente / Perfil</div>
+                  <div style="font-size:13px;color:#fff;font-weight:600;">${ambiente} &bull; ${perfil}</div>
                 </div>
                 <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px;">
-                  <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Perfil de Público</div>
-                  <div style="font-size:13px;color:#fff;font-weight:600;">${perfil}</div>
+                  <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Coordenadas</div>
+                  <div style="font-size:13px;color:#fff;font-weight:600;">${coords}</div>
                 </div>
-                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px;">
-                  <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Fluxo</div>
-                  <div style="font-size:13px;color:#fff;font-weight:600;">${fluxo}</div>
-                </div>
-                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px;">
-                  <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Distância Leitura</div>
-                  <div style="font-size:13px;color:#fff;font-weight:600;">${distancia}</div>
+                <div style="grid-column:1 / -1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px;">
+                  <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Localização</div>
+                  <div style="font-size:13px;color:#fff;font-weight:600;">${endereco}</div>
                 </div>
              </div>
+          </div>
+          
+          <div style="flex:1;position:relative;border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);">
+             ${imageContainer}
+             <div style="position:absolute;top:24px;left:24px;padding:6px 12px;border-radius:999px;background:rgba(232,89,26,0.3);backdrop-filter:blur(8px);border:1px solid rgba(232,89,26,0.5);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#ffd3bf;">
+                Ponto ${index} de ${total}
+             </div>
+             <img src="${resolveAssetUrl('/logo.png')}" alt="Intermídia" style="position:absolute;top:24px;right:24px;height:24px;object-fit:contain;" />
           </div>
 
       </div>
@@ -296,17 +349,17 @@ function buildPointPage(point, index, total) {
           <div style="display:grid;grid-template-columns:1fr 1fr;column-gap:16px;row-gap:28px;">
             <div style="display:flex;flex-direction:column;gap:28px;">
               ${buildSpecItem('Formato', formatAspect, icons.aspect)}
-              ${buildSpecItem('Duração', '15 segundos', icons.clock)}
-              ${buildSpecItem('Exibição média', '20 inserções/hora', icons.activity)}
+              ${buildSpecItem('Duração', duracaoItem, icons.clock)}
+              ${buildSpecItem('Exibição Média', insercoesHoraLabel, icons.activity)}
             </div>
             <div style="display:flex;flex-direction:column;gap:28px;">
               ${buildSpecItem('Resolução', `${widthPx}x${heightPx} px`, icons.res)}
               ${buildSpecItem('Tamanho máximo', '50MB', icons.weight)}
-              ${buildSpecItem('Loop', '180 segundos', icons.loop)}
+              ${buildSpecItem('Loop Estimado', loopLabel, icons.loop)}
             </div>
             
             <div style="grid-column: 1 / -1; display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;">
-              ${buildSpecItem('Funcionamento', '6h às 23h', icons.sun)}
+              ${buildSpecItem('Funcionamento', escapeHtml(point?.horario && point.horario !== '' ? point.horario : '6h às 23h'), icons.sun)}
             </div>
             
             <div style="grid-column: 1 / -1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;margin-top:12px;">
@@ -318,7 +371,7 @@ function buildPointPage(point, index, total) {
              <svg viewBox="0 0 24 24" width="22" height="22" fill="none"><circle cx="12" cy="12" r="10" stroke="${BRAND_ORANGE}" stroke-width="1.8"/><path d="M12 8v4M12 16h.01" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round"/></svg>
              <div>
                <span style="font-size:15px;font-weight:700;color:#fff;">Operação:</span> 
-               <span style="font-size:15px;color:rgba(255,255,255,0.85);margin-left:4px;">Material sujeito à aprovação técnica.</span>
+               <span style="font-size:15px;color:rgba(255,255,255,0.85);margin-left:4px;">Material sujeito a aprovação técnica.</span>
              </div>
           </div>
       </div>

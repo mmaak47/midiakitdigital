@@ -49,7 +49,7 @@ export default function PointCard({ ponto, onSelect, index = 0, isDark = true, g
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className={`group relative rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer ${isDark ? 'bg-gradient-to-br from-white/[0.05] to-white/[0.01] border border-white/10 shadow-lg shadow-black/20 hover:shadow-2xl hover:shadow-brand-orange/5 hover:border-brand-orange/30 hover:bg-gradient-to-br hover:from-white/[0.08] hover:to-white/[0.02]' : 'bg-white border border-neutral-200 shadow-sm hover:shadow-md hover:border-brand-orange/35'}`}
+      className={`group relative rounded-3xl overflow-hidden transition-all duration-300 ease-out cursor-pointer hover:scale-[1.02] hover:-translate-y-1 ${isDark ? 'bg-gradient-to-br from-white/[0.04] to-white/[0.01] border border-white/10 shadow-lg shadow-black/20 hover:shadow-2xl hover:shadow-brand-orange/10 hover:border-brand-orange/40 hover:bg-gradient-to-br hover:from-white/[0.08] hover:to-white/[0.02]' : 'bg-white border border-neutral-200 shadow-sm hover:shadow-xl hover:border-brand-orange/40'}`}
       onClick={() => onSelect(ponto)}
     >
       {/* Image */}
@@ -153,3 +153,4 @@ export default function PointCard({ ponto, onSelect, index = 0, isDark = true, g
     </motion.div>
   );
 }
+

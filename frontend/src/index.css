@@ -32,38 +32,55 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0A0A0A;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: rgba(255, 255, 255, 0.25);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 /* Light mode scrollbar */
-.commercial-light ::-webkit-scrollbar-track,
-[data-theme="light"] ::-webkit-scrollbar-track {
-  background: #f4f5f7;
-}
-
 .commercial-light ::-webkit-scrollbar-thumb,
 [data-theme="light"] ::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: rgba(0, 0, 0, 0.15);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 .commercial-light ::-webkit-scrollbar-thumb:hover,
 [data-theme="light"] ::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
+/* Global focus and animation defaults */
+html {
+  scroll-behavior: smooth;
+}
+
+a, button, input, select, textarea {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*:focus-visible {
+  outline: 2px solid #FE5C2B;
+  outline-offset: 2px;
+}
 /* Select dropdown styling */
 select {
   color-scheme: dark;
@@ -386,3 +403,4 @@ select option:checked {
   letter-spacing: -0.03em;
   line-height: 1.08;
 }
+

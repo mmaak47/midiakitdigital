@@ -70,7 +70,7 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
         {hasFilters && (
           <button
             onClick={clearAll}
-            className="text-xs text-brand-orange hover:text-brand-orange-hover transition-colors"
+            className="text-xs font-semibold text-brand-orange hover:text-brand-orange-hover hover:underline transition-colors hover:scale-[1.03] origin-right"
           >
             Limpar filtros
           </button>
@@ -236,3 +236,4 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
     </>
   );
 }
+

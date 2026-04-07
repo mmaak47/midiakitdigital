@@ -817,7 +817,7 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={3}
-            className="p-6 rounded-[16px] backdrop-blur-xl"
+            className="p-6 rounded-[16px] backdrop-blur-xl sticky top-20 z-40 transition-shadow duration-300"
             style={{
               background: isDark
                 ? 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)'

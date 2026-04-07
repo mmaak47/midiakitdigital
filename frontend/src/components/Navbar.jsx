@@ -23,13 +23,13 @@ export default function Navbar({ transparent = false, showNav = true, commercial
     <motion.nav
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${
+      transition={{ duration: 0.5, ease: 'easeOut' }}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         transparent
           ? 'bg-transparent'
           : isDark
-            ? 'bg-brand-gray-900/85 backdrop-blur-xl border-b border-white/10'
-            : 'bg-[#f1f2f4]/95 backdrop-blur-xl border-b border-neutral-300'
+            ? 'bg-brand-gray-900/70 backdrop-blur-2xl shadow-xl shadow-black/40 border-b border-white/5'
+            : 'bg-white/70 backdrop-blur-2xl shadow-md border-b border-white/50'
       }`}
     >
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">

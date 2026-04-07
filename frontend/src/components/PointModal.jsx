@@ -154,7 +154,7 @@ export default function PointModal({ ponto, onClose, isDark = true, geoProfile, 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 lg:p-8"
         onClick={onClose}
       >
         {/* Backdrop */}
@@ -166,21 +166,21 @@ export default function PointModal({ ponto, onClose, isDark = true, geoProfile, 
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className={`relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl ${isDark ? 'bg-brand-dark border border-white/10' : 'bg-white border border-neutral-200 shadow-xl'}`}
+          className={`relative w-full max-w-5xl h-[94vh] lg:h-[88vh] overflow-hidden rounded-2xl ${isDark ? 'bg-brand-dark border border-white/10' : 'bg-white border border-neutral-200 shadow-xl'}`}
           onClick={e => e.stopPropagation()}
         >
           {/* Close button */}
           <button
             onClick={onClose}
-            className={`absolute top-4 right-4 z-10 p-2 rounded-full transition-all backdrop-blur-sm ${isDark ? 'bg-black/40 hover:bg-black/60 text-white/60 hover:text-white' : 'bg-white border border-neutral-200 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100'}`}
+            className={`absolute top-4 right-4 z-10 p-2 rounded-full transition-all backdrop-blur-sm shadow-sm ${isDark ? 'bg-black/60 hover:bg-black/80 text-white/80 hover:text-white border-white/10 border' : 'bg-white border border-neutral-200 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100'}`}
           >
             <X size={18} />
           </button>
 
-          <div className="flex flex-col lg:flex-row">
+          <div className="flex flex-col lg:flex-row h-full overflow-y-auto lg:overflow-hidden">
             {/* Image + map */}
             <div className={`lg:w-1/2 flex flex-col ${isDark ? 'bg-brand-gray-900' : 'bg-[#eef1f5]'}`}>
-              <div className="relative h-[38vh] min-h-[240px] max-h-[380px] sm:h-[44vh] lg:h-[60%] lg:min-h-[340px]">
+              <div className="relative shrink-0 h-[40vh] min-h-[260px] max-h-[380px] sm:h-[44vh] lg:h-[55%]">
                 {displayImage ? (
                   <div className="absolute inset-0 overflow-hidden">
                     <img
@@ -201,7 +201,7 @@ export default function PointModal({ ponto, onClose, isDark = true, geoProfile, 
                 )}
               </div>
 
-              <div className={`relative h-[190px] lg:flex-1 border-t ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
+              <div className={`relative h-[240px] grow lg:h-auto border-t lg:flex-1 shrink-0 ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
                 <MiniMap
                   lat={ponto.lat}
                   lng={ponto.lng}
@@ -211,7 +211,7 @@ export default function PointModal({ ponto, onClose, isDark = true, geoProfile, 
             </div>
 
             {/* Info */}
-            <div className="lg:w-1/2 p-6 lg:p-8">
+            <div className="lg:w-1/2 p-6 lg:p-8 flex-col overflow-y-auto">
               <div className="flex items-start justify-between gap-4 mb-2">
                 <div>
                   <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-medium mb-3 ${isDark ? 'bg-brand-orange/10 text-brand-orange' : 'bg-orange-50 text-orange-700'}`}>
