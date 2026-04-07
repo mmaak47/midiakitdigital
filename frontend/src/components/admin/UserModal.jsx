@@ -34,11 +34,28 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
 
   const isEdit = useMemo(() => Boolean(initialData), [initialData]);
 
+  // Auto-gera o login a partir do nome (primeiro.ultimo)
+  const autoLogin = useMemo(() => {
+    const parts = String(form.nome || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length < 2) return '';
+    const first = parts[0];
+    const last = parts[parts.length - 1];
+    return `${first}.${last}`.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9.]/g, '');
+  }, [form.nome]);
+
   useEffect(() => {
     if (!isOpen) return;
     setForm(buildInitialForm(initialData));
     setErrors({});
   }, [isOpen, initialData]);
+
+  // Sincroniza o login auto-gerado sempre que o nome muda (apenas em criação)
+  useEffect(() => {
+    if (isEdit) return;
+    setForm((prev) => ({ ...prev, login: autoLogin }));
+  }, [autoLogin, isEdit]);
 
   if (!isOpen) return null;
 
@@ -152,9 +169,14 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
               <input
                 type="text"
                 value={form.login}
-                onChange={(event) => setForm((prev) => ({ ...prev, login: event.target.value }))}
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
+                readOnly={!isEdit}
+                onChange={isEdit ? (event) => setForm((prev) => ({ ...prev, login: event.target.value })) : undefined}
+                title={!isEdit ? 'Gerado automaticamente a partir do nome' : undefined}
+                className={`w-full rounded-lg border border-white/10 px-3 py-2 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none ${isEdit ? 'bg-white/5 focus:border-brand-orange/40' : 'bg-white/[0.02] cursor-default opacity-70'}`}
               />
+              {!isEdit && form.login && (
+                <span className="mt-1 block text-[11px] text-brand-gray-500">Gerado automaticamente a partir do nome</span>
+              )}
             </Field>
 
             <Field label="Senha" error={errors.senha}>

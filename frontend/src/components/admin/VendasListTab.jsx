@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, RefreshCw, CheckCircle2, XCircle, RotateCcw, Clock, ChevronDown, ChevronUp, MessageCircle, Circle } from 'lucide-react';
-import { fetchVendas, updateVendaStatus, fetchVendaEtapas } from '../../lib/api';
+import { Search, RefreshCw, CheckCircle2, XCircle, RotateCcw, Clock, ChevronDown, ChevronUp, MessageCircle, Circle, Trash2 } from 'lucide-react';
+import { fetchVendas, updateVendaStatus, fetchVendaEtapas, deleteVenda } from '../../lib/api';
 
 // Definição ordenada das etapas pós-venda
 const ETAPAS_DEF = [
@@ -126,7 +126,7 @@ function StatusModal({ venda, isDark, onClose, onSaved }) {
   );
 }
 
-function VendaRow({ venda, isDark, onEdit }) {
+function VendaRow({ venda, isDark, onEdit, onDelete }) {
   const [expanded, setExpanded] = useState(false);
   const [etapas, setEtapas] = useState([]);
   const pontos = parsePontos(venda.pontos_nomes);
@@ -171,6 +171,13 @@ function VendaRow({ venda, isDark, onEdit }) {
               className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${isDark ? 'border-white/10 text-brand-gray-300 hover:bg-white/5 hover:border-white/20' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100'}`}
             >
               Atualizar
+            </button>
+            <button
+              onClick={() => onDelete(venda)}
+              title="Deletar venda"
+              className={`p-1 rounded-lg transition-colors ${isDark ? 'text-red-500/60 hover:bg-red-500/10 hover:text-red-400' : 'text-red-400 hover:bg-red-50 hover:text-red-600'}`}
+            >
+              <Trash2 size={13} />
             </button>
             <button
               onClick={() => setExpanded(v => !v)}
@@ -270,6 +277,8 @@ export default function VendasListTab({ isDark = true }) {
   const [statusFilter, setStatusFilter] = useState('todas');
   const [search, setSearch] = useState('');
   const [editVenda, setEditVenda] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -302,10 +311,56 @@ export default function VendasListTab({ isDark = true }) {
   const refreshBtn = `p-2 rounded-xl border transition-colors ${isDark ? 'border-white/10 text-brand-gray-400 hover:bg-white/5' : 'border-neutral-200 text-neutral-400 hover:bg-neutral-50'}`;
   const emptyText = isDark ? 'text-brand-gray-500' : 'text-neutral-400';
 
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteVenda(deleteTarget.id);
+      setDeleteTarget(null);
+      load();
+    } catch (e) {
+      alert('Erro ao deletar: ' + e.message);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       {editVenda && (
         <StatusModal venda={editVenda} isDark={isDark} onClose={() => setEditVenda(null)} onSaved={load} />
+      )}
+
+      {/* Modal de confirmação de delete */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className={`w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4 border ${isDark ? 'bg-[#111] border-white/10 text-white' : 'bg-white border-neutral-200 text-neutral-900'}`}>
+            <div>
+              <h3 className="text-base font-semibold flex items-center gap-2">
+                <Trash2 size={16} className="text-red-500" />
+                Deletar venda
+              </h3>
+              <p className={`text-sm mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                Tem certeza que deseja deletar a venda de <strong>{deleteTarget.razao_social}</strong>? Essa ação não pode ser desfeita.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className={`flex-1 py-2 rounded-xl border text-sm transition-colors ${isDark ? 'border-white/10 text-brand-gray-400 hover:bg-white/5' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'}`}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {deleting ? 'Deletando...' : 'Deletar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Cabeçalho */}
@@ -391,7 +446,7 @@ export default function VendasListTab({ isDark = true }) {
               </tr>
             ) : (
               vendas.map(v => (
-                <VendaRow key={v.id} venda={v} isDark={isDark} onEdit={setEditVenda} />
+                <VendaRow key={v.id} venda={v} isDark={isDark} onEdit={setEditVenda} onDelete={setDeleteTarget} />
               ))
             )}
           </tbody>

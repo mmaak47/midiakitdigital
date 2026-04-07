@@ -2543,6 +2543,20 @@ app.patch('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial', 'vended
     res.status(500).json({ error: err.message });
   }
 });
+
+// ─── Deletar venda (apenas admin e gerente_comercial) ────────────────────────
+app.delete('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const { id } = req.params;
+    const venda = db.prepare('SELECT id FROM vendas WHERE id = ?').get(id);
+    if (!venda) return res.status(404).json({ error: 'Venda não encontrada.' });
+    db.prepare('DELETE FROM venda_etapas WHERE venda_id = ?').run(id);
+    db.prepare('DELETE FROM vendas WHERE id = ?').run(id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Etapas pós-venda (checklist por reação emoji) ───────────────────────────

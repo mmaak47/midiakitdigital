@@ -791,10 +791,14 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={1}
-            className="font-display max-w-4xl mb-4"
-            style={{ fontSize: 'clamp(44px, 5.5vw, 72px)', fontWeight: 900, lineHeight: 1.08, letterSpacing: '-0.03em', color: isDark ? '#fff' : '#1A1008' }}
+            className="max-w-4xl mb-4"
+            style={{ fontFamily: "'Poppins', system-ui, sans-serif", fontSize: 'clamp(40px, 5.2vw, 68px)', fontWeight: 900, lineHeight: 1.05, letterSpacing: '-0.04em', color: isDark ? '#fff' : '#1A1008' }}
           >
-            Presença real. <span style={{ color: '#FF6B35' }}>Audiência</span> certa. Resultado mensurável.
+            <span style={{ fontStyle: 'italic', fontWeight: 800, color: '#FF6B35' }}>Audiência</span>{' '}
+            <span style={{ fontWeight: 900 }}>certa.</span>
+            <br />
+            <span style={{ fontWeight: 700, opacity: 0.85 }}>Resultado</span>{' '}
+            <span style={{ fontStyle: 'italic', fontWeight: 900 }}>mensurável.</span>
           </motion.h1>
 
           <motion.p
@@ -802,8 +806,8 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={2}
-            className="font-sans max-w-3xl mb-8"
-            style={{ fontSize: '14px', fontWeight: 400, lineHeight: 1.6, color: isDark ? undefined : '#7A6155' }}
+            className="max-w-3xl mb-8"
+            style={{ fontFamily: "'Poppins', system-ui, sans-serif", fontSize: '15px', fontWeight: 400, lineHeight: 1.65, color: isDark ? 'rgba(255,255,255,0.60)' : '#7A6155' }}
           >
             Mídia Kit Digital da Intermidia — selecione praça e formato para filtrar o inventário, gerar PDF ou abrir a apresentação em slides.
           </motion.p>
@@ -864,31 +868,30 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* ── Slides CTA block ── */}
-            <div
-              className="rounded-[12px] p-4 mb-5"
-              style={{ background: 'linear-gradient(135deg, #FF6B35, #FF8F5E)' }}
-            >
-              <div className="mb-2 inline-flex rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/90" style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.30)' }}>
-                ✦ Ver apresentação
-              </div>
+            {/* ── Action buttons row ── */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Slides button — left side */}
               <button
                 onClick={() => setShowSlidesMode(true)}
-                className="inline-flex h-[48px] w-full sm:w-auto items-center justify-center gap-2 rounded-[10px] px-6 text-sm font-bold text-[#FF6B35] transition-all hover:bg-white"
-                style={{ background: 'rgba(255,255,255,0.92)', border: '1px solid rgba(255,255,255,0.60)' }}
+                className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[10px] px-5 text-sm font-bold transition-all duration-200 whitespace-nowrap"
+                style={{
+                  background: 'linear-gradient(135deg, #FF6B35, #FF8F5E)',
+                  color: '#fff',
+                  boxShadow: '0 2px 12px rgba(255,107,53,0.28)',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.88'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
               >
-                <Play size={16} />
-                Abrir apresentação em slides
+                <Play size={15} />
+                Ver slides
               </button>
-              <p className="mt-2 text-xs leading-tight text-white/75">Apresentação visual dos pontos selecionados</p>
-            </div>
 
-            {/* ── Action buttons row ── */}
-            <div className="flex flex-wrap items-center justify-end gap-3">
+              {/* PDF + Map — right side */}
+              <div className="flex items-center gap-2 ml-auto">
               <button
                 onClick={handleExportPdf}
                 disabled={pdfStatus === 'generating' || pontos.length === 0}
-                className="h-[44px] px-5 font-semibold rounded-[10px] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                className="h-[44px] px-5 font-semibold rounded-[10px] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-sm"
                 style={{
                   background: 'transparent',
                   border: `1px solid ${isDark ? 'rgba(255,255,255,0.15)' : '#DDD0CA'}`,
@@ -899,7 +902,7 @@ export default function Landing() {
               </button>
               <button
                 onClick={() => setShowMapModal(true)}
-                className="landing-orange-btn group h-[44px] px-6 text-white font-bold rounded-[10px] hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
+                className="landing-orange-btn group h-[44px] px-6 text-white font-bold rounded-[10px] hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap text-sm"
                 style={{ background: '#FF6B35', boxShadow: '0 2px 12px rgba(255,107,53,0.30)' }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#E85A25'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = '#FF6B35'; }}
@@ -907,6 +910,7 @@ export default function Landing() {
                 <i className="ri-pin-distance-line" style={{ fontSize: 16 }} />
                 Abrir mapa
               </button>
+              </div>
             </div>
           </motion.div>
 

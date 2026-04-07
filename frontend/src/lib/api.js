@@ -473,6 +473,18 @@ export async function fetchVendaEtapas(vendaId) {
   return res.json();
 }
 
+// Deleta uma venda e suas etapas
+export async function deleteVenda(id) {
+  const res = await apiRequest(`/vendas/${id}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao deletar venda');
+  }
+  return res.json();
+}
+
 // Atualiza status de uma venda
 export async function updateVendaStatus(id, { status, obs }) {
   const res = await apiRequest(`/vendas/${id}`, {
