@@ -517,6 +517,13 @@ db.exec(`
   ON census_audience_profiles (municipio)
 `);
 
+// Migration: monitor_last_seen for auditoria de loop API
+try {
+  db.exec(`ALTER TABLE pontos ADD COLUMN monitor_last_seen TEXT DEFAULT NULL`);
+} catch {
+  // Column already exists — safe to ignore
+}
+
 // Seed data if empty
 const count = db.prepare('SELECT COUNT(*) as c FROM pontos').get();
 if (count.c === 0) {

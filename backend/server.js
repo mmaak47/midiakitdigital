@@ -371,7 +371,8 @@ function authenticateSensitiveApi(req, res, next) {
     '/cidade-fotos',
     '/geoaudience/profiles',
     '/census/profiles',
-    '/audience-intel/profiles'
+    '/audience-intel/profiles',
+    '/monitors'
   ];
 
   if (method === 'GET' && publicGetPrefixes.some((prefix) => routePath === prefix || routePath.startsWith(`${prefix}/`))) {
@@ -844,6 +845,81 @@ app.get('/api/stats', (req, res) => {
     res.json({ total, cidades, telas, fluxo });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Public Monitor API (auditoria de loop) ───────────────────────────────────
+const openCors = cors({ origin: '*', methods: ['GET', 'HEAD', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Accept'], maxAge: 86400 });
+
+function loopTextToSeconds(loop) {
+  if (!loop) return null;
+  const s = String(loop).trim().toLowerCase();
+  const minMatch = s.match(/^(\d+(?:[.,]\d+)?)\s*min/);
+  if (minMatch) return Math.round(parseFloat(minMatch[1].replace(',', '.')) * 60);
+  const mmssMatch = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (mmssMatch) return parseInt(mmssMatch[1], 10) * 60 + parseInt(mmssMatch[2], 10);
+  const secMatch = s.match(/^(\d+(?:[.,]\d+)?)\s*s(?:eg(?:undos?)?)?\.?$/);
+  if (secMatch) return Math.round(parseFloat(secMatch[1].replace(',', '.')));
+  const hMinMatch = s.match(/^(\d+)\s*h\s*(?:(\d+)\s*min)?/);
+  if (hMinMatch) return parseInt(hMinMatch[1], 10) * 3600 + (hMinMatch[2] ? parseInt(hMinMatch[2], 10) * 60 : 0);
+  return null;
+}
+
+function deriveMonitorLocal(ponto) {
+  const baseName = ponto.nome
+    .replace(/\s*[-–]\s*(?:tela|screen|monitor|t\.)\s*\d+\s*$/i, '')
+    .trim();
+  if (ponto.endereco) return `${baseName} | ${ponto.endereco} - ${(ponto.cidade || '').toUpperCase()}`;
+  return `${baseName} - ${(ponto.cidade || '').toUpperCase()}`;
+}
+
+function monitorStatus(lastSeen) {
+  if (!lastSeen) return 'offline';
+  return (Date.now() - new Date(lastSeen).getTime()) <= 10 * 60 * 1000 ? 'online' : 'offline';
+}
+
+function formatMonitorRow(p) {
+  return {
+    id: p.id,
+    nome: p.nome,
+    local: deriveMonitorLocal(p),
+    cidade: p.cidade,
+    ciclo_segundos: loopTextToSeconds(p.loop),
+    total_insercoes_ativas: typeof p.insercoes === 'number' ? p.insercoes : (parseInt(p.insercoes, 10) || 0),
+    status: monitorStatus(p.monitor_last_seen),
+  };
+}
+
+app.get('/api/monitors', openCors, (req, res) => {
+  const statusFilter = String(req.query.status || '').trim().toLowerCase();
+  const cidadeFilter = String(req.query.cidade || '').trim();
+  const sqlParts = ['SELECT id, nome, cidade, endereco, loop, insercoes, monitor_last_seen FROM pontos WHERE ativo = 1'];
+  const params = [];
+  if (cidadeFilter) {
+    sqlParts.push(' AND lower(cidade) = lower(?)');
+    params.push(cidadeFilter);
+  }
+  sqlParts.push(' ORDER BY cidade, nome');
+  try {
+    let rows = db.prepare(sqlParts.join('')).all(...params).map(formatMonitorRow);
+    if (statusFilter === 'online' || statusFilter === 'offline') {
+      rows = rows.filter((m) => m.status === statusFilter);
+    }
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno ao buscar monitores.' });
+  }
+});
+
+app.get('/api/monitors/:id', openCors, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido.' });
+  try {
+    const row = db.prepare('SELECT id, nome, cidade, endereco, loop, insercoes, monitor_last_seen FROM pontos WHERE id = ? AND ativo = 1').get(id);
+    if (!row) return res.status(404).json({ error: 'Monitor não encontrado.' });
+    res.json(formatMonitorRow(row));
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno ao buscar monitor.' });
   }
 });
 
