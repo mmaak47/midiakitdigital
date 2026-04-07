@@ -2581,7 +2581,7 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, cnpj, pont
   valorMensal, tipoValor, periodo, diaPagamento,
   viaAgencia, agenciaNome, comissaoPct,
   trocaMaterial,
-  responsavelNome, responsavelWhatsapp }) {
+  responsavelNome, responsavelWhatsapp, obs }) {
 
   const isRenovacao = tipo === 'Renovação';
   const headerEmoji = isRenovacao ? '🔄' : '🟠';
@@ -2634,6 +2634,11 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, cnpj, pont
     if (responsavelWhatsapp)  lines.push(`WhatsApp: ${responsavelWhatsapp}`);
   }
 
+  if (obs && String(obs).trim()) {
+    lines.push('');
+    lines.push(`📝 *OBS:* ${String(obs).trim()}`);
+  }
+
   return lines.join('\n');
 }
 
@@ -2660,6 +2665,7 @@ app.post(
         dia_pagamento,
         responsavel_nome,
         responsavel_whatsapp,
+        obs,
         pontos_nomes,
         vendedor_nome
       } = req.body;
@@ -2684,8 +2690,8 @@ app.post(
         INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal, tipo_valor,
           via_agencia, agencia_nome, comissao_pct, troca_material,
           periodo, dia_pagamento, responsavel_nome, responsavel_whatsapp,
-          pi_path, vendedor_id, vendedor_nome, whatsapp_status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
+          obs, pi_path, vendedor_id, vendedor_nome, whatsapp_status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
       `);
 
       const dbResult = stmt.run(
@@ -2703,6 +2709,7 @@ app.post(
         dia_pagamento || null,
         responsavel_nome || null,
         responsavel_whatsapp || null,
+        obs || null,
         piPath || null,
         req.authUser?.id || null,
         vendedor_nome || req.authUser?.username || null
@@ -2732,7 +2739,8 @@ app.post(
             comissaoPct: comissao_pct || '',
             trocaMaterial: troca_material === 'true' || troca_material === true,
             responsavelNome: responsavel_nome || '',
-            responsavelWhatsapp: responsavel_whatsapp || ''
+            responsavelWhatsapp: responsavel_whatsapp || '',
+            obs: obs || ''
           });
 
           let waMsgId = null;

@@ -22,6 +22,7 @@ const emptyForm = {
   dia_pagamento: '',
   responsavel_nome: '',
   responsavel_whatsapp: '',
+  obs: '',
 };
 
 function fmtCnpj(v) {
@@ -102,6 +103,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       fd.append('dia_pagamento', form.dia_pagamento.trim());
       fd.append('responsavel_nome', form.responsavel_nome.trim());
       fd.append('responsavel_whatsapp', form.responsavel_whatsapp.trim());
+      fd.append('obs', form.obs.trim());
       fd.append('pontos_nomes', JSON.stringify(selectedPontos.map(p => p.nome)));
       fd.append('vendedor_nome', currentUser
         ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username || 'Vendedor'
@@ -427,6 +429,18 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
           </div>
         </section>
 
+        {/* Observações */}
+        <section className={card}>
+          <h3 className={sectionTitle}>Observações</h3>
+          <textarea
+            className={`${inp} min-h-[80px] resize-y`}
+            value={form.obs}
+            onChange={e => set('obs', e.target.value)}
+            placeholder="Informações adicionais, condições especiais, detalhes relevantes..."
+            rows={3}
+          />
+        </section>
+
         {/* P.I. */}
         <section className={card}>
           <div className="flex items-center justify-between">
@@ -538,6 +552,8 @@ function buildMsgPreview({ form, selectedPontos, currentUser }) {
     form.responsavel_nome || form.responsavel_whatsapp ? '👤 *RESPONSÁVEL PELO CLIENTE*' : null,
     form.responsavel_nome ? `Nome: ${form.responsavel_nome}` : null,
     form.responsavel_whatsapp ? `WhatsApp: ${form.responsavel_whatsapp}` : null,
+    form.obs?.trim() ? '' : null,
+    form.obs?.trim() ? `📝 *OBS:* ${form.obs.trim()}` : null,
   ].filter(l => l !== null);
 
   return lines.join('\n');
