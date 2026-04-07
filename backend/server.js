@@ -1031,30 +1031,38 @@ app.get('/api/loop-audit', openCors, async (req, res) => {
 
     // Excluir painéis estáticos (backlight / frontlight)
     const EXCLUDE_RE = /\bbacklight\b|\bfrontlight\b/i;
-    const filtered = monitors.filter(m => !EXCLUDE_RE.test(m.nome || ''));
+    const filteredMonitors = monitors.filter(m => !EXCLUDE_RE.test(m.nome || ''));
 
-    const items = filtered.map(m => {
-      const cicloSeg = 180; // padrão fixo 3 min
+    const CICLO_PADRAO = 180; // loop padrão 3 min
+
+    // Calcula stats de cada monitor individual
+    function calcMonitorStats(m) {
       const insercoes = m.total_insercoes_ativas || 0;
-      const tempoSeg = LOOP_DEFAULT_TEMPO_SEG;
-      const ocupadoSeg = insercoes * tempoSeg;
-      const livreSeg = Math.max(0, cicloSeg - ocupadoSeg);
-      const cotasPorLoop = Math.floor(cicloSeg / tempoSeg);
-      const cotasOcupadas = insercoes;
-      const cotasLivres = Math.max(0, cotasPorLoop - cotasOcupadas);
-      const pctOcupado = cicloSeg > 0 ? Math.min(100, Math.round((ocupadoSeg / cicloSeg) * 100)) : 0;
+      const cicloOrigin = m.ciclo_segundos || 0;
+      // Duração média por inserção: usa ciclo_origin/insercoes quando é < 15s (mais preciso)
+      // Caso contrário (ciclo grande inclui fillers), assume 15s (conservador)
+      let avgSeg = LOOP_DEFAULT_TEMPO_SEG;
+      if (insercoes > 0 && cicloOrigin > 0) {
+        const rawAvg = cicloOrigin / insercoes;
+        if (rawAvg < LOOP_DEFAULT_TEMPO_SEG) avgSeg = Math.max(10, rawAvg);
+      }
+      const ocupadoSeg = Math.round(insercoes * avgSeg);
+      const livreSeg = Math.max(0, CICLO_PADRAO - ocupadoSeg);
+      const cotasPorLoop = Math.floor(CICLO_PADRAO / LOOP_DEFAULT_TEMPO_SEG);
+      const cotasLivres = Math.floor(livreSeg / LOOP_DEFAULT_TEMPO_SEG);
+      const pctOcupado = CICLO_PADRAO > 0 ? Math.min(100, Math.round((ocupadoSeg / CICLO_PADRAO) * 100)) : 0;
       const risk = classifyRisk(pctOcupado);
       return {
         origin_id: m.id,
         nome: (m.nome || '').trim(),
-        local: m.local || null,
+        local: (m.local || '').trim(),
         cidade: m.cidade || null,
         status: m.status || 'unknown',
-        ciclo_seg: cicloSeg,
-        tempo_insercao_seg: tempoSeg,
+        ciclo_seg: CICLO_PADRAO,
+        ciclo_origin_seg: cicloOrigin,
+        avg_insercao_seg: Math.round(avgSeg * 10) / 10,
         insercoes_ativas: insercoes,
         cotas_por_loop: cotasPorLoop,
-        cotas_ocupadas: cotasOcupadas,
         cotas_livres: cotasLivres,
         ocupado_seg: ocupadoSeg,
         livre_seg: livreSeg,
@@ -1063,23 +1071,61 @@ app.get('/api/loop-audit', openCors, async (req, res) => {
         risk_msg: risk.msg,
         risk_color: risk.color,
       };
-    }).filter(item => !cidadeFilter || item.cidade === cidadeFilter);
+    }
+
+    const allItems = filteredMonitors.map(calcMonitorStats);
+
+    // Agrupar por local: montar um item por local, expandir somente quando houver divergência
+    const byLocal = new Map();
+    for (const item of allItems) {
+      const key = item.local || item.nome;
+      if (!byLocal.has(key)) byLocal.set(key, []);
+      byLocal.get(key).push(item);
+    }
+
+    const items = [];
+    for (const [localKey, group] of byLocal) {
+      if (group.length === 1) {
+        items.push({ ...group[0], telas: 1, divergente: false });
+      } else {
+        const cotasSet = new Set(group.map(g => g.cotas_livres));
+        if (cotasSet.size === 1) {
+          // Todos iguais → mostra uma linha só (pega o primeiro, indica quantas telas)
+          const rep = group[0];
+          const onlineCount = group.filter(g => g.status === 'online').length;
+          items.push({
+            ...rep,
+            status: onlineCount > 0 ? 'online' : rep.status,
+            telas: group.length,
+            divergente: false,
+          });
+        } else {
+          // Diferem → mostra cada um separado para identificar problema
+          for (const g of group) {
+            items.push({ ...g, telas: group.length, divergente: true });
+          }
+        }
+      }
+    }
+
+    // Filtro por cidade
+    const finalItems = cidadeFilter ? items.filter(i => i.cidade === cidadeFilter) : items;
 
     // Summary
-    const total = items.length;
-    const critical = items.filter(i => i.risk_level === 'critical').length;
-    const high = items.filter(i => i.risk_level === 'high').length;
-    const medium = items.filter(i => i.risk_level === 'medium').length;
-    const low = items.filter(i => i.risk_level === 'low').length;
-    const totalCotasLivres = items.reduce((s, i) => s + i.cotas_livres, 0);
-    const cidades = [...new Set(items.map(i => i.cidade).filter(Boolean))].sort();
+    const total = finalItems.length;
+    const critical = finalItems.filter(i => i.risk_level === 'critical').length;
+    const high = finalItems.filter(i => i.risk_level === 'high').length;
+    const medium = finalItems.filter(i => i.risk_level === 'medium').length;
+    const low = finalItems.filter(i => i.risk_level === 'low').length;
+    const totalCotasLivres = finalItems.reduce((s, i) => s + i.cotas_livres, 0);
+    const cidades = [...new Set(finalItems.map(i => i.cidade).filter(Boolean))].sort();
 
     res.json({
-      target_seg: 180,
+      target_seg: CICLO_PADRAO,
       tempo_insercao_seg: LOOP_DEFAULT_TEMPO_SEG,
       cache_age_ms: Date.now() - _loopCacheAt,
       summary: { total, critical, high, medium, low, totalCotasLivres, cidades },
-      items
+      items: finalItems
     });
   } catch (err) {
     console.error('Loop audit fetch error:', err.message);

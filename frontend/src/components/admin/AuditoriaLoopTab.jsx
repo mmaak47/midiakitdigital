@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
-import { Search, Download, RefreshCcw, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { Search, Download, RefreshCcw, Loader2, Wifi, WifiOff, AlertTriangle, Layers } from 'lucide-react';
 
 /** Formata segundos em mm:ss */
 function fmtSeg(seg) {
@@ -39,8 +39,10 @@ function OccupationBar({ pct }) {
 
 function MonitorRow({ item }) {
   const isOnline = item.status === 'online';
+  const telas = item.telas || 1;
+  const diverge = item.divergente;
   return (
-    <tr className="border-t border-white/10 hover:bg-white/[0.02] transition-colors">
+    <tr className={`border-t border-white/10 hover:bg-white/[0.02] transition-colors ${diverge ? 'bg-yellow-500/[0.03]' : ''}`}>
       <td className="px-3 py-3">
         <div className="flex items-center gap-2">
           <span title={isOnline ? 'Online' : 'Offline'} className="flex-shrink-0">
@@ -49,14 +51,26 @@ function MonitorRow({ item }) {
               : <WifiOff size={12} className="text-red-400/60" />}
           </span>
           <div>
-            <div className="font-medium text-white text-sm">{item.nome}</div>
-            {item.local && <div className="text-xs text-brand-gray-400 mt-0.5">{item.local}</div>}
+            <div className="font-medium text-white text-sm flex items-center gap-1.5 flex-wrap">
+              {item.local || item.nome}
+              {telas > 1 && !diverge && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-brand-orange/15 text-brand-orange rounded px-1.5 py-0.5">
+                  <Layers size={9} />{telas} telas
+                </span>
+              )}
+              {diverge && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-yellow-500/15 text-yellow-400 rounded px-1.5 py-0.5" title="Telas com ocupação diferente — verificar">
+                  <AlertTriangle size={9} />{item.nome}
+                </span>
+              )}
+            </div>
             <div className="text-[10px] text-brand-gray-500">{item.cidade}</div>
           </div>
         </div>
       </td>
       <td className="px-3 py-3 text-center">
         <div className="text-xs font-mono text-white">{fmtSeg(item.ciclo_seg)}</div>
+        <div className="text-[10px] text-brand-gray-500">~{item.avg_insercao_seg}s/ins</div>
       </td>
       <td className="px-3 py-3 text-center">
         <div className="text-sm font-bold text-white">{item.insercoes_ativas}</div>
@@ -189,7 +203,7 @@ export default function AuditoriaLoopTab() {
         <div>
           <h2 className="text-base font-semibold text-white">Auditoria de Loop</h2>
           <p className="text-xs text-brand-gray-400 mt-1">
-            Dados em tempo real via API de origem — inserções ativas × 15s vs. ciclo do loop.
+            Dados em tempo real via API de origem — média dinâmica por inserção (10–15s), ciclo padrão 3 min. Locais agrupados quando iguais.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
