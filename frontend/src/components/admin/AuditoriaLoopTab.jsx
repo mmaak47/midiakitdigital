@@ -1,7 +1,6 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
-import { Search, Download, RefreshCcw, Loader2, Wifi, WifiOff, AlertTriangle, Layers } from 'lucide-react';
+import { Search, Download, RefreshCcw, Loader2, Wifi, WifiOff, AlertTriangle, Layers, EyeOff, Eye } from 'lucide-react';
 
-/** Formata segundos em mm:ss */
 function fmtSeg(seg) {
   if (seg == null || isNaN(seg)) return '--:--';
   const m = Math.floor(Math.abs(seg) / 60);
@@ -37,7 +36,7 @@ function OccupationBar({ pct }) {
   );
 }
 
-function MonitorRow({ item }) {
+function MonitorRow({ item, onHide }) {
   const isOnline = item.status === 'online';
   const telas = item.telas || 1;
   const diverge = item.divergente;
@@ -50,7 +49,7 @@ function MonitorRow({ item }) {
               ? <Wifi size={12} className="text-green-400" />
               : <WifiOff size={12} className="text-red-400/60" />}
           </span>
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="font-medium text-white text-sm flex items-center gap-1.5 flex-wrap">
               {item.local || item.nome}
               {telas > 1 && !diverge && (
@@ -59,13 +58,21 @@ function MonitorRow({ item }) {
                 </span>
               )}
               {diverge && (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-yellow-500/15 text-yellow-400 rounded px-1.5 py-0.5" title="Telas com ocupação diferente — verificar">
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-yellow-500/15 text-yellow-400 rounded px-1.5 py-0.5" title="Telas com ocupação diferente">
                   <AlertTriangle size={9} />{item.nome}
                 </span>
               )}
             </div>
             <div className="text-[10px] text-brand-gray-500">{item.cidade}</div>
           </div>
+          <button
+            type="button"
+            onClick={() => onHide(item)}
+            className="flex-shrink-0 p-1 rounded hover:bg-white/10 text-brand-gray-600 hover:text-red-400 transition-colors"
+            title="Ocultar este monitor da auditoria"
+          >
+            <EyeOff size={13} />
+          </button>
         </div>
       </td>
       <td className="px-3 py-3 text-center">
@@ -90,9 +97,11 @@ function MonitorRow({ item }) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function AuditoriaLoopTab() {
-  const [data, setData] = useState(null);     // { summary, items }
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [exclusions, setExclusions] = useState([]);
+  const [showExclusions, setShowExclusions] = useState(false);
   const [search, setSearch] = useState('');
   const [filterCidade, setFilterCidade] = useState('todas');
   const [sortKey, setSortKey] = useState('nome');
@@ -106,8 +115,7 @@ export default function AuditoriaLoopTab() {
     try {
       const res = await fetch('/api/loop-audit');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setData(json);
+      setData(await res.json());
     } catch (err) {
       setError(err.message);
     } finally {
@@ -115,14 +123,42 @@ export default function AuditoriaLoopTab() {
     }
   }
 
-  useEffect(() => { fetchData(); }, []);
+  async function fetchExclusions() {
+    try {
+      const res = await fetch('/api/loop-audit/exclusions');
+      if (res.ok) setExclusions(await res.json());
+    } catch { /* ignore */ }
+  }
+
+  useEffect(() => { fetchData(); fetchExclusions(); }, []);
+
+  async function hideMonitor(item) {
+    const motivo = prompt(`Motivo para ocultar "${item.local || item.nome}" (opcional):`);
+    if (motivo === null) return; // cancelou
+    try {
+      await fetch('/api/loop-audit/exclusions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origin_id: item.origin_id, nome: item.nome, motivo }),
+      });
+      fetchData();
+      fetchExclusions();
+    } catch { /* ignore */ }
+  }
+
+  async function unhideMonitor(originId) {
+    try {
+      await fetch(`/api/loop-audit/exclusions/${originId}`, { method: 'DELETE' });
+      fetchData();
+      fetchExclusions();
+    } catch { /* ignore */ }
+  }
 
   const items = data?.items || [];
   const summary = data?.summary || {};
+  const hiddenCount = data?.hidden_count || 0;
 
-  const cidades = useMemo(() => {
-    return ['todas', ...(summary.cidades || [])];
-  }, [summary.cidades]);
+  const cidades = useMemo(() => ['todas', ...(summary.cidades || [])], [summary.cidades]);
 
   const filtered = useMemo(() => {
     let list = items;
@@ -137,15 +173,9 @@ export default function AuditoriaLoopTab() {
     }
     return [...list].sort((a, b) => {
       let va, vb;
-      if (sortKey === 'livre') {
-        va = a.cotas_livres; vb = b.cotas_livres;
-      } else if (sortKey === 'ocupado') {
-        va = a.pct_ocupado; vb = b.pct_ocupado;
-      } else {
-        va = (a[sortKey] ?? ''); vb = (b[sortKey] ?? '');
-        if (typeof va === 'string') va = va.toLowerCase();
-        if (typeof vb === 'string') vb = vb.toLowerCase();
-      }
+      if (sortKey === 'livre') { va = a.cotas_livres; vb = b.cotas_livres; }
+      else if (sortKey === 'ocupado') { va = a.pct_ocupado; vb = b.pct_ocupado; }
+      else { va = (a[sortKey] ?? ''); vb = (b[sortKey] ?? ''); if (typeof va === 'string') va = va.toLowerCase(); if (typeof vb === 'string') vb = vb.toLowerCase(); }
       if (va < vb) return sortDir === 'asc' ? -1 : 1;
       if (va > vb) return sortDir === 'asc' ? 1 : -1;
       return 0;
@@ -176,7 +206,6 @@ export default function AuditoriaLoopTab() {
     });
   }
 
-  // Loading / Error
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20 text-brand-gray-400 gap-2">
@@ -198,46 +227,34 @@ export default function AuditoriaLoopTab() {
   return (
     <div className="space-y-5">
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-white">Auditoria de Loop</h2>
           <p className="text-xs text-brand-gray-400 mt-1">
-            Dados em tempo real via API de origem — média dinâmica por inserção (10–15s), ciclo padrão 3 min. Locais agrupados quando iguais.
+            Dados em tempo real via API de origem — média dinâmica por inserção (10–15s), ciclo padrão 3 min.
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            type="button"
-            onClick={fetchData}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10 disabled:opacity-50"
-          >
-            <RefreshCcw size={12} className={loading ? 'animate-spin' : ''} />
-            Atualizar
+        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+          <button type="button" onClick={fetchData} disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10 disabled:opacity-50">
+            <RefreshCcw size={12} className={loading ? 'animate-spin' : ''} /> Atualizar
           </button>
-          <button
-            type="button"
-            onClick={() => setShowJson(v => !v)}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10"
-          >
+          <button type="button" onClick={() => setShowJson(v => !v)}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10">
             {showJson ? 'Ocultar JSON' : 'Ver JSON'}
           </button>
-          <button
-            type="button"
-            onClick={downloadJson}
-            className="inline-flex items-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/10 px-3 py-2 text-xs font-semibold text-brand-orange hover:bg-brand-orange/20"
-          >
-            <Download size={13} />
-            Exportar
+          <button type="button" onClick={downloadJson}
+            className="inline-flex items-center gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/10 px-3 py-2 text-xs font-semibold text-brand-orange hover:bg-brand-orange/20">
+            <Download size={13} /> Exportar
           </button>
         </div>
       </div>
 
-      {/* ── Cards de resumo ── */}
+      {/* Cards de resumo */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Monitors', value: filteredStats.total, sub: 'no filtro atual' },
+          { label: 'Locais', value: filteredStats.total, sub: 'no filtro atual' },
           { label: 'Com espaço', value: filteredStats.comCotasLivres, sub: `de ${filteredStats.total}`, ok: true },
           { label: 'Cotas livres', value: filteredStats.totalCotasLivres, sub: 'total vendável', ok: true },
           { label: 'Lotados', value: filteredStats.lotados, sub: 'sem cotas', warn: true },
@@ -250,32 +267,19 @@ export default function AuditoriaLoopTab() {
         ))}
       </div>
 
-      {/* ── Filtros ── */}
+      {/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray-500" />
-          <input
-            type="text"
-            placeholder="Buscar nome ou local..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 text-xs bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
-          />
+          <input type="text" placeholder="Buscar nome ou local..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-8 pr-3 py-2 text-xs bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40" />
         </div>
-        <select
-          value={filterCidade}
-          onChange={e => setFilterCidade(e.target.value)}
-          className="px-3 py-2 text-xs bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-brand-orange/40"
-        >
-          {cidades.map(c => (
-            <option key={c} value={c} className="bg-gray-900">{c === 'todas' ? 'Todas as cidades' : c}</option>
-          ))}
+        <select value={filterCidade} onChange={e => setFilterCidade(e.target.value)}
+          className="px-3 py-2 text-xs bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-brand-orange/40">
+          {cidades.map(c => <option key={c} value={c} className="bg-gray-900">{c === 'todas' ? 'Todas as cidades' : c}</option>)}
         </select>
-        <select
-          value={`${sortKey}:${sortDir}`}
-          onChange={e => { const [k, d] = e.target.value.split(':'); setSortKey(k); setSortDir(d); }}
-          className="px-3 py-2 text-xs bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-brand-orange/40"
-        >
+        <select value={`${sortKey}:${sortDir}`} onChange={e => { const [k, d] = e.target.value.split(':'); setSortKey(k); setSortDir(d); }}
+          className="px-3 py-2 text-xs bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-brand-orange/40">
           <option value="nome:asc" className="bg-gray-900">Nome A-Z</option>
           <option value="nome:desc" className="bg-gray-900">Nome Z-A</option>
           <option value="livre:desc" className="bg-gray-900">Mais cotas livres</option>
@@ -285,12 +289,12 @@ export default function AuditoriaLoopTab() {
         </select>
       </div>
 
-      {/* ── Tabela ── */}
+      {/* Tabela */}
       <div className="rounded-2xl border border-white/10 overflow-x-auto">
         <table className="w-full text-sm min-w-[560px]">
           <thead className="bg-white/[0.04]">
             <tr>
-              <th className="px-3 py-2 text-left text-xs font-medium text-brand-gray-400">Monitor / Local</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-brand-gray-400">Local</th>
               <th className="px-3 py-2 text-center text-xs font-medium text-brand-gray-400">Ciclo</th>
               <th className="px-3 py-2 text-center text-xs font-medium text-brand-gray-400">Inserções ativas</th>
               <th className="px-3 py-2 text-center text-xs font-medium text-brand-gray-400">Cotas livres</th>
@@ -299,25 +303,50 @@ export default function AuditoriaLoopTab() {
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-3 py-10 text-center text-xs text-brand-gray-500">
-                  Nenhum monitor encontrado.
-                </td>
-              </tr>
+              <tr><td colSpan={5} className="px-3 py-10 text-center text-xs text-brand-gray-500">Nenhum monitor encontrado.</td></tr>
             ) : (
-              filtered.map(item => <MonitorRow key={item.origin_id} item={item} />)
+              filtered.map(item => <MonitorRow key={item.origin_id} item={item} onHide={hideMonitor} />)
             )}
           </tbody>
         </table>
       </div>
 
-      {/* ── Preview JSON ── */}
+      {/* Ocultos */}
+      {(hiddenCount > 0 || exclusions.length > 0) && (
+        <div className="rounded-2xl border border-white/10 overflow-hidden">
+          <button type="button" onClick={() => setShowExclusions(v => !v)}
+            className="flex items-center justify-between w-full px-4 py-2.5 bg-white/[0.04] hover:bg-white/[0.06] transition-colors text-left">
+            <span className="text-xs font-semibold text-brand-gray-300 flex items-center gap-1.5">
+              <EyeOff size={12} /> {exclusions.length} monitor{exclusions.length !== 1 ? 'es' : ''} oculto{exclusions.length !== 1 ? 's' : ''}
+            </span>
+            <span className="text-[10px] text-brand-gray-500">{showExclusions ? 'Ocultar' : 'Mostrar'}</span>
+          </button>
+          {showExclusions && (
+            <div className="divide-y divide-white/5">
+              {exclusions.length === 0 ? (
+                <div className="px-4 py-3 text-xs text-brand-gray-500">Nenhum monitor oculto.</div>
+              ) : exclusions.map(ex => (
+                <div key={ex.origin_id} className="flex items-center justify-between px-4 py-2.5 hover:bg-white/[0.02]">
+                  <div>
+                    <div className="text-xs text-brand-gray-300">{ex.nome || `ID ${ex.origin_id}`}</div>
+                    {ex.motivo && <div className="text-[10px] text-brand-gray-500 mt-0.5">{ex.motivo}</div>}
+                  </div>
+                  <button type="button" onClick={() => unhideMonitor(ex.origin_id)}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold text-green-400 hover:bg-green-500/10 transition-colors">
+                    <Eye size={11} /> Restaurar
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Preview JSON */}
       {showJson && (
         <div className="rounded-2xl border border-white/10 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2.5 bg-white/[0.04] border-b border-white/10">
-            <span className="text-xs font-semibold text-white">
-              JSON — {filtered.length} monitor{filtered.length !== 1 ? 'es' : ''}
-            </span>
+            <span className="text-xs font-semibold text-white">JSON — {filtered.length} ite{filtered.length !== 1 ? 'ns' : 'm'}</span>
             <button type="button" onClick={copyJson} className="text-xs text-brand-gray-400 hover:text-white transition-colors">
               {copied ? '✓ Copiado!' : 'Copiar'}
             </button>
@@ -327,7 +356,6 @@ export default function AuditoriaLoopTab() {
           </pre>
         </div>
       )}
-
     </div>
   );
 }

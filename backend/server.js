@@ -1024,14 +1024,30 @@ function classifyRisk(pctOcupado) {
   return                         { level: 'low',      msg: 'Saudável',           color: 'green' };
 }
 
+// ── Tabela de exclusões manuais do loop audit ──
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS loop_audit_exclusions (
+    origin_id INTEGER PRIMARY KEY,
+    nome TEXT,
+    motivo TEXT,
+    excluido_em TEXT DEFAULT (datetime('now'))
+  )`).run();
+} catch (e) { /* já existe */ }
+
 app.get('/api/loop-audit', openCors, async (req, res) => {
   try {
     const monitors = await fetchOriginMonitors();
     const cidadeFilter = req.query.cidade || null;
+    const showHidden = req.query.hidden === '1';
 
     // Excluir painéis estáticos (backlight / frontlight)
     const EXCLUDE_RE = /\bbacklight\b|\bfrontlight\b/i;
     const filteredMonitors = monitors.filter(m => !EXCLUDE_RE.test(m.nome || ''));
+
+    // Excluir monitors ocultados manualmente
+    const excludedRows = db.prepare('SELECT origin_id FROM loop_audit_exclusions').all();
+    const excludedIds = new Set(excludedRows.map(r => r.origin_id));
+    const visibleMonitors = showHidden ? filteredMonitors : filteredMonitors.filter(m => !excludedIds.has(m.id));
 
     const CICLO_PADRAO = 180; // loop padrão 3 min
 
@@ -1073,7 +1089,7 @@ app.get('/api/loop-audit', openCors, async (req, res) => {
       };
     }
 
-    const allItems = filteredMonitors.map(calcMonitorStats);
+    const allItems = visibleMonitors.map(calcMonitorStats);
 
     // Agrupar por local: montar um item por local, expandir somente quando houver divergência
     const byLocal = new Map();
@@ -1124,6 +1140,7 @@ app.get('/api/loop-audit', openCors, async (req, res) => {
       target_seg: CICLO_PADRAO,
       tempo_insercao_seg: LOOP_DEFAULT_TEMPO_SEG,
       cache_age_ms: Date.now() - _loopCacheAt,
+      hidden_count: excludedIds.size,
       summary: { total, critical, high, medium, low, totalCotasLivres, cidades },
       items: finalItems
     });
@@ -1131,6 +1148,26 @@ app.get('/api/loop-audit', openCors, async (req, res) => {
     console.error('Loop audit fetch error:', err.message);
     res.status(502).json({ error: 'Não foi possível obter dados da API de origem.' });
   }
+});
+
+// ── Gerenciar exclusões do loop audit ──
+app.get('/api/loop-audit/exclusions', openCors, (req, res) => {
+  const rows = db.prepare('SELECT origin_id, nome, motivo, excluido_em FROM loop_audit_exclusions ORDER BY excluido_em DESC').all();
+  res.json(rows);
+});
+
+app.post('/api/loop-audit/exclusions', express.json(), (req, res) => {
+  const { origin_id, nome, motivo } = req.body || {};
+  if (!origin_id) return res.status(400).json({ error: 'origin_id obrigatório' });
+  db.prepare('INSERT OR REPLACE INTO loop_audit_exclusions (origin_id, nome, motivo) VALUES (?, ?, ?)').run(origin_id, nome || '', motivo || '');
+  res.json({ ok: true });
+});
+
+app.delete('/api/loop-audit/exclusions/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ error: 'id inválido' });
+  db.prepare('DELETE FROM loop_audit_exclusions WHERE origin_id = ?').run(id);
+  res.json({ ok: true });
 });
 
 // Admin auth
