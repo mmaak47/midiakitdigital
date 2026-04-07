@@ -1030,7 +1030,7 @@ app.get('/api/loop-audit', openCors, async (req, res) => {
     const cidadeFilter = req.query.cidade || null;
 
     // Excluir painéis estáticos (backlight / frontlight)
-    const EXCLUDE_RE = /\[BACKLIGHT\]|\[FRONTLIGHT\]/i;
+    const EXCLUDE_RE = /\bbacklight\b|\bfrontlight\b/i;
     const filtered = monitors.filter(m => !EXCLUDE_RE.test(m.nome || ''));
 
     const items = filtered.map(m => {
