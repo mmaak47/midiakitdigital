@@ -1,6 +1,11 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import { Search, Download, RefreshCcw, Loader2, Wifi, WifiOff, AlertTriangle, Layers, EyeOff, Eye } from 'lucide-react';
 
+function authHeaders() {
+  const token = typeof window !== 'undefined' && sessionStorage.getItem('admin_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 function fmtSeg(seg) {
   if (seg == null || isNaN(seg)) return '--:--';
   const m = Math.floor(Math.abs(seg) / 60);
@@ -138,7 +143,7 @@ export default function AuditoriaLoopTab() {
     try {
       await fetch('/api/loop-audit/exclusions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ origin_id: item.origin_id, nome: item.nome, motivo }),
       });
       fetchData();
@@ -148,7 +153,7 @@ export default function AuditoriaLoopTab() {
 
   async function unhideMonitor(originId) {
     try {
-      await fetch(`/api/loop-audit/exclusions/${originId}`, { method: 'DELETE' });
+      await fetch(`/api/loop-audit/exclusions/${originId}`, { method: 'DELETE', headers: authHeaders() });
       fetchData();
       fetchExclusions();
     } catch { /* ignore */ }
