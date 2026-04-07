@@ -2198,6 +2198,7 @@ try {
   'ALTER TABLE vendas ADD COLUMN agencia_nome TEXT',
   'ALTER TABLE vendas ADD COLUMN comissao_pct TEXT',
   'ALTER TABLE vendas ADD COLUMN troca_material INTEGER DEFAULT 0',
+  'ALTER TABLE pontos ADD COLUMN monitor_last_seen TEXT DEFAULT NULL',
 ].forEach(sql => {
   try { db.prepare(sql).run(); } catch { /* coluna já existe */ }
 });
