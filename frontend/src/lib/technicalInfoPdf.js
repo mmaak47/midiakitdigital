@@ -1,5 +1,5 @@
-const PAGE_WIDTH = 1366;
-const PAGE_HEIGHT = 900;
+﻿const PAGE_WIDTH = 1366;
+const PAGE_HEIGHT = 768; // Adjusted to match the Midia Kit modern design
 
 const BRAND_ORANGE = '#E8591A';
 const BRAND_BLACK = '#0B0B0B';
@@ -104,144 +104,6 @@ async function preparePointsForPdf(points, onStatusChange) {
   return result;
 }
 
-function getPointTypeLabel(point) {
-  const tipo = String(point?.tipo || '').trim();
-  if (tipo === 'Elevador') {
-    const categoria = String(point?.elevador_categoria || 'Comercial').trim();
-    return `Elevador - ${escapeHtml(categoria)}`;
-  }
-  return escapeHtml(tipo || 'Formato');
-}
-
-function isPhysicalPanel(point) {
-  const tipo = String(point?.tipo || '').trim();
-  return tipo === 'Frontlight' || tipo === 'Backlight';
-}
-
-function buildFooter() {
-  return `
-    <div style="margin-top:auto;border:1px solid rgba(232,89,26,0.34);border-radius:20px;background:linear-gradient(120deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03));padding:18px 20px;display:grid;grid-template-columns:1fr auto;align-items:center;gap:16px;">
-      <div>
-        <p style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:${BRAND_ORANGE};font-weight:700;">Atendimento</p>
-        <p style="margin-top:6px;font-size:28px;font-weight:800;line-height:1.05;color:#fff;">Ficou em dúvida?</p>
-        <p style="margin-top:6px;color:${BRAND_MUTED};font-size:16px;">Fale com nosso time de criação para validar formato, margem e arquivos de entrega.</p>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;white-space:nowrap;">
-        <span style="font-size:17px;font-weight:700;color:#fff;">Maite Doin</span>
-        <span style="display:inline-flex;align-items:center;gap:8px;color:#fff;font-size:16px;">
-          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" aria-hidden="true">
-            <path d="M6.2 4.3 3.9 6.6a2.3 2.3 0 0 0-.5 2.5c2.1 5.7 6.7 10.3 12.4 12.4a2.3 2.3 0 0 0 2.5-.5l2.3-2.3a1.8 1.8 0 0 0-.5-2.9l-2.8-1.4a1.8 1.8 0 0 0-2.1.4l-1.2 1.2a14.1 14.1 0 0 1-6-6l1.2-1.2a1.8 1.8 0 0 0 .4-2.1L9.1 4.8a1.8 1.8 0 0 0-2.9-.5Z" stroke="#E8591A" stroke-width="1.8" stroke-linejoin="round"/>
-          </svg>
-          Telefone: 43 8800-5719
-        </span>
-        <span style="display:inline-flex;align-items:center;gap:8px;font-size:15px;color:${BRAND_MUTED};">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
-            <rect x="3" y="5" width="18" height="14" rx="2.5" stroke="#E8591A" stroke-width="1.8"/>
-            <path d="m5 7 7 6 7-6" stroke="#E8591A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          criacao@redeintermidia.com
-        </span>
-      </div>
-    </div>
-  `;
-}
-
-function buildMediaAndDurationBlock() {
-  return `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px;">
-      <div style="border:1px solid ${BRAND_BORDER};border-radius:16px;background:rgba(255,255,255,0.03);padding:16px;">
-        <div style="display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${BRAND_ORANGE};margin-bottom:10px;">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><rect x="3" y="4" width="18" height="16" rx="3" stroke="${BRAND_ORANGE}" stroke-width="1.8"/><path d="M10 9l6 3-6 3V9z" fill="${BRAND_ORANGE}"/></svg>
-          Mídias aceitas
-        </div>
-        <p style="font-size:17px;line-height:1.4;color:#fff;">Vídeos em .mp4 ou .mov<br/>Imagens em .png, .jpg ou PDF</p>
-      </div>
-      <div style="border:1px solid ${BRAND_BORDER};border-radius:16px;background:rgba(255,255,255,0.03);padding:16px;">
-        <div style="display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${BRAND_ORANGE};margin-bottom:10px;">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><circle cx="12" cy="12" r="9" stroke="${BRAND_ORANGE}" stroke-width="1.8"/><path d="M12 7v5l3.2 2" stroke="${BRAND_ORANGE}" stroke-width="1.8" stroke-linecap="round"/></svg>
-          Duração
-        </div>
-        <p style="font-size:17px;line-height:1.4;color:#fff;">Cotas de 10 segundos e 15 segundos</p>
-      </div>
-    </div>
-  `;
-}
-
-function buildProportionWidget(point) {
-  const widthPx = Math.max(1, Math.round(normalizeNumber(point?.arte_largura, 1920) || 1920));
-  const heightPx = Math.max(1, Math.round(normalizeNumber(point?.arte_altura, 1080) || 1080));
-
-  const larguraM = normalizeNumber(point?.midia_largura_m, null);
-  const alturaM = normalizeNumber(point?.midia_altura_m, null);
-
-  const usePhysical = isPhysicalPanel(point) && larguraM && alturaM;
-  const ratioW = usePhysical ? larguraM : widthPx;
-  const ratioH = usePhysical ? alturaM : heightPx;
-
-  const baseMaxW = 420;
-  const baseMaxH = 230;
-  const safeRatioW = Math.max(ratioW, 1);
-  const safeRatioH = Math.max(ratioH, 1);
-  const scale = Math.min(baseMaxW / safeRatioW, baseMaxH / safeRatioH);
-  const boxWidth = Math.max(120, Math.round(safeRatioW * scale));
-  const boxHeight = Math.max(70, Math.round(safeRatioH * scale));
-
-  const title = usePhysical ? 'Proporção física da tela' : 'Proporção da resolução';
-  const safeInsetX = Math.max(8, Math.round((72 / widthPx) * boxWidth));
-  const safeInsetY = Math.max(8, Math.round((72 / heightPx) * boxHeight));
-  const bleedInset = Math.max(6, Math.round(Math.min(boxWidth, boxHeight) * 0.1));
-  const guideOverlay = usePhysical
-    ? `<div style="position:absolute;left:${bleedInset}px;right:${bleedInset}px;top:${bleedInset}px;bottom:${bleedInset}px;border:2px dashed rgba(255,255,255,0.55);border-radius:4px;"></div>`
-    : `<div style="position:absolute;left:${safeInsetX}px;right:${safeInsetX}px;top:${safeInsetY}px;bottom:${safeInsetY}px;border:2px dashed rgba(255,255,255,0.55);border-radius:4px;"></div>`;
-
-  return `
-    <div style="border:1px solid ${BRAND_BORDER};border-radius:20px;background:rgba(255,255,255,0.03);padding:16px;">
-      <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${BRAND_ORANGE};margin-bottom:12px;">${title}</div>
-      <div style="height:280px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a1a1a,#111);border-radius:14px;">
-        <div style="position:relative;width:${boxWidth}px;height:${boxHeight}px;background:#ff5e2b;border:6px solid #111;box-shadow:0 0 0 2px rgba(255,255,255,0.12) inset;">
-          <svg viewBox="0 0 ${boxWidth} ${boxHeight}" width="${boxWidth}" height="${boxHeight}" style="position:absolute;left:0;top:0;">
-            <line x1="0" y1="0" x2="40%" y2="40%" stroke="#111" stroke-width="2"/>
-            <line x1="60%" y1="60%" x2="100%" y2="100%" stroke="#111" stroke-width="2"/>
-          </svg>
-          ${guideOverlay}
-        </div>
-      </div>
-      <p style="margin-top:12px;color:${BRAND_MUTED};font-size:14px;line-height:1.35;">${usePhysical ? 'Frontlight/Backlight: área tracejada representa sangria recomendada.' : 'Demais formatos: área tracejada representa margem de segurança de 72px.'}</p>
-    </div>
-  `;
-}
-
-function buildResolutionBlock(point) {
-  const widthPx = Math.max(1, Math.round(normalizeNumber(point?.arte_largura, 1920) || 1920));
-  const heightPx = Math.max(1, Math.round(normalizeNumber(point?.arte_altura, 1080) || 1080));
-
-  const larguraM = normalizeNumber(point?.midia_largura_m, null);
-  const alturaM = normalizeNumber(point?.midia_altura_m, null);
-  const areaM2 = larguraM && alturaM ? Number((larguraM * alturaM).toFixed(2)) : null;
-
-  const isPanel = isPhysicalPanel(point);
-  const physicalLines = isPanel
-    ? `
-      <p style="margin:0;color:#fff;font-size:18px;"><strong>Largura:</strong> ${larguraM ? `${formatDecimal(larguraM)} m` : '-'}</p>
-      <p style="margin:6px 0 0;color:#fff;font-size:18px;"><strong>Altura:</strong> ${alturaM ? `${formatDecimal(alturaM)} m` : '-'}</p>
-      <p style="margin:6px 0 0;color:#fff;font-size:18px;"><strong>Área:</strong> ${areaM2 ? `${formatDecimal(areaM2)} m²` : '-'}</p>
-      <p style="margin:8px 0 0;color:${BRAND_MUTED};font-size:14px;">Sangria específica para Frontlight/Backlight (consultar gabarito da peça).</p>
-    `
-    : `<p style="margin:8px 0 0;color:${BRAND_MUTED};font-size:14px;"><strong>Margem de segurança:</strong> 72px em todos os lados.</p>`;
-
-  return `
-    <div style="border:1px solid ${BRAND_BORDER};border-radius:20px;background:rgba(255,255,255,0.03);padding:18px;">
-      <div style="display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${BRAND_ORANGE};margin-bottom:10px;">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="${BRAND_ORANGE}" stroke-width="1.7"/><path d="M8 9h8M8 13h5" stroke="${BRAND_ORANGE}" stroke-width="1.7" stroke-linecap="round"/></svg>
-        Informações técnicas
-      </div>
-      <p style="margin:0;color:#fff;font-size:20px;"><strong>Formato:</strong> ${getPointTypeLabel(point)}</p>
-      <p style="margin:8px 0 0;color:#fff;font-size:18px;"><strong>Resolução para arte:</strong> ${widthPx} x ${heightPx} px</p>
-      ${physicalLines}
-    </div>
-  `;
-}
-
 function createPage(content) {
   return `
     <section style="width:${PAGE_WIDTH}px;height:${PAGE_HEIGHT}px;position:relative;overflow:hidden;background:${BRAND_BLACK};color:#fff;font-family:Poppins,system-ui,sans-serif;page-break-after:always;break-after:page;">
@@ -253,67 +115,175 @@ function createPage(content) {
 function buildCoverPage(points) {
   const total = points.length;
   return createPage(`
-    <div style="position:absolute;inset:0;background:radial-gradient(circle at 0% 0%, rgba(232,89,26,0.42), transparent 40%),linear-gradient(140deg,#090909,#111 46%,#1b120d 100%);"></div>
-    <div style="position:relative;z-index:2;padding:54px 54px 54px;height:100%;display:flex;flex-direction:column;gap:22px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <img src="${resolveAssetUrl('/logo.png')}" alt="Intermídia" style="height:48px;object-fit:contain;" />
-        <div style="display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border:1px solid rgba(255,255,255,0.24);border-radius:999px;background:rgba(255,255,255,0.05);font-size:13px;letter-spacing:.08em;text-transform:uppercase;">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true"><path d="M14.4 3.2 13.8 5.4a6.8 6.8 0 0 0-3.6 2.1L8 6.8 6.4 8.4l.7 2.2a6.8 6.8 0 0 0-1 2.5L4 13.6v2.2l2.1.6a6.8 6.8 0 0 0 1.1 2.5l-.8 2.3L8 22.8l2.2-.7a6.8 6.8 0 0 0 2.6 1.1l.6 2h2.2l.6-2a6.8 6.8 0 0 0 2.6-1.1l2.1.7 1.6-1.6-.7-2.2a6.8 6.8 0 0 0 1.1-2.5l2-.6v-2.2l-2-.6a6.8 6.8 0 0 0-1.1-2.5l.7-2.2-1.6-1.6-2.1.7a6.8 6.8 0 0 0-2.6-1.1l-.6-2h-2.2Zm.2 7a2.9 2.9 0 1 1 0 5.8 2.9 2.9 0 0 1 0-5.8Z" stroke="#E8591A" stroke-width="1.2"/></svg>
-          Documento técnico
-        </div>
+    <div style="position:absolute;inset:0;background:radial-gradient(circle at 0% 0%, rgba(232,89,26,0.3), transparent 50%),linear-gradient(140deg,#090909,#111 46%,#1b120d 100%);"></div>
+    <div style="position:relative;z-index:2;padding:48px;height:100%;display:flex;flex-direction:column;justify-content:center;gap:32px;align-items:center;text-align:center;">
+      <img src="${resolveAssetUrl('/logo.png')}" alt="Intermídia" style="height:56px;object-fit:contain;margin-bottom:20px;" />
+      
+      <div style="display:inline-flex;align-items:center;gap:10px;padding:12px 20px;border:1px solid rgba(255,255,255,0.15);border-radius:999px;background:rgba(255,255,255,0.04);font-size:14px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:${BRAND_ORANGE};">
+        Manual de Especificações Técnicas
       </div>
 
-      <div>
-        <h1 style="margin:0;font-size:66px;line-height:1.03;font-weight:900;max-width:980px;letter-spacing:-.03em;">Informações Técnicas</h1>
-        <p style="margin:18px 0 0;font-size:22px;color:rgba(255,255,255,0.88);max-width:860px;line-height:1.35;">PDF técnico com foto do ponto, nome, resolução da tela e especificações de entrega.</p>
-      </div>
+      <h1 style="margin:0;font-size:82px;line-height:1;font-weight:900;letter-spacing:-.04em;">Informações Técnicas</h1>
+      <p style="margin:0;font-size:24px;color:${BRAND_MUTED};max-width:800px;line-height:1.4;">Diretrizes de resolução, formatos e regras criativas dos pontos selecionados.</p>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:780px;">
-        <div style="border:1px solid ${BRAND_BORDER};border-radius:18px;background:rgba(255,255,255,0.03);padding:16px;">
-          <p style="margin:0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:${BRAND_ORANGE};font-weight:700;">Pontos selecionados</p>
-          <p style="margin:8px 0 0;font-size:44px;font-weight:800;line-height:1;">${total}</p>
-        </div>
-        <div style="border:1px solid ${BRAND_BORDER};border-radius:18px;background:rgba(255,255,255,0.03);padding:16px;">
-          <p style="margin:0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:${BRAND_ORANGE};font-weight:700;">Padrão de entrega</p>
-          <p style="margin:8px 0 0;font-size:30px;font-weight:800;line-height:1.1;">10s e 15s</p>
+      <div style="display:flex;gap:32px;margin-top:32px;">
+        <div style="text-align:center;">
+          <div style="font-size:56px;font-weight:900;color:#fff;line-height:1;">${total}</div>
+          <div style="font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:${BRAND_ORANGE};margin-top:8px;">Ponto${total > 1 ? 's' : ''}</div>
         </div>
       </div>
-
-      ${buildMediaAndDurationBlock()}
-      ${buildFooter()}
     </div>
   `);
+}
+
+function buildSpecItem(title, value, iconSvg) {
+  return `
+    <div style="display:flex;gap:14px;align-items:flex-start;">
+      <div style="width:38px;height:38px;border-radius:10px;background:rgba(232,89,26,0.1);border:1px solid rgba(232,89,26,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        ${iconSvg}
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.55);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">${title}</div>
+        <div style="font-size:15px;font-weight:600;color:#fff;line-height:1.2;">${value}</div>
+      </div>
+    </div>
+  `;
+}
+
+function buildIcons() {
+  const S = `stroke="${BRAND_ORANGE}" stroke-width="1.8"`;
+  return {
+    aspect: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" ${S}/><path d="M9 9l6 6m0-6l-6 6" ${S} stroke-linecap="round"/></svg>`,
+    res: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" ${S} stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    file: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" ${S} stroke-linejoin="round"/><path d="M13 2v7h7" ${S} stroke-linejoin="round"/></svg>`,
+    weight: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" ${S} stroke-linejoin="round"/><path d="M7 10l5 5 5-5M12 15V3" ${S} stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    clock: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none"><circle cx="12" cy="12" r="10" ${S}/><path d="M12 6v6l4 2" ${S} stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    loop: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M17 2.1l4 4-4 4" ${S} stroke-linecap="round" stroke-linejoin="round"/><path d="M3 12.2v-2a4 4 0 0 1 4-4h14M7 21.9l-4-4 4-4" ${S} stroke-linecap="round" stroke-linejoin="round"/><path d="M21 11.8v2a4 4 0 0 1-4 4H3" ${S} stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    activity: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M22 12h-4l-3 9L9 3l-3 9H2" ${S} stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    sun: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none"><circle cx="12" cy="12" r="4" ${S}/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" ${S} stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    audio: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M11 5L6 9H2v6h4l5 4V5zM23 9l-6 6M17 9l6 6" ${S} stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    calendar: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" ${S}/><path d="M16 2v4M8 2v4M3 10h18" ${S} stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    alert: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" ${S} stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="9" x2="12" y2="13" ${S} stroke-linecap="round"/><line x1="12" y1="17" x2="12.01" y2="17" ${S} stroke-linecap="round"/></svg>`
+  };
 }
 
 function buildPointPage(point, index, total) {
   const image = pickPointImage(point);
   const imageBlock = image
-    ? `<img src="${image}" alt="${escapeHtml(point?.nome || 'Ponto')}" style="width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(point?.foto_focal_point || 'center center')};"/>`
-    : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:${BRAND_MUTED};font-size:20px;background:linear-gradient(135deg,#1a1a1a,#111);">Sem foto cadastrada</div>`;
+    ? `<img src="${image}" alt="${escapeHtml(point?.nome || 'Ponto')}" style="width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(point?.foto_focal_point || 'center center')};opacity:0.65;"/>`
+    : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:${BRAND_MUTED};font-size:18px;background:#111;">Sem foto</div>`;
+
+  const widthPx = Math.max(1, Math.round(normalizeNumber(point?.arte_largura, 1080) || 1080));
+  const heightPx = Math.max(1, Math.round(normalizeNumber(point?.arte_altura, 1920) || 1920));
+  const isVertical = heightPx >= widthPx;
+  const formatAspect = isVertical ? 'Vertical 9:16' : 'Horizontal 16:9';
+
+  const icons = buildIcons();
+
+  // Dados do ponto
+  const p_ambiente = point?.ambiente ? String(point.ambiente).trim() : 'Indoor';
+  const ambiente = escapeHtml(p_ambiente !== '' ? p_ambiente : 'Indoor');
+  
+  const p_perfil = point?.perfil_publico ? String(point.perfil_publico).trim() : 'A/B';
+  const perfil = escapeHtml(p_perfil !== '' ? p_perfil : 'A/B');
+  
+  const p_fluxo = point?.fluxo_tipo ? String(point.fluxo_tipo).trim() : 'Permanência média alta';
+  const fluxo = escapeHtml(p_fluxo !== '' ? p_fluxo : 'Permanência média alta');
+  
+  const p_distancia = point?.distancia_leitura ? String(point.distancia_leitura).trim() : 'Curta a média';
+  const distancia = escapeHtml(p_distancia !== '' ? p_distancia : 'Curta a média');
 
   return createPage(`
-    <div style="position:relative;z-index:2;padding:42px 46px 100px;height:100%;display:grid;grid-template-columns:58% 42%;gap:20px;">
-      <div style="display:flex;flex-direction:column;gap:16px;min-width:0;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-          <img src="${resolveAssetUrl('/logo.png')}" alt="Intermídia" style="height:34px;object-fit:contain;" />
-          <div style="padding:6px 10px;border-radius:999px;background:rgba(232,89,26,0.2);border:1px solid rgba(232,89,26,0.45);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#ffd3bf;">Ponto ${index} de ${total}</div>
-        </div>
+    <div style="display:flex;height:100%;background:#0A0A0A;">
+      <!-- COLUNA DA ESQUERDA: IMAGEM + INFO PONTO -->
+      <div style="flex:0 0 540px;position:relative;background:#050505;border-right:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;overflow:hidden;">
+          <div style="flex:1;position:relative;">
+             ${imageBlock}
+             <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,0.85) 100%);"></div>
+             
+             <img src="${resolveAssetUrl('/logo.png')}" alt="Intermídia" style="position:absolute;top:38px;left:38px;height:24px;object-fit:contain;" />
+             
+             <div style="position:absolute;top:38px;right:38px;padding:6px 12px;border-radius:999px;background:rgba(232,89,26,0.2);border:1px solid rgba(232,89,26,0.45);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#ffd3bf;">
+                Ponto ${index} de ${total}
+             </div>
 
-        <div style="border:1px solid ${BRAND_BORDER};border-radius:20px;background:${BRAND_PANEL};height:320px;overflow:hidden;">
-          ${imageBlock}
-        </div>
-
-        <div style="border:1px solid ${BRAND_BORDER};border-radius:20px;background:rgba(255,255,255,0.03);padding:18px;">
-          <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${BRAND_ORANGE};margin-bottom:8px;">Ponto</div>
-          <h2 style="margin:0;font-size:34px;line-height:1.15;font-weight:900;letter-spacing:-.02em;word-break:break-word;">${escapeHtml(point?.nome || 'Ponto sem nome')}</h2>
-          <p style="margin:12px 0 0;color:${BRAND_MUTED};font-size:17px;">${escapeHtml(point?.cidade || '-')} ${point?.endereco ? `• ${escapeHtml(point.endereco)}` : ''}</p>
-        </div>
+             <div style="position:absolute;bottom:38px;left:38px;right:38px;">
+                <div style="font-size:11px;font-weight:800;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.12em;margin-bottom:6px;">Dados do ponto</div>
+                <div style="font-size:36px;font-weight:800;color:#fff;line-height:1.1;margin-bottom:20px;letter-spacing:-0.03em;word-break:break-word;">${escapeHtml(point?.nome || 'Ponto')}</div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                   <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;">
+                     <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Ambiente</div>
+                     <div style="font-size:13px;color:#fff;font-weight:600;">${ambiente}</div>
+                   </div>
+                   <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;">
+                     <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Perfil de Público</div>
+                     <div style="font-size:13px;color:#fff;font-weight:600;">${perfil}</div>
+                   </div>
+                   <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;">
+                     <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Fluxo</div>
+                     <div style="font-size:13px;color:#fff;font-weight:600;">${fluxo}</div>
+                   </div>
+                   <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;">
+                     <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Distância Leitura</div>
+                     <div style="font-size:13px;color:#fff;font-weight:600;">${distancia}</div>
+                   </div>
+                </div>
+             </div>
+          </div>
       </div>
 
-      <div style="display:flex;flex-direction:column;gap:16px;min-width:0;">
-        ${buildResolutionBlock(point)}
-        ${buildProportionWidget(point)}
-        ${buildMediaAndDurationBlock()}
+      <!-- COLUNA DA DIREITA: ESPECIFICAÇÕES -->
+      <div style="flex:1;padding:48px 56px;display:flex;flex-direction:column;justify-content:space-between;background:radial-gradient(ellipse at 100% 0%, rgba(232,89,26,0.05) 0%, transparent 40%), #080808;">
+          <div>
+             <div style="font-size:11px;font-weight:700;color:${BRAND_ORANGE};letter-spacing:0.18em;text-transform:uppercase;margin-bottom:4px;">Especificações de campanha</div>
+             <div style="font-size:42px;font-weight:900;color:#fff;letter-spacing:-0.03em;margin-bottom:32px;">Diretrizes Técnicas</div>
+             
+             <div style="display:grid;grid-template-columns:1fr 1fr;column-gap:16px;row-gap:20px;">
+               <div style="display:flex;flex-direction:column;gap:20px;">
+                 ${buildSpecItem('Formato', formatAspect, icons.aspect)}
+                 ${buildSpecItem('Tipos de arquivo', 'Vídeo (mp4, mov, wmv, flv)<br>Imagem (jpg, png, pdf)', icons.file)}
+                 ${buildSpecItem('Duração', '15 segundos', icons.clock)}
+                 ${buildSpecItem('Exibição média', '20 inserções/hora', icons.activity)}
+                 ${buildSpecItem('Áudio', 'Não disponível', icons.audio)}
+               </div>
+               <div style="display:flex;flex-direction:column;gap:20px;">
+                 ${buildSpecItem('Resolução', `${widthPx}x${heightPx} px`, icons.res)}
+                 ${buildSpecItem('Tamanho máximo', '50MB', icons.weight)}
+                 ${buildSpecItem('Loop', '180 segundos', icons.loop)}
+                 ${buildSpecItem('Funcionamento', '6h às 23h', icons.sun)}
+                 ${buildSpecItem('Prazo para envio', 'Até 48h antes do início', icons.calendar)}
+               </div>
+               <div style="grid-column: 1 / -1;background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;margin-top:2px;">
+                 ${buildSpecItem('Regras criativas', 'Texto curto, alto contraste e logo em destaque', icons.alert)}
+               </div>
+             </div>
+
+             <div style="margin-top:24px;padding:12px 16px;background:rgba(232,89,26,0.1);border-left:3px solid ${BRAND_ORANGE};border-radius:6px;display:flex;align-items:center;gap:12px;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none"><circle cx="12" cy="12" r="10" stroke="${BRAND_ORANGE}" stroke-width="1.8"/><path d="M12 8v4M12 16h.01" stroke="${BRAND_ORANGE}" stroke-width="2" stroke-linecap="round"/></svg>
+                <div>
+                  <span style="font-size:14px;font-weight:700;color:#fff;">Operação:</span> 
+                  <span style="font-size:14px;color:rgba(255,255,255,0.85);margin-left:4px;">Material sujeito à aprovação técnica.</span>
+                </div>
+             </div>
+          </div>
+
+          <!-- RODAPÉ DE CONTATO -->
+          <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:20px;display:flex;justify-content:space-between;align-items:center;">
+             <div>
+               <div style="font-size:10px;font-weight:700;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Dúvidas? Fale com a criação</div>
+               <div style="display:flex;align-items:baseline;gap:8px;">
+                 <div style="font-size:18px;font-weight:800;color:#fff;">Maite Doin</div>
+                 <div style="font-size:13px;color:rgba(255,255,255,0.6);">criacao@redeintermidia.com</div>
+               </div>
+             </div>
+             <div>
+               <span style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;background:rgba(255,255,255,0.06);border-radius:999px;font-size:14px;font-weight:700;color:#fff;">
+                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" stroke="${BRAND_ORANGE}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                 43 8800-5719
+               </span>
+             </div>
+          </div>
       </div>
     </div>
   `);
@@ -326,7 +296,7 @@ async function renderPagesToPdf(pagesHtml, fileName, onStatusChange) {
 <title>${escapeHtml(fileName)}</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; }
-html, body { background: #000; }
+html, body { background: #080808; margin:0; padding:0; }
 @page { size: ${PAGE_WIDTH}px ${PAGE_HEIGHT}px; margin: 0; }
 section:last-child { page-break-after: avoid; break-after: avoid; }
 </style>
@@ -348,27 +318,14 @@ section:last-child { page-break-after: avoid; break-after: avoid; }
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error?.error || 'Falha ao gerar PDF técnico.');
+    throw new Error('Falha ao gerar o PDF técnico.');
   }
-
-  if (typeof onStatusChange === 'function') {
-    onStatusChange('Baixando arquivo...');
-  }
-
-  const disposition = String(response.headers.get('Content-Disposition') || '');
-  const utfName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
-  const plainName = disposition.match(/filename=(?:\"([^\"]+)\"|([^;]+))/i);
-  const fallbackName = (plainName?.[1] || plainName?.[2] || fileName).trim();
-  const resolvedFileName = utfName
-    ? decodeURIComponent(utfName)
-    : fallbackName;
 
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = resolvedFileName;
+  anchor.download = fileName;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
