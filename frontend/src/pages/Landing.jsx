@@ -812,68 +812,12 @@ export default function Landing() {
             Mídia Kit Digital da Intermidia — selecione praça e formato para filtrar o inventário, gerar PDF ou abrir a apresentação em slides.
           </motion.p>
 
-<div className="h-[240px] md:h-[180px] w-full" /* Spacer for floating filter */ />
-
-          {/* ── Praça tags ── */}
-          <div className="flex flex-wrap gap-2 mt-4">
-            {quickPracas.map((praca) => (
-              <button
-                key={praca}
-                onClick={() => setSelectedPracas((current) => current.includes(praca)
-                  ? current.filter((item) => item !== praca)
-                  : [...current, praca])}
-                className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
-                style={
-                  selectedPracas.includes(praca)
-                    ? { background: '#FF6B35', color: '#fff', border: '1px solid #FF6B35' }
-                    : { background: isDark ? 'rgba(255,255,255,0.03)' : '#fff', color: isDark ? '#A3A3A3' : '#7A6155', border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'}` }
-                }
-                onMouseEnter={(e) => { if (!selectedPracas.includes(praca)) { e.currentTarget.style.borderColor = '#FF6B35'; e.currentTarget.style.color = isDark ? '#fff' : '#C94A1A'; } }}
-                onMouseLeave={(e) => { if (!selectedPracas.includes(praca)) { e.currentTarget.style.borderColor = isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'; e.currentTarget.style.color = isDark ? '#A3A3A3' : '#7A6155'; } }}
-              >
-                {praca}
-              </button>
-            ))}
-            <button
-              onClick={() => setSelectedPracas([])}
-              className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
-              style={
-                selectedPracas.length === 0
-                  ? { background: '#FF6B35', color: '#fff', border: '1px solid #FF6B35' }
-                  : { background: isDark ? 'rgba(255,255,255,0.03)' : '#fff', color: isDark ? '#A3A3A3' : '#7A6155', border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'}` }
-              }
-              onMouseEnter={(e) => { if (selectedPracas.length > 0) { e.currentTarget.style.borderColor = '#FF6B35'; e.currentTarget.style.color = isDark ? '#fff' : '#C94A1A'; } }}
-              onMouseLeave={(e) => { if (selectedPracas.length > 0) { e.currentTarget.style.borderColor = isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'; e.currentTarget.style.color = isDark ? '#A3A3A3' : '#7A6155'; } }}
-            >
-              Todas as praças
-            </button>
-          </div>
-
-          {showCommercialShortcut && (
-            <div className="mt-4">
-              <button
-                onClick={() => navigate('/comercial/explorar')}
-                className="landing-orange-btn inline-flex items-center gap-2 px-5 h-[44px] rounded-[10px] text-white font-semibold transition-all duration-200"
-                style={{ background: '#FF6B35' }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = '#E85A25'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(255,107,53,0.40)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = '#FF6B35'; e.currentTarget.style.boxShadow = 'none'; }}
-              >
-                <i className="ri-arrow-right-line" style={{ fontSize: 16 }} />
-                Continuar no explorador comercial
-              </button>
-            </div>
-          )}
-        </div>
-      </section>
-      {/* ── Floating Sticky Filter ── */}
-      <div className="sticky top-4 z-[60] w-full mt-[-240px] md:mt-[-180px] pointer-events-none mb-6">
-        <div className="max-w-7xl mx-auto px-6 pointer-events-auto">
           <motion.div
             variants={fadeUp}
             initial="hidden"
             animate="visible"
             custom={3}
-            className="p-6 rounded-[16px] backdrop-blur-xl shadow-2xl transition-shadow duration-300"
+            className="p-6 rounded-[16px] backdrop-blur-xl"
             style={{
               background: isDark
                 ? 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)'
@@ -969,9 +913,58 @@ export default function Landing() {
               </div>
             </div>
           </motion.div>
-        </div>
-      </div>
 
+          {/* ── Praça tags ── */}
+          <div className="flex flex-wrap gap-2 mt-4">
+            {quickPracas.map((praca) => (
+              <button
+                key={praca}
+                onClick={() => setSelectedPracas((current) => current.includes(praca)
+                  ? current.filter((item) => item !== praca)
+                  : [...current, praca])}
+                className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
+                style={
+                  selectedPracas.includes(praca)
+                    ? { background: '#FF6B35', color: '#fff', border: '1px solid #FF6B35' }
+                    : { background: isDark ? 'rgba(255,255,255,0.03)' : '#fff', color: isDark ? '#A3A3A3' : '#7A6155', border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'}` }
+                }
+                onMouseEnter={(e) => { if (!selectedPracas.includes(praca)) { e.currentTarget.style.borderColor = '#FF6B35'; e.currentTarget.style.color = isDark ? '#fff' : '#C94A1A'; } }}
+                onMouseLeave={(e) => { if (!selectedPracas.includes(praca)) { e.currentTarget.style.borderColor = isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'; e.currentTarget.style.color = isDark ? '#A3A3A3' : '#7A6155'; } }}
+              >
+                {praca}
+              </button>
+            ))}
+            <button
+              onClick={() => setSelectedPracas([])}
+              className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
+              style={
+                selectedPracas.length === 0
+                  ? { background: '#FF6B35', color: '#fff', border: '1px solid #FF6B35' }
+                  : { background: isDark ? 'rgba(255,255,255,0.03)' : '#fff', color: isDark ? '#A3A3A3' : '#7A6155', border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'}` }
+              }
+              onMouseEnter={(e) => { if (selectedPracas.length > 0) { e.currentTarget.style.borderColor = '#FF6B35'; e.currentTarget.style.color = isDark ? '#fff' : '#C94A1A'; } }}
+              onMouseLeave={(e) => { if (selectedPracas.length > 0) { e.currentTarget.style.borderColor = isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'; e.currentTarget.style.color = isDark ? '#A3A3A3' : '#7A6155'; } }}
+            >
+              Todas as praças
+            </button>
+          </div>
+
+          {showCommercialShortcut && (
+            <div className="mt-4">
+              <button
+                onClick={() => navigate('/comercial/explorar')}
+                className="landing-orange-btn inline-flex items-center gap-2 px-5 h-[44px] rounded-[10px] text-white font-semibold transition-all duration-200"
+                style={{ background: '#FF6B35' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#E85A25'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(255,107,53,0.40)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#FF6B35'; e.currentTarget.style.boxShadow = 'none'; }}
+              >
+                <i className="ri-arrow-right-line" style={{ fontSize: 16 }} />
+                Continuar no explorador comercial
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* ── Stats ────────────────────────────────────────────── */}
       <section className={`py-10 border-b landing-divider relative ${t.sectionBorder}`}>
@@ -1176,20 +1169,38 @@ export default function Landing() {
             </select>
           </div>
 
-          {!loading && tiposComAncora.length > 0 && (
-            <div className={`sticky top-16 z-20 mb-5 rounded-xl border backdrop-blur-xl p-3 ${t.stickyNav}`}>
-              <div className={`text-[11px] uppercase tracking-wide mb-2 ${t.textMuted}`}>Ancoragem por formato</div>
-              <div className="flex flex-wrap gap-2">
-                {tiposComAncora.map((tipoInfo) => (
-                  <a
-                    key={tipoInfo.anchorId}
-                    href={`#${tipoInfo.anchorId}`}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${t.navChip}`}
-                  >
-                    {tipoInfo.tipo} ({tipoInfo.quantidade})
-                  </a>
-                ))}
+          {!loading && (
+            <div className={`sticky top-16 z-20 mb-5 rounded-xl border backdrop-blur-xl p-4 shadow-xl ${t.stickyNav} flex flex-col md:flex-row items-start md:items-center gap-4 transition-all`}>
+              <div className="w-full lg:w-64 shrink-0 -mt-1 relative z-50">
+                <CustomSelect
+                  label="Praça"
+                  value={selectedPracas}
+                  onChange={setSelectedPracas}
+                  options={pracas}
+                  placeholder="Selecionar praça"
+                  multiple
+                  isDark={isDark}
+                />
               </div>
+
+              {tiposComAncora.length > 0 && (
+                <div className="flex-1 w-full min-w-0">
+                  <div className={`text-[10px] uppercase tracking-widest font-bold mb-2 ${t.textMuted}`}>
+                    Ancoragem por formato
+                  </div>
+                  <div className="flex flex-nowrap overflow-x-auto gap-2 pb-1 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                    {tiposComAncora.map((tipoInfo) => (
+                      <a
+                        key={tipoInfo.anchorId}
+                        href={`#${tipoInfo.anchorId}`}
+                        className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${t.navChip}`}
+                      >
+                        {tipoInfo.tipo} <span className="opacity-60 ml-0.5">({tipoInfo.quantidade})</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
