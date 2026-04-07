@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
-import { Search, Download, RefreshCcw, AlertCircle, CheckSquare, Square, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+import { Search, Download, RefreshCcw, AlertCircle, CheckSquare, Square, ChevronDown, ChevronUp, Zap, Loader2, Layers } from 'lucide-react';
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// Tipos que não participam da auditoria de loop
+const EXCLUDED_TIPOS = new Set(['Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato']);
 
 /** Converte string tipo "3 min", "90s", "1:30", "2 min 30s" → segundos */
 function parseDuracao(str) {
@@ -33,10 +34,12 @@ function fmtSeg(seg) {
 }
 
 /** Calcula dados de loop para um ponto com overrides */
-function calcLoop(ponto, override) {
+function calcLoop(ponto, override, totalTelas = 1) {
   const cicloSeg = override?.ciclo != null ? override.ciclo : parseDuracao(ponto.loop);
   const tempoSeg = override?.tempo != null ? override.tempo : parseDuracao(ponto.tempo);
-  const insercoes = override?.insercoes != null ? override.insercoes : (parseInt(ponto.insercoes) || 0);
+  // insercoes por tela: o campo do banco é total do ponto; dividimos por telas
+  const insercoesBase = Math.round((parseInt(ponto.insercoes) || 0) / Math.max(totalTelas, 1));
+  const insercoes = override?.insercoes != null ? override.insercoes : insercoesBase;
 
   const ocupadoSeg = tempoSeg * insercoes;
   const livreSeg = Math.max(0, cicloSeg - ocupadoSeg);
@@ -48,37 +51,56 @@ function calcLoop(ponto, override) {
 
 // ─── Linha da tabela ─────────────────────────────────────────────────────────
 
-function PontoRow({ ponto, override, onOverride, isDark }) {
-  const { cicloSeg, tempoSeg, insercoes, ocupadoSeg, livreSeg, livreInsercoesAdicionais, pctLivre } = calcLoop(ponto, override);
+function PontoRow({ ponto, override, onOverride, isDark, telaNum, totalTelas, telaKey, onMatchApi, matchLoading }) {
+  const { cicloSeg, tempoSeg, insercoes, ocupadoSeg, livreSeg, livreInsercoesAdicionais, pctLivre } = calcLoop(ponto, override, totalTelas);
+  const isLoading = matchLoading[telaKey];
 
   const livreCor =
     pctLivre >= 30 ? 'text-green-400'
     : pctLivre >= 10 ? 'text-yellow-400'
     : 'text-red-400';
 
-  function field(key, value, suffix = '') {
-    onOverride(ponto.id, key, value === '' ? null : (key === 'ciclo' || key === 'tempo' ? parseDuracao(value || '0') : parseInt(value) || 0));
-  }
+  const nomeDisplay = telaNum != null ? `${ponto.nome} — Tela ${telaNum}` : ponto.nome;
 
   return (
     <tr className="border-t border-white/10 align-middle">
       {/* Nome + dados */}
       <td className="px-3 py-3">
-        <div className="font-medium text-white text-sm">{ponto.nome}</div>
+        <div className="font-medium text-white text-sm flex items-center gap-1.5">
+          {totalTelas > 1 && telaNum != null && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-brand-orange/15 text-brand-orange rounded px-1.5 py-0.5 flex-shrink-0">
+              <Layers size={9} />T{telaNum}/{totalTelas}
+            </span>
+          )}
+          {nomeDisplay}
+        </div>
         <div className="text-xs text-brand-gray-400 mt-0.5">{ponto.cidade} · {ponto.tipo}</div>
         {ponto.endereco && <div className="text-xs text-brand-gray-500 truncate max-w-xs">{ponto.endereco}</div>}
         <div className="text-[10px] text-brand-gray-600 mt-0.5">ID interno: #{ponto.id}</div>
       </td>
 
-      {/* Player ID externo */}
+      {/* Player ID externo + botão de match */}
       <td className="px-3 py-3">
         <input
           type="text"
           placeholder="ex: 159"
           value={override?.player_id ?? ''}
-          onChange={e => onOverride(ponto.id, 'player_id', e.target.value)}
+          onChange={e => onOverride(telaKey, 'player_id', e.target.value)}
           className="w-24 px-2 py-1.5 text-xs bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
         />
+        <button
+          type="button"
+          onClick={() => onMatchApi(telaKey, nomeDisplay)}
+          disabled={isLoading}
+          title="Buscar na API por nome e preencher ciclo/tempo automaticamente"
+          className="mt-1.5 inline-flex items-center gap-1 px-2 py-1 text-[10px] rounded-lg border border-white/10 bg-white/5 text-brand-gray-400 hover:text-brand-orange hover:border-brand-orange/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {isLoading ? <Loader2 size={10} className="animate-spin" /> : <Zap size={10} />}
+          Buscar na API
+        </button>
+        {override?._matchScore != null && (
+          <div className="text-[10px] mt-0.5 text-green-400">✓ match {override._matchScore}%</div>
+        )}
       </td>
 
       {/* Ciclo total */}
@@ -88,8 +110,8 @@ function PontoRow({ ponto, override, onOverride, isDark }) {
           placeholder={fmtSeg(parseDuracao(ponto.loop))}
           value={override?._cicloRaw ?? (ponto.loop || '')}
           onChange={e => {
-            onOverride(ponto.id, '_cicloRaw', e.target.value);
-            onOverride(ponto.id, 'ciclo', parseDuracao(e.target.value));
+            onOverride(telaKey, '_cicloRaw', e.target.value);
+            onOverride(telaKey, 'ciclo', parseDuracao(e.target.value));
           }}
           className="w-20 px-2 py-1.5 text-xs bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
         />
@@ -103,8 +125,8 @@ function PontoRow({ ponto, override, onOverride, isDark }) {
           placeholder={ponto.tempo || '15s'}
           value={override?._tempoRaw ?? (ponto.tempo || '')}
           onChange={e => {
-            onOverride(ponto.id, '_tempoRaw', e.target.value);
-            onOverride(ponto.id, 'tempo', parseDuracao(e.target.value));
+            onOverride(telaKey, '_tempoRaw', e.target.value);
+            onOverride(telaKey, 'tempo', parseDuracao(e.target.value));
           }}
           className="w-20 px-2 py-1.5 text-xs bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
         />
@@ -116,9 +138,9 @@ function PontoRow({ ponto, override, onOverride, isDark }) {
         <input
           type="number"
           min="0"
-          placeholder={ponto.insercoes || '0'}
-          value={override?.insercoes ?? (ponto.insercoes || '')}
-          onChange={e => onOverride(ponto.id, 'insercoes', e.target.value === '' ? null : parseInt(e.target.value) || 0)}
+          placeholder="0"
+          value={override?.insercoes ?? ''}
+          onChange={e => onOverride(telaKey, 'insercoes', e.target.value === '' ? null : parseInt(e.target.value) || 0)}
           className="w-16 px-2 py-1.5 text-xs bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
         />
         <div className="text-[10px] text-brand-gray-500 mt-0.5">{fmtSeg(ocupadoSeg)} usados</div>
@@ -154,20 +176,24 @@ function PontoRow({ ponto, override, onOverride, isDark }) {
 export default function AuditoriaLoopTab({ pontos = [], isDark }) {
   const [search, setSearch] = useState('');
   const [filterCidade, setFilterCidade] = useState('todas');
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [overrides, setOverrides] = useState({}); // { [pontoId]: { player_id, ciclo, tempo, insercoes, ... } }
+  const [selectedKeys, setSelectedKeys] = useState(new Set());
+  const [overrides, setOverrides] = useState({}); // { [telaKey]: { player_id, ciclo, tempo, insercoes, ... } }
   const [showJson, setShowJson] = useState(false);
   const [copied, setCopied] = useState(false);
   const [sortKey, setSortKey] = useState('nome');
   const [sortDir, setSortDir] = useState('asc');
+  const [matchLoading, setMatchLoading] = useState({}); // { [telaKey]: bool }
 
   const cidades = useMemo(() => {
-    const s = new Set(pontos.map(p => p.cidade).filter(Boolean));
+    const s = new Set(
+      pontos.filter(p => !EXCLUDED_TIPOS.has(p.tipo)).map(p => p.cidade).filter(Boolean)
+    );
     return ['todas', ...Array.from(s).sort()];
   }, [pontos]);
 
+  // Pontos elegíveis (excluídos os tipos que não participam do loop)
   const filtered = useMemo(() => {
-    let list = pontos.filter(p => Number(p.ativo) !== 0);
+    let list = pontos.filter(p => Number(p.ativo) !== 0 && !EXCLUDED_TIPOS.has(p.tipo));
     if (filterCidade !== 'todas') list = list.filter(p => p.cidade === filterCidade);
     if (search.trim()) {
       const q = search.toLowerCase().trim();
@@ -181,8 +207,8 @@ export default function AuditoriaLoopTab({ pontos = [], isDark }) {
       let va = a[sortKey] ?? '';
       let vb = b[sortKey] ?? '';
       if (sortKey === 'livre') {
-        va = calcLoop(a, overrides[a.id]).livreSeg;
-        vb = calcLoop(b, overrides[b.id]).livreSeg;
+        va = calcLoop(a, overrides[String(a.id)], parseInt(a.telas) || 1).livreSeg;
+        vb = calcLoop(b, overrides[String(b.id)], parseInt(b.telas) || 1).livreSeg;
       }
       if (typeof va === 'string') va = va.toLowerCase();
       if (typeof vb === 'string') vb = vb.toLowerCase();
@@ -193,39 +219,53 @@ export default function AuditoriaLoopTab({ pontos = [], isDark }) {
     return list;
   }, [pontos, search, filterCidade, sortKey, sortDir, overrides]);
 
-  const selectedPontos = useMemo(
-    () => filtered.filter(p => selectedIds.has(p.id)),
-    [filtered, selectedIds]
-  );
+  // Expande pontos multi-tela em linhas individuais
+  // Agrupa: mostra N linhas apenas se houver telas (já que não sabemos os IDs externos de cada tela)
+  const expandedRows = useMemo(() => {
+    return filtered.flatMap(p => {
+      const telas = Math.max(1, parseInt(p.telas) || 1);
+      if (telas === 1) {
+        return [{ ...p, _telaNum: null, _telaKey: String(p.id), _totalTelas: 1 }];
+      }
+      return Array.from({ length: telas }, (_, i) => ({
+        ...p,
+        _telaNum: i + 1,
+        _telaKey: `${p.id}_tela${i + 1}`,
+        _totalTelas: telas,
+        _firstInGroup: i === 0,
+      }));
+    });
+  }, [filtered]);
 
-  function toggleSelect(id) {
-    setSelectedIds(prev => {
+  function toggleSelect(key) {
+    setSelectedKeys(prev => {
       const n = new Set(prev);
-      n.has(id) ? n.delete(id) : n.add(id);
+      n.has(key) ? n.delete(key) : n.add(key);
       return n;
     });
   }
 
   function toggleAll() {
-    if (filtered.every(p => selectedIds.has(p.id))) {
-      setSelectedIds(prev => {
+    const allKeys = expandedRows.map(r => r._telaKey);
+    if (allKeys.every(k => selectedKeys.has(k))) {
+      setSelectedKeys(prev => {
         const n = new Set(prev);
-        filtered.forEach(p => n.delete(p.id));
+        allKeys.forEach(k => n.delete(k));
         return n;
       });
     } else {
-      setSelectedIds(prev => {
+      setSelectedKeys(prev => {
         const n = new Set(prev);
-        filtered.forEach(p => n.add(p.id));
+        allKeys.forEach(k => n.add(k));
         return n;
       });
     }
   }
 
-  function setOverride(pontoId, key, value) {
+  function setOverride(telaKey, key, value) {
     setOverrides(prev => ({
       ...prev,
-      [pontoId]: { ...prev[pontoId], [key]: value }
+      [telaKey]: { ...prev[telaKey], [key]: value }
     }));
   }
 
@@ -238,28 +278,64 @@ export default function AuditoriaLoopTab({ pontos = [], isDark }) {
     }
   }
 
+  // Busca na API pública e preenche ciclo/tempo automaticamente
+  const matchApi = useCallback(async (telaKey, nome) => {
+    setMatchLoading(prev => ({ ...prev, [telaKey]: true }));
+    try {
+      const res = await fetch(`/api/monitors/lookup?nome=${encodeURIComponent(nome)}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`Nenhum monitor encontrado para "${nome}"${err.error ? ': ' + err.error : ''}`);
+        return;
+      }
+      const data = await res.json();
+      if (!Array.isArray(data) || !data.length) {
+        alert(`Nenhum monitor encontrado para "${nome}"`);
+        return;
+      }
+      const best = data[0];
+      setOverrides(prev => ({
+        ...prev,
+        [telaKey]: {
+          ...prev[telaKey],
+          _matchScore: best._match_score,
+          // Preenche ciclo/tempo a partir dos dados da API
+          ...(best.ciclo_segundos != null ? { ciclo: best.ciclo_segundos, _cicloRaw: `${best.ciclo_segundos}s` } : {}),
+          ...(best.tempo_insercao_seg != null ? { tempo: best.tempo_insercao_seg, _tempoRaw: `${best.tempo_insercao_seg}s` } : {}),
+        }
+      }));
+    } catch {
+      alert('Erro ao conectar à API. Tente novamente.');
+    } finally {
+      setMatchLoading(prev => ({ ...prev, [telaKey]: false }));
+    }
+  }, []);
+
   // ── Geração do JSON ───────────────────────────────────────────────────────
 
   function buildJson() {
-    const items = selectedPontos.length > 0 ? selectedPontos : filtered;
-    return items.map(p => {
-      const ov = overrides[p.id] || {};
-      const { cicloSeg, tempoSeg, insercoes, ocupadoSeg, livreSeg, livreInsercoesAdicionais, pctLivre } = calcLoop(p, ov);
+    const items = selectedKeys.size > 0
+      ? expandedRows.filter(r => selectedKeys.has(r._telaKey))
+      : expandedRows;
+    return items.map(r => {
+      const ov = overrides[r._telaKey] || {};
+      const { cicloSeg, tempoSeg, insercoes, ocupadoSeg, livreSeg, livreInsercoesAdicionais, pctLivre } = calcLoop(r, ov, r._totalTelas);
+      const nomeDisplay = r._telaNum != null ? `${r.nome} — Tela ${r._telaNum}` : r.nome;
       return {
         player_id: ov.player_id || null,
-        ponto_id: p.id,
-        nome: p.nome,
-        cidade: p.cidade,
-        tipo: p.tipo,
-        endereco: p.endereco || null,
-        coordenadas: (p.lat && p.lng) ? { lat: parseFloat(p.lat), lng: parseFloat(p.lng) } : null,
-        horario_funcionamento: p.horario || null,
-        fluxo_estimado_pessoas: p.fluxo ? parseInt(p.fluxo) : null,
-        telas: p.telas ? parseInt(p.telas) : 1,
-        publico_alvo: p.publico || null,
-        veiculacao: p.veiculacao || null,
-        resolucao_arte: (p.arte_largura && p.arte_altura)
-          ? `${p.arte_largura}x${p.arte_altura}`
+        ponto_id: r.id,
+        nome: nomeDisplay,
+        cidade: r.cidade,
+        tipo: r.tipo,
+        endereco: r.endereco || null,
+        coordenadas: (r.lat && r.lng) ? { lat: parseFloat(r.lat), lng: parseFloat(r.lng) } : null,
+        horario_funcionamento: r.horario || null,
+        fluxo_estimado_pessoas: r.fluxo ? parseInt(r.fluxo) : null,
+        telas_no_ponto: r._totalTelas,
+        publico_alvo: r.publico || null,
+        veiculacao: r.veiculacao || null,
+        resolucao_arte: (r.arte_largura && r.arte_altura)
+          ? `${r.arte_largura}x${r.arte_altura}`
           : null,
         loop: {
           ciclo_total_seg: cicloSeg,
@@ -278,7 +354,7 @@ export default function AuditoriaLoopTab({ pontos = [], isDark }) {
     });
   }
 
-  const jsonData = useMemo(() => buildJson(), [selectedPontos, filtered, overrides]);
+  const jsonData = useMemo(() => buildJson(), [selectedKeys, expandedRows, overrides]);
   const jsonString = useMemo(() => JSON.stringify(jsonData, null, 2), [jsonData]);
 
   function downloadJson() {
@@ -298,15 +374,17 @@ export default function AuditoriaLoopTab({ pontos = [], isDark }) {
     });
   }
 
-  // ── Estatísticas do conjunto selecionado ──────────────────────────────────
+  // ── Estatísticas do conjunto ──────────────────────────────────────────────
   const stats = useMemo(() => {
-    const items = selectedPontos.length > 0 ? selectedPontos : filtered;
+    const items = selectedKeys.size > 0
+      ? expandedRows.filter(r => selectedKeys.has(r._telaKey))
+      : expandedRows;
     const total = items.length;
-    const semPlayerId = items.filter(p => !overrides[p.id]?.player_id).length;
-    const comEspacoLivre = items.filter(p => calcLoop(p, overrides[p.id]).livreSeg > 0).length;
-    const totalLivreSeg = items.reduce((acc, p) => acc + calcLoop(p, overrides[p.id]).livreSeg, 0);
+    const semPlayerId = items.filter(r => !overrides[r._telaKey]?.player_id).length;
+    const comEspacoLivre = items.filter(r => calcLoop(r, overrides[r._telaKey], r._totalTelas).livreSeg > 0).length;
+    const totalLivreSeg = items.reduce((acc, r) => acc + calcLoop(r, overrides[r._telaKey], r._totalTelas).livreSeg, 0);
     return { total, semPlayerId, comEspacoLivre, totalLivreSeg };
-  }, [selectedPontos, filtered, overrides]);
+  }, [selectedKeys, expandedRows, overrides]);
 
   const SortIcon = ({ col }) => {
     if (sortKey !== col) return null;
@@ -341,7 +419,7 @@ export default function AuditoriaLoopTab({ pontos = [], isDark }) {
           >
             <Download size={13} />
             Exportar JSON
-            {selectedPontos.length > 0 && <span className="ml-1 rounded-full bg-brand-orange/20 px-1.5 py-0.5 text-[10px]">{selectedPontos.length}</span>}
+            {selectedKeys.size > 0 && <span className="ml-1 rounded-full bg-brand-orange/20 px-1.5 py-0.5 text-[10px]">{selectedKeys.size}</span>}
           </button>
         </div>
       </div>
@@ -383,14 +461,14 @@ export default function AuditoriaLoopTab({ pontos = [], isDark }) {
             <option key={c} value={c} className="bg-gray-900">{c === 'todas' ? 'Todas as cidades' : c}</option>
           ))}
         </select>
-        {selectedIds.size > 0 && (
+        {selectedKeys.size > 0 && (
           <button
             type="button"
-            onClick={() => setSelectedIds(new Set())}
+            onClick={() => setSelectedKeys(new Set())}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs border border-white/10 rounded-xl text-brand-gray-400 hover:text-white hover:bg-white/5"
           >
             <RefreshCcw size={12} />
-            Limpar seleção ({selectedIds.size})
+            Limpar seleção ({selectedKeys.size})
           </button>
         )}
       </div>
@@ -402,7 +480,7 @@ export default function AuditoriaLoopTab({ pontos = [], isDark }) {
             <tr>
               <th className="px-3 py-2 w-8">
                 <button type="button" onClick={toggleAll} className="text-brand-gray-400 hover:text-white">
-                  {filtered.length > 0 && filtered.every(p => selectedIds.has(p.id))
+                  {expandedRows.length > 0 && expandedRows.every(r => selectedKeys.has(r._telaKey))
                     ? <CheckSquare size={14} />
                     : <Square size={14} />}
                 </button>
@@ -424,26 +502,31 @@ export default function AuditoriaLoopTab({ pontos = [], isDark }) {
                 </td>
               </tr>
             ) : (
-              filtered.map(p => (
+              expandedRows.map(r => (
                 <tr
-                  key={p.id}
-                  className={`group ${selectedIds.has(p.id) ? 'bg-brand-orange/5' : ''}`}
+                  key={r._telaKey}
+                  className={`group ${selectedKeys.has(r._telaKey) ? 'bg-brand-orange/5' : ''} ${r._telaNum != null && !r._firstInGroup ? 'border-t border-dashed border-white/5' : ''}`}
                 >
                   <td className="px-3 py-3 w-8">
                     <button
                       type="button"
-                      onClick={() => toggleSelect(p.id)}
+                      onClick={() => toggleSelect(r._telaKey)}
                       className="text-brand-gray-500 hover:text-brand-orange"
                     >
-                      {selectedIds.has(p.id) ? <CheckSquare size={14} className="text-brand-orange" /> : <Square size={14} />}
+                      {selectedKeys.has(r._telaKey) ? <CheckSquare size={14} className="text-brand-orange" /> : <Square size={14} />}
                     </button>
                   </td>
                   <PontoRow
-                    key={`row-${p.id}`}
-                    ponto={p}
-                    override={overrides[p.id]}
+                    key={`row-${r._telaKey}`}
+                    ponto={r}
+                    override={overrides[r._telaKey]}
                     onOverride={setOverride}
                     isDark={isDark}
+                    telaKey={r._telaKey}
+                    telaNum={r._telaNum}
+                    totalTelas={r._totalTelas}
+                    onMatchApi={matchApi}
+                    matchLoading={matchLoading}
                   />
                 </tr>
               ))
@@ -453,7 +536,7 @@ export default function AuditoriaLoopTab({ pontos = [], isDark }) {
       </div>
 
       {/* ── Aviso sem player ID ── */}
-      {stats.semPlayerId > 0 && selectedPontos.length > 0 && (
+      {stats.semPlayerId > 0 && selectedKeys.size > 0 && (
         <div className="flex items-start gap-2 rounded-xl border border-yellow-500/25 bg-yellow-500/5 p-3">
           <AlertCircle size={14} className="text-yellow-400 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-yellow-300">
@@ -468,7 +551,7 @@ export default function AuditoriaLoopTab({ pontos = [], isDark }) {
         <div className="rounded-2xl border border-white/10 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2.5 bg-white/[0.04] border-b border-white/10">
             <span className="text-xs font-semibold text-white">
-              Preview JSON — {jsonData.length} player{jsonData.length !== 1 ? 's' : ''}
+              Preview JSON — {jsonData.length} player{jsonData.length !== 1 ? 's' : ''} {selectedKeys.size > 0 ? `(${selectedKeys.size} selecionados)` : '(todos)'}
             </span>
             <button
               type="button"
