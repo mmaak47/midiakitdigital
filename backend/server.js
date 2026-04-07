@@ -1029,8 +1029,12 @@ app.get('/api/loop-audit', openCors, async (req, res) => {
     const monitors = await fetchOriginMonitors();
     const cidadeFilter = req.query.cidade || null;
 
-    const items = monitors.map(m => {
-      const cicloSeg = m.ciclo_segundos || 180;
+    // Excluir painéis estáticos (backlight / frontlight)
+    const EXCLUDE_RE = /\[BACKLIGHT\]|\[FRONTLIGHT\]/i;
+    const filtered = monitors.filter(m => !EXCLUDE_RE.test(m.nome || ''));
+
+    const items = filtered.map(m => {
+      const cicloSeg = 180; // padrão fixo 3 min
       const insercoes = m.total_insercoes_ativas || 0;
       const tempoSeg = LOOP_DEFAULT_TEMPO_SEG;
       const ocupadoSeg = insercoes * tempoSeg;
