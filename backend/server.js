@@ -851,6 +851,10 @@ app.get('/api/stats', (req, res) => {
 // ── Public Monitor API (auditoria de loop) ───────────────────────────────────
 const openCors = cors({ origin: '*', methods: ['GET', 'HEAD', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Accept'], maxAge: 86400 });
 
+// Tipos que não participam da auditoria de loop (impressão física ou gerenciamento externo)
+const MONITOR_BASE_WHERE = `ativo = 1 AND tipo NOT IN ('Backlight','Frontlight','Totem Digital','Circuito Muffato')`;
+const MONITOR_SELECT = `SELECT id, nome, cidade, tipo, endereco, loop, tempo, telas, insercoes, monitor_last_seen FROM pontos`;
+
 function loopTextToSeconds(loop) {
   if (!loop) return null;
   const s = String(loop).trim().toLowerCase();
@@ -863,6 +867,16 @@ function loopTextToSeconds(loop) {
   const hMinMatch = s.match(/^(\d+)\s*h\s*(?:(\d+)\s*min)?/);
   if (hMinMatch) return parseInt(hMinMatch[1], 10) * 3600 + (hMinMatch[2] ? parseInt(hMinMatch[2], 10) * 60 : 0);
   return null;
+}
+
+function tempoTextToSeconds(tempo) {
+  if (!tempo) return 15;
+  const s = String(tempo).trim().toLowerCase();
+  const secMatch = s.match(/^(\d+(?:[.,]\d+)?)\s*s(?:eg)?\.?$/);
+  if (secMatch) return Math.round(parseFloat(secMatch[1].replace(',', '.')));
+  const minMatch = s.match(/^(\d+(?:[.,]\d+)?)\s*min/);
+  if (minMatch) return Math.round(parseFloat(minMatch[1].replace(',', '.')) * 60);
+  return 15;
 }
 
 function deriveMonitorLocal(ponto) {
@@ -879,21 +893,51 @@ function monitorStatus(lastSeen) {
 }
 
 function formatMonitorRow(p) {
+  const ciclo_segundos = loopTextToSeconds(p.loop);
+  const tempo_insercao_seg = tempoTextToSeconds(p.tempo);
+  const telas = typeof p.telas === 'number' ? p.telas : (parseInt(p.telas, 10) || 1);
+  const cotas_por_loop = ciclo_segundos && tempo_insercao_seg ? Math.floor(ciclo_segundos / tempo_insercao_seg) : null;
   return {
     id: p.id,
     nome: p.nome,
     local: deriveMonitorLocal(p),
     cidade: p.cidade,
-    ciclo_segundos: loopTextToSeconds(p.loop),
+    telas,
+    ciclo_segundos,
+    tempo_insercao_seg,
+    cotas_por_loop,
     total_insercoes_ativas: typeof p.insercoes === 'number' ? p.insercoes : (parseInt(p.insercoes, 10) || 0),
     status: monitorStatus(p.monitor_last_seen),
   };
 }
 
+// Normaliza nome para comparação fuzzy: remove sufixo de tela, strip punctuation, lowercase
+function normalizeMonitorName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/\s*[-–]\s*(?:tela|screen|monitor|t\.?)\s*\d+\s*$/i, '')
+    .replace(/['''\u2018\u2019]/g, "'")
+    .replace(/[^a-z0-9\s']/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function scoreMonitorMatch(query, row) {
+  const nq = normalizeMonitorName(query);
+  const nn = normalizeMonitorName(row.nome);
+  if (nn === nq) return 100;
+  if (nn.includes(nq) || nq.includes(nn)) return 80;
+  const qw = nq.split(' ').filter((w) => w.length > 2);
+  const nw = nn.split(' ').filter((w) => w.length > 2);
+  if (!qw.length || !nw.length) return 0;
+  const overlap = qw.filter((w) => nw.includes(w)).length;
+  return Math.round((overlap / Math.max(qw.length, nw.length)) * 60);
+}
+
 app.get('/api/monitors', openCors, (req, res) => {
   const statusFilter = String(req.query.status || '').trim().toLowerCase();
   const cidadeFilter = String(req.query.cidade || '').trim();
-  const sqlParts = ['SELECT id, nome, cidade, endereco, loop, insercoes, monitor_last_seen FROM pontos WHERE ativo = 1'];
+  const sqlParts = [`${MONITOR_SELECT} WHERE ${MONITOR_BASE_WHERE}`];
   const params = [];
   if (cidadeFilter) {
     sqlParts.push(' AND lower(cidade) = lower(?)');
@@ -911,11 +955,30 @@ app.get('/api/monitors', openCors, (req, res) => {
   }
 });
 
+// Lookup por nome: retorna candidatos ordenados por similaridade (para auto-match de player_id)
+app.get('/api/monitors/lookup', openCors, (req, res) => {
+  const q = String(req.query.nome || '').trim();
+  if (!q) return res.status(400).json({ error: 'Parâmetro nome é obrigatório.' });
+  try {
+    const rows = db.prepare(`${MONITOR_SELECT} WHERE ${MONITOR_BASE_WHERE} ORDER BY cidade, nome`).all();
+    const scored = rows
+      .map((r) => ({ score: scoreMonitorMatch(q, r), monitor: formatMonitorRow(r) }))
+      .filter((x) => x.score >= 40)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map(({ score, monitor }) => ({ ...monitor, _match_score: score }));
+    if (!scored.length) return res.status(404).json({ error: 'Nenhum monitor encontrado para esse nome.' });
+    res.json(scored);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno ao buscar monitor.' });
+  }
+});
+
 app.get('/api/monitors/:id', openCors, (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido.' });
   try {
-    const row = db.prepare('SELECT id, nome, cidade, endereco, loop, insercoes, monitor_last_seen FROM pontos WHERE id = ? AND ativo = 1').get(id);
+    const row = db.prepare(`${MONITOR_SELECT} WHERE id = ? AND ${MONITOR_BASE_WHERE}`).get(id);
     if (!row) return res.status(404).json({ error: 'Monitor não encontrado.' });
     res.json(formatMonitorRow(row));
   } catch (err) {
