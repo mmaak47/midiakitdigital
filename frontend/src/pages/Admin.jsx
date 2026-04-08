@@ -27,7 +27,8 @@ import {
   invalidateAdminPdfCache,
   updateAdminSettings,
   geocodePoint,
-  fetchCurrentUser
+  fetchCurrentUser,
+  fetchArteStats
 } from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
 import FocalPointSelector from '../components/admin/FocalPointSelector';
@@ -62,6 +63,7 @@ const USER_ROLES = [
 const ADMIN_TABS = [
   { key: 'pontos',           label: 'Pontos',             icon: PanelsTopLeft, roles: ['admin', 'gerente_comercial'] },
   { key: 'entorno',          label: 'Análise de entorno', icon: MapPinned,     roles: ['admin', 'gerente_comercial'] },
+  { key: 'arte_ia',          label: 'Arte IA',            icon: Zap,           roles: ['admin', 'gerente_comercial'] },
   { key: 'usuarios',         label: 'Usuários',           icon: Users,         roles: ['admin'] },
   { key: 'vendas',           label: 'Nova Venda',         icon: Zap,           roles: ['admin', 'gerente_comercial', 'vendedor'] },
   { key: 'historico_vendas', label: 'Vendas',             icon: ClipboardList, roles: ['admin', 'gerente_comercial', 'vendedor'] },
@@ -198,6 +200,9 @@ export default function Admin() {
   const [cidades, setCidades] = useState([]);
   const [tipos, setTipos] = useState([]);
   const [promptCopied, setPromptCopied] = useState(false);
+  const [arteStats, setArteStats] = useState(null);
+  const [arteStatsLoading, setArteStatsLoading] = useState(false);
+  const [arteStatsError, setArteStatsError] = useState('');
 
   useEffect(() => {
     const savedCidades = localStorage.getItem('midia-kit-cidades');
@@ -310,6 +315,12 @@ export default function Admin() {
     if (activeTab === 'configuracoes' && auth) {
       loadSettings();
       loadPdfCache();
+    }
+  }, [activeTab, auth]);
+
+  useEffect(() => {
+    if (activeTab === 'arte_ia' && auth) {
+      loadArteStats();
     }
   }, [activeTab, auth]);
 
@@ -645,6 +656,22 @@ export default function Admin() {
       }
     } finally {
       setPdfCacheLoading(false);
+    }
+  };
+
+  const loadArteStats = async () => {
+    setArteStatsLoading(true);
+    setArteStatsError('');
+    try {
+      const data = await fetchArteStats();
+      setArteStats(data || null);
+    } catch (err) {
+      if (!handleSessionError(err)) {
+        setArteStats(null);
+        setArteStatsError(err.message || 'Falha ao carregar métricas de Arte IA');
+      }
+    } finally {
+      setArteStatsLoading(false);
     }
   };
 
@@ -1164,6 +1191,85 @@ export default function Admin() {
               )}
             </section>
           </>
+        ) : null}
+
+        {activeTab === 'arte_ia' ? (
+          <section className={`rounded-2xl border p-4 sm:p-5 ${th.card}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Métricas de geração de Arte IA</h3>
+                <p className={`text-xs mt-1 ${th.sectionDesc}`}>
+                  Total de gerações, custo acumulado e padrões de uso por resolução/ponto.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={loadArteStats}
+                disabled={arteStatsLoading}
+                className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold disabled:opacity-50 ${isDark ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+              >
+                {arteStatsLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+                Atualizar
+              </button>
+            </div>
+
+            {arteStatsError ? (
+              <p className="mt-3 text-xs text-red-400">{arteStatsError}</p>
+            ) : null}
+
+            {!arteStatsLoading && !arteStatsError && arteStats ? (
+              <>
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
+                    <div className={`text-[11px] uppercase tracking-wide ${th.sectionDesc}`}>Total de gerações</div>
+                    <div className={`mt-1 text-xl font-bold ${th.sectionTitle}`}>{Number(arteStats.total_geracoes || 0).toLocaleString('pt-BR')}</div>
+                  </div>
+                  <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
+                    <div className={`text-[11px] uppercase tracking-wide ${th.sectionDesc}`}>Custo total (USD)</div>
+                    <div className={`mt-1 text-xl font-bold ${th.sectionTitle}`}>US$ {Number(arteStats.custo_total_usd || 0).toFixed(4)}</div>
+                  </div>
+                  <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
+                    <div className={`text-[11px] uppercase tracking-wide ${th.sectionDesc}`}>Custo médio (USD)</div>
+                    <div className={`mt-1 text-xl font-bold ${th.sectionTitle}`}>US$ {Number(arteStats.custo_medio_usd || 0).toFixed(4)}</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
+                    <h4 className={`text-xs font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Resoluções mais geradas</h4>
+                    <div className="mt-2 space-y-1.5">
+                      {(arteStats.resolucoes_mais_usadas || []).length === 0 ? (
+                        <p className={`text-xs ${th.sectionDesc}`}>Sem dados ainda.</p>
+                      ) : (
+                        (arteStats.resolucoes_mais_usadas || []).map((row) => (
+                          <div key={row.res} className="flex items-center justify-between text-sm">
+                            <span className={th.sectionTitle}>{row.res}</span>
+                            <span className={th.sectionDesc}>{row.c} geração(ões)</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
+                    <h4 className={`text-xs font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Pontos com mais regenerações</h4>
+                    <div className="mt-2 space-y-1.5">
+                      {(arteStats.pontos_mais_regenerados || []).length === 0 ? (
+                        <p className={`text-xs ${th.sectionDesc}`}>Sem dados ainda.</p>
+                      ) : (
+                        (arteStats.pontos_mais_regenerados || []).map((row) => (
+                          <div key={`${row.ponto_id}-${row.ponto_nome}`} className="flex items-center justify-between text-sm gap-2">
+                            <span className={`truncate ${th.sectionTitle}`}>{row.ponto_nome || `Ponto ${row.ponto_id}`}</span>
+                            <span className={`shrink-0 ${th.sectionDesc}`}>{row.total_geracoes}x</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </section>
         ) : null}
 
         {activeTab === 'usuarios' ? (

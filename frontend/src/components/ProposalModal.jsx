@@ -41,7 +41,7 @@ import {
 import { fetchClientAddressAnalysis, fetchEntornoJobStatus, fetchEntornoScores } from '../lib/api';
 import { buildSelectionMapDataUrl, downloadSelectionMapPng } from '../lib/mapSnapshot';
 import CustomSelect from './CustomSelect';
-import ProposalBuilder from './ProposalBuilder';
+import ArteAIPanel from './ArteAIPanel';
 import PresentationMode from './PresentationMode';
 import QuickPresentationMode from './QuickPresentationMode';
 
@@ -674,6 +674,77 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     setSimulationBusy(false);
   };
 
+  const handleAiArteEscolhida = async (pontoId, urlArte, geracaoId, variacao) => {
+    const point = proposalSourcePoints.find((p) => String(p.id) === String(pontoId));
+    if (!point || !urlArte) return;
+
+    // Revoke previous blob URL for this point to avoid leaking object URLs.
+    const prevEntry = simulationResults[pontoId];
+    if (prevEntry?.previewUrl?.startsWith('blob:')) {
+      try { URL.revokeObjectURL(prevEntry.previewUrl); } catch { /* ignore */ }
+    }
+
+    if (!point.simulacao_tela || !point.imagem) {
+      setSimulationResults((current) => ({
+        ...current,
+        [point.id]: {
+          status: 'Arte IA gerada (sem simulação: área/imagem ausente)',
+          previewUrl: urlArte,
+          geracaoId,
+          variacao
+        }
+      }));
+      return;
+    }
+
+    try {
+      const config = parseSimulationConfig(point.simulacao_tela);
+      if (!config?.corners) {
+        setSimulationResults((current) => ({
+          ...current,
+          [point.id]: {
+            status: 'Arte IA gerada (sem simulação: área não cadastrada)',
+            previewUrl: urlArte,
+            geracaoId,
+            variacao
+          }
+        }));
+        return;
+      }
+
+      const result = await generateSimulationPreview({
+        baseImageUrl: point.imagem,
+        creativeImageUrl: urlArte,
+        screen: config,
+        panelType: point.tipo,
+        displaySettings: simulationSettings,
+        mediaParams
+      });
+
+      setSimulationResults((current) => ({
+        ...current,
+        [point.id]: {
+          status: 'Gerada (IA)',
+          previewUrl: result.previewUrl,
+          geracaoId,
+          variacao
+        }
+      }));
+    } catch (error) {
+      setSimulationResults((current) => ({
+        ...current,
+        [point.id]: {
+          status: 'Arte IA gerada (falha na simulação)',
+          previewUrl: urlArte,
+          detail: error?.message || 'Erro desconhecido',
+          geracaoId,
+          variacao
+        }
+      }));
+      setSimulationError(error?.message || 'Falha ao aplicar arte IA na simulação do ponto.');
+    }
+  };
+
   return (
     <>
       <motion.div
@@ -1207,6 +1278,16 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
                   {/* Preview ampliado */}
                   <PreviewPanel proposalPoints={proposalPoints} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={!!simulationArtFile} isDark={isDark} />
+
+                  {/* Geração de arte IA por ponto */}
+                  <ArteAIPanel
+                    points={proposalPoints}
+                    segmento={form.segmento}
+                    cidade={activeCities}
+                    propostaId={null}
+                    isDark={isDark}
+                    onArteEscolhida={handleAiArteEscolhida}
+                  />
                 </motion.div>
               )}
 
