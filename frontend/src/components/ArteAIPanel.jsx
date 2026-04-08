@@ -12,9 +12,9 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { Wand2, Layers, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import { Wand2, Layers, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Sparkles, Upload, X } from 'lucide-react';
 import ArteAICard from './ArteAICard';
-import { gerarArteLoteIA } from '../lib/api';
+import { gerarArteLoteIA, uploadArteLogo } from '../lib/api';
 
 // ─────────────────────────────────────────
 // HELPERS
@@ -120,6 +120,11 @@ export default function ArteAIPanel({
   const [loteProgresso, setLoteProgresso] = useState({ atual: 0, total: 0, erros: 0 });
   const [loteResultados, setLoteResultados] = useState([]);
   const [artesPorPonto, setArtesPorPonto] = useState({}); // pontoId → urlArte
+  const [logoUrl, setLogoUrl] = useState('');
+  const [logoNome, setLogoNome] = useState('');
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoErro, setLogoErro] = useState('');
+  const logoInputRef = useRef(null);
 
   const cidadeStr = Array.isArray(cidade) ? cidade[0] : cidade;
 
@@ -127,8 +132,33 @@ export default function ArteAIPanel({
     segmento,
     cidade: cidadeStr,
     clientName,
+    logo_url: logoUrl,
     proposta_id: propostaId,
   };
+
+  const handleLogoUpload = useCallback(async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setLogoUploading(true);
+    setLogoErro('');
+    try {
+      const res = await uploadArteLogo(file);
+      setLogoUrl(res.url || '');
+      setLogoNome(file.name || 'logo');
+    } catch (err) {
+      setLogoErro(err.message || 'Falha ao enviar logo');
+    } finally {
+      setLogoUploading(false);
+      event.target.value = '';
+    }
+  }, []);
+
+  const limparLogo = useCallback(() => {
+    setLogoUrl('');
+    setLogoNome('');
+    setLogoErro('');
+  }, []);
 
   // ─── Geração em lote ───
   const gerarTodos = useCallback(async () => {
@@ -142,7 +172,7 @@ export default function ArteAIPanel({
       const res = await gerarArteLoteIA({
         ponto_ids:              points.map((p) => p.id),
         proposta_id:            propostaId,
-        contexto:               { segmento, cidade: cidadeStr, clientName },
+        contexto:               { segmento, cidade: cidadeStr, clientName, logo_url: logoUrl },
         agrupar_por_resolucao:  true,
       });
 
@@ -169,7 +199,7 @@ export default function ArteAIPanel({
       setLoteProgresso((p) => ({ ...p, erros: p.erros + 1 }));
       setLoteEstado('erro');
     }
-  }, [points, propostaId, segmento, cidadeStr, clientName, onArteEscolhida]);
+  }, [points, propostaId, segmento, cidadeStr, clientName, logoUrl, onArteEscolhida]);
 
   // ─── Handler para escolha individual ───
   const handleArteEscolhida = useCallback((pontoId, urlArte, geracaoId, variacao) => {
@@ -216,6 +246,62 @@ export default function ArteAIPanel({
       {/* Conteúdo expandido */}
       {expandido && (
         <div className="px-5 pb-5 space-y-4 border-t border-white/10 pt-4">
+          {/* Upload de logo do cliente */}
+          <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
+            <div className="flex flex-wrap items-center gap-2 justify-between">
+              <div>
+                <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>
+                  Logo do cliente
+                </p>
+                <p className={`text-[11px] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                  Opcional. Quando enviado, o logo será aplicado automaticamente no canto superior da arte gerada.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLogoUpload}
+                />
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={logoUploading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-orange text-white text-xs font-semibold hover:bg-orange-500 disabled:opacity-60"
+                >
+                  {logoUploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                  {logoUploading ? 'Enviando...' : 'Adicionar logo'}
+                </button>
+
+                {logoUrl && (
+                  <button
+                    type="button"
+                    onClick={limparLogo}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs ${isDark ? 'border-white/15 text-brand-gray-300 hover:text-white' : 'border-neutral-300 text-neutral-600 hover:text-neutral-900'}`}
+                  >
+                    <X size={11} /> Remover
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {logoUrl && (
+              <div className="mt-2 flex items-center gap-2">
+                <img src={logoUrl} alt="Logo cliente" className="h-8 w-auto max-w-[120px] object-contain rounded bg-white/90 p-1" />
+                <span className={`text-[11px] ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
+                  {logoNome || 'Logo enviado'}
+                </span>
+              </div>
+            )}
+
+            {logoErro && (
+              <p className="mt-2 text-xs text-red-400">{logoErro}</p>
+            )}
+          </div>
+
           {/* Resumo de grupos */}
           <ResumoGrupos points={points} />
 

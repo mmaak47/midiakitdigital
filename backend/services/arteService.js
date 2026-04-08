@@ -171,6 +171,8 @@ Design style: premium graphic design key visual, clean composition, high readabi
 Include product/service-related visual elements for the business segment.
 Must look like a finalized ad layout ready to publish.
 Do NOT generate any outdoor scene, street, city, office, architecture, billboard structure, frame, monitor, tv, totem, wall, pedestal, perspective mockup, or photo of a panel.
+No humans: no people, no faces, no hands, no portraits, no bodies.
+Use only object/shape/icon-based composition suitable for advertising artwork.
 Do NOT include unrelated brands, watermarks, UI chrome, or device bezels.
 No camera perspective, no depth-of-field, no realistic environment photography.
 Pixel dimensions: ${gw}x${gh}.
@@ -407,6 +409,62 @@ async function resizeImagem(srcPath, destPath, wNativo, hNativo) {
   }
 }
 
+function resolveLogoPath(logoUrl, uploadsDir) {
+  if (!logoUrl || typeof logoUrl !== 'string') return null;
+  if (!logoUrl.startsWith('/uploads/')) return null;
+
+  const relative = logoUrl.replace(/^\/uploads\//, '');
+  const abs = path.resolve(uploadsDir, relative);
+  const base = path.resolve(uploadsDir);
+  if (!abs.startsWith(base)) return null;
+  return abs;
+}
+
+async function aplicarLogoNaArte(pathArte, logoUrl, uploadsDir, orientacao = 'landscape') {
+  const logoAbs = resolveLogoPath(logoUrl, uploadsDir);
+  if (!logoAbs || !fs.existsSync(logoAbs)) return false;
+
+  try {
+    const sharp = require('sharp');
+    const arteMeta = await sharp(pathArte).metadata();
+    const arteW = Number(arteMeta.width || 0);
+    const arteH = Number(arteMeta.height || 0);
+    if (!arteW || !arteH) return false;
+
+    const margin = Math.max(12, Math.round(Math.min(arteW, arteH) * 0.03));
+    const targetW = orientacao === 'portrait'
+      ? Math.round(arteW * 0.46)
+      : Math.round(arteW * 0.26);
+    const targetH = orientacao === 'portrait'
+      ? Math.round(arteH * 0.14)
+      : Math.round(arteH * 0.16);
+
+    const logoBuf = await sharp(logoAbs)
+      .resize({ width: targetW, height: targetH, fit: 'inside', withoutEnlargement: true })
+      .png()
+      .toBuffer();
+
+    const logoMeta = await sharp(logoBuf).metadata();
+    const logoW = Number(logoMeta.width || 0);
+    const logoH = Number(logoMeta.height || 0);
+    if (!logoW || !logoH) return false;
+
+    const left = Math.max(0, arteW - logoW - margin);
+    const top = margin;
+    const outPath = `${pathArte}.logo.tmp.jpg`;
+
+    await sharp(pathArte)
+      .composite([{ input: logoBuf, left, top }])
+      .jpeg({ quality: 95 })
+      .toFile(outPath);
+
+    fs.renameSync(outPath, pathArte);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ─────────────────────────────────────────
 // AGRUPAMENTO POR RESOLUÇÃO (para geração em lote)
 // ─────────────────────────────────────────
@@ -452,6 +510,7 @@ async function gerarArte({ ponto, contexto, promptCustomizado, uploadsDir }) {
   const propostaId = contexto.proposta_id || 'sem_proposta';
   const pontoId    = ponto.id || 'ponto';
   const timestamp  = Date.now();
+  const orientacaoArte = detectarOrientacao(wNativo, hNativo);
 
   const variacoes = [];
 
@@ -476,6 +535,11 @@ async function gerarArte({ ponto, contexto, promptCustomizado, uploadsDir }) {
     }
 
     // URL relativa para o frontend
+    if (contexto?.logo_url) {
+      await aplicarLogoNaArte(pathFinal, contexto.logo_url, uploadsDir, orientacaoArte);
+    }
+
+    // URL relativa para o frontend
     const urlRelativa = `/uploads/artes/${propostaId}/${pontoId}/${path.basename(pathFinal)}`;
 
     variacoes.push({
@@ -493,8 +557,8 @@ async function gerarArte({ ponto, contexto, promptCustomizado, uploadsDir }) {
     resolucao_geracao:  { w: wGer, h: hGer },
     normalizado,
     duracao_ms: duracao,
-    custo_estimado_usd: 0.12, // Replicate Flux 1.1 Pro ~$0.04/img × 3 imagens
-    orientacao: detectarOrientacao(wNativo, hNativo),
+    custo_estimado_usd: 0.04, // Replicate Flux 1.1 Pro ~$0.04/img (1 imagem por chamada)
+    orientacao: orientacaoArte,
   };
 }
 

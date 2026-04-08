@@ -11,6 +11,8 @@
 
 const express = require('express');
 const path    = require('path');
+const fs      = require('fs');
+const multer  = require('multer');
 const { gerarArte, gerarPrompt, agruparPorResolucao } = require('../services/arteService');
 // Provider: Replicate / black-forest-labs/flux-1.1-pro
 
@@ -22,6 +24,31 @@ const router = express.Router();
 function getUploadsDir(req) {
   // req.app.get('uploadsDir') é definido no server.js
   return req.app.get('uploadsDir') || path.join(__dirname, '..', 'uploads');
+}
+
+function buildLogoUpload(req) {
+  const uploadsDir = getUploadsDir(req);
+  const logosDir = path.join(uploadsDir, 'artes', 'logos');
+  if (!fs.existsSync(logosDir)) fs.mkdirSync(logosDir, { recursive: true });
+
+  const storage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, logosDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase() || '.png';
+      cb(null, `logo-${Date.now()}-${Math.floor(Math.random() * 1e6)}${ext}`);
+    }
+  });
+
+  return multer({
+    storage,
+    limits: { fileSize: 8 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (!String(file.mimetype || '').startsWith('image/')) {
+        return cb(new Error('Arquivo inválido. Envie uma imagem de logo.'));
+      }
+      cb(null, true);
+    }
+  }).single('logo');
 }
 
 function salvarGeracaoDb(db, dados) {
@@ -53,6 +80,21 @@ function salvarGeracaoDb(db, dados) {
 router.get('/config', (req, res) => {
   const configured = Boolean(process.env.REPLICATE_API_TOKEN);
   res.json({ configured, provider: 'replicate / flux-1.1-pro' });
+});
+
+// ─────────────────────────────────────────
+// POST /api/arte/upload-logo
+// Upload de logo do cliente para composição da arte
+// ─────────────────────────────────────────
+router.post('/upload-logo', (req, res) => {
+  const uploadLogo = buildLogoUpload(req);
+  uploadLogo(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Falha no upload do logo' });
+    if (!req.file) return res.status(400).json({ error: 'Arquivo de logo obrigatório' });
+
+    const url = `/uploads/artes/logos/${req.file.filename}`;
+    res.json({ ok: true, url, filename: req.file.filename });
+  });
 });
 
 // ─────────────────────────────────────────
@@ -96,6 +138,8 @@ router.post('/gerar', async (req, res) => {
       segmento: contexto?.segmento || '',
       cidade:   contexto?.cidade   || ponto.cidade || '',
       objetivo: contexto?.objetivo || '',
+      clientName: contexto?.clientName || contexto?.cliente || '',
+      logo_url: contexto?.logo_url || '',
     };
 
     const uploadsDir = getUploadsDir(req);

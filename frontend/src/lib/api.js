@@ -759,6 +759,23 @@ export async function fetchArteConfig() {
   return res.json(); // { configured: boolean, provider: string }
 }
 
+export async function uploadArteLogo(file) {
+  const body = new FormData();
+  body.append('logo', file);
+
+  const res = await apiRequest('/arte/upload-logo', {
+    method: 'POST',
+    body
+  });
+
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao fazer upload do logo do cliente');
+  }
+
+  return res.json(); // { ok, url, filename }
+}
+
 /**
  * Retorna o prompt que seria gerado para um ponto sem chamar a API.
  */
