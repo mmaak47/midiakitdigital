@@ -158,8 +158,8 @@ function gerarPrompt(ponto, contexto = {}) {
     : 'Clear space in lower section for client text/message overlay (minimum 35% of frame height).';
 
   return `
-Create a flat marketing artwork (banner/flyer) to be displayed on a digital screen.
-Output must be only the creative design canvas, not a mockup.
+Create a pure 2D campaign creative (banner/flyer/poster), full-bleed, front-facing.
+Output must be only the artwork canvas itself, with no mockup and no surrounding environment.
 ${COMPOSICAO_POR_ORIENTACAO[orientacao].trim()}
 ${espacoLogo}
 ${espacoTexto}
@@ -167,10 +167,12 @@ Theme and business context: ${segmentoVisual}.
 Location context: ${contextoLocal}.
 Campaign objective: ${objetivo}.
 ${nomeCliente ? `Brand/client name to integrate in the artwork: ${nomeCliente}.` : 'Keep a clean area for brand/logo integration.'}
-Design style: premium advertising key visual, clean composition, high readability, strong hierarchy, professional print-ready look.
+Design style: premium graphic design key visual, clean composition, high readability, strong hierarchy, professional print-ready look.
 Include product/service-related visual elements for the business segment.
-Do NOT generate any outdoor scene, street, city, billboard structure, frame, monitor, tv, totem, wall, perspective mockup, or photo of a panel.
+Must look like a finalized ad layout ready to publish.
+Do NOT generate any outdoor scene, street, city, office, architecture, billboard structure, frame, monitor, tv, totem, wall, pedestal, perspective mockup, or photo of a panel.
 Do NOT include unrelated brands, watermarks, UI chrome, or device bezels.
+No camera perspective, no depth-of-field, no realistic environment photography.
 Pixel dimensions: ${gw}x${gh}.
 Fill the entire frame with artwork only — no borders, no padding, no letterboxing.
   `.trim();

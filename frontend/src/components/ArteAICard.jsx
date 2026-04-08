@@ -196,7 +196,10 @@ export default function ArteAICard({
       const res = await gerarArteIA({
         ponto_id:         ponto.id,
         proposta_id:      contexto.proposta_id || null,
-        contexto:         { segmento: contexto.segmento, cidade: contexto.cidade || ponto.cidade },
+        contexto: {
+          ...contexto,
+          cidade: contexto.cidade || ponto.cidade,
+        },
         prompt_customizado: promptCustomizado || null,
       });
 
