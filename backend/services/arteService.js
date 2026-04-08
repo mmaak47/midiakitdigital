@@ -249,7 +249,7 @@ async function pollPrediction(predictionUrl, authHeaders, timeoutMs = TIMEOUT_MS
 
 // ─────────────────────────────────────────
 // CHAMADA REPLICATE (Flux 1.1 Pro)
-// Dispara NUM_IMAGES predições em paralelo pois o modelo retorna 1 imagem por run.
+// Dispara predições em sequência para reduzir rate limit (429) na conta.
 // ─────────────────────────────────────────
 async function callReplicate(prompt, w, h) {
   if (!REPLICATE_API_TOKEN) {
@@ -271,18 +271,41 @@ async function callReplicate(prompt, w, h) {
     safety_tolerance: 2,
   };
 
-  // Disparar NUM_IMAGES predições em paralelo
-  const predictions = await Promise.all(
-    Array.from({ length: NUM_IMAGES }, () =>
-      httpRequest(
+  const RATE_LIMIT_RETRY_MAX = 3;
+  const predictions = [];
+
+  for (let i = 0; i < NUM_IMAGES; i++) {
+    let tentativa = 0;
+    let ultimaResposta = null;
+
+    while (tentativa < RATE_LIMIT_RETRY_MAX) {
+      const r = await httpRequest(
         'POST',
         REPLICATE_PREDICTIONS_URL,
         { input },
-        { ...authHeaders, Prefer: 'wait' }, // "Prefer: wait" → resposta síncrona se < 60s
+        { ...authHeaders, Prefer: 'wait' },
         TIMEOUT_MS
-      )
-    )
-  );
+      );
+
+      ultimaResposta = r;
+      if (r.status !== 429) {
+        predictions.push(r);
+        break;
+      }
+
+      tentativa += 1;
+      if (tentativa >= RATE_LIMIT_RETRY_MAX) {
+        throw new Error('REPLICATE_RATE_LIMIT: Limite atingido. Aguarde alguns instantes e tente novamente.');
+      }
+
+      // Backoff exponencial curto para aliviar bursts.
+      await sleep(1500 * (2 ** (tentativa - 1)));
+    }
+
+    if (!predictions[i] && ultimaResposta) {
+      predictions.push(ultimaResposta);
+    }
+  }
 
   // Se alguma prediction foi recusada por dimensão (422), tentar com múltiplo de 32
   const primeiraRejeitada = predictions.find((r) => r.status === 422);
