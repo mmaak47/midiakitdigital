@@ -165,24 +165,28 @@ Output must NOT include ANY physical structure, frame, stand, or mockup element.
 
 **ABSOLUTE PROHIBITIONS (DO NOT GENERATE THESE):**
 ❌ NO outdoor scene, street, sky, cityscape, landscape, or nature background
-❌ NO billboard, totem, outdoor panel, advertising display, or any stand/structure
-❌ NO frame around the artwork (borders, moldura, edge frame, mounting)
-❌ NO pedestal, base, mounting bracket, stand, or support structure
-❌ NO wall, floor, environment, surroundings, or perspective view
-❌ NO monitor, TV screen, digital display, or device screen
-❌ NO photograph or photorealistic representation of a physical display
-❌ NO mockup of artwork-on-a-structure (this is strictly forbidden)
-❌ NO human figures, faces, people, bodies, hands, or portraits
-❌ NO faces showing emotion or realistic human expression
-❌ NO hands, arms, torsos, or any body part
+❌ NO billboard, totem, outdoor panel, advertising display, stand, or structure
+❌ NO frame, border, mounting, edge, or border around artwork
+❌ NO pedestal, base, mounting bracket, support structure, or stand
+❌ NO wall, floor, ground, environment, surroundings, or perspective view
+❌ NO monitor, TV screen, digital display, device screen, device, or bezel
+❌ NO photograph, 3D render, realistic representation, mockup, or composition of physical display
+❌ NO artistic rendering of artwork-mounted-on-a-structure (forbidden)
+❌ NO human figures, faces, people, bodies, hands, portraits, or expressions
+❌ NO realistic photographic textures or environments
+❌ NO depth, shadows, 3D perspective, or realistic lighting
 
-**WHAT TO CREATE:**
-✓ Pure 2D graphic design composition
-✓ Abstract shapes, icons, patterns, text, and visual elements ONLY
-✓ Colors, typography, geometric forms, product imagery
-✓ Design patterns, textures, graphic elements
-✓ Fresh, premium advertising layout
-✓ Professional print-ready quality
+**NEGATIVE PROMPT (invert these completely):**
+{outdoor, street scene, sky, clouds, landscape, park, cityscape, building, architecture, wall, floor, pedestal, stand, pole, structure, totem, billboard, frame, border, device, screen, monitor, TV, photo, 3D render, mockup, realistic rendering, depth-of-field, perspective, human, face, people, body, hands, camera view, environment}
+
+**WHAT TO CREATE (positive focus):**
+✓ Pure 2D graphic composition only
+✓ Abstract shapes, icons, patterns, colors, typography
+✓ Product imagery, graphic elements, design patterns
+✓ Flat illustration style
+✓ No environmental context or surroundings
+✓ Premium advertising-ready creative
+✓ Bold colors, strong typography, clear hierarchy
 
 **COMPOSITION:**
 ${COMPOSICAO_POR_ORIENTACAO[orientacao].trim()}
@@ -192,24 +196,26 @@ ${espacoTexto}
 **CONTEXT:**
 Theme: ${segmentoVisual}.
 Location: ${contextoLocal}.
-Campaign objective: ${objetivo}.
-${nomeCliente ? `Client/Brand: ${nomeCliente}.` : 'Clean space for brand integration.'}
+Objective: ${objetivo}.
+${nomeCliente ? `Client: ${nomeCliente}.` : 'Space for brand.'}
 
 **STYLE:**
-Premium graphic design, high-contrast, strong visual hierarchy, modern aesthetic.
-Print-ready professional quality. Bold colors, clean typography, impactful layout.
+Premium flat graphic design. Print-ready. Bold. Professional. High contrast.
 
-**TECHNICAL:**
+**TECHNICAL REQUIREMENTS:**
 Dimensions: ${gw}x${gh} pixels exactly.
-Full-bleed format — fill entire frame, no borders, no padding.
-No watermarks, signatures, UI elements, or device chrome.
-No phote realistic rendering or camera perspective.
+Full-bleed format — entire frame is artwork.
+No watermarks, signatures, UI elements.
+No photo-realism.
+No 3D rendering.
 
-**FINAL CHECK:**
-- Is this a flat 2D graphic composition? YES ✓
-- Does it show any physical structure/stand/frame? NO ✓
-- Are there any human figures? NO ✓
-- Is it ready as an ad that runs on a digital screen? YES ✓
+**ULTRA-CRITICAL CHECKLIST:**
+✓ Is 100% of the image flat 2D graphic design?
+✓ Are there ZERO physical structures, stands, frames, or environments?
+✓ Are there ZERO human figures or faces?
+✓ Is this ready to display directly on a digital screen?
+✓ Is there ZERO outdoor scenery or sky?
+If any answer is NO, RESTART and generate again.
   `.trim();
 }
 
@@ -454,15 +460,43 @@ function resolveLogoPath(logoUrl, uploadsDir) {
 }
 
 async function aplicarLogoNaArte(pathArte, logoUrl, uploadsDir, orientacao = 'landscape') {
+  if (!logoUrl) {
+    console.log('[arte/logo] Nenhuma logo_url fornecida, pulando composição.');
+    return false;
+  }
+
   const logoAbs = resolveLogoPath(logoUrl, uploadsDir);
-  if (!logoAbs || !fs.existsSync(logoAbs)) return false;
+  if (!logoAbs) {
+    console.warn('[arte/logo] Caminho do logo inválido ou não autorizado:', logoUrl);
+    return false;
+  }
+  if (!fs.existsSync(logoAbs)) {
+    console.warn('[arte/logo] Arquivo de logo não encontrado:', logoAbs);
+    return false;
+  }
+  if (!fs.existsSync(pathArte)) {
+    console.error('[arte/logo] Arquivo de arte não encontrado:', pathArte);
+    return false;
+  }
 
   try {
     const sharp = require('sharp');
+    if (!sharp) {
+      console.error('[arte/logo] Sharp não está instalado!');
+      return false;
+    }
+
+    console.log('[arte/logo] Iniciando composição de logo. Arte:', pathArte, 'Logo:', logoAbs, 'Orientação:', orientacao);
+
     const arteMeta = await sharp(pathArte).metadata();
     const arteW = Number(arteMeta.width || 0);
     const arteH = Number(arteMeta.height || 0);
-    if (!arteW || !arteH) return false;
+    console.log('[arte/logo] Dimensões da arte:', arteW, 'x', arteH);
+
+    if (!arteW || !arteH) {
+      console.error('[arte/logo] Dimensões da arte inválidas');
+      return false;
+    }
 
     const margin = Math.max(12, Math.round(Math.min(arteW, arteH) * 0.03));
     const targetW = orientacao === 'portrait'
@@ -472,6 +506,8 @@ async function aplicarLogoNaArte(pathArte, logoUrl, uploadsDir, orientacao = 'la
       ? Math.round(arteH * 0.14)
       : Math.round(arteH * 0.16);
 
+    console.log('[arte/logo] Redimensionando logo para:', targetW, 'x', targetH);
+
     const logoBuf = await sharp(logoAbs)
       .resize({ width: targetW, height: targetH, fit: 'inside', withoutEnlargement: true })
       .png()
@@ -480,11 +516,19 @@ async function aplicarLogoNaArte(pathArte, logoUrl, uploadsDir, orientacao = 'la
     const logoMeta = await sharp(logoBuf).metadata();
     const logoW = Number(logoMeta.width || 0);
     const logoH = Number(logoMeta.height || 0);
-    if (!logoW || !logoH) return false;
+
+    if (!logoW || !logoH) {
+      console.error('[arte/logo] Logo redimensionado tem dimensões inválidas');
+      return false;
+    }
+
+    console.log('[arte/logo] Logo redimensionado:', logoW, 'x', logoH);
 
     const left = Math.max(0, arteW - logoW - margin);
     const top = margin;
     const outPath = `${pathArte}.logo.tmp.jpg`;
+
+    console.log('[arte/logo] Posicionando logo em:', left, ',', top);
 
     await sharp(pathArte)
       .composite([{ input: logoBuf, left, top }])
@@ -492,8 +536,10 @@ async function aplicarLogoNaArte(pathArte, logoUrl, uploadsDir, orientacao = 'la
       .toFile(outPath);
 
     fs.renameSync(outPath, pathArte);
+    console.log('[arte/logo] ✓ Logo composto com sucesso!');
     return true;
-  } catch {
+  } catch (err) {
+    console.error('[arte/logo] ERRO ao compor logo:', err.message, err.stack);
     return false;
   }
 }
@@ -567,9 +613,13 @@ async function gerarArte({ ponto, contexto, promptCustomizado, uploadsDir }) {
       precisouResize = true;
     }
 
-    // URL relativa para o frontend
+    // Compor logo se fornecido
     if (contexto?.logo_url) {
-      await aplicarLogoNaArte(pathFinal, contexto.logo_url, uploadsDir, orientacaoArte);
+      console.log('[arte/gerar] Logo URL recebida:', contexto.logo_url);
+      const logoCompostoOk = await aplicarLogoNaArte(pathFinal, contexto.logo_url, uploadsDir, orientacaoArte);
+      console.log('[arte/gerar] Resultado da composição de logo:', logoCompostoOk);
+    } else {
+      console.log('[arte/gerar] Nenhuma logo_url no contexto. Contexto:', JSON.stringify(contexto));
     }
 
     // URL relativa para o frontend
