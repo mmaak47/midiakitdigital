@@ -35,11 +35,12 @@ function detectarOrientacao(w, h) {
 // ─────────────────────────────────────────
 // NORMALIZAÇÃO DE RESOLUÇÃO
 // APIs de geração exigem dimensões em múltiplos de 16.
-// Garante MIN 256px, MAX 4096px por lado.
+// Flux 1.1 Pro (Replicate) aceita no máximo 1440px por lado.
+// Garante MIN 256px, MAX 1440px por lado.
 // ─────────────────────────────────────────
 function normalizarResolucao(w, h, multiploBase = 16) {
   const MIN = 256;
-  const MAX = 4096;
+  const MAX = 1440;
 
   // Garantir que nenhum lado ultrapasse o MAX
   if (w > MAX || h > MAX) {

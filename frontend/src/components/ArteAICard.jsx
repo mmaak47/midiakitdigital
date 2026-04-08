@@ -24,7 +24,7 @@ function detectarOrientacao(w, h) {
 }
 
 function normalizarParaGeracao(w, h, mult = 16) {
-  const MIN = 256, MAX = 4096;
+  const MIN = 256, MAX = 1440;
   if (w > MAX || h > MAX) {
     const scale = Math.min(MAX / w, MAX / h);
     w = Math.round(w * scale);
