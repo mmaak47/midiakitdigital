@@ -199,6 +199,12 @@ router.post('/gerar', async (req, res) => {
       return res.status(503).json({ error: err.message });
     }
 
+    const apiErrMatch = String(err.message || '').match(/^REPLICATE_API_ERROR\s+(\d+)/);
+    if (apiErrMatch) {
+      const status = Number(apiErrMatch[1]) || 500;
+      return res.status(status).json({ error: err.message, retry: status === 429 });
+    }
+
     res.status(500).json({ error: err.message || 'Erro interno ao gerar arte' });
   }
 });
