@@ -179,65 +179,28 @@ function gerarPrompt(ponto, contexto = {}) {
     ? 'Clear space on right side for client text/message overlay (minimum 25% of frame width).'
     : 'Clear space in lower section for client text/message overlay (minimum 35% of frame height).';
 
+  const logoInstrucao = contexto.logo_url
+    ? 'Use the provided logo image (input_image) prominently in the design. Place the logo in the top-right area of the composition.'
+    : 'Keep a clean area for brand/logo integration.';
+
   return `
-CRITICAL INSTRUCTION — READ EVERY WORD:
-Generate ONLY a pure flat 2D advertising artwork (banner/flyer/poster).
-The ENTIRE image must be the creative design itself — FULL FRAME, NOTHING ELSE.
-Output must NOT include ANY physical structure, frame, stand, or mockup element.
-
-**ABSOLUTE PROHIBITIONS (DO NOT GENERATE THESE):**
-❌ NO outdoor scene, street, sky, cityscape, landscape, or nature background
-❌ NO billboard, totem, outdoor panel, advertising display, stand, or structure
-❌ NO frame, border, mounting, edge, or border around artwork
-❌ NO pedestal, base, mounting bracket, support structure, or stand
-❌ NO wall, floor, ground, environment, surroundings, or perspective view
-❌ NO monitor, TV screen, digital display, device screen, device, or bezel
-❌ NO photograph, 3D render, realistic representation, mockup, or composition of physical display
-❌ NO artistic rendering of artwork-mounted-on-a-structure (forbidden)
-❌ NO human figures, faces, people, bodies, hands, portraits, or expressions
-❌ NO realistic photographic textures or environments
-❌ NO depth, shadows, 3D perspective, or realistic lighting
-
-**NEGATIVE PROMPT (invert these completely):**
-{outdoor, street scene, sky, clouds, landscape, park, cityscape, building, architecture, wall, floor, pedestal, stand, pole, structure, totem, billboard, frame, border, device, screen, monitor, TV, photo, 3D render, mockup, realistic rendering, depth-of-field, perspective, human, face, people, body, hands, camera view, environment}
-
-**WHAT TO CREATE (positive focus):**
-✓ Pure 2D graphic composition only
-✓ Abstract shapes, icons, patterns, colors, typography
-✓ Product imagery, graphic elements, design patterns
-✓ Flat illustration style
-✓ No environmental context or surroundings
-✓ Premium advertising-ready creative
-✓ Bold colors, strong typography, clear hierarchy
-
-**COMPOSITION:**
+Create a pure 2D campaign creative (banner/flyer/poster), full-bleed, front-facing.
+Output must be only the artwork canvas itself, with no mockup and no surrounding environment.
 ${COMPOSICAO_POR_ORIENTACAO[orientacao].trim()}
 ${espacoLogo}
 ${espacoTexto}
-
-**CONTEXT:**
-Theme: ${segmentoVisual}.
-Location: ${contextoLocal}.
-Objective: ${objetivo}.
-${nomeCliente ? `Client: ${nomeCliente}.` : 'Space for brand.'}
-
-**STYLE:**
-Premium flat graphic design. Print-ready. Bold. Professional. High contrast.
-
-**TECHNICAL REQUIREMENTS:**
-Dimensions: ${gw}x${gh} pixels exactly.
-Full-bleed format — entire frame is artwork.
-No watermarks, signatures, UI elements.
-No photo-realism.
-No 3D rendering.
-
-**ULTRA-CRITICAL CHECKLIST:**
-✓ Is 100% of the image flat 2D graphic design?
-✓ Are there ZERO physical structures, stands, frames, or environments?
-✓ Are there ZERO human figures or faces?
-✓ Is this ready to display directly on a digital screen?
-✓ Is there ZERO outdoor scenery or sky?
-If any answer is NO, RESTART and generate again.
+Theme and business context: ${segmentoVisual}.
+Location context: ${contextoLocal}.
+Campaign objective: ${objetivo}.
+${nomeCliente ? `Brand/client name to integrate in the artwork: "${nomeCliente}".` : ''}
+${logoInstrucao}
+Design style: premium graphic design key visual, clean composition, high readability, strong hierarchy, professional print-ready look.
+Include product/service-related visual elements for the business segment.
+Must look like a finalized ad layout ready to publish.
+Do NOT generate any outdoor scene, billboard structure, frame, monitor, totem, wall, pedestal, perspective mockup, or photo of a panel.
+No people, no faces, no hands.
+No camera perspective, no depth-of-field, no realistic environment photography.
+Fill the entire frame with artwork only — no borders, no padding, no letterboxing.
   `.trim();
 }
 
@@ -322,7 +285,7 @@ async function pollPrediction(predictionUrl, authHeaders, timeoutMs = TIMEOUT_MS
 // CHAMADA REPLICATE (OpenAI GPT-4 Vision Image)
 // Dispara predições em sequência para reduzir rate limit (429) na conta.
 // ─────────────────────────────────────────
-async function callReplicate(prompt, w, h) {
+async function callReplicate(prompt, w, h, options = {}) {
   if (!REPLICATE_API_TOKEN) {
     throw new Error('REPLICATE_API_TOKEN não configurado. Adicione ao .env do backend.');
   }
@@ -343,6 +306,12 @@ async function callReplicate(prompt, w, h) {
     moderation: 'low',
     aspect_ratio: aspectRatio,
   };
+
+  // Se logoPublicUrl fornecida, envia como input_images para o modelo incorporar na arte
+  if (options.logoPublicUrl) {
+    input.input_images = [options.logoPublicUrl];
+    console.log('[arte/replicate] Enviando logo como input_images:', options.logoPublicUrl);
+  }
 
   const RATE_LIMIT_RETRY_MAX = 5;
   const BASE_BACKOFF_MS = 3000; // Começar com 3 segundos (aumentado de 1500ms)
@@ -604,8 +573,32 @@ async function gerarArte({ ponto, contexto, promptCustomizado, uploadsDir }) {
 
   const promptFinal = promptCustomizado || gerarPrompt(ponto, contexto);
 
+  // Construir URL pública do logo para enviar ao Replicate via input_images
+  let logoPublicUrl = null;
+  if (contexto?.logo_url) {
+    // logo_url é relativo como /uploads/artes/logos/logo-xxx.png
+    // Construir URL absoluta acessível publicamente
+    const baseUrl = process.env.PUBLIC_URL || process.env.BASE_URL || '';
+    if (baseUrl) {
+      logoPublicUrl = `${baseUrl.replace(/\/$/, '')}${contexto.logo_url}`;
+    } else {
+      // Fallback: ler o arquivo local e converter para data URI
+      const logoLocalPath = path.join(uploadsDir, contexto.logo_url.replace(/^\/uploads\//, ''));
+      if (fs.existsSync(logoLocalPath)) {
+        const logoBuffer = fs.readFileSync(logoLocalPath);
+        const ext = path.extname(logoLocalPath).toLowerCase();
+        const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+        logoPublicUrl = `data:${mime};base64,${logoBuffer.toString('base64')}`;
+        console.log('[arte/gerar] Logo convertido para data URI (base64), tamanho:', logoBuffer.length);
+      } else {
+        console.warn('[arte/gerar] Logo não encontrado localmente:', logoLocalPath);
+      }
+    }
+    console.log('[arte/gerar] Logo público URL:', logoPublicUrl ? 'OK' : 'não disponível');
+  }
+
   const tsInicio = Date.now();
-  const replicateResult = await callReplicate(promptFinal, wGer, hGer);
+  const replicateResult = await callReplicate(promptFinal, wGer, hGer, { logoPublicUrl });
   const duracao = Date.now() - tsInicio;
 
   // Extrair URLs das imagens retornadas
@@ -642,13 +635,9 @@ async function gerarArte({ ponto, contexto, promptCustomizado, uploadsDir }) {
       precisouResize = true;
     }
 
-    // Compor logo se fornecido
+    // Logo já é enviado via input_images ao modelo — sem necessidade de composição pós-geração
     if (contexto?.logo_url) {
-      console.log('[arte/gerar] Logo URL recebida:', contexto.logo_url);
-      const logoCompostoOk = await aplicarLogoNaArte(pathFinal, contexto.logo_url, uploadsDir, orientacaoArte);
-      console.log('[arte/gerar] Resultado da composição de logo:', logoCompostoOk);
-    } else {
-      console.log('[arte/gerar] Nenhuma logo_url no contexto. Contexto:', JSON.stringify(contexto));
+      console.log('[arte/gerar] Logo foi enviado ao modelo via input_images — composição nativa.');
     }
 
     // URL relativa para o frontend
