@@ -111,18 +111,34 @@ export function buildProposalImagePrompt({
   const cityText = formatList(selectedCities, 'múltiplas praças');
   const publicoText = formatList(selectedPublicos, 'públicos estratégicos');
   const aspectRatio = calculateAspectRatio(arteWidth, arteHeight);
-  const dimensionText = aspectRatio ? `Proporção: ${aspectRatio} (${arteWidth}x${arteHeight}px).` : '';
+  const w = Number(arteWidth);
+  const h = Number(arteHeight);
+  const orientacao = w / h >= 1.5 ? 'horizontal' : w / h <= 0.67 ? 'vertical' : 'quadrado';
+  const dimensionText = aspectRatio ? `${aspectRatio} (${w}×${h}px) — ${orientacao}` : `${w}×${h}px`;
 
   return [
-    `Crie uma arte publicitária para OOH digital da marca ${advertiser}.`,
-    `Objetivo principal: ${objetivo || 'reconhecimento de marca'}.`,
-    `Segmento do anunciante: ${segmento || 'segmento comercial'}.`,
-    `Praças da campanha: ${cityText}.`,
-    `Públicos prioritários: ${publicoText}.`,
-    `${dimensionText}`,
-    `Direção visual: impacto imediato, alto contraste, composição premium e legibilidade em até 7 palavras.`,
-    `Regras: sem mockup, sem foto de ponto, sem marca d'água, sem texto pequeno, entregar arte estática pronta para simulação em mídia digital.`
-  ].filter(Boolean).join(' ');
+    `Você é um diretor de arte sênior especializado em campanhas OOH digital.`,
+    `Crie uma peça publicitária profissional de alto impacto para exibição em painel LED.`,
+    ``,
+    `BRIEFING:`,
+    `• Marca/Cliente: ${advertiser}`,
+    `• Segmento: ${segmento || 'segmento comercial'}`,
+    `• Objetivo: ${objetivo || 'reconhecimento de marca'}`,
+    `• Praças: ${cityText}`,
+    `• Públicos: ${publicoText}`,
+    `• Formato: ${dimensionText}`,
+    ``,
+    `DIREÇÃO DE ARTE:`,
+    `• Tipografia: headline bold sans-serif de alto impacto (máximo 7 palavras), legível a distância`,
+    `• Hierarquia visual: logo → headline → visual de apoio → CTA`,
+    `• Acabamento: gradientes sutis, sombras suaves, bordas limpas — nível agência premium`,
+    ``,
+    `REGRAS OBRIGATÓRIAS:`,
+    `• Arte FLAT 2D pronta para exibição — NÃO gerar mockup, foto de outdoor, totem ou cena 3D`,
+    `• Preencher 100% do canvas sem bordas ou margens`,
+    `• Sem marca d'água, sem rostos humanos — usar apenas grafismo, ilustração e tipografia`,
+    `• Resultado final deve parecer criado por uma agência de design profissional`,
+  ].filter(Boolean).join('\n');
 }
 
 export function buildProposalImagePromptsByFormat({

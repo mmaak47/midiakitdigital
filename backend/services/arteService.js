@@ -85,103 +85,126 @@ function escolherAspectRatio(w, h) {
 }
 
 // ─────────────────────────────────────────
-// DADOS DE CONTEXTO
+// DADOS DE CONTEXTO — DESIGN PROFISSIONAL
 // ─────────────────────────────────────────
-const COMPOSICAO_POR_ORIENTACAO = {
-  landscape: `
-    Wide horizontal composition.
-    Bold visual element on the left half.
-    Clean empty space on the right half for text overlay.
-    Strong horizontal leading lines.
-  `,
-  portrait: `
-    Tall vertical composition.
-    Strong visual element in the upper 60% of the frame.
-    Clean empty space in the lower 40% for text overlay.
-    Subject centered horizontally.
-  `,
-  square: `
-    Centered square composition.
-    Subject centered with breathing room on all sides.
-    Clean space in lower third for text overlay.
-  `
+
+// Paletas de cor por segmento (cores predominantes para guiar a IA)
+const PALETA_SEGMENTO = {
+  construtora:    'tons terrosos, dourado, cinza grafite e branco',
+  imobiliaria:    'azul marinho, dourado premium e branco',
+  clinica:        'verde menta, branco clean e cinza suave',
+  hospital:       'azul hospitalar, branco e verde institucional',
+  varejo:         'cores vibrantes, vermelho, amarelo e branco',
+  restaurante:    'bordô, dourado quente, preto e creme',
+  faculdade:      'azul institucional, laranja e branco',
+  escola:         'cores primárias vivas, verde, azul e amarelo',
+  advocacia:      'azul escuro, dourado, preto e branco',
+  industria:      'cinza aço, azul petróleo e amarelo segurança',
+  automotivo:     'preto, prata metálico, vermelho e branco',
+  fitness:        'preto, verde neon, laranja energético',
+  beleza:         'rosa blush, dourado, nude e branco',
+  pet:            'verde natural, laranja alegre e branco',
+  farmacia:       'verde saúde, azul confiança e branco',
+  supermercado:   'vermelho, amarelo, verde fresco e branco',
+  financeiro:     'azul escuro, dourado e branco',
+  turismo:        'azul céu, turquesa, laranja sunset e branco',
+  coworking:      'gradiente moderno, roxo, azul e laranja',
+  tecnologia:     'gradiente neon, azul elétrico, roxo e preto',
+  contabilidade:  'azul escuro, cinza grafite e dourado',
 };
 
-const SEGMENTO_VISUAL = {
-  // Chaves do sistema (minúsculas)
-  construtora:  'luxury residential architecture, modern building facade, construction excellence',
-  imobiliaria:  'premium real estate, architectural exterior, modern residential building',
-  clinica:      'clean clinical environment, wellness, soft lighting, healthcare',
-  hospital:     'modern hospital facility, medical professionals, clean healthcare setting',
-  varejo:       'modern retail space, commercial interior, shopping environment',
-  restaurante:  'gourmet food, warm restaurant lighting, fine dining atmosphere',
-  faculdade:    'modern university campus, academic environment, knowledge and innovation',
-  escola:       'bright educational environment, modern school, learning space',
-  advocacia:    'premium corporate office, professional legal environment, executive setting',
-  industria:    'industrial facility, precision manufacturing, modern production',
-  automotivo:   'luxury automotive showroom, car dealership, sleek vehicles',
-  fitness:      'modern gym, fitness equipment, energetic athletic environment',
-  beleza:       'elegant beauty salon, aesthetic clinic, luxury self-care space',
-  pet:          'modern pet shop, veterinary clinic, animal care environment',
-  farmacia:     'clean modern pharmacy, healthcare retail, wellness products',
-  supermercado: 'modern supermarket, fresh produce display, retail grocery',
-  financeiro:   'premium financial institution, modern bank, executive corporate office',
-  turismo:      'luxury hotel lobby, tourism destination, travel hospitality',
-  coworking:    'modern coworking space, collaborative office, innovative work environment',
-  tecnologia:   'modern tech office, innovation lab, digital technology environment',
-  contabilidade:'professional corporate office, financial services, modern accounting firm',
-  // Fallback para segmentos em português (label)
-  'Construtoras':         'luxury residential architecture, modern building facade',
-  'Clínicas e Saúde':     'clean clinical environment, wellness, soft lighting',
-  'Varejo e Comércio':    'modern retail space, commercial interior',
-  'Restaurantes':         'gourmet food, warm restaurant lighting',
-  'Faculdades':           'modern university campus, academic environment',
-  'Advocacia e Jurídico': 'premium corporate office, professional environment',
-  'Imobiliárias':         'premium real estate, architectural exterior',
-  'Indústria':            'industrial facility, precision manufacturing',
+// Elementos visuais sugeridos por segmento
+const ELEMENTOS_SEGMENTO = {
+  construtora:    'formas geométricas arquitetônicas, linhas de construção, ícones de plantas baixas',
+  imobiliaria:    'silhuetas de prédios modernos, chaves estilizadas, skyline minimalista',
+  clinica:        'formas orgânicas suaves, ícones médicos abstratos, ondas sutis',
+  hospital:       'cruz estilizada, formas clean, elementos de saúde',
+  varejo:         'sacolas estilizadas, tags de preço, padrões dinâmicos, setas de oferta',
+  restaurante:    'talheres estilizados, texturas de ingredientes, steam lines',
+  faculdade:      'capelo acadêmico estilizado, livros abstratos, ícones de conhecimento',
+  escola:         'elementos lúdicos geométricos, lápis, livros coloridos',
+  advocacia:      'balança da justiça estilizada, linhas firmes, tipografia serif elegante',
+  industria:      'engrenagens estilizadas, circuitos, padrões industriais',
+  automotivo:     'silhuetas de veículos, velocímetro abstrato, linhas de velocidade',
+  fitness:        'silhuetas atléticas abstratas, formas dinâmicas, halteres estilizados',
+  beleza:         'formas florais abstratas, espelhos, pinceladas elegantes',
+  pet:            'patinhas estilizadas, silhuetas de animais, formas orgânicas',
+  farmacia:       'cápsulas estilizadas, folhas medicinais, formas clean',
+  supermercado:   'frutas/vegetais estilizados, cestas abstratas, frescor',
+  financeiro:     'gráficos ascendentes, moedas estilizadas, setas de crescimento',
+  turismo:        'ondas, aviões estilizados, palmeiras abstratas, sol',
+  coworking:      'connections abstratas, ícones de colaboração, formas modulares',
+  tecnologia:     'circuitos, pixels, formas digitais, ondas de dados',
+  contabilidade:  'gráficos estilizados, calculadoras abstratas, números',
 };
 
-const CONTEXTO_LOCAL = {
-  'Londrina':           'Paraná, Brazil, tropical urban context',
-  'Maringá':            'Paraná, Brazil, planned modern city',
-  'Balneário Camboriú': 'Santa Catarina coast, Brazil, beachside urban',
-  'Itajaí':             'Santa Catarina, Brazil, port city urban context',
-  'Curitiba':           'Paraná, Brazil, cosmopolitan urban',
-  'São Paulo':          'São Paulo, Brazil, metropolitan urban',
-  'Florianópolis':      'Santa Catarina, Brazil, island coastal city',
+// Composição por orientação
+const COMPOSICAO_DESIGN = {
+  landscape: 'layout horizontal com hierarquia visual da esquerda para a direita. Elemento principal à esquerda, área limpa à direita para headline. Grid com respiro.',
+  portrait:  'layout vertical com headline impactante no topo, visual principal no centro e CTA na base. Distribuição em terços.',
+  square:    'composição centralizada simétrica. Headline topo, visual central, rodapé com CTA. Máximo impacto por equilíbrio.',
 };
 
 // ─────────────────────────────────────────
-// GERAÇÃO DE PROMPT
+// GERAÇÃO DE PROMPT — DESIGNER PROFISSIONAL
 // ─────────────────────────────────────────
 function gerarPrompt(ponto, contexto = {}) {
   const w = Number(ponto.arte_largura || ponto.resolucao_nativa?.w || 1920);
   const h = Number(ponto.arte_altura  || ponto.resolucao_nativa?.h || 1080);
+  const orientacao = detectarOrientacao(w, h);
 
-  const segmento = contexto.segmento || ponto.segmento || 'segmento comercial';
-  const cidade   = contexto.cidade   || ponto.cidade   || '';
+  const segmento    = contexto.segmento || ponto.segmento || 'segmento comercial';
+  const cidade      = contexto.cidade   || ponto.cidade   || '';
   const nomeCliente = contexto.clientName || contexto.cliente || 'cliente';
-  const objetivo = contexto.objetivo || 'reconhecimento de marca';
+  const objetivo    = contexto.objetivo || 'reconhecimento de marca';
 
-  // Calcular aspect ratio legível
+  const segKey = String(segmento).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const paleta    = PALETA_SEGMENTO[segKey]    || 'cores premium com alto contraste';
+  const elementos = ELEMENTOS_SEGMENTO[segKey] || 'elementos gráficos modernos e abstratos';
+  const composicao = COMPOSICAO_DESIGN[orientacao] || COMPOSICAO_DESIGN.landscape;
+
   function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
   const g = gcd(w, h);
   const ratioStr = `${w / g}:${h / g}`;
 
   const logoInstrucao = contexto.logo_url
-    ? 'Se uma imagem de logo foi fornecida junto, incorpore-a de forma natural e harmoniosa no design.'
+    ? 'O logo da marca foi fornecido como imagem de referência — integre-o organicamente no design, com destaque mas sem dominar a composição.'
     : '';
 
-  return [
-    `Crie uma arte publicitária para OOH digital da marca ${nomeCliente}.`,
-    `Objetivo principal: ${objetivo}.`,
-    `Segmento do anunciante: ${segmento}.`,
-    cidade ? `Praças da campanha: ${cidade}.` : '',
-    `Proporção: ${ratioStr} (${w}x${h}px).`,
-    `Direção visual: impacto imediato, alto contraste, composição premium e legibilidade em até 7 palavras.`,
-    `Regras: sem mockup, sem foto de ponto, sem marca d'água, sem texto pequeno, entregar arte estática pronta para simulação em mídia digital.`,
+  const prompt = [
+    // PERSONA
+    `Você é um diretor de arte sênior especializado em campanhas OOH (Out of Home) digital.`,
+    `Crie uma peça publicitária profissional de alto impacto para exibição em painel LED.`,
+    '',
+    // BRIEFING
+    `BRIEFING:`,
+    `• Marca/Cliente: ${nomeCliente}`,
+    `• Segmento: ${segmento}`,
+    `• Objetivo da campanha: ${objetivo}`,
+    cidade ? `• Praça: ${cidade}` : '',
+    `• Formato: ${ratioStr} (${w}×${h}px) — ${orientacao}`,
+    '',
+    // DIREÇÃO DE ARTE
+    `DIREÇÃO DE ARTE:`,
+    `• Composição: ${composicao}`,
+    `• Paleta de cores: ${paleta}`,
+    `• Elementos gráficos sugeridos: ${elementos}`,
+    `• Tipografia: headline bold sans-serif de alto impacto (máximo 7 palavras), legível a distância`,
+    `• Hierarquia visual: logo → headline → visual de apoio → CTA`,
+    `• Acabamento: gradientes sutis, sombras suaves, bordas limpas — nível agência premium`,
+    '',
+    // REGRAS TÉCNICAS
+    `REGRAS OBRIGATÓRIAS:`,
+    `• Arte FLAT 2D pronta para exibição — NÃO gerar mockup, foto de outdoor, totem, monitor ou cena 3D`,
+    `• Preencher 100% do canvas sem bordas, margens ou letterboxing`,
+    `• Sem marca d'água, sem watermark, sem texto "sample"`,
+    `• Sem rostos humanos ou fotografias — usar apenas grafismo, ilustração e tipografia`,
+    `• Resultado final deve parecer criado por uma agência de design profissional`,
+    '',
     logoInstrucao,
-  ].filter(Boolean).join(' ');
+  ].filter(Boolean).join('\n');
+
+  return prompt;
 }
 
 // ─────────────────────────────────────────
