@@ -1045,8 +1045,8 @@ export default function Admin() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <div className={`w-8 h-8 rounded-lg overflow-hidden shrink-0 ${th.thumbBg}`}>
-                              {p.imagem ? (
-                                <img src={p.imagem} alt="" className="w-full h-full object-cover" />
+                              {(p.imagem || p.imagem2) ? (
+                                <img src={p.imagem || p.imagem2} alt="" className="w-full h-full object-cover" />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">
                                   <Building2 size={14} className="text-brand-gray-600" />
