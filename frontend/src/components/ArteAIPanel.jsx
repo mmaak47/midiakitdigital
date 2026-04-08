@@ -177,19 +177,33 @@ export default function ArteAIPanel({
       });
 
       setLoteResultados(res.resultados || []);
+      // Contar pontos atendidos (inclui compartilhados)
+      const pontosAtendidos = (res.resultados || []).reduce((acc, r) => {
+        return acc + 1 + (r.compartilhada_com?.length || 0);
+      }, 0);
+
       setLoteProgresso({
-        atual:  (res.resultados || []).length + (res.erros || []).length,
+        atual:  pontosAtendidos + (res.erros || []).length,
         total:  points.length,
         erros:  (res.erros || []).length,
       });
 
-      // Pré-selecionar primeira variação de cada ponto
+      // Pré-selecionar primeira variação de cada ponto (inclusive compartilhados)
       const novasArtes = { ...artesPorPonto };
       for (const r of res.resultados || []) {
         const primeiraVar = r.variacoes?.[0];
         if (primeiraVar) {
+          // Setar arte para o ponto base
           novasArtes[r.ponto_id] = primeiraVar.url;
           onArteEscolhida?.(r.ponto_id, primeiraVar.url, r.geracao_id, 1);
+
+          // Setar a mesma arte para pontos que compartilham a resolução
+          if (Array.isArray(r.compartilhada_com)) {
+            for (const sharedId of r.compartilhada_com) {
+              novasArtes[sharedId] = primeiraVar.url;
+              onArteEscolhida?.(sharedId, primeiraVar.url, r.geracao_id, 1);
+            }
+          }
         }
       }
       setArtesPorPonto(novasArtes);
