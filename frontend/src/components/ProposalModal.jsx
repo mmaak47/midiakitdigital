@@ -1082,6 +1082,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     points={proposalPoints}
                     segmento={form.segmento}
                     cidade={activeCities}
+                    clientName={form.clientName}
                     propostaId={null}
                     isDark={isDark}
                     onArteEscolhida={handleAiArteEscolhida}

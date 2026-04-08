@@ -125,6 +125,7 @@ export default function ArteAIPanel({
   const contexto = {
     segmento,
     cidade: cidadeStr,
+    clientName,
     proposta_id: propostaId,
   };
 
@@ -140,7 +141,7 @@ export default function ArteAIPanel({
       const res = await gerarArteLoteIA({
         ponto_ids:              points.map((p) => p.id),
         proposta_id:            propostaId,
-        contexto:               { segmento, cidade: cidadeStr },
+        contexto:               { segmento, cidade: cidadeStr, clientName },
         agrupar_por_resolucao:  true,
       });
 

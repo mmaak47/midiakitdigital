@@ -138,6 +138,7 @@ function gerarPrompt(ponto, contexto = {}) {
 
   const segmento = contexto.segmento || ponto.segmento || 'varejo';
   const cidade   = contexto.cidade   || ponto.cidade   || '';
+  const nomeCliente = contexto.clientName || contexto.cliente || '';
 
   const segmentoVisual = SEGMENTO_VISUAL[segmento]
     || SEGMENTO_VISUAL[String(segmento).toLowerCase()]
@@ -145,13 +146,24 @@ function gerarPrompt(ponto, contexto = {}) {
 
   const contextoLocal = CONTEXTO_LOCAL[cidade] || 'urban Brazil';
 
+  const espacoLogo = orientacao === 'landscape'
+    ? 'Reserved space for client logo (top-right corner, 15% of frame width).'
+    : 'Reserved space for client logo (top-right or bottom-left corner, 20% of frame height).';
+
+  const espacoTexto = orientacao === 'landscape'
+    ? 'Clear space on right side for client text/message overlay (minimum 25% of frame width).'
+    : 'Clear space in lower section for client text/message overlay (minimum 35% of frame height).';
+
   return `
-Professional DOOH digital billboard advertisement.
+Professional DOOH digital billboard advertisement for client marketing.
 ${COMPOSICAO_POR_ORIENTACAO[orientacao].trim()}
+${espacoLogo}
+${espacoTexto}
 Theme: ${segmentoVisual}.
 Context: ${contextoLocal}.
-Style: photorealistic, commercial photography, high contrast, vibrant.
-No text, no logos, no people's faces, no brands.
+Style: photorealistic, commercial photography, high contrast, vibrant, professional branding-ready.
+${nomeCliente ? `Client: ${nomeCliente}.` : ''}
+No people's faces, no competing brands or logos (only client branding space reserved).
 Pixel dimensions: ${gw}x${gh}.
 Fill the entire frame — no borders, no padding, no letterboxing.
   `.trim();
