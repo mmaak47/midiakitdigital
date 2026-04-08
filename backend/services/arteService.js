@@ -157,51 +157,31 @@ const CONTEXTO_LOCAL = {
 function gerarPrompt(ponto, contexto = {}) {
   const w = Number(ponto.arte_largura || ponto.resolucao_nativa?.w || 1920);
   const h = Number(ponto.arte_altura  || ponto.resolucao_nativa?.h || 1080);
-  const orientacao = detectarOrientacao(w, h);
-  const { w: gw, h: gh } = normalizarResolucao(w, h);
 
-  const segmento = contexto.segmento || ponto.segmento || 'varejo';
+  const segmento = contexto.segmento || ponto.segmento || 'segmento comercial';
   const cidade   = contexto.cidade   || ponto.cidade   || '';
-  const nomeCliente = contexto.clientName || contexto.cliente || '';
-  const objetivo = contexto.objetivo || 'brand awareness';
+  const nomeCliente = contexto.clientName || contexto.cliente || 'cliente';
+  const objetivo = contexto.objetivo || 'reconhecimento de marca';
 
-  const segmentoVisual = SEGMENTO_VISUAL[segmento]
-    || SEGMENTO_VISUAL[String(segmento).toLowerCase()]
-    || 'modern commercial space, professional environment';
-
-  const contextoLocal = CONTEXTO_LOCAL[cidade] || 'urban Brazil';
-
-  const espacoLogo = orientacao === 'landscape'
-    ? 'Reserved space for client logo (top-right corner, 15% of frame width).'
-    : 'Reserved space for client logo (top-right or bottom-left corner, 20% of frame height).';
-
-  const espacoTexto = orientacao === 'landscape'
-    ? 'Clear space on right side for client text/message overlay (minimum 25% of frame width).'
-    : 'Clear space in lower section for client text/message overlay (minimum 35% of frame height).';
+  // Calcular aspect ratio legível
+  function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+  const g = gcd(w, h);
+  const ratioStr = `${w / g}:${h / g}`;
 
   const logoInstrucao = contexto.logo_url
-    ? 'Use the provided logo image (input_image) prominently in the design. Place the logo in the top-right area of the composition.'
-    : 'Keep a clean area for brand/logo integration.';
+    ? 'Se uma imagem de logo foi fornecida junto, incorpore-a de forma natural e harmoniosa no design.'
+    : '';
 
-  return `
-Create a pure 2D campaign creative (banner/flyer/poster), full-bleed, front-facing.
-Output must be only the artwork canvas itself, with no mockup and no surrounding environment.
-${COMPOSICAO_POR_ORIENTACAO[orientacao].trim()}
-${espacoLogo}
-${espacoTexto}
-Theme and business context: ${segmentoVisual}.
-Location context: ${contextoLocal}.
-Campaign objective: ${objetivo}.
-${nomeCliente ? `Brand/client name to integrate in the artwork: "${nomeCliente}".` : ''}
-${logoInstrucao}
-Design style: premium graphic design key visual, clean composition, high readability, strong hierarchy, professional print-ready look.
-Include product/service-related visual elements for the business segment.
-Must look like a finalized ad layout ready to publish.
-Do NOT generate any outdoor scene, billboard structure, frame, monitor, totem, wall, pedestal, perspective mockup, or photo of a panel.
-No people, no faces, no hands.
-No camera perspective, no depth-of-field, no realistic environment photography.
-Fill the entire frame with artwork only — no borders, no padding, no letterboxing.
-  `.trim();
+  return [
+    `Crie uma arte publicitária para OOH digital da marca ${nomeCliente}.`,
+    `Objetivo principal: ${objetivo}.`,
+    `Segmento do anunciante: ${segmento}.`,
+    cidade ? `Praças da campanha: ${cidade}.` : '',
+    `Proporção: ${ratioStr} (${w}x${h}px).`,
+    `Direção visual: impacto imediato, alto contraste, composição premium e legibilidade em até 7 palavras.`,
+    `Regras: sem mockup, sem foto de ponto, sem marca d'água, sem texto pequeno, entregar arte estática pronta para simulação em mídia digital.`,
+    logoInstrucao,
+  ].filter(Boolean).join(' ');
 }
 
 // ─────────────────────────────────────────

@@ -131,6 +131,7 @@ export default function ProposalBuilder({
           points={points}
           segmento={segmento}
           cidade={city}
+          clientName={clientName}
           propostaId={propostaId || null}
           isDark={isDark}
           onArteEscolhida={(pontoId, urlArte) => {
