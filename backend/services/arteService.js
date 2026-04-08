@@ -65,10 +65,6 @@ function normalizarResolucao(w, h, multiploBase = 16) {
 function escolherAspectRatio(w, h) {
   const presets = [
     { ratio: '1:1', val: 1 },
-    { ratio: '16:9', val: 16 / 9 },
-    { ratio: '9:16', val: 9 / 16 },
-    { ratio: '4:3', val: 4 / 3 },
-    { ratio: '3:4', val: 3 / 4 },
     { ratio: '3:2', val: 3 / 2 },
     { ratio: '2:3', val: 2 / 3 },
   ];
