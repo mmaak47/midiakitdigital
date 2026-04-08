@@ -45,13 +45,35 @@ print()
 cmds = [
     'cd /home/mmak/midiakit && git fetch origin main && git reset --hard origin/main',
     'cd /home/mmak/midiakit/frontend && npm install --production=false && npm run build',
+]
+
+for cmd in cmds:
+    print('>>>', cmd)
+    i, o, e = c.exec_command(cmd, timeout=180)
+    out = o.read().decode('utf-8', 'ignore').strip()
+    err = e.read().decode('utf-8', 'ignore').strip()
+    if out:
+        print(out)
+    if err:
+        print(err)
+    print()
+
+# Re-upload ecosystem.config.js after git reset (git reset removes it since it's not in the repo)
+print('[sftp] Re-enviando ecosystem.config.js após git reset...')
+sftp = c.open_sftp()
+sftp.put('ecosystem.config.js', '/home/mmak/midiakit/ecosystem.config.js')
+sftp.close()
+print('[sftp] OK')
+print()
+
+cmds2 = [
     'cd /home/mmak/midiakit && pm2 delete intermidia-midiakit 2>/dev/null; pm2 start ecosystem.config.js',
     'pm2 save',
     'sleep 3',
     'pm2 logs intermidia-midiakit --lines 5 --nostream',
 ]
 
-for cmd in cmds:
+for cmd in cmds2:
     print('>>>', cmd)
     i, o, e = c.exec_command(cmd, timeout=180)
     out = o.read().decode('utf-8', 'ignore').strip()
