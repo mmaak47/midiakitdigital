@@ -1050,15 +1050,15 @@ app.get('/api/loop-audit', openCors, async (req, res) => {
     const visibleMonitors = showHidden ? filteredMonitors : filteredMonitors.filter(m => !excludedIds.has(m.id));
 
     const DURACAO_INSERCAO = 10; // cada inserção = 10s
+    const CICLO_PADRAO = 180;    // loop padrão 3 min
 
-    // Calcula stats de cada monitor usando ciclo_segundos direto da API
+    // ciclo_segundos da API = tempo OCUPADO no loop
     function calcMonitorStats(m) {
       const insercoes = m.total_insercoes_ativas || 0;
-      const cicloSeg = m.ciclo_segundos || 0;
-      const ocupadoSeg = insercoes * DURACAO_INSERCAO;
-      const livreSeg = Math.max(0, cicloSeg - ocupadoSeg);
+      const ocupadoSeg = m.ciclo_segundos || 0;
+      const livreSeg = Math.max(0, CICLO_PADRAO - ocupadoSeg);
       const cotasLivres = Math.floor(livreSeg / DURACAO_INSERCAO);
-      const pctOcupado = cicloSeg > 0 ? Math.min(100, Math.round((ocupadoSeg / cicloSeg) * 100)) : 0;
+      const pctOcupado = Math.min(100, Math.round((ocupadoSeg / CICLO_PADRAO) * 100));
       const risk = classifyRisk(pctOcupado);
       return {
         origin_id: m.id,
@@ -1066,7 +1066,7 @@ app.get('/api/loop-audit', openCors, async (req, res) => {
         local: (m.local || '').trim(),
         cidade: m.cidade || null,
         status: m.status || 'unknown',
-        ciclo_seg: cicloSeg,
+        ciclo_padrao_seg: CICLO_PADRAO,
         insercoes_ativas: insercoes,
         cotas_livres: cotasLivres,
         ocupado_seg: ocupadoSeg,

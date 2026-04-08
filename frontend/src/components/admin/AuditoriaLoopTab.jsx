@@ -81,11 +81,10 @@ function MonitorRow({ item, onHide, isDark }) {
         </div>
       </td>
       <td className="px-3 py-3 text-center">
-        <div className={`text-xs font-mono ${isDark ? 'text-white' : 'text-neutral-900'}`}>{fmtSeg(item.ciclo_seg)}</div>
+        <div className={`text-xs font-mono ${isDark ? 'text-white' : 'text-neutral-900'}`}>{fmtSeg(item.ocupado_seg)}</div>
       </td>
       <td className="px-3 py-3 text-center">
         <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{item.insercoes_ativas}</div>
-        <div className={`text-[10px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>~{fmtSeg(item.ocupado_seg)} usado</div>
       </td>
       <td className="px-3 py-3 text-center">
         <RiskBadge level={item.risk_level} cotasLivres={item.cotas_livres} />
@@ -236,7 +235,7 @@ export default function AuditoriaLoopTab({ isDark = true }) {
         <div>
           <h2 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Auditoria de Loop</h2>
           <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
-            Dados em tempo real via API de origem — inserção padrão 10s, ciclo por monitor.
+            Dados em tempo real via API de origem — loop padrão 3 min, ciclo_segundos = tempo ocupado.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
@@ -309,7 +308,7 @@ export default function AuditoriaLoopTab({ isDark = true }) {
           <thead className={isDark ? 'bg-white/[0.04]' : 'bg-neutral-50'}>
             <tr>
               <th className={`px-3 py-2 text-left text-xs font-medium ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Local</th>
-              <th className={`px-3 py-2 text-center text-xs font-medium ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Ciclo</th>
+              <th className={`px-3 py-2 text-center text-xs font-medium ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Ocupado</th>
               <th className={`px-3 py-2 text-center text-xs font-medium ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Inserções ativas</th>
               <th className={`px-3 py-2 text-center text-xs font-medium ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Cotas livres</th>
               <th className={`px-3 py-2 text-center text-xs font-medium ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Ocupação</th>
