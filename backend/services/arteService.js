@@ -320,7 +320,8 @@ async function callReplicate(prompt, w, h) {
     safety_tolerance: 2,
   };
 
-  const RATE_LIMIT_RETRY_MAX = 3;
+  const RATE_LIMIT_RETRY_MAX = 5;
+  const BASE_BACKOFF_MS = 3000; // Começar com 3 segundos (aumentado de 1500ms)
   const predictions = [];
 
   for (let i = 0; i < NUM_IMAGES; i++) {
@@ -338,17 +339,27 @@ async function callReplicate(prompt, w, h) {
 
       ultimaResposta = r;
       if (r.status !== 429) {
+        console.log(`[arte/replicate] Tentativa ${tentativa + 1}: sucesso (status ${r.status})`);
         predictions.push(r);
+        
+        // Pequeno delay entre sucessos para não sobrecarregar
+        if (i < NUM_IMAGES - 1) {
+          await sleep(2000);
+        }
         break;
       }
 
       tentativa += 1;
+      console.warn(`[arte/replicate] 429 Rate Limit na tentativa ${tentativa}/${RATE_LIMIT_RETRY_MAX}`);
+      
       if (tentativa >= RATE_LIMIT_RETRY_MAX) {
-        throw new Error('REPLICATE_RATE_LIMIT: Limite atingido. Aguarde alguns instantes e tente novamente.');
+        throw new Error('REPLICATE_RATE_LIMIT: Limite atingido após 5 tentativas. Aguarde alguns minutos e tente novamente.');
       }
 
-      // Backoff exponencial curto para aliviar bursts.
-      await sleep(1500 * (2 ** (tentativa - 1)));
+      // Backoff exponencial mais longo: 3s, 6s, 12s, 24s, 48s
+      const delayMs = BASE_BACKOFF_MS * (2 ** (tentativa - 1));
+      console.warn(`[arte/replicate] Aguardando ${delayMs}ms antes de tentar de novo...`);
+      await sleep(delayMs);
     }
 
     if (!predictions[i] && ultimaResposta) {
