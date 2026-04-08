@@ -455,7 +455,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       return 'Arte carregada. Ajuste brilho, reflexo, spill de luz e pixel LED para aproximar o look do simulador antes de gerar.';
     }
 
-    const geradas = items.filter((item) => item.status === 'Gerada').length;
+    const geradas = items.filter((item) => String(item.status || '').startsWith('Gerada')).length;
     const semArea = items.filter((item) => item.status === 'Área da tela não cadastrada no admin').length;
     const semImagem = items.filter((item) => item.status === 'Imagem base do ponto não cadastrada').length;
     const falhas = items.filter((item) => item.status === 'Falha ao gerar').length;
@@ -1077,10 +1077,20 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     <p className={`text-xs rounded-lg border px-3 py-2 ${isDark ? 'text-red-300 border-red-500/20 bg-red-500/10' : 'text-red-600 border-red-300 bg-red-50'}`}>{simulationError}</p>
                   )}
 
+                  {/* Geração de arte IA por ponto (usa a área de tela já marcada no admin) */}
+                  <ArteAIPanel
+                    points={proposalPoints}
+                    segmento={form.segmento}
+                    cidade={activeCities}
+                    propostaId={null}
+                    isDark={isDark}
+                    onArteEscolhida={handleAiArteEscolhida}
+                  />
+
                   {/* BLOCO 3 — Status da campanha */}
                   <div className="grid sm:grid-cols-3 gap-3">
                     <StatusCard isDark={isDark} label="Pontos na proposta" value={proposalSourcePoints.length} tone="default" />
-                    <StatusCard isDark={isDark} label="Simulações geradas" value={Object.values(simulationResults).filter((i) => i.status === 'Gerada').length} tone="success" />
+                    <StatusCard isDark={isDark} label="Simulações geradas" value={Object.values(simulationResults).filter((i) => String(i.status || '').startsWith('Gerada')).length} tone="success" />
                     <StatusCard isDark={isDark} label="Pendências de cadastro" value={Object.values(simulationResults).filter((i) => i.status === 'Área da tela não cadastrada no admin' || i.status === 'Imagem base do ponto não cadastrada').length} tone="warning" />
                   </div>
 
@@ -1278,16 +1288,6 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
                   {/* Preview ampliado */}
                   <PreviewPanel proposalPoints={proposalPoints} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={!!simulationArtFile} isDark={isDark} />
-
-                  {/* Geração de arte IA por ponto */}
-                  <ArteAIPanel
-                    points={proposalPoints}
-                    segmento={form.segmento}
-                    cidade={activeCities}
-                    propostaId={null}
-                    isDark={isDark}
-                    onArteEscolhida={handleAiArteEscolhida}
-                  />
                 </motion.div>
               )}
 
