@@ -311,11 +311,12 @@ async function callReplicate(prompt, w, h) {
   };
 
   // OpenAI GPT-4 Vision Image aceita width+height (prefer: wait para resposta síncrona)
+  // Nota: output_format aceita: 'png', 'jpeg', 'webp' (não 'jpg')
   const input = {
     prompt,
     width:          w,
     height:         h,
-    output_format:  'jpg',
+    output_format:  'jpeg',
     output_quality: 95,
     safety_tolerance: 2,
   };
