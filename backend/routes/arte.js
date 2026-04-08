@@ -211,7 +211,7 @@ router.post('/gerar', async (req, res) => {
 
 // ─────────────────────────────────────────
 // POST /api/arte/gerar-lote
-// Gera arte para múltiplos pontos em paralelo (máx 5 simultâneos)
+// Gera arte para múltiplos pontos sequencialmente (com delay entre cada para evitar 429)
 // ─────────────────────────────────────────
 router.post('/gerar-lote', async (req, res) => {
   const db = req.app.get('db');
@@ -240,62 +240,60 @@ router.post('/gerar-lote', async (req, res) => {
     // Agrupar por resolução para economizar chamadas
     const grupos = agrupar_por_resolucao ? agruparPorResolucao(pontos) : pontos.map((p) => ({ resolucao: null, pontos: [p] }));
 
-    const MAX_CONCURRENT = 5;
     const resultados = [];
     const erros = [];
 
-    // Processar em lotes de MAX_CONCURRENT
-    for (let i = 0; i < grupos.length; i += MAX_CONCURRENT) {
-      const lote = grupos.slice(i, i + MAX_CONCURRENT);
+    // Processar grupos SEQUENCIALMENTE para evitar 429 Rate Limit do Replicate
+    for (let i = 0; i < grupos.length; i++) {
+      const grupo = grupos[i];
+      const pontoBase = grupo.pontos[0];
+      const pontosCompartilhados = grupo.pontos.slice(1);
 
-      const promessas = lote.map(async (grupo) => {
-        // Usar o primeiro ponto do grupo para gerar; compartilhar resultado com os demais
-        const pontoBase = grupo.pontos[0];
-        const pontosCompartilhados = grupo.pontos.slice(1);
+      try {
+        const resultado = await gerarArte({
+          ponto: pontoBase,
+          contexto: { ...ctx, cidade: contexto?.cidade || pontoBase.cidade },
+          promptCustomizado: null,
+          uploadsDir,
+        });
 
-        try {
-          const resultado = await gerarArte({
-            ponto: pontoBase,
-            contexto: { ...ctx, cidade: contexto?.cidade || pontoBase.cidade },
-            promptCustomizado: null,
-            uploadsDir,
-          });
+        const insertResult = salvarGeracaoDb(db, {
+          proposta_id:              ctx.proposta_id || null,
+          ponto_id:                 pontoBase.id,
+          ponto_nome:               pontoBase.nome,
+          resolucao_nativa_w:       resultado.resolucao_nativa.w,
+          resolucao_nativa_h:       resultado.resolucao_nativa.h,
+          resolucao_geracao_w:      resultado.resolucao_geracao.w,
+          resolucao_geracao_h:      resultado.resolucao_geracao.h,
+          orientacao:               resultado.orientacao,
+          prompt_texto:             resultado.prompt,
+          prompt_editado_manualmente: 0,
+          variacoes_json:           JSON.stringify(resultado.variacoes),
+          variacao_escolhida:       null,
+          api_usada:                'replicate/openai-gpt-image-1.5',
+          custo_estimado_usd:       resultado.custo_estimado_usd,
+          duracao_ms:               resultado.duracao_ms,
+          normalizado:              resultado.normalizado ? 1 : 0,
+          gerado_por_usuario_id:    usuarioId,
+        });
 
-          const insertResult = salvarGeracaoDb(db, {
-            proposta_id:              ctx.proposta_id || null,
-            ponto_id:                 pontoBase.id,
-            ponto_nome:               pontoBase.nome,
-            resolucao_nativa_w:       resultado.resolucao_nativa.w,
-            resolucao_nativa_h:       resultado.resolucao_nativa.h,
-            resolucao_geracao_w:      resultado.resolucao_geracao.w,
-            resolucao_geracao_h:      resultado.resolucao_geracao.h,
-            orientacao:               resultado.orientacao,
-            prompt_texto:             resultado.prompt,
-            prompt_editado_manualmente: 0,
-            variacoes_json:           JSON.stringify(resultado.variacoes),
-            variacao_escolhida:       null,
-            api_usada:                'replicate/openai-gpt-image-1.5',
-            custo_estimado_usd:       resultado.custo_estimado_usd,
-            duracao_ms:               resultado.duracao_ms,
-            normalizado:              resultado.normalizado ? 1 : 0,
-            gerado_por_usuario_id:    usuarioId,
-          });
+        resultados.push({
+          ponto_id:   pontoBase.id,
+          ponto_nome: pontoBase.nome,
+          geracao_id: insertResult.lastInsertRowid,
+          variacoes:  resultado.variacoes,
+          compartilhada_com: pontosCompartilhados.map((p) => p.id),
+          orientacao: resultado.orientacao,
+        });
 
-          resultados.push({
-            ponto_id:   pontoBase.id,
-            ponto_nome: pontoBase.nome,
-            geracao_id: insertResult.lastInsertRowid,
-            variacoes:  resultado.variacoes,
-            compartilhada_com: pontosCompartilhados.map((p) => p.id),
-            orientacao: resultado.orientacao,
-          });
+      } catch (err) {
+        erros.push({ ponto_id: pontoBase.id, ponto_nome: pontoBase.nome, erro: err.message });
+      }
 
-        } catch (err) {
-          erros.push({ ponto_id: pontoBase.id, ponto_nome: pontoBase.nome, erro: err.message });
-        }
-      });
-
-      await Promise.all(promessas);
+      // Delay de 5s entre grupos para respeitar rate limit do Replicate
+      if (i < grupos.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
     }
 
     res.json({
