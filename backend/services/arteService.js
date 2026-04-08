@@ -158,25 +158,58 @@ function gerarPrompt(ponto, contexto = {}) {
     : 'Clear space in lower section for client text/message overlay (minimum 35% of frame height).';
 
   return `
-Create a pure 2D campaign creative (banner/flyer/poster), full-bleed, front-facing.
-Output must be only the artwork canvas itself, with no mockup and no surrounding environment.
+CRITICAL INSTRUCTION — READ EVERY WORD:
+Generate ONLY a pure flat 2D advertising artwork (banner/flyer/poster).
+The ENTIRE image must be the creative design itself — FULL FRAME, NOTHING ELSE.
+Output must NOT include ANY physical structure, frame, stand, or mockup element.
+
+**ABSOLUTE PROHIBITIONS (DO NOT GENERATE THESE):**
+❌ NO outdoor scene, street, sky, cityscape, landscape, or nature background
+❌ NO billboard, totem, outdoor panel, advertising display, or any stand/structure
+❌ NO frame around the artwork (borders, moldura, edge frame, mounting)
+❌ NO pedestal, base, mounting bracket, stand, or support structure
+❌ NO wall, floor, environment, surroundings, or perspective view
+❌ NO monitor, TV screen, digital display, or device screen
+❌ NO photograph or photorealistic representation of a physical display
+❌ NO mockup of artwork-on-a-structure (this is strictly forbidden)
+❌ NO human figures, faces, people, bodies, hands, or portraits
+❌ NO faces showing emotion or realistic human expression
+❌ NO hands, arms, torsos, or any body part
+
+**WHAT TO CREATE:**
+✓ Pure 2D graphic design composition
+✓ Abstract shapes, icons, patterns, text, and visual elements ONLY
+✓ Colors, typography, geometric forms, product imagery
+✓ Design patterns, textures, graphic elements
+✓ Fresh, premium advertising layout
+✓ Professional print-ready quality
+
+**COMPOSITION:**
 ${COMPOSICAO_POR_ORIENTACAO[orientacao].trim()}
 ${espacoLogo}
 ${espacoTexto}
-Theme and business context: ${segmentoVisual}.
-Location context: ${contextoLocal}.
+
+**CONTEXT:**
+Theme: ${segmentoVisual}.
+Location: ${contextoLocal}.
 Campaign objective: ${objetivo}.
-${nomeCliente ? `Brand/client name to integrate in the artwork: ${nomeCliente}.` : 'Keep a clean area for brand/logo integration.'}
-Design style: premium graphic design key visual, clean composition, high readability, strong hierarchy, professional print-ready look.
-Include product/service-related visual elements for the business segment.
-Must look like a finalized ad layout ready to publish.
-Do NOT generate any outdoor scene, street, city, office, architecture, billboard structure, frame, monitor, tv, totem, wall, pedestal, perspective mockup, or photo of a panel.
-No humans: no people, no faces, no hands, no portraits, no bodies.
-Use only object/shape/icon-based composition suitable for advertising artwork.
-Do NOT include unrelated brands, watermarks, UI chrome, or device bezels.
-No camera perspective, no depth-of-field, no realistic environment photography.
-Pixel dimensions: ${gw}x${gh}.
-Fill the entire frame with artwork only — no borders, no padding, no letterboxing.
+${nomeCliente ? `Client/Brand: ${nomeCliente}.` : 'Clean space for brand integration.'}
+
+**STYLE:**
+Premium graphic design, high-contrast, strong visual hierarchy, modern aesthetic.
+Print-ready professional quality. Bold colors, clean typography, impactful layout.
+
+**TECHNICAL:**
+Dimensions: ${gw}x${gh} pixels exactly.
+Full-bleed format — fill entire frame, no borders, no padding.
+No watermarks, signatures, UI elements, or device chrome.
+No phote realistic rendering or camera perspective.
+
+**FINAL CHECK:**
+- Is this a flat 2D graphic composition? YES ✓
+- Does it show any physical structure/stand/frame? NO ✓
+- Are there any human figures? NO ✓
+- Is it ready as an ad that runs on a digital screen? YES ✓
   `.trim();
 }
 
