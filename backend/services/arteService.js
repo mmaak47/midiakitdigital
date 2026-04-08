@@ -62,6 +62,32 @@ function normalizarResolucao(w, h, multiploBase = 16) {
   return { w: nw, h: nh, normalizado, wOriginal: w, hOriginal: h };
 }
 
+function escolherAspectRatio(w, h) {
+  const presets = [
+    { ratio: '1:1', val: 1 },
+    { ratio: '16:9', val: 16 / 9 },
+    { ratio: '9:16', val: 9 / 16 },
+    { ratio: '4:3', val: 4 / 3 },
+    { ratio: '3:4', val: 3 / 4 },
+    { ratio: '3:2', val: 3 / 2 },
+    { ratio: '2:3', val: 2 / 3 },
+  ];
+
+  const target = Number(w) / Number(h || 1);
+  let best = presets[0];
+  let bestDist = Number.POSITIVE_INFINITY;
+
+  for (const p of presets) {
+    const dist = Math.abs(target - p.val);
+    if (dist < bestDist) {
+      best = p;
+      bestDist = dist;
+    }
+  }
+
+  return best.ratio;
+}
+
 // ─────────────────────────────────────────
 // DADOS DE CONTEXTO
 // ─────────────────────────────────────────
@@ -310,15 +336,16 @@ async function callReplicate(prompt, w, h) {
     'Content-Type': 'application/json',
   };
 
-  // OpenAI GPT-4 Vision Image aceita width+height (prefer: wait para resposta síncrona)
-  // Nota: output_format aceita: 'png', 'jpeg', 'webp' (não 'jpg')
+  // openai/gpt-image-1.5 usa aspect_ratio no schema (não width/height).
+  const aspectRatio = escolherAspectRatio(w, h);
   const input = {
     prompt,
-    width:          w,
-    height:         h,
     output_format:  'jpeg',
-    output_quality: 95,
-    safety_tolerance: 2,
+    output_compression: 90,
+    number_of_images: 1,
+    quality: 'medium',
+    moderation: 'low',
+    aspect_ratio: aspectRatio,
   };
 
   const RATE_LIMIT_RETRY_MAX = 5;
@@ -339,7 +366,7 @@ async function callReplicate(prompt, w, h) {
       );
 
       ultimaResposta = r;
-      if (r.status !== 429) {
+      if (r.status >= 200 && r.status < 300) {
         console.log(`[arte/replicate] Tentativa ${tentativa + 1}: sucesso (status ${r.status})`);
         predictions.push(r);
         
@@ -348,6 +375,10 @@ async function callReplicate(prompt, w, h) {
           await sleep(2000);
         }
         break;
+      }
+
+      if (r.status >= 400 && r.status !== 429) {
+        throw new Error(`REPLICATE_API_ERROR ${r.status}: ${JSON.stringify(r.body)}`);
       }
 
       tentativa += 1;
@@ -366,16 +397,6 @@ async function callReplicate(prompt, w, h) {
     if (!predictions[i] && ultimaResposta) {
       predictions.push(ultimaResposta);
     }
-  }
-
-  // Se alguma prediction foi recusada por dimensão (422), tentar com múltiplo de 32
-  const primeiraRejeitada = predictions.find((r) => r.status === 422);
-  if (primeiraRejeitada) {
-    const { w: w32, h: h32 } = normalizarResolucao(w, h, 32);
-    if (w32 !== w || h32 !== h) {
-      return callReplicate(prompt, w32, h32);
-    }
-    throw new Error(`REPLICATE_API_ERROR 422: Dimensão rejeitada. ${JSON.stringify(primeiraRejeitada.body)}`);
   }
 
   // Verificar erros
@@ -652,7 +673,7 @@ async function gerarArte({ ponto, contexto, promptCustomizado, uploadsDir }) {
     resolucao_geracao:  { w: wGer, h: hGer },
     normalizado,
     duracao_ms: duracao,
-    custo_estimado_usd: 0.02, // Replicate OpenAI GPT-4 Vision Image ~$0.02/img (1 imagem por chamada)
+    custo_estimado_usd: 0.05, // Replicate openai/gpt-image-1.5 quality=medium ~$0.05/img
     orientacao: orientacaoArte,
   };
 }
@@ -660,6 +681,7 @@ async function gerarArte({ ponto, contexto, promptCustomizado, uploadsDir }) {
 module.exports = {
   detectarOrientacao,
   normalizarResolucao,
+  escolherAspectRatio,
   gerarPrompt,
   gerarArte,
   agruparPorResolucao,

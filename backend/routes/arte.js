@@ -14,7 +14,7 @@ const path    = require('path');
 const fs      = require('fs');
 const multer  = require('multer');
 const { gerarArte, gerarPrompt, agruparPorResolucao } = require('../services/arteService');
-// Provider: Replicate / black-forest-labs/flux-1.1-pro
+// Provider: Replicate / openai/gpt-image-1.5
 
 const router = express.Router();
 
@@ -79,7 +79,7 @@ function salvarGeracaoDb(db, dados) {
 // ─────────────────────────────────────────
 router.get('/config', (req, res) => {
   const configured = Boolean(process.env.REPLICATE_API_TOKEN);
-  res.json({ configured, provider: 'replicate / flux-1.1-pro' });
+  res.json({ configured, provider: 'replicate / openai/gpt-image-1.5' });
 });
 
 // ─────────────────────────────────────────
@@ -166,7 +166,7 @@ router.post('/gerar', async (req, res) => {
       prompt_editado_manualmente: prompt_customizado ? 1 : 0,
       variacoes_json:           JSON.stringify(resultado.variacoes),
       variacao_escolhida:       null,
-      api_usada:                'replicate/flux-1.1-pro',
+      api_usada:                'replicate/openai-gpt-image-1.5',
       custo_estimado_usd:       resultado.custo_estimado_usd,
       duracao_ms:               resultado.duracao_ms,
       normalizado:              resultado.normalizado ? 1 : 0,
@@ -274,7 +274,7 @@ router.post('/gerar-lote', async (req, res) => {
             prompt_editado_manualmente: 0,
             variacoes_json:           JSON.stringify(resultado.variacoes),
             variacao_escolhida:       null,
-            api_usada:                'replicate/flux-1.1-pro',
+            api_usada:                'replicate/openai-gpt-image-1.5',
             custo_estimado_usd:       resultado.custo_estimado_usd,
             duracao_ms:               resultado.duracao_ms,
             normalizado:              resultado.normalizado ? 1 : 0,
