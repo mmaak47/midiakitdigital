@@ -1,6 +1,6 @@
 /**
  * arteService.js
- * Serviço de geração de arte via IA (Replicate / Flux 1.1 Pro) para pontos DOOH.
+ * Serviço de geração de arte via IA (Replicate / OpenAI GPT-4 Vision Image) para pontos DOOH.
  */
 
 const https = require('https');
@@ -13,9 +13,9 @@ const path = require('path');
 // ─────────────────────────────────────────
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN || '';
 
-// Modelo Flux 1.1 Pro no Replicate
-// Documentação: https://replicate.com/black-forest-labs/flux-1.1-pro
-const REPLICATE_MODEL = 'black-forest-labs/flux-1.1-pro';
+// Modelo OpenAI GPT-4 Vision Image no Replicate
+// Documentação: https://replicate.com/openai/gpt-image-1.5
+const REPLICATE_MODEL = 'openai/gpt-image-1.5';
 const REPLICATE_PREDICTIONS_URL = `https://api.replicate.com/v1/models/${REPLICATE_MODEL}/predictions`;
 
 const TIMEOUT_MS = 120_000; // Replicate pode levar mais tempo (polling)
@@ -36,7 +36,7 @@ function detectarOrientacao(w, h) {
 // ─────────────────────────────────────────
 // NORMALIZAÇÃO DE RESOLUÇÃO
 // APIs de geração exigem dimensões em múltiplos de 16.
-// Flux 1.1 Pro (Replicate) aceita no máximo 1440px por lado.
+// OpenAI GPT-4 Vision Image (Replicate) aceita no máximo 1440px por lado.
 // Garante MIN 256px, MAX 1440px por lado.
 // ─────────────────────────────────────────
 function normalizarResolucao(w, h, multiploBase = 16) {
@@ -297,7 +297,7 @@ async function pollPrediction(predictionUrl, authHeaders, timeoutMs = TIMEOUT_MS
 }
 
 // ─────────────────────────────────────────
-// CHAMADA REPLICATE (Flux 1.1 Pro)
+// CHAMADA REPLICATE (OpenAI GPT-4 Vision Image)
 // Dispara predições em sequência para reduzir rate limit (429) na conta.
 // ─────────────────────────────────────────
 async function callReplicate(prompt, w, h) {
@@ -310,7 +310,7 @@ async function callReplicate(prompt, w, h) {
     'Content-Type': 'application/json',
   };
 
-  // Flux 1.1 Pro aceita aspect_ratio OU width+height (prefer: wait para resposta síncrona)
+  // OpenAI GPT-4 Vision Image aceita width+height (prefer: wait para resposta síncrona)
   const input = {
     prompt,
     width:          w,
@@ -385,7 +385,7 @@ async function callReplicate(prompt, w, h) {
   );
 
   // Normalizar saída para formato compatível com o restante do código
-  // Replicate Flux 1.1 Pro retorna: output = "url_string" (1 imagem por prediction)
+  // Replicate OpenAI GPT-4 Vision Image retorna: output = "url_string" (1 imagem por prediction)
   const images = resultados.map((pred) => {
     const url = Array.isArray(pred.output) ? pred.output[0] : pred.output;
     return { url };
@@ -640,7 +640,7 @@ async function gerarArte({ ponto, contexto, promptCustomizado, uploadsDir }) {
     resolucao_geracao:  { w: wGer, h: hGer },
     normalizado,
     duracao_ms: duracao,
-    custo_estimado_usd: 0.04, // Replicate Flux 1.1 Pro ~$0.04/img (1 imagem por chamada)
+    custo_estimado_usd: 0.02, // Replicate OpenAI GPT-4 Vision Image ~$0.02/img (1 imagem por chamada)
     orientacao: orientacaoArte,
   };
 }
