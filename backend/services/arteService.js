@@ -141,6 +141,7 @@ function gerarPrompt(ponto, contexto = {}) {
   const segmento = contexto.segmento || ponto.segmento || 'varejo';
   const cidade   = contexto.cidade   || ponto.cidade   || '';
   const nomeCliente = contexto.clientName || contexto.cliente || '';
+  const objetivo = contexto.objetivo || 'brand awareness';
 
   const segmentoVisual = SEGMENTO_VISUAL[segmento]
     || SEGMENTO_VISUAL[String(segmento).toLowerCase()]
@@ -157,17 +158,21 @@ function gerarPrompt(ponto, contexto = {}) {
     : 'Clear space in lower section for client text/message overlay (minimum 35% of frame height).';
 
   return `
-Professional DOOH digital billboard advertisement for client marketing.
+Create a flat marketing artwork (banner/flyer) to be displayed on a digital screen.
+Output must be only the creative design canvas, not a mockup.
 ${COMPOSICAO_POR_ORIENTACAO[orientacao].trim()}
 ${espacoLogo}
 ${espacoTexto}
-Theme: ${segmentoVisual}.
-Context: ${contextoLocal}.
-Style: photorealistic, commercial photography, high contrast, vibrant, professional branding-ready.
-${nomeCliente ? `Client: ${nomeCliente}.` : ''}
-No people's faces, no competing brands or logos (only client branding space reserved).
+Theme and business context: ${segmentoVisual}.
+Location context: ${contextoLocal}.
+Campaign objective: ${objetivo}.
+${nomeCliente ? `Brand/client name to integrate in the artwork: ${nomeCliente}.` : 'Keep a clean area for brand/logo integration.'}
+Design style: premium advertising key visual, clean composition, high readability, strong hierarchy, professional print-ready look.
+Include product/service-related visual elements for the business segment.
+Do NOT generate any outdoor scene, street, city, billboard structure, frame, monitor, tv, totem, wall, perspective mockup, or photo of a panel.
+Do NOT include unrelated brands, watermarks, UI chrome, or device bezels.
 Pixel dimensions: ${gw}x${gh}.
-Fill the entire frame — no borders, no padding, no letterboxing.
+Fill the entire frame with artwork only — no borders, no padding, no letterboxing.
   `.trim();
 }
 
