@@ -1049,24 +1049,16 @@ app.get('/api/loop-audit', openCors, async (req, res) => {
     const excludedIds = new Set(excludedRows.map(r => r.origin_id));
     const visibleMonitors = showHidden ? filteredMonitors : filteredMonitors.filter(m => !excludedIds.has(m.id));
 
-    const CICLO_PADRAO = 180; // loop padrão 3 min
+    const DURACAO_INSERCAO = 10; // cada inserção = 10s
 
-    // Calcula stats de cada monitor individual
+    // Calcula stats de cada monitor usando ciclo_segundos direto da API
     function calcMonitorStats(m) {
       const insercoes = m.total_insercoes_ativas || 0;
-      const cicloOrigin = m.ciclo_segundos || 0;
-      // Duração média por inserção: usa ciclo_origin/insercoes quando é < 15s (mais preciso)
-      // Caso contrário (ciclo grande inclui fillers), assume 15s (conservador)
-      let avgSeg = LOOP_DEFAULT_TEMPO_SEG;
-      if (insercoes > 0 && cicloOrigin > 0) {
-        const rawAvg = cicloOrigin / insercoes;
-        if (rawAvg < LOOP_DEFAULT_TEMPO_SEG) avgSeg = Math.max(10, rawAvg);
-      }
-      const ocupadoSeg = Math.round(insercoes * avgSeg);
-      const livreSeg = Math.max(0, CICLO_PADRAO - ocupadoSeg);
-      const cotasPorLoop = Math.floor(CICLO_PADRAO / LOOP_DEFAULT_TEMPO_SEG);
-      const cotasLivres = Math.floor(livreSeg / LOOP_DEFAULT_TEMPO_SEG);
-      const pctOcupado = CICLO_PADRAO > 0 ? Math.min(100, Math.round((ocupadoSeg / CICLO_PADRAO) * 100)) : 0;
+      const cicloSeg = m.ciclo_segundos || 0;
+      const ocupadoSeg = insercoes * DURACAO_INSERCAO;
+      const livreSeg = Math.max(0, cicloSeg - ocupadoSeg);
+      const cotasLivres = Math.floor(livreSeg / DURACAO_INSERCAO);
+      const pctOcupado = cicloSeg > 0 ? Math.min(100, Math.round((ocupadoSeg / cicloSeg) * 100)) : 0;
       const risk = classifyRisk(pctOcupado);
       return {
         origin_id: m.id,
@@ -1074,11 +1066,8 @@ app.get('/api/loop-audit', openCors, async (req, res) => {
         local: (m.local || '').trim(),
         cidade: m.cidade || null,
         status: m.status || 'unknown',
-        ciclo_seg: CICLO_PADRAO,
-        ciclo_origin_seg: cicloOrigin,
-        avg_insercao_seg: Math.round(avgSeg * 10) / 10,
+        ciclo_seg: cicloSeg,
         insercoes_ativas: insercoes,
-        cotas_por_loop: cotasPorLoop,
         cotas_livres: cotasLivres,
         ocupado_seg: ocupadoSeg,
         livre_seg: livreSeg,
@@ -1137,8 +1126,7 @@ app.get('/api/loop-audit', openCors, async (req, res) => {
     const cidades = [...new Set(finalItems.map(i => i.cidade).filter(Boolean))].sort();
 
     res.json({
-      target_seg: CICLO_PADRAO,
-      tempo_insercao_seg: LOOP_DEFAULT_TEMPO_SEG,
+      duracao_insercao_seg: DURACAO_INSERCAO,
       cache_age_ms: Date.now() - _loopCacheAt,
       hidden_count: excludedIds.size,
       summary: { total, critical, high, medium, low, totalCotasLivres, cidades },

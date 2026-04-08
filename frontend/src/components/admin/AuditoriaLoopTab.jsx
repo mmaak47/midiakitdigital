@@ -82,7 +82,6 @@ function MonitorRow({ item, onHide, isDark }) {
       </td>
       <td className="px-3 py-3 text-center">
         <div className={`text-xs font-mono ${isDark ? 'text-white' : 'text-neutral-900'}`}>{fmtSeg(item.ciclo_seg)}</div>
-        <div className={`text-[10px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>~{item.avg_insercao_seg}s/ins</div>
       </td>
       <td className="px-3 py-3 text-center">
         <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{item.insercoes_ativas}</div>
@@ -237,7 +236,7 @@ export default function AuditoriaLoopTab({ isDark = true }) {
         <div>
           <h2 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Auditoria de Loop</h2>
           <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
-            Dados em tempo real via API de origem — média dinâmica por inserção (10–15s), ciclo padrão 3 min.
+            Dados em tempo real via API de origem — inserção padrão 10s, ciclo por monitor.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
