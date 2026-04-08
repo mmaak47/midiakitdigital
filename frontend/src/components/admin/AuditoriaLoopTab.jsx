@@ -256,11 +256,12 @@ export default function AuditoriaLoopTab({ isDark = true }) {
   const [copied, setCopied] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
 
-  async function fetchData() {
+  async function fetchData(bustCache = false) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/loop-audit');
+      const url = bustCache ? '/api/loop-audit?bust=1' : '/api/loop-audit';
+      const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData(await res.json());
     } catch (err) {
@@ -416,7 +417,7 @@ export default function AuditoriaLoopTab({ isDark = true }) {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-          <button type="button" onClick={fetchData} disabled={loading}
+          <button type="button" onClick={() => fetchData(true)} disabled={loading}
             className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs disabled:opacity-50 ${isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
             <RefreshCcw size={12} className={loading ? 'animate-spin' : ''} /> Atualizar
           </button>

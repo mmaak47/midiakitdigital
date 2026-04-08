@@ -994,7 +994,7 @@ const LOOP_DEFAULT_TEMPO_SEG = 15; // duração estimada por inserção
 // Cache simples em memória (TTL 5 min)
 let _loopCache = null;
 let _loopCacheAt = 0;
-const LOOP_CACHE_TTL = 5 * 60 * 1000;
+const LOOP_CACHE_TTL = 60 * 1000; // 1 min
 
 function fetchOriginMonitors() {
   return new Promise((resolve, reject) => {
@@ -1036,6 +1036,7 @@ try {
 
 app.get('/api/loop-audit', openCors, async (req, res) => {
   try {
+    if (req.query.bust === '1') { _loopCache = null; _loopCacheAt = 0; }
     const monitors = await fetchOriginMonitors();
     const cidadeFilter = req.query.cidade || null;
     const showHidden = req.query.hidden === '1';
