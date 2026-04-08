@@ -148,7 +148,18 @@ export function parseSimulationConfig(raw) {
   if (!raw) return null;
 
   try {
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    let parsed;
+    if (typeof raw === 'string') {
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        // Fallback: handle non-standard JSON with unquoted keys (e.g. {version:2,corners:[...]})
+        const fixed = raw.replace(/(?<=[{,])(\w+)\s*:/g, '"$1":');
+        parsed = JSON.parse(fixed);
+      }
+    } else {
+      parsed = raw;
+    }
     const topLevelStyle = normalizeScreenStyle(parsed?.style);
 
     if (Array.isArray(parsed?.faces)) {

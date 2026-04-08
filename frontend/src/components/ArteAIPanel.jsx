@@ -189,24 +189,33 @@ export default function ArteAIPanel({
       });
 
       // Pré-selecionar primeira variação de cada ponto (inclusive compartilhados)
+      // IMPORTANTE: serializar as chamadas para evitar race condition no Canvas
       const novasArtes = { ...artesPorPonto };
       for (const r of res.resultados || []) {
         const primeiraVar = r.variacoes?.[0];
         if (primeiraVar) {
-          // Setar arte para o ponto base
-          novasArtes[r.ponto_id] = primeiraVar.url;
-          onArteEscolhida?.(r.ponto_id, primeiraVar.url, r.geracao_id, 1);
-
-          // Setar a mesma arte para pontos que compartilham a resolução
-          if (Array.isArray(r.compartilhada_com)) {
-            for (const sharedId of r.compartilhada_com) {
-              novasArtes[sharedId] = primeiraVar.url;
-              onArteEscolhida?.(sharedId, primeiraVar.url, r.geracao_id, 1);
-            }
+          // Coletar todos os pontos que usam essa arte (base + compartilhados)
+          const todosIds = [r.ponto_id, ...(r.compartilhada_com || [])];
+          for (const pid of todosIds) {
+            novasArtes[pid] = primeiraVar.url;
           }
         }
       }
       setArtesPorPonto(novasArtes);
+
+      // Agora disparar simulações UMA POR VEZ (serializado)
+      for (const r of res.resultados || []) {
+        const primeiraVar = r.variacoes?.[0];
+        if (primeiraVar) {
+          const todosIds = [r.ponto_id, ...(r.compartilhada_com || [])];
+          for (const pid of todosIds) {
+            try {
+              await onArteEscolhida?.(pid, primeiraVar.url, r.geracao_id, 1);
+            } catch { /* continuar com os demais */ }
+          }
+        }
+      }
+
       setLoteEstado('concluido');
 
     } catch (err) {

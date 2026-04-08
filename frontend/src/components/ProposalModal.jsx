@@ -675,8 +675,12 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   };
 
   const handleAiArteEscolhida = async (pontoId, urlArte, geracaoId, variacao) => {
+    console.log('[handleAiArteEscolhida] START pontoId=', pontoId, 'urlArte=', urlArte);
     const point = proposalSourcePoints.find((p) => String(p.id) === String(pontoId));
-    if (!point || !urlArte) return;
+    if (!point || !urlArte) {
+      console.warn('[handleAiArteEscolhida] SKIP — point not found or no urlArte', { pontoId, foundPoint: !!point, urlArte });
+      return;
+    }
 
     // Revoke previous blob URL for this point to avoid leaking object URLs.
     const prevEntry = simulationResults[pontoId];
@@ -685,6 +689,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     }
 
     if (!point.simulacao_tela || !point.imagem) {
+      console.warn('[handleAiArteEscolhida] SEM TELA/IMAGEM pontoId=', pontoId, { simulacao_tela: !!point.simulacao_tela, imagem: !!point.imagem });
       setSimulationResults((current) => ({
         ...current,
         [point.id]: {
@@ -699,7 +704,9 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
     try {
       const config = parseSimulationConfig(point.simulacao_tela);
-      if (!config?.corners) {
+      console.log('[handleAiArteEscolhida] CONFIG pontoId=', pontoId, { hasCorners: !!config?.corners, hasFaces: !!config?.faces });
+      if (!config?.corners && !config?.faces) {
+        console.warn('[handleAiArteEscolhida] SEM CORNERS/FACES pontoId=', pontoId);
         setSimulationResults((current) => ({
           ...current,
           [point.id]: {
@@ -712,6 +719,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         return;
       }
 
+      console.log('[handleAiArteEscolhida] GENERATING SIMULATION pontoId=', pontoId, { baseImageUrl: point.imagem, creativeImageUrl: urlArte });
       const result = await generateSimulationPreview({
         baseImageUrl: point.imagem,
         creativeImageUrl: urlArte,
@@ -721,6 +729,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         mediaParams
       });
 
+      console.log('[handleAiArteEscolhida] SUCCESS pontoId=', pontoId, { previewUrl: result.previewUrl?.substring(0, 60) });
       setSimulationResults((current) => ({
         ...current,
         [point.id]: {
@@ -731,6 +740,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         }
       }));
     } catch (error) {
+      console.error('[handleAiArteEscolhida] ERROR pontoId=', pontoId, error?.message || error);
       setSimulationResults((current) => ({
         ...current,
         [point.id]: {
