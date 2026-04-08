@@ -110,6 +110,7 @@ export default function ArteAIPanel({
   points = [],
   segmento = '',
   cidade = '',
+  clientName = '',
   propostaId = null,
   isDark = true,
   onArteEscolhida,
@@ -168,7 +169,7 @@ export default function ArteAIPanel({
       setLoteProgresso((p) => ({ ...p, erros: p.erros + 1 }));
       setLoteEstado('erro');
     }
-  }, [points, propostaId, segmento, cidadeStr, onArteEscolhida]);
+  }, [points, propostaId, segmento, cidadeStr, clientName, onArteEscolhida]);
 
   // ─── Handler para escolha individual ───
   const handleArteEscolhida = useCallback((pontoId, urlArte, geracaoId, variacao) => {
