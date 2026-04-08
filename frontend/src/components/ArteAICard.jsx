@@ -9,9 +9,9 @@
  *  - onArteEscolhida : fn(pontoId, urlArte, geracaoId) → chamado quando vendedor escolhe variação
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Wand2, Upload, RefreshCw, ChevronDown, ChevronUp, Loader2, CheckCircle, ImageOff, Edit3 } from 'lucide-react';
-import { gerarArteIA, previewPromptArte } from '../lib/api';
+import { gerarArteIA, previewPromptArte, fetchPonto } from '../lib/api';
 
 // ─────────────────────────────────────────
 // HELPERS
@@ -152,8 +152,19 @@ export default function ArteAICard({
   isDark = true,
   onArteEscolhida,
 }) {
-  const wNativo = Number(ponto?.arte_largura || 1920);
-  const hNativo = Number(ponto?.arte_altura  || 1080);
+  // Busca dados frescos do ponto no DB on mount para garantir arte_largura/arte_altura corretos
+  const [pontoLocal, setPontoLocal] = useState(null);
+  const pontoAtual = pontoLocal || ponto;
+
+  useEffect(() => {
+    if (!ponto?.id) return;
+    fetchPonto(ponto.id)
+      .then((data) => { if (data?.id) setPontoLocal(data); })
+      .catch(() => {}); // silencioso — usa fallback do prop
+  }, [ponto?.id]);
+
+  const wNativo = Number(pontoAtual?.arte_largura || 1920);
+  const hNativo = Number(pontoAtual?.arte_altura  || 1080);
   const orientacao = detectarOrientacao(wNativo, hNativo);
 
   const [estado, setEstado] = useState('idle'); // idle | gerando | sucesso | erro
@@ -167,12 +178,12 @@ export default function ArteAICard({
   // Buscar preview do prompt antes de gerar
   const carregarPrompt = useCallback(async () => {
     try {
-      const res = await previewPromptArte({ ponto, contexto });
+      const res = await previewPromptArte({ ponto: pontoAtual, contexto });
       setPrompt(res.prompt || '');
     } catch {
       // silencioso
     }
-  }, [ponto, contexto]);
+  }, [pontoAtual, contexto]);
 
   // Geração principal
   const gerarArte = useCallback(async (promptCustomizado = null) => {

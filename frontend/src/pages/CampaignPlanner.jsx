@@ -1202,7 +1202,7 @@ export default function CampaignPlanner() {
 
         {/* WhatsApp CTA */}
         <a
-          href={`https://wa.me/5543996432333?text=${encodeURIComponent(`Olá! Gostei do que vi no Planejador de Campanha da Intermidia. Vim pelo plano feito para ${empresa} (${SEGMENTO_LABELS[segmento] || segmento}) em ${cidade}. Gostaria de mais informações!`)}`}
+          href={`https://wa.me/5543998450480?text=${encodeURIComponent(`Olá! Gostei do que vi no Planejador de Campanha da Intermidia. Vim pelo plano feito para ${empresa} (${SEGMENTO_LABELS[segmento] || segmento}) em ${cidade}. Gostaria de mais informações!`)}`}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-3 w-full px-6 py-4 rounded-2xl font-semibold text-base text-white transition-all bg-[#25D366] hover:bg-[#22c55e] active:scale-[0.98] shadow-lg shadow-[#25D366]/20"
