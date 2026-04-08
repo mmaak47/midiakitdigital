@@ -20,7 +20,8 @@ const REPLICATE_PREDICTIONS_URL = `https://api.replicate.com/v1/models/${REPLICA
 
 const TIMEOUT_MS = 120_000; // Replicate pode levar mais tempo (polling)
 const POLL_INTERVAL_MS = 2_000;
-const NUM_IMAGES = 3;
+// Mantemos 1 imagem por chamada para reduzir incidência de rate limit (429).
+const NUM_IMAGES = 1;
 
 // ─────────────────────────────────────────
 // ORIENTAÇÃO
