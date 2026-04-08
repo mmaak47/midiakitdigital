@@ -1,4 +1,5 @@
 import AutoArgumentGenerator from './AutoArgumentGenerator';
+import ArteAIPanel from './ArteAIPanel';
 
 function getPointTypeLabel(point) {
   if (!point) return '';
@@ -21,7 +22,9 @@ export default function ProposalBuilder({
   activePreviewPointId,
   onSelectPreview,
   onGenerate,
-  isDark = true
+  isDark = true,
+  propostaId = null,
+  onArteEscolhida = null,
 }) {
   const formatCurrency = (n) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
   const formatNumber = (n) => new Intl.NumberFormat('pt-BR').format(n || 0);
@@ -121,6 +124,21 @@ export default function ProposalBuilder({
       </section>
 
       <AutoArgumentGenerator argumentsList={strategicText} isDark={isDark} />
+
+      {/* Painel de Arte IA */}
+      {points.length > 0 && (
+        <ArteAIPanel
+          points={points}
+          segmento={segmento}
+          cidade={city}
+          propostaId={propostaId || null}
+          isDark={isDark}
+          onArteEscolhida={(pontoId, urlArte) => {
+            // Callback opcional: pode ser usado para atualizar simulação do ponto
+            onArteEscolhida?.(pontoId, urlArte);
+          }}
+        />
+      )}
 
       <button
         onClick={onGenerate}

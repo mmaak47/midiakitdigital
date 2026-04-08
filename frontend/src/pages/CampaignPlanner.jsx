@@ -294,7 +294,7 @@ export default function CampaignPlanner() {
   const [empresa, setEmpresa] = useState('');
   const [segmento, setSegmento] = useState('');
   const [contato, setContato] = useState('');
-  const [objetivo, setObjetivo] = useState('');
+  const [objetivos, setObjetivos] = useState([]);
   const [publicoAlvo, setPublicoAlvo] = useState([]);
   const [audienceTags, setAudienceTags] = useState([]);
   const [cidade, setCidade] = useState('');
@@ -351,18 +351,19 @@ export default function CampaignPlanner() {
   const canAdvance = useMemo(() => {
     switch (step) {
       case 0: return empresa.trim().length >= 2 && segmento;
-      case 1: return !!objetivo;
+      case 1: return objetivos.length > 0;
       case 2: return publicoAlvo.length > 0 || audienceTags.length > 0;
       case 3: return !!cidade && budget !== null;
       default: return false;
     }
-  }, [step, empresa, segmento, objetivo, publicoAlvo, audienceTags, cidade, budget]);
+  }, [step, empresa, segmento, objetivos, publicoAlvo, audienceTags, cidade, budget]);
 
   const runRecommendation = useCallback(() => {
     setComputing(true);
     // give the UI a frame to show the loading state
     requestAnimationFrame(() => {
       setTimeout(() => {
+        const objetivo = objetivos[0] || '';
         const cityPontos = allPontos.filter((p) =>
           !cidade || p.cidade === cidade
         );
@@ -417,12 +418,12 @@ export default function CampaignPlanner() {
           censusProfilesByPoint: censusProfiles,
         });
 
-        setResult({ plan, scoreInfo, strategic, ranked });
+        setResult({ plan, scoreInfo, strategic, ranked, objetivo });
         setComputing(false);
         setStep(4);
       }, 100);
     });
-  }, [allPontos, cidade, publicoAlvo, audienceTags, objetivo, segmento, budget, period, empresa, geoProfiles, censusProfiles]);
+  }, [allPontos, cidade, publicoAlvo, audienceTags, objetivos, segmento, budget, period, empresa, geoProfiles, censusProfiles]);
 
   const handleNext = useCallback(() => {
     if (step === 3) {
@@ -511,28 +512,49 @@ export default function CampaignPlanner() {
     </StepCard>
   );
 
+  const handleToggleObjetivo = useCallback((obj) => {
+    setObjetivos((prev) =>
+      prev.includes(obj) ? prev.filter((o) => o !== obj) : [...prev, obj]
+    );
+  }, []);
+
   const renderStep1 = () => (
     <StepCard isDark={isDark}>
       <h2 className={`text-xl font-bold mb-1 ${isDark ? 'text-white' : 'text-neutral-900'}`}>Objetivo da campanha</h2>
-      <p className={`text-sm mb-6 ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>Qual o principal objetivo comercial desta campanha?</p>
+      <p className={`text-sm mb-6 ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>Selecione um ou mais objetivos comerciais desta campanha.</p>
 
       <div className="space-y-3">
-        {OBJETIVOS.map((obj) => (
-          <OptionCard key={obj} selected={objetivo === obj} onClick={() => setObjetivo(obj)} isDark={isDark}>
-            <div className="flex items-start gap-3">
-              <Target size={18} className={`mt-0.5 flex-shrink-0 ${objetivo === obj ? 'text-brand-orange' : isDark ? 'text-white/40' : 'text-neutral-400'}`} />
-              <div>
-                <div className={`text-sm font-semibold ${objetivo === obj ? 'text-brand-orange' : isDark ? 'text-white' : 'text-neutral-800'}`}>
-                  {OBJETIVO_LABELS[obj] || obj}
+        {OBJETIVOS.map((obj) => {
+          const isSel = objetivos.includes(obj);
+          return (
+            <OptionCard key={obj} selected={isSel} onClick={() => handleToggleObjetivo(obj)} isDark={isDark}>
+              <div className="flex items-start gap-3">
+                <div className={`flex-shrink-0 mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                  isSel
+                    ? 'bg-brand-orange border-brand-orange'
+                    : isDark ? 'border-white/20' : 'border-neutral-300'
+                }`}>
+                  {isSel && <Check size={12} className="text-white" strokeWidth={3} />}
                 </div>
-                <div className={`text-xs mt-0.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>
-                  {OBJETIVO_DESCRIPTIONS[obj] || ''}
+                <div>
+                  <div className={`text-sm font-semibold ${isSel ? 'text-brand-orange' : isDark ? 'text-white' : 'text-neutral-800'}`}>
+                    {OBJETIVO_LABELS[obj] || obj}
+                  </div>
+                  <div className={`text-xs mt-0.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>
+                    {OBJETIVO_DESCRIPTIONS[obj] || ''}
+                  </div>
                 </div>
               </div>
-            </div>
-          </OptionCard>
-        ))}
+            </OptionCard>
+          );
+        })}
       </div>
+
+      {objetivos.length > 0 && (
+        <p className="text-xs font-medium text-brand-orange mt-4">
+          {objetivos.length} objetivo{objetivos.length !== 1 ? 's' : ''} selecionado{objetivos.length !== 1 ? 's' : ''}
+        </p>
+      )}
     </StepCard>
   );
 
@@ -616,6 +638,35 @@ export default function CampaignPlanner() {
               </OptionCard>
             ))}
           </div>
+
+          {/* Custom budget input */}
+          <div className={`mt-3 rounded-xl border p-4 space-y-2 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
+            <span className={`text-xs font-medium ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>Ou informe um valor específico (R$)</span>
+            <div className="flex items-center gap-2">
+              <span className={`text-sm font-semibold flex-shrink-0 ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>R$</span>
+              <input
+                type="number"
+                min="0"
+                step="500"
+                value={budget && !BUDGET_OPTIONS.some((o) => o.value === budget) ? budget : ''}
+                onChange={(e) => {
+                  const val = Math.max(0, Number(e.target.value) || 0);
+                  setBudget(val || null);
+                }}
+                placeholder="Ex: 15000"
+                className={`flex-1 rounded-lg px-3 py-2 text-sm outline-none transition border ${
+                  isDark
+                    ? 'bg-white/[0.06] border-white/10 text-white placeholder:text-white/25 focus:border-brand-orange/50 focus:ring-1 focus:ring-brand-orange/30'
+                    : 'bg-white border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-brand-orange/50 focus:ring-1 focus:ring-brand-orange/30'
+                }`}
+              />
+            </div>
+            {budget && !BUDGET_OPTIONS.some((o) => o.value === budget) && (
+              <p className="text-xs font-medium text-brand-orange">
+                Budget personalizado: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(budget)}
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -675,6 +726,7 @@ export default function CampaignPlanner() {
       censusProfile: 'bg-violet-500'
     };
 
+    const objetivo = result.objetivo || objetivos[0] || '';
     return (
       <motion.div
         initial={{ opacity: 0, y: 16 }}
@@ -690,7 +742,7 @@ export default function CampaignPlanner() {
                 Recomendação inteligente para {empresa}
               </h2>
               <p className={`text-sm mt-1 ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>
-                {SEGMENTO_LABELS[segmento]} — {OBJETIVO_LABELS[objetivo]} — {cidade}
+                {SEGMENTO_LABELS[segmento]} — {objetivos.map((o) => OBJETIVO_LABELS[o] || o).join(', ')} — {cidade}
                 {ranked?.length ? ` — ${ranked.length} pontos analisados` : ''}
               </p>
             </div>
@@ -1147,6 +1199,19 @@ export default function CampaignPlanner() {
             </p>
           </div>
         )}
+
+        {/* WhatsApp CTA */}
+        <a
+          href={`https://wa.me/5543996432333?text=${encodeURIComponent(`Olá! Gostei do que vi no Planejador de Campanha da Intermidia. Vim pelo plano feito para ${empresa} (${SEGMENTO_LABELS[segmento] || segmento}) em ${cidade}. Gostaria de mais informações!`)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-3 w-full px-6 py-4 rounded-2xl font-semibold text-base text-white transition-all bg-[#25D366] hover:bg-[#22c55e] active:scale-[0.98] shadow-lg shadow-[#25D366]/20"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 flex-shrink-0">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+          </svg>
+          Gostou do que viu? Fale conosco no WhatsApp!
+        </a>
 
         {/* Action buttons */}
         <div className="flex flex-col sm:flex-row gap-3">

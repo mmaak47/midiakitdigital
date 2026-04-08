@@ -1837,83 +1837,146 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
   const publicoLabel = Array.isArray(publico) ? publico.filter(Boolean).join(', ') : (publico || '—');
   const cityLabel = Array.isArray(proposalCity) ? proposalCity.join(', ') : (proposalCity || '—');
 
-  const pointRows = proposalPoints.map((p) => `
+  const insercoesLabel = proposalTotals?.insercoesTotal ? proposalTotals.insercoesTotal.toLocaleString('pt-BR') : '—';
+  const fluxoLabel = proposalTotals?.fluxoTotal ? proposalTotals.fluxoTotal.toLocaleString('pt-BR') : '—';
+  const cpmLabel = proposalTotals?.cpmEstimado ? formatMoney(proposalTotals.cpmEstimado) : '—';
+
+  const maxPointsToDisplay = 10;
+  const displayPoints = proposalPoints.slice(0, maxPointsToDisplay);
+  const hiddenPoints = proposalPoints.length - displayPoints.length;
+
+  let pointRows = displayPoints.map((p) => `
     <tr>
-      <td style="padding:10px 14px;font-size:13px;font-weight:600;color:#fff;border-bottom:1px solid rgba(255,255,255,0.06);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.nome || 'Ponto')}</td>
-      <td style="padding:10px 14px;font-size:12px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.06);">${escapeHtml(p.cidade || '—')}</td>
-      <td style="padding:10px 14px;font-size:12px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.06);">${escapeHtml(getPointTypeLabel(p) || '—')}</td>
-      <td style="padding:10px 14px;font-size:13px;font-weight:700;color:${PROPOSAL_ACCENT};border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;white-space:nowrap;">${formatMoney(p.precoFinal ?? p.preco ?? 0)}</td>
+      <td style="padding:12px 16px;font-size:13px;font-weight:600;color:#fff;border-bottom:1px solid rgba(255,255,255,0.06);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.nome || 'Ponto')}</td>
+      <td style="padding:12px 16px;font-size:12px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.06);">${escapeHtml(p.cidade || '—')}</td>
+      <td style="padding:12px 16px;font-size:12px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.06);">${escapeHtml(getPointTypeLabel(p) || '—')}</td>
+      <td style="padding:12px 16px;font-size:13px;font-weight:700;color:${PROPOSAL_ACCENT};border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;white-space:nowrap;">${formatMoney(p.precoFinal ?? p.preco ?? 0)}</td>
     </tr>
   `).join('');
 
+  if (hiddenPoints > 0) {
+    pointRows += `
+      <tr>
+        <td colspan="4" style="padding:14px 16px;font-size:12px;font-style:italic;color:rgba(255,255,255,0.5);text-align:center;background:rgba(255,255,255,0.02);border-top:1px solid rgba(255,255,255,0.05);">
+          E mais ${hiddenPoints} ${hiddenPoints === 1 ? 'ponto detalhado' : 'pontos detalhados'} ao longo desta proposta...
+        </td>
+      </tr>
+    `;
+  }
+
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
-    <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(254,92,43,0.08) 0%,transparent 50%);"></div>
-    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:42px 52px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;">
+    <div style="position:absolute;top:-20%;right:-10%;width:800px;height:800px;background:radial-gradient(circle, rgba(255,90,31,0.08) 0%, transparent 60%);border-radius:50%;filter:blur(60px);pointer-events:none;"></div>
+    <div style="position:absolute;bottom:-20%;left:-10%;width:600px;height:600px;background:radial-gradient(circle, rgba(255,90,31,0.05) 0%, transparent 60%);border-radius:50%;filter:blur(60px);pointer-events:none;"></div>
+
+    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:42px 52px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;">
 
       <!-- Header -->
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
         <div style="display:flex;align-items:center;gap:14px;">
           <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:36px;width:auto;object-fit:contain;" />
-          <div style="display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 16px;border-radius:100px;background:rgba(255,90,31,0.12);border:1px solid rgba(255,90,31,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Resumo da Proposta</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="padding:6px 14px;border-radius:100px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Pontos</div>
-          <div style="padding:6px 14px;border-radius:100px;background:rgba(255,90,31,0.15);border:1px solid rgba(255,90,31,0.3);font-size:16px;font-weight:800;color:${PROPOSAL_ACCENT};font-family:Poppins, system-ui, sans-serif;">${pointCount}</div>
+          <div style="width:2px;height:24px;background:rgba(255,255,255,0.1);"></div>
+          <div style="font-size:18px;font-weight:600;color:#fff;letter-spacing:0.02em;">Plano de Investimento & Impacto</div>
         </div>
       </div>
 
-      <!-- Summary cards -->
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;">
-        ${[
-          { label: 'Cliente', value: proposalClient || '—' },
-          { label: 'Cidades', value: cityLabel },
-          { label: 'Segmento', value: segmentLabel },
-          { label: 'Públicos', value: publicoLabel },
-          { label: 'Pontos', value: String(pointCount) }
-        ].map((card) => `
-          <div style="padding:14px 16px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
-            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">${escapeHtml(card.label)}</div>
-            <div style="margin-top:6px;font-size:14px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(card.value)}">${escapeHtml(card.value)}</div>
+      <div style="display:flex;gap:24px;flex:1;overflow:hidden;">
+        
+        <!-- LEFT COLUMN (Points & Info) -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:20px;overflow:hidden;">
+          
+          <!-- Summary cards -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+            ${[
+              { label: 'Cliente', value: proposalClient || '—' },
+              { label: 'Cidades', value: cityLabel },
+              { label: 'Segmento', value: segmentLabel },
+              { label: 'Públicos', value: publicoLabel }
+            ].map((card) => `
+              <div style="padding:14px 16px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};box-shadow:0 4px 16px rgba(0,0,0,0.1);">
+                <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">${escapeHtml(card.label)}</div>
+                <div style="margin-top:6px;font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(card.value)}">${escapeHtml(card.value)}</div>
+              </div>
+            `).join('')}
           </div>
-        `).join('')}
-      </div>
 
-      <!-- Points table header -->
-      <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.45);border-bottom:2px solid ${PROPOSAL_ACCENT};padding-bottom:6px;">Pontos da campanha</div>
-
-      <!-- Points table -->
-      <div style="flex:1;overflow:hidden;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
-        <table style="width:100%;border-collapse:collapse;">
-          <thead>
-            <tr>
-              <th style="padding:10px 14px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Ponto</th>
-              <th style="padding:10px 14px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Cidade</th>
-              <th style="padding:10px 14px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Tipo</th>
-              <th style="padding:10px 14px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:right;border-bottom:1px solid rgba(255,255,255,0.1);">Valor</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${pointRows}
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Total footer -->
-      <div style="display:flex;align-items:center;justify-content:flex-end;gap:20px;padding:14px 20px;border-radius:12px;background:rgba(255,90,31,0.08);border:1px solid rgba(255,90,31,0.25);">
-        ${hasDiscount ? `
-          <div style="text-align:right;">
-            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);">Valor original</div>
-            <div style="margin-top:4px;font-size:16px;font-weight:600;color:rgba(255,255,255,0.45);text-decoration:line-through;font-family:Poppins, system-ui, sans-serif;">${formatMoney(originalTotal)}</div>
+          <!-- Points table -->
+          <div style="flex:1;display:flex;flex-direction:column;border-radius:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+            <div style="padding:14px 20px;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;">
+              <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.6);">Pontos da campanha</div>
+              <div style="font-size:11px;font-weight:700;color:${PROPOSAL_ACCENT};background:rgba(255,90,31,0.1);border:1px solid rgba(255,90,31,0.2);padding:4px 12px;border-radius:100px;">Total de ${pointCount} pontos</div>
+            </div>
+            <table style="width:100%;border-collapse:collapse;">
+              <thead>
+                <tr>
+                  <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Ponto</th>
+                  <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Cidade</th>
+                  <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Tipo</th>
+                  <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:right;border-bottom:1px solid rgba(255,255,255,0.1);">Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${pointRows}
+              </tbody>
+            </table>
           </div>
-          <div style="text-align:right;">
-            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);">Desconto</div>
-            <div style="margin-top:4px;font-size:16px;font-weight:600;color:#facc15;font-family:Poppins, system-ui, sans-serif;">-${formatMoney(discountTotal)}</div>
+          
+        </div>
+
+        <!-- RIGHT COLUMN (Impact & Finance) -->
+        <div style="width:340px;display:flex;flex-direction:column;gap:20px;">
+          
+          <!-- Impact Metrics Box -->
+          <div style="border-radius:16px;background:linear-gradient(180deg, ${PROPOSAL_SURFACE} 0%, rgba(255,255,255,0.02) 100%);border:1px solid ${PROPOSAL_BORDER};padding:24px;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
+            <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#fff;margin-bottom:20px;display:flex;align-items:center;gap:8px;">
+              <div style="width:6px;height:6px;border-radius:50%;background:${PROPOSAL_ACCENT};box-shadow:0 0 10px ${PROPOSAL_ACCENT};"></div>
+              Estimativas de Impacto
+            </div>
+            
+            <div style="display:flex;flex-direction:column;gap:18px;">
+              <div style="padding-bottom:16px;border-bottom:1px dashed rgba(255,255,255,0.08);">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.45);margin-bottom:4px;">Inserções (Mensais)</div>
+                <div style="font-size:24px;font-weight:800;color:#fff;font-family:Poppins, system-ui, sans-serif;">${insercoesLabel}</div>
+              </div>
+              <div style="padding-bottom:16px;border-bottom:1px dashed rgba(255,255,255,0.08);">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.45);margin-bottom:4px;">Fluxo de Pessoas (Mensal)</div>
+                <div style="font-size:24px;font-weight:800;color:#fff;font-family:Poppins, system-ui, sans-serif;">${fluxoLabel}</div>
+              </div>
+              <div>
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.45);margin-bottom:4px;">CPM Estimado</div>
+                <div style="font-size:24px;font-weight:800;color:${PROPOSAL_ACCENT};font-family:Poppins, system-ui, sans-serif;">${cpmLabel}</div>
+              </div>
+            </div>
           </div>
-        ` : ''}
-        <div style="text-align:right;">
-          <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Total mensal</div>
-          <div style="margin-top:4px;font-size:28px;font-weight:800;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatMoney(finalTotal)}</div>
+
+          <!-- Investment Summary -->
+          <div style="flex:1;border-radius:16px;background:rgba(255,90,31,0.04);border:1px solid rgba(255,90,31,0.25);padding:24px;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden;box-shadow:0 12px 40px rgba(255,90,31,0.08);">
+            <div style="position:absolute;top:0;left:0;width:100%;height:3px;background:linear-gradient(90deg, transparent, ${PROPOSAL_ACCENT}, transparent);"></div>
+            
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_ACCENT};background:rgba(255,90,31,0.12);border:1px solid rgba(255,90,31,0.2);padding:6px 12px;border-radius:100px;align-self:flex-start;margin-bottom:auto;">
+              Resumo Financeiro
+            </div>
+
+            <div style="margin-top:24px;">
+              ${hasDiscount ? `
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                  <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.5);">Valor Original</div>
+                  <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.4);text-decoration:line-through;font-family:Poppins, system-ui, sans-serif;">${formatMoney(originalTotal)}</div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:16px;border-bottom:1px dashed rgba(255,255,255,0.12);">
+                  <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.7);">Desconto Aplicado</div>
+                  <div style="font-size:14px;font-weight:700;color:#facc15;font-family:Poppins, system-ui, sans-serif;">-${formatMoney(discountTotal)}</div>
+                </div>
+              ` : ''}
+
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <div style="font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:rgba(255,255,255,0.7);">Total Mensal</div>
+                <div style="font-size:32px;font-weight:800;color:#fff;font-family:Poppins, system-ui, sans-serif;line-height:1.1;letter-spacing:-0.02em;">${formatMoney(finalTotal)}</div>
+                <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:8px;line-height:1.4;">Valores em moeda local (BRL).<br>Proposta sujeita a disponibilidade de espaço.</div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>

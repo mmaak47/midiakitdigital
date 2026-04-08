@@ -27,6 +27,7 @@ deploy.py
 
 # --- secrets / credentials (NEVER commit) ---
 secrets.py
+ecosystem.config.js
 .tmp_*.py
 
 # Deployment helper scripts that contain or load credentials

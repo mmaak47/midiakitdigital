@@ -747,3 +747,104 @@ export async function simulateCampaign({ selectedPoints, investment, periodDays 
   }
   return res.json();
 }
+
+// ============== ARTE IA (Replicate / Flux 1.1 Pro) ==============
+
+/**
+ * Verifica se o REPLICATE_API_TOKEN está configurado no backend.
+ */
+export async function fetchArteConfig() {
+  const res = await apiRequest('/arte/config');
+  if (!res.ok) throw new Error('Erro ao verificar config de arte IA');
+  return res.json(); // { configured: boolean, provider: string }
+}
+
+/**
+ * Retorna o prompt que seria gerado para um ponto sem chamar a API.
+ */
+export async function previewPromptArte({ ponto, contexto = {} }) {
+  const res = await apiRequest('/arte/preview-prompt', {
+    method: 'POST',
+    body: JSON.stringify({ ponto, contexto })
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao gerar preview do prompt');
+  }
+  return res.json(); // { prompt: string }
+}
+
+/**
+ * Gera arte IA para um único ponto.
+ * @param {Object} params
+ * @param {number} params.ponto_id
+ * @param {number|null} params.proposta_id
+ * @param {Object} params.contexto - { segmento, cidade }
+ * @param {string|null} params.prompt_customizado
+ */
+export async function gerarArteIA({ ponto_id, proposta_id, contexto, prompt_customizado }) {
+  const res = await apiRequest('/arte/gerar', {
+    method: 'POST',
+    body: JSON.stringify({ ponto_id, proposta_id, contexto, prompt_customizado })
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const err = new Error(data.error || 'Erro ao gerar arte');
+    err.retry = data.retry || false;
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+  // { geracao_id, ponto_id, ponto_nome, variacoes, prompt, resolucao_nativa, resolucao_geracao, normalizado, orientacao, duracao_ms }
+}
+
+/**
+ * Gera arte IA para múltiplos pontos em paralelo.
+ * @param {Object} params
+ * @param {number[]} params.ponto_ids
+ * @param {number|null} params.proposta_id
+ * @param {Object} params.contexto - { segmento, cidade }
+ * @param {boolean} params.agrupar_por_resolucao - default true
+ */
+export async function gerarArteLoteIA({ ponto_ids, proposta_id, contexto, agrupar_por_resolucao = true }) {
+  const res = await apiRequest('/arte/gerar-lote', {
+    method: 'POST',
+    body: JSON.stringify({ ponto_ids, proposta_id, contexto, agrupar_por_resolucao })
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao gerar arte em lote');
+  }
+  return res.json();
+  // { total_pontos, total_geracoes, total_erros, resultados, erros }
+}
+
+/**
+ * Busca histórico de gerações de arte de uma proposta.
+ */
+export async function fetchArteGeracoes(propostaId) {
+  const res = await apiRequest(`/arte/geracoes/${propostaId}`);
+  if (!res.ok) throw new Error('Erro ao buscar gerações de arte');
+  return res.json();
+}
+
+/**
+ * Marca qual variação foi escolhida para uma geração.
+ */
+export async function escolherVariacaoArte(geracaoId, variacaoEscolhida) {
+  const res = await apiRequest(`/arte/geracoes/${geracaoId}/escolha`, {
+    method: 'PATCH',
+    body: JSON.stringify({ variacao_escolhida: variacaoEscolhida })
+  });
+  if (!res.ok) throw new Error('Erro ao registrar escolha de variação');
+  return res.json();
+}
+
+/**
+ * Busca métricas de geração de arte (admin).
+ */
+export async function fetchArteStats() {
+  const res = await apiRequest('/arte/stats');
+  if (!res.ok) throw new Error('Erro ao buscar stats de arte IA');
+  return res.json();
+}

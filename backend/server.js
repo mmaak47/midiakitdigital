@@ -21,6 +21,7 @@ const { z } = require('zod');
 const { randomUUID } = require('crypto');
 const db = require('./database');
 const cidadeFotosRouter = require('./routes/cidadeFotos');
+const arteRouter        = require('./routes/arte');
 const {
   createAuthToken,
   parseAuthToken,
@@ -437,7 +438,12 @@ function pickUploadedPath(req, fieldName) {
   return file ? `/uploads/${file.filename}` : null;
 }
 
+// Expor db e uploadsPath para routers via app.set (antes de registrar as rotas)
+app.set('db', db);
+app.set('uploadsDir', uploadsPath);
+
 app.use('/api', cidadeFotosRouter);
+app.use('/api/arte', arteRouter);
 
 function parseOptionalCity(value) {
   if (Array.isArray(value)) {
@@ -1031,6 +1037,31 @@ try {
     nome TEXT,
     motivo TEXT,
     excluido_em TEXT DEFAULT (datetime('now'))
+  )`).run();
+} catch (e) { /* já existe */ }
+
+// ── Tabela de gerações de arte via IA ──
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS arte_geracoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    proposta_id INTEGER,
+    ponto_id INTEGER,
+    ponto_nome TEXT,
+    resolucao_nativa_w INTEGER,
+    resolucao_nativa_h INTEGER,
+    resolucao_geracao_w INTEGER,
+    resolucao_geracao_h INTEGER,
+    orientacao TEXT,
+    prompt_texto TEXT,
+    prompt_editado_manualmente INTEGER DEFAULT 0,
+    variacoes_json TEXT,
+    variacao_escolhida INTEGER,
+    api_usada TEXT DEFAULT 'fal-ai/flux-pro',
+    custo_estimado_usd REAL DEFAULT 0,
+    duracao_ms INTEGER,
+    normalizado INTEGER DEFAULT 0,
+    gerado_em TEXT DEFAULT (datetime('now')),
+    gerado_por_usuario_id INTEGER
   )`).run();
 } catch (e) { /* já existe */ }
 
