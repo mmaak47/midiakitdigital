@@ -150,13 +150,13 @@ function buildAuditHtml(filtered, filteredStats, filterCidade) {
         <div style="display:flex;align-items:center;gap:6px">
           ${onlineIcon}
           <div>
-            <div style="font-weight:500;font-size:12px;color:#fff">${item.local || item.nome}${telasTag}${divergeTag}</div>
-            <div style="font-size:9px;color:#666">${item.cidade || ''}</div>
+            <div class="nome-local" style="font-weight:500;font-size:12px;color:#fff">${item.local || item.nome}${telasTag}${divergeTag}</div>
+            <div class="cidade-sub" style="font-size:9px;color:#666">${item.cidade || ''}</div>
           </div>
         </div>
       </td>
-      <td style="padding:8px 10px;text-align:center;font-family:monospace;font-size:11px;color:#fff">${fmtS(item.ocupado_seg)}</td>
-      <td style="padding:8px 10px;text-align:center;font-weight:700;color:#fff">${item.insercoes_ativas}</td>
+      <td class="val-mono" style="padding:8px 10px;text-align:center;font-family:monospace;font-size:11px;color:#fff">${fmtS(item.ocupado_seg)}</td>
+      <td class="val-ins" style="padding:8px 10px;text-align:center;font-weight:700;color:#fff">${item.insercoes_ativas}</td>
       <td style="padding:8px 10px;text-align:center">
         <span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;background:${riskBg(item.risk_level)};color:${riskColor(item.risk_level)}">${riskLabel(item.risk_level, item.cotas_livres)}</span>
         <div style="font-size:9px;color:#666;margin-top:2px">${fmtS(item.livre_seg)} livres</div>
@@ -165,7 +165,7 @@ function buildAuditHtml(filtered, filteredStats, filterCidade) {
         <div style="width:100%;height:6px;border-radius:99px;background:rgba(255,255,255,0.08);overflow:hidden">
           <div style="height:100%;border-radius:99px;width:${pct}%;background:${barColor(item.pct_ocupado)}"></div>
         </div>
-        <div style="font-size:9px;color:#666;text-align:right;margin-top:2px">${item.pct_ocupado}%</div>
+        <div class="pct-txt" style="font-size:9px;color:#666;text-align:right;margin-top:2px">${item.pct_ocupado}%</div>
       </td>
     </tr>`;
   }).join('');
@@ -191,7 +191,7 @@ function buildAuditHtml(filtered, filteredStats, filterCidade) {
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Poppins',system-ui,sans-serif;background:#0A0A0A;color:#fff;padding:32px 28px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   table{width:100%;border-collapse:collapse;font-size:12px}
-  @media print{body{padding:16px 12px} @page{size:A4 landscape;margin:10mm}}
+  @media print{body{padding:16px 12px} @page{size:A4 landscape;margin:10mm} .nome-local{color:#111!important} .cidade-sub{color:#555!important} .val-mono{color:#111!important} .val-ins{color:#111!important} .pct-txt{color:#555!important}}
 </style>
 </head><body>
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
