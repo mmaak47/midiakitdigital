@@ -44,6 +44,7 @@ print()
 
 cmds = [
     'cd /home/mmak/midiakit && git fetch origin main && git reset --hard origin/main',
+    'cd /home/mmak/midiakit/backend && npm install --omit=dev',
     'cd /home/mmak/midiakit/frontend && npm install --production=false && npm run build',
 ]
 
