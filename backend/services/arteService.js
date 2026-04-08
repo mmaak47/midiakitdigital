@@ -34,16 +34,30 @@ function detectarOrientacao(w, h) {
 
 // ─────────────────────────────────────────
 // NORMALIZAÇÃO DE RESOLUÇÃO
-// Fal.ai Flux Pro requer dimensões múltiplos de 8.
-// Se a resolução nativa não for válida, arredonda para múltiplo de 8.
-// Em caso de rejeição pela API, o endpoint tenta múltiplo de 32.
+// APIs de geração exigem dimensões em múltiplos de 16.
+// Garante MIN 256px, MAX 4096px por lado.
 // ─────────────────────────────────────────
-function normalizarResolucao(w, h, multiploBase = 8) {
+function normalizarResolucao(w, h, multiploBase = 16) {
+  const MIN = 256;
+  const MAX = 4096;
+
+  // Garantir que nenhum lado ultrapasse o MAX
+  if (w > MAX || h > MAX) {
+    const scale = Math.min(MAX / w, MAX / h);
+    w = Math.round(w * scale);
+    h = Math.round(h * scale);
+  }
+
+  // Garantir mínimo
+  if (w < MIN) w = MIN;
+  if (h < MIN) h = MIN;
+
+  // Arredondar para múltiplo de 16 (ou multiploBase)
   const snap = (n) => Math.round(n / multiploBase) * multiploBase;
-  const nw = snap(w);
-  const nh = snap(h);
+  const nw = snap(w) || multiploBase;
+  const nh = snap(h) || multiploBase;
   const normalizado = (nw !== w || nh !== h);
-  return { w: nw || multiploBase, h: nh || multiploBase, normalizado, wOriginal: w, hOriginal: h };
+  return { w: nw, h: nh, normalizado, wOriginal: w, hOriginal: h };
 }
 
 // ─────────────────────────────────────────

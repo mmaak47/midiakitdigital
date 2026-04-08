@@ -1056,7 +1056,7 @@ try {
     prompt_editado_manualmente INTEGER DEFAULT 0,
     variacoes_json TEXT,
     variacao_escolhida INTEGER,
-    api_usada TEXT DEFAULT 'fal-ai/flux-pro',
+    api_usada TEXT DEFAULT 'replicate/flux-1.1-pro',
     custo_estimado_usd REAL DEFAULT 0,
     duracao_ms INTEGER,
     normalizado INTEGER DEFAULT 0,
