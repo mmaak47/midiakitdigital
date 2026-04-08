@@ -12,7 +12,8 @@ module.exports = {
       FRONTEND_ORIGINS: 'http://midiakit.redeintermidia.com,https://midiakit.redeintermidia.com,http://www.midiakit.redeintermidia.com,https://www.midiakit.redeintermidia.com,http://localhost:5173,http://127.0.0.1:5173',
       PDF_ALLOWED_HOSTS: 'localhost,127.0.0.1,midiakit.redeintermidia.com,www.midiakit.redeintermidia.com'
     },
-    max_memory_restart: '300M',
+    max_memory_restart: '2G',
+    node_args: '--max-old-space-size=2048',
     log_date_format: 'YYYY-MM-DD HH:mm:ss',
     merge_logs: true
   }]
