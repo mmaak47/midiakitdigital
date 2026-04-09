@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, RefreshCw, CheckCircle2, XCircle, RotateCcw, Clock, ChevronDown, ChevronUp, MessageCircle, Circle, Trash2 } from 'lucide-react';
-import { fetchVendas, updateVendaStatus, fetchVendaEtapas, deleteVenda } from '../../lib/api';
+import { Search, RefreshCw, CheckCircle2, XCircle, RotateCcw, Clock, ChevronDown, ChevronUp, MessageCircle, Circle, Trash2, Pencil } from 'lucide-react';
+import { fetchVendas, updateVendaStatus, fetchVendaEtapas, deleteVenda, updateVenda } from '../../lib/api';
 
 // Definição ordenada das etapas pós-venda
 const ETAPAS_DEF = [
@@ -46,19 +46,42 @@ function StatusBadge({ status, isDark }) {
   );
 }
 
-function StatusModal({ venda, isDark, onClose, onSaved }) {
-  const [status, setStatus] = useState(venda.status || 'ativa');
-  const [obs, setObs] = useState(venda.obs || '');
+function EditVendaModal({ venda, isDark, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    tipo: venda.tipo || 'Nova Venda',
+    razao_social: venda.razao_social || '',
+    cnpj: venda.cnpj || '',
+    valor_mensal: venda.valor_mensal || '',
+    tipo_valor: venda.tipo_valor || '',
+    periodo: venda.periodo || '',
+    dia_pagamento: venda.dia_pagamento || '',
+    data_primeira_parcela: venda.data_primeira_parcela || '',
+    dia_pagamento_dia: venda.dia_pagamento_dia || '',
+    via_agencia: venda.via_agencia == 1,
+    agencia_nome: venda.agencia_nome || '',
+    comissao_pct: venda.comissao_pct || '',
+    troca_material: venda.troca_material == 1,
+    responsavel_nome: venda.responsavel_nome || '',
+    responsavel_whatsapp: venda.responsavel_whatsapp || '',
+    vendedor_nome: venda.vendedor_nome || '',
+    obs: venda.obs || '',
+    status: venda.status || 'ativa',
+    pontos_nomes: venda.pontos_nomes || '[]',
+  });
   const [saving, setSaving] = useState(false);
 
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
   const overlay = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50';
-  const modal = `w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4 border ${isDark ? 'bg-[#111] border-white/10 text-white' : 'bg-white border-neutral-200 text-neutral-900'}`;
-  const inp = `w-full rounded-xl border px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-orange/30 ${isDark ? 'bg-white/5 border-white/10 text-white placeholder:text-brand-gray-500' : 'bg-white border-neutral-200 text-neutral-900 placeholder:text-neutral-400'}`;
+  const modal = `w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl p-6 space-y-4 border ${isDark ? 'bg-[#111] border-white/10 text-white' : 'bg-white border-neutral-200 text-neutral-900'}`;
+  const lbl = `block text-xs font-medium uppercase tracking-wide mb-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`;
+  const inp = `w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-orange/30 ${isDark ? 'bg-white/5 border-white/10 text-white placeholder:text-brand-gray-500' : 'bg-white border-neutral-200 text-neutral-900 placeholder:text-neutral-400'}`;
 
   async function handleSave() {
+    if (!form.razao_social.trim()) return alert('Razão Social é obrigatória.');
     setSaving(true);
     try {
-      await updateVendaStatus(venda.id, { status, obs });
+      await updateVenda(venda.id, form);
       onSaved();
       onClose();
     } catch (e) {
@@ -71,55 +94,143 @@ function StatusModal({ venda, isDark, onClose, onSaved }) {
   return (
     <div className={overlay}>
       <div className={modal}>
-        <div>
-          <h3 className="text-base font-semibold">Atualizar venda</h3>
-          <p className={`text-sm mt-0.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>{venda.razao_social}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-semibold">Editar Venda</h3>
+            <p className={`text-sm mt-0.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>#{venda.id} — {venda.razao_social}</p>
+          </div>
         </div>
 
+        {/* Status */}
         <div className="space-y-1.5">
-          <label className={`text-xs font-medium uppercase tracking-wide ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Status</label>
-          <div className="grid grid-cols-2 gap-2">
+          <label className={lbl}>Status</label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
-              const active = status === key;
+              const active = form.status === key;
               const base = isDark ? cfg.dark : cfg.light;
               return (
-                <button
-                  key={key}
-                  onClick={() => setStatus(key)}
-                  className={`py-2 px-3 rounded-xl text-sm font-medium border transition-all ${
-                    active
-                      ? `${base} ring-2 ring-offset-1 ${isDark ? 'ring-white/20 ring-offset-[#111]' : 'ring-neutral-300 ring-offset-white'}`
-                      : isDark
-                        ? 'border-white/10 text-brand-gray-400 hover:border-white/20 hover:text-white'
-                        : 'border-neutral-200 text-neutral-500 hover:border-neutral-300'
-                  }`}
-                >
-                  {cfg.label}
-                </button>
+                <button key={key} type="button" onClick={() => set('status', key)}
+                  className={`py-2 px-3 rounded-xl text-sm font-medium border transition-all ${active ? `${base} ring-2 ring-offset-1 ${isDark ? 'ring-white/20 ring-offset-[#111]' : 'ring-neutral-300 ring-offset-white'}` : isDark ? 'border-white/10 text-brand-gray-400 hover:border-white/20' : 'border-neutral-200 text-neutral-500 hover:border-neutral-300'}`}
+                >{cfg.label}</button>
               );
             })}
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <label className={`text-xs font-medium uppercase tracking-wide ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Observação (opcional)</label>
-          <textarea className={inp} rows={3} placeholder="Ex: Renovação por mais 12 meses, cliente pediu pausa..." value={obs} onChange={e => setObs(e.target.value)} />
+        {/* Tipo + Razão Social */}
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={lbl}>Tipo</label>
+            <select className={inp} value={form.tipo} onChange={e => set('tipo', e.target.value)}>
+              <option value="Nova Venda">Nova Venda</option>
+              <option value="Renovação">Renovação</option>
+            </select>
+          </div>
+          <div>
+            <label className={lbl}>Razão Social</label>
+            <input className={inp} value={form.razao_social} onChange={e => set('razao_social', e.target.value)} />
+          </div>
         </div>
 
+        {/* CNPJ + Vendedor */}
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={lbl}>CNPJ</label>
+            <input className={inp} value={form.cnpj} onChange={e => set('cnpj', e.target.value)} placeholder="00.000.000/0000-00" />
+          </div>
+          <div>
+            <label className={lbl}>Vendedor</label>
+            <input className={inp} value={form.vendedor_nome} onChange={e => set('vendedor_nome', e.target.value)} />
+          </div>
+        </div>
+
+        {/* Valor + Tipo Valor */}
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={lbl}>Valor Mensal</label>
+            <input className={inp} value={form.valor_mensal} onChange={e => set('valor_mensal', e.target.value)} placeholder="5.000,00" />
+          </div>
+          <div>
+            <label className={lbl}>Tipo do Valor</label>
+            <input className={inp} value={form.tipo_valor} onChange={e => set('tipo_valor', e.target.value)} placeholder="Cheio / Bonificado / etc" />
+          </div>
+        </div>
+
+        {/* Período + Dia pagamento */}
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={lbl}>Período</label>
+            <input className={inp} value={form.periodo} onChange={e => set('periodo', e.target.value)} placeholder="12 meses" />
+          </div>
+          <div>
+            <label className={lbl}>Dia do Pagamento (dia)</label>
+            <select className={inp} value={form.dia_pagamento_dia} onChange={e => set('dia_pagamento_dia', e.target.value)}>
+              <option value="">—</option>
+              {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                <option key={d} value={d}>Dia {d}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Data 1ª parcela */}
+        <div>
+          <label className={lbl}>Data da 1ª Parcela</label>
+          <input type="date" className={inp} value={form.data_primeira_parcela} onChange={e => set('data_primeira_parcela', e.target.value)} />
+        </div>
+
+        {/* Agência */}
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={form.via_agencia} onChange={e => set('via_agencia', e.target.checked)} className="accent-brand-orange" />
+            <span className={`text-sm ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>Via agência</span>
+          </label>
+          {form.via_agencia && (
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className={lbl}>Nome da Agência</label>
+                <input className={inp} value={form.agencia_nome} onChange={e => set('agencia_nome', e.target.value)} />
+              </div>
+              <div>
+                <label className={lbl}>Comissão %</label>
+                <input className={inp} value={form.comissao_pct} onChange={e => set('comissao_pct', e.target.value)} placeholder="15" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Troca material */}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={form.troca_material} onChange={e => set('troca_material', e.target.checked)} className="accent-brand-orange" />
+          <span className={`text-sm ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>Troca de material</span>
+        </label>
+
+        {/* Responsável */}
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={lbl}>Responsável (nome)</label>
+            <input className={inp} value={form.responsavel_nome} onChange={e => set('responsavel_nome', e.target.value)} />
+          </div>
+          <div>
+            <label className={lbl}>Responsável (WhatsApp)</label>
+            <input className={inp} value={form.responsavel_whatsapp} onChange={e => set('responsavel_whatsapp', e.target.value)} />
+          </div>
+        </div>
+
+        {/* Obs */}
+        <div>
+          <label className={lbl}>Observação</label>
+          <textarea className={`${inp} resize-none`} rows={3} value={form.obs} onChange={e => set('obs', e.target.value)} />
+        </div>
+
+        {/* Botões */}
         <div className="flex gap-2 pt-1">
-          <button
-            onClick={onClose}
+          <button onClick={onClose}
             className={`flex-1 py-2 rounded-xl border text-sm transition-colors ${isDark ? 'border-white/10 text-brand-gray-400 hover:bg-white/5' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'}`}
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
+          >Cancelar</button>
+          <button onClick={handleSave} disabled={saving}
             className="flex-1 py-2 rounded-xl bg-brand-orange text-white text-sm font-medium hover:bg-brand-orange/90 disabled:opacity-50 transition-colors"
-          >
-            {saving ? 'Salvando...' : 'Salvar'}
-          </button>
+          >{saving ? 'Salvando...' : 'Salvar'}</button>
         </div>
       </div>
     </div>
@@ -168,9 +279,9 @@ function VendaRow({ venda, isDark, onEdit, onDelete }) {
           <div className="flex items-center gap-1">
             <button
               onClick={() => onEdit(venda)}
-              className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${isDark ? 'border-white/10 text-brand-gray-300 hover:bg-white/5 hover:border-white/20' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100'}`}
+              className={`text-xs px-2.5 py-1 rounded-lg border transition-colors flex items-center gap-1 ${isDark ? 'border-white/10 text-brand-gray-300 hover:bg-white/5 hover:border-white/20' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100'}`}
             >
-              Atualizar
+              <Pencil size={12} /> Editar
             </button>
             <button
               onClick={() => onDelete(venda)}
@@ -330,7 +441,7 @@ export default function VendasListTab({ isDark = true }) {
   return (
     <div className="space-y-4">
       {editVenda && (
-        <StatusModal venda={editVenda} isDark={isDark} onClose={() => setEditVenda(null)} onSaved={load} />
+        <EditVendaModal venda={editVenda} isDark={isDark} onClose={() => setEditVenda(null)} onSaved={load} />
       )}
 
       {/* Modal de confirmação de delete */}

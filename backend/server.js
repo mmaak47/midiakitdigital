@@ -3105,10 +3105,62 @@ app.get('/api/vendas', requireRoles(['admin', 'gerente_comercial', 'vendedor']),
   }
 });
 
+// ─── Editar venda completa ────────────────────────────────────────────────────
+app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const existing = db.prepare('SELECT id FROM vendas WHERE id = ?').get(id);
+    if (!existing) return res.status(404).json({ error: 'Venda não encontrada.' });
+
+    const {
+      tipo, razao_social, cnpj, pontos_nomes, valor_mensal, tipo_valor,
+      via_agencia, agencia_nome, comissao_pct, troca_material,
+      periodo, dia_pagamento, data_primeira_parcela, dia_pagamento_dia,
+      responsavel_nome, responsavel_whatsapp, obs, status, vendedor_nome
+    } = req.body;
+
+    db.prepare(`
+      UPDATE vendas SET
+        tipo = ?, razao_social = ?, cnpj = ?, pontos_nomes = ?, valor_mensal = ?, tipo_valor = ?,
+        via_agencia = ?, agencia_nome = ?, comissao_pct = ?, troca_material = ?,
+        periodo = ?, dia_pagamento = ?, data_primeira_parcela = ?, dia_pagamento_dia = ?,
+        responsavel_nome = ?, responsavel_whatsapp = ?, obs = ?, status = ?, vendedor_nome = ?,
+        updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      tipo || 'Nova Venda',
+      razao_social || '',
+      cnpj || null,
+      pontos_nomes || '[]',
+      valor_mensal || null,
+      tipo_valor || null,
+      via_agencia ? 1 : 0,
+      agencia_nome || null,
+      comissao_pct || null,
+      troca_material ? 1 : 0,
+      periodo || null,
+      dia_pagamento || null,
+      data_primeira_parcela || null,
+      dia_pagamento_dia ? Number(dia_pagamento_dia) : null,
+      responsavel_nome || null,
+      responsavel_whatsapp || null,
+      obs || null,
+      status || 'ativa',
+      vendedor_nome || null,
+      id
+    );
+
+    const updated = db.prepare('SELECT * FROM vendas WHERE id = ?').get(id);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Atualizar status de uma venda ───────────────────────────────────────────
 app.patch('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
-    const { id } = req.params;
+    const id = Number(req.params.id);
     const { status, obs } = req.body;
     const { role, id: userId } = req.authUser;
     const allowed = ['ativa', 'renovada', 'cancelada', 'pendente'];

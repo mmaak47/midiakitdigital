@@ -496,6 +496,17 @@ export async function updateVendaStatus(id, { status, obs }) {
   return res.json();
 }
 
+// Edita campos completos de uma venda
+export async function updateVenda(id, data) {
+  const res = await apiRequest(`/vendas/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Erro ao editar venda');
+  return res.json();
+}
+
 // Registra uma nova venda e dispara notificação WhatsApp
 // Aceita FormData (multipart) para suportar upload do P.I. em PDF
 export async function submitNovaVenda(formData) {
