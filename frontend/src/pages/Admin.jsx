@@ -1044,6 +1044,7 @@ export default function Admin() {
               </button>
             ) : null}
           </div>
+        </div>
 
         <div className="mb-6">
           <div className={`flex flex-wrap gap-2 rounded-2xl border p-2 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white shadow-sm'}`}>
