@@ -456,22 +456,6 @@ export async function fetchCurrentUser() {
   return res.json();
 }
 
-export async function uploadMyPhoto(file) {
-  const fd = new FormData();
-  fd.append('photo', file);
-  const res = await apiRequest('/users/me/photo', { method: 'POST', body: fd });
-  if (!res.ok) { const msg = await parseErrorResponse(res); throw new Error(msg || 'Erro ao enviar foto'); }
-  return res.json();
-}
-
-export async function uploadUserPhoto(userId, file) {
-  const fd = new FormData();
-  fd.append('photo', file);
-  const res = await apiRequest(`/admin/users/${userId}/photo`, { method: 'POST', body: fd });
-  if (!res.ok) { const msg = await parseErrorResponse(res); throw new Error(msg || 'Erro ao enviar foto'); }
-  return res.json();
-}
-
 // Listagem de vendas
 export async function fetchVendas({ status, q } = {}) {
   const params = new URLSearchParams();

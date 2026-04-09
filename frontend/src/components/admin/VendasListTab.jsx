@@ -195,9 +195,7 @@ function VendaRow({ venda, isDark, onEdit, onDelete }) {
               {[
                 ['Tipo', venda.tipo],
                 ['Período', venda.periodo || '—'],
-                ['Data 1ª parcela', venda.data_primeira_parcela || '—'],
-                ['Dia de pagamento', venda.dia_pagamento_dia ? `Dia ${venda.dia_pagamento_dia} de cada mês` : (venda.dia_pagamento || '—')],
-                ['Forma de pagamento', venda.forma_pagamento || '—'],
+                ['Pagamento', [venda.dia_pagamento, venda.forma_pagamento].filter(Boolean).join(' · ')],
                 ['Responsável', [venda.responsavel_nome, venda.responsavel_whatsapp].filter(Boolean).join(' · ')],
               ].map(([label, val]) => (
                 <div key={label}>

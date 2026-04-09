@@ -19,8 +19,7 @@ const emptyForm = {
   periodo_meses: '',
   periodo_inicio: '',
   periodo_fim: '',
-  data_primeira_parcela: '',
-  dia_pagamento_dia: '',
+  dia_pagamento: '',
   responsavel_nome: '',
   responsavel_whatsapp: '',
   obs: '',
@@ -101,10 +100,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       fd.append('periodo_meses', form.periodo_meses);
       fd.append('periodo_inicio', form.periodo_inicio);
       fd.append('periodo_fim', form.periodo_fim);
-      fd.append('data_primeira_parcela', form.data_primeira_parcela);
-      fd.append('dia_pagamento_dia', form.dia_pagamento_dia);
-      // Build dia_pagamento string for backward compat
-      fd.append('dia_pagamento', form.dia_pagamento_dia ? `Dia ${form.dia_pagamento_dia} de cada mês` : '');
+      fd.append('dia_pagamento', form.dia_pagamento.trim());
       fd.append('responsavel_nome', form.responsavel_nome.trim());
       fd.append('responsavel_whatsapp', form.responsavel_whatsapp.trim());
       fd.append('obs', form.obs.trim());
@@ -301,36 +297,14 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
             </div>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className={lbl}>Data da primeira parcela</label>
-              <input
-                type="date"
-                className={inp}
-                value={form.data_primeira_parcela}
-                onChange={e => set('data_primeira_parcela', e.target.value)}
-              />
-            </div>
-            <div>
-              <label className={lbl}>Dia do pagamento</label>
-              <div className="relative">
-                <select
-                  className={inp}
-                  value={form.dia_pagamento_dia}
-                  onChange={e => set('dia_pagamento_dia', e.target.value)}
-                >
-                  <option value="">Selecionar dia...</option>
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                    <option key={d} value={d}>Dia {d}</option>
-                  ))}
-                </select>
-                {form.dia_pagamento_dia && (
-                  <p className={`text-xs mt-1.5 font-medium ${isDark ? 'text-brand-orange' : 'text-orange-600'}`}>
-                    Dia {form.dia_pagamento_dia} de cada mês.
-                  </p>
-                )}
-              </div>
-            </div>
+          <div>
+            <label className={lbl}>Dia do pagamento</label>
+            <input
+              className={inp}
+              value={form.dia_pagamento}
+              onChange={e => set('dia_pagamento', e.target.value)}
+              placeholder="Ex: Dia 10 de cada mês"
+            />
           </div>
 
           {/* Via agência */}
@@ -571,8 +545,7 @@ function buildMsgPreview({ form, selectedPontos, currentUser }) {
     '💼 *CONDIÇÕES COMERCIAIS*',
     form.valor_mensal ? `💰 Valor mensal: *R$ ${form.valor_mensal}* _(${form.tipo_valor})_` : null,
     periodo ? `📅 Período: *${periodo}*` : null,
-    form.data_primeira_parcela ? `📆 Data da 1ª parcela: *${fmtDate(form.data_primeira_parcela)}*` : null,
-    form.dia_pagamento_dia ? `📆 Dia de pagamento: *Dia ${form.dia_pagamento_dia} de cada mês*` : null,
+    form.dia_pagamento ? `📆 Dia de pagamento: *dia ${form.dia_pagamento}*` : null,
     form.via_agencia && form.agencia_nome ? `🤝 Via agência: *${form.agencia_nome}*${form.comissao_pct ? ` · Comissão: *${form.comissao_pct}%*` : ''}` : null,
     isRenovacao ? `🔁 Troca de material: *${form.troca_material ? 'Sim' : 'Não'}*` : null,
     '',

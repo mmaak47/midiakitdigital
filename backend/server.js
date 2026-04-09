@@ -21,7 +21,7 @@ const { z } = require('zod');
 const { randomUUID } = require('crypto');
 const db = require('./database');
 const cidadeFotosRouter = require('./routes/cidadeFotos');
-const arteRouter        = require('./routes/arte');
+const arteRouter          = require('./routes/arte');
 const comercialChatRouter = require('./routes/comercialChat');
 const {
   createAuthToken,
@@ -327,7 +327,7 @@ function resolveAuthenticatedUser(req, res, next) {
 
     const claims = parseAuthToken(token);
     const user = db.prepare(`
-      SELECT id, first_name, last_name, username, email, whatsapp, role, photo_url
+      SELECT id, first_name, last_name, username, email, whatsapp, role
       FROM admin_users
       WHERE id = ? AND lower(username) = lower(?)
       LIMIT 1
@@ -445,6 +445,7 @@ app.set('uploadsDir', uploadsPath);
 
 app.use('/api', cidadeFotosRouter);
 app.use('/api/arte', arteRouter);
+app.use('/api/comercial/chat', requireRoles(['admin', 'gerente_comercial', 'vendedor']), comercialChatRouter);
 
 function parseOptionalCity(value) {
   if (Array.isArray(value)) {
@@ -1931,7 +1932,7 @@ app.get('/api/admin/pontos', requireRoles(['admin', 'gerente_comercial', 'vended
 
 app.get('/api/admin/users', requireRoles(['admin']), (req, res) => {
   try {
-    const users = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, is_vendedor, photo_url, created_at FROM admin_users ORDER BY first_name ASC, last_name ASC, username ASC').all();
+    const users = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, is_vendedor, created_at FROM admin_users ORDER BY first_name ASC, last_name ASC, username ASC').all();
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2404,34 +2405,8 @@ app.delete('/api/admin/pdf-layout', requireRoles(['admin']), (req, res) => {
 // ==================== USUÁRIO ATUAL ====================
 
 app.get('/api/users/me', resolveAuthenticatedUser, (req, res) => {
-  const { id, first_name, last_name, username, email, whatsapp, role, photo_url } = req.authUser;
-  res.json({ id, first_name, last_name, username, email, whatsapp, role, photo_url });
-});
-
-// Upload photo for own user
-app.post('/api/users/me/photo', resolveAuthenticatedUser, upload.fields([{ name: 'photo', maxCount: 1 }]), (req, res) => {
-  try {
-    const file = req.files?.photo?.[0];
-    if (!file) return res.status(400).json({ error: 'Nenhuma foto enviada' });
-    const photoUrl = `/uploads/${file.filename}`;
-    db.prepare("UPDATE admin_users SET photo_url = ?, updated_at = datetime('now') WHERE id = ?").run(photoUrl, req.authUser.id);
-    res.json({ success: true, photo_url: photoUrl });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Admin: upload photo for any user
-app.post('/api/admin/users/:id/photo', requireRoles(['admin']), upload.fields([{ name: 'photo', maxCount: 1 }]), (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido' });
-    const user = db.prepare('SELECT id FROM admin_users WHERE id = ?').get(id);
-    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
-    const file = req.files?.photo?.[0];
-    if (!file) return res.status(400).json({ error: 'Nenhuma foto enviada' });
-    const photoUrl = `/uploads/${file.filename}`;
-    db.prepare("UPDATE admin_users SET photo_url = ?, updated_at = datetime('now') WHERE id = ?").run(photoUrl, id);
-    res.json({ success: true, photo_url: photoUrl });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  const { id, first_name, last_name, username, email, whatsapp, role } = req.authUser;
+  res.json({ id, first_name, last_name, username, email, whatsapp, role });
 });
 
 // ==================== VENDAS ====================
@@ -2500,7 +2475,6 @@ try {
   'ALTER TABLE vendas ADD COLUMN troca_material INTEGER DEFAULT 0',
   'ALTER TABLE pontos ADD COLUMN monitor_last_seen TEXT DEFAULT NULL',
   'ALTER TABLE admin_users ADD COLUMN is_vendedor INTEGER DEFAULT 0',
-  'ALTER TABLE admin_users ADD COLUMN photo_url TEXT DEFAULT NULL',
 ].forEach(sql => {
   try { db.prepare(sql).run(); } catch { /* coluna já existe */ }
 });
@@ -2601,57 +2575,6 @@ try {
   }
   if (toFix.length > 0) console.log(`[gestao] repaired ${toFix.length} auto-synced vendas_comercial rows`);
 } catch (e) { console.error('[gestao] repair auto-sync failed:', e.message); }
-
-// Migration: add data_primeira_parcela column to vendas table
-try { db.prepare("ALTER TABLE vendas ADD COLUMN data_primeira_parcela TEXT").run(); } catch {}
-// Migration: add dia_pagamento_dia column to vendas (integer day only)
-try { db.prepare("ALTER TABLE vendas ADD COLUMN dia_pagamento_dia INTEGER").run(); } catch {}
-
-// ─── Sync vendas_comercial (April 2026) → vendas table ──────────────────
-// Creates vendas rows for gestão entries that have no linked venda yet
-try {
-  const now = new Date();
-  const syncYear = now.getFullYear();
-  const syncMonth = now.getMonth() + 1; // April = 4
-  const unlinked = db.prepare(`
-    SELECT * FROM vendas_comercial
-    WHERE ano = ? AND mes = ? AND (venda_id IS NULL OR venda_id = 0)
-    AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
-  `).all(syncYear, syncMonth);
-
-  const insertVenda = db.prepare(`
-    INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal,
-      periodo, vendedor_nome, whatsapp_status, status, obs, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'nao_configurado', 'ativa', ?, COALESCE(?, datetime('now')))
-  `);
-  const linkBack = db.prepare(`UPDATE vendas_comercial SET venda_id = ? WHERE id = ?`);
-
-  let syncCount = 0;
-  for (const vc of unlinked) {
-    try {
-      const pontosNomes = vc.pontos_contratados
-        ? JSON.stringify(vc.pontos_contratados.split(',').map(s => s.trim()).filter(Boolean))
-        : '[]';
-      const periodo = vc.qtde_parcelas > 1 ? `${vc.qtde_parcelas} meses` : null;
-      const result = insertVenda.run(
-        'Nova Venda',
-        vc.cliente,
-        vc.cnpj || null,
-        pontosNomes,
-        vc.valor_mensal || null,
-        periodo,
-        vc.vendedor_nome || null,
-        vc.obs || null,
-        vc.data_venda || null
-      );
-      linkBack.run(result.lastInsertRowid, vc.id);
-      syncCount++;
-    } catch (syncRowErr) {
-      console.warn(`[gestao→vendas] sync failed for vc.id=${vc.id}:`, syncRowErr.message);
-    }
-  }
-  if (syncCount > 0) console.log(`[gestao→vendas] synced ${syncCount} vendas_comercial → vendas for ${syncMonth}/${syncYear}`);
-} catch (e) { console.error('[gestao→vendas] sync failed:', e.message); }
 
 try {
   db.prepare(`
@@ -2782,7 +2705,7 @@ async function sendEvolutionDocument({ apiUrl, instance, apiKey, number, caption
 }
 
 function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, cnpj, pontosNomes,
-  valorMensal, tipoValor, periodo, diaPagamento, dataPrimeiraParcela, diaPagamentoDia,
+  valorMensal, tipoValor, periodo, diaPagamento,
   viaAgencia, agenciaNome, comissaoPct,
   trocaMaterial,
   responsavelNome, responsavelWhatsapp, obs }) {
@@ -2815,8 +2738,7 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, cnpj, pont
   const financeiro = [
     valorMensal ? `💰 Valor mensal: *R$ ${valorMensal}*${tipoValor ? ` _(${tipoValor})_` : ''}` : null,
     periodo     ? `📅 Período: *${periodo}*` : null,
-    dataPrimeiraParcela ? `📆 Data da 1ª parcela: *${dataPrimeiraParcela}*` : null,
-    diaPagamentoDia ? `📆 Dia de pagamento: *Dia ${diaPagamentoDia} de cada mês*` : (diaPagamento ? `📆 Dia de pagamento: *dia ${diaPagamento}*` : null),
+    diaPagamento ? `📆 Dia de pagamento: *dia ${diaPagamento}*` : null,
   ].filter(Boolean);
 
   if (financeiro.length > 0) {
@@ -2868,8 +2790,6 @@ app.post(
         periodo_inicio,
         periodo_fim,
         dia_pagamento,
-        data_primeira_parcela,
-        dia_pagamento_dia,
         responsavel_nome,
         responsavel_whatsapp,
         obs,
@@ -2896,10 +2816,9 @@ app.post(
       const stmt = db.prepare(`
         INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal, tipo_valor,
           via_agencia, agencia_nome, comissao_pct, troca_material,
-          periodo, dia_pagamento, data_primeira_parcela, dia_pagamento_dia,
-          responsavel_nome, responsavel_whatsapp,
+          periodo, dia_pagamento, responsavel_nome, responsavel_whatsapp,
           obs, pi_path, vendedor_id, vendedor_nome, whatsapp_status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
       `);
 
       const dbResult = stmt.run(
@@ -2915,8 +2834,6 @@ app.post(
         troca_material === 'true' || troca_material === true ? 1 : 0,
         periodo || null,
         dia_pagamento || null,
-        data_primeira_parcela || null,
-        dia_pagamento_dia ? Number(dia_pagamento_dia) : null,
         responsavel_nome || null,
         responsavel_whatsapp || null,
         obs || null,
@@ -2944,8 +2861,6 @@ app.post(
             tipoValor: tipo_valor || '',
             periodo,
             diaPagamento: dia_pagamento || '',
-            dataPrimeiraParcela: data_primeira_parcela || '',
-            diaPagamentoDia: dia_pagamento_dia || '',
             viaAgencia: via_agencia === 'true' || via_agencia === true,
             agenciaNome: agencia_nome || '',
             comissaoPct: comissao_pct || '',
@@ -3019,4 +2934,575 @@ app.post(
         } catch { /* ignora */ }
       }
 
-      // Auto-sync para vendas_comercial (Gestão Comerci
+      // Auto-sync para vendas_comercial (Gestão Comercial)
+      try {
+        const now = new Date();
+        const vNome = vendedor_nome || req.authUser?.username || null;
+        // Calcular qtde_parcelas e total_contrato corretamente
+        const qtdeParcelas = (periodo_tipo === 'meses' && periodo_meses) ? Number(periodo_meses) : 1;
+        const valorMensalNum = Number(valor_mensal || 0);
+        const totalContrato = valorMensalNum * qtdeParcelas;
+        // Converter pontos_nomes de JSON para string legível
+        let pontosStr = null;
+        try {
+          const nomes = Array.isArray(pontos_nomes) ? pontos_nomes : JSON.parse(pontos_nomes || '[]');
+          pontosStr = nomes.length > 0 ? nomes.join(', ') : null;
+        } catch { pontosStr = pontos_nomes || null; }
+        db.prepare(`
+          INSERT INTO vendas_comercial
+            (vendedor_nome, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
+             valor_mensal, total_contrato, qtde_parcelas, obs, venda_id)
+          VALUES (?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          vNome,
+          now.getFullYear(),
+          now.getMonth() + 1,
+          String(razao_social).trim(),
+          cnpj || null,
+          pontosStr,
+          valorMensalNum,
+          totalContrato,
+          qtdeParcelas,
+          obs || null,
+          vendaId
+        );
+      } catch (syncErr) {
+        console.warn('[vendas] auto-sync vendas_comercial falhou:', syncErr.message);
+      }
+
+      res.json({
+        success: true,
+        id: vendaId,
+        whatsapp_status: whatsappStatus,
+        message: whatsappStatus === 'enviado'
+          ? 'Venda registrada e notificação enviada via WhatsApp!'
+          : whatsappStatus === 'nao_configurado'
+            ? 'Venda registrada. Configure a Evolution API nas Configurações para ativar o disparo automático.'
+            : `Venda registrada. Falha no WhatsApp: ${whatsappError || 'erro desconhecido'}`
+      });
+    } catch (err) {
+      console.error('[vendas] erro:', err.message);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ─── Listagem de vendas ───────────────────────────────────────────────────────
+app.get('/api/vendas', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { status, q } = req.query;
+    const { role, id: userId } = req.authUser;
+    let sql = `SELECT * FROM vendas`;
+    const conditions = [];
+    const params = [];
+    // Vendedor só vê as próprias vendas
+    if (role === 'vendedor') {
+      conditions.push(`vendedor_id = ?`);
+      params.push(userId);
+    }
+    if (status && status !== 'todas') {
+      conditions.push(`status = ?`);
+      params.push(status);
+    }
+    if (q) {
+      conditions.push(`(razao_social ILIKE ? OR cnpj ILIKE ? OR vendedor_nome ILIKE ?)`);
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    }
+    if (conditions.length) sql += ` WHERE ${conditions.join(' AND ')}`;
+    sql += ` ORDER BY created_at DESC`;
+    const rows = db.prepare(sql).all(...params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Atualizar status de uma venda ───────────────────────────────────────────
+app.patch('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, obs } = req.body;
+    const { role, id: userId } = req.authUser;
+    const allowed = ['ativa', 'renovada', 'cancelada', 'pendente'];
+    if (!allowed.includes(status)) return res.status(400).json({ error: 'Status inválido.' });
+    // Vendedor só pode atualizar as próprias vendas
+    if (role === 'vendedor') {
+      const venda = db.prepare(`SELECT vendedor_id FROM vendas WHERE id = ?`).get(id);
+      if (!venda || Number(venda.vendedor_id) !== Number(userId)) {
+        return res.status(403).json({ error: 'Acesso negado.' });
+      }
+    }
+    db.prepare(`UPDATE vendas SET status = ?, obs = ?, updated_at = datetime('now') WHERE id = ?`).run(status, obs || null, id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Deletar venda (apenas admin e gerente_comercial) ────────────────────────
+app.delete('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const { id } = req.params;
+    const venda = db.prepare('SELECT id FROM vendas WHERE id = ?').get(id);
+    if (!venda) return res.status(404).json({ error: 'Venda não encontrada.' });
+    db.prepare('DELETE FROM venda_etapas WHERE venda_id = ?').run(id);
+    db.prepare('DELETE FROM vendas WHERE id = ?').run(id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Etapas pós-venda (checklist por reação emoji) ───────────────────────────
+app.get('/api/vendas/:id/etapas', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, id: userId } = req.authUser;
+    if (role === 'vendedor') {
+      const venda = db.prepare('SELECT vendedor_id FROM vendas WHERE id = ?').get(id);
+      if (!venda || Number(venda.vendedor_id) !== Number(userId)) {
+        return res.status(403).json({ error: 'Acesso negado.' });
+      }
+    }
+    const etapas = db.prepare(
+      'SELECT * FROM venda_etapas WHERE venda_id = ? AND removido = 0 ORDER BY confirmado_at ASC'
+    ).all(id);
+    res.json(etapas);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Webhook Evolution API — reações emoji pós-venda ─────────────────────────
+app.post('/api/webhooks/whatsapp', (req, res) => {
+  try {
+    const payload = req.body;
+    const event = payload?.event;
+
+    // Só processa votos em poll (messages.update) e mensagens normais
+    const HANDLED = ['messages.upsert', 'message', 'messages.update', 'MESSAGES_UPDATE'];
+    if (!HANDLED.includes(event)) {
+      return res.json({ ok: true, ignored: 'event-not-handled' });
+    }
+
+    let data = payload?.data;
+    if (Array.isArray(data)) data = data[0];
+
+    // ── Voto em enquete (poll vote) ──────────────────────────────────────────
+    const pollUpdate = data?.pollUpdates?.[0] || data?.update?.pollUpdates?.[0];
+    if (pollUpdate) {
+      const pollId = data?.key?.id || data?.update?.key?.id;
+      if (!pollUpdate.vote?.selectedOptions?.length || !pollId) {
+        return res.json({ ok: true, ignored: 'empty-vote' });
+      }
+
+      const venda = db.prepare(`SELECT id FROM vendas WHERE whatsapp_poll_id = ?`).get(pollId);
+      if (!venda) {
+        return res.json({ ok: true, ignored: 'poll-not-found', pollId });
+      }
+
+      const ETAPAS_MAP = {
+        '📤 Contrato Enviado':    { key: 'contrato_enviado',  label: 'Contrato Enviado'    },
+        '✅ Contrato Assinado':   { key: 'contrato_assinado', label: 'Contrato Assinado'   },
+        '📦 Cobrança de Material':{ key: 'cobranca_material', label: 'Cobrança de Material' },
+        '🎨 Material Recebido':   { key: 'material_recebido', label: 'Material Recebido'   },
+        '📡 Veiculando':          { key: 'veiculando',        label: 'Veiculando'          },
+      };
+
+      for (const option of pollUpdate.vote.selectedOptions) {
+        const etapa = ETAPAS_MAP[option];
+        if (!etapa) continue;
+        try {
+          db.prepare(`
+            INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_at, confirmado_por)
+            VALUES (?, ?, ?, '', NOW(), 'webhook')
+            ON CONFLICT (venda_id, etapa_key) DO NOTHING
+          `).run(venda.id, etapa.key, etapa.label);
+        } catch { /* ignore */ }
+      }
+
+      return res.json({ ok: true, processed: 'poll-vote' });
+    }
+
+    res.json({ ok: true, ignored: 'no-handler' });
+  } catch (err) {
+    console.error('[webhook] erro:', err.message);
+    res.json({ ok: true, error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GESTÃO COMERCIAL — Metas, Vendas Comercial, Renovações, Acumulado
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MESES_LABEL = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+
+function getVendedoresAtivos() {
+  const rows = db.prepare("SELECT username, first_name, last_name FROM admin_users WHERE is_vendedor = 1 ORDER BY first_name, last_name").all();
+  return rows.map(r => r.username);
+}
+
+// Endpoint público (autenticado) para listar vendedores
+app.get('/api/gestao/vendedores', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const rows = db.prepare("SELECT id, username, first_name, last_name, role FROM admin_users WHERE is_vendedor = 1 ORDER BY first_name, last_name").all();
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── METAS ───────────────────────────────────────────────────────────────
+app.get('/api/gestao/metas', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const ano = Number(req.query.ano) || new Date().getFullYear();
+    const rows = db.prepare('SELECT * FROM metas_vendedor WHERE ano = ? ORDER BY vendedor_nome, mes').all(ano);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/gestao/metas', requireRoles(['admin','gerente_comercial']), (req, res) => {
+  try {
+    const { vendedor_nome, ano, mes, valor_meta, valor_meta_recorrencia } = req.body;
+    if (!vendedor_nome || !ano || !mes) return res.status(400).json({ error: 'Campos obrigatórios: vendedor_nome, ano, mes' });
+    db.prepare(`
+      INSERT INTO metas_vendedor (vendedor_nome, ano, mes, valor_meta, valor_meta_recorrencia, updated_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT (vendedor_nome, ano, mes) DO UPDATE SET valor_meta = ?, valor_meta_recorrencia = ?, updated_at = datetime('now')
+    `).run(String(vendedor_nome), Number(ano), Number(mes), Number(valor_meta || 0), Number(valor_meta_recorrencia || 0), Number(valor_meta || 0), Number(valor_meta_recorrencia || 0));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/gestao/metas/batch', requireRoles(['admin','gerente_comercial']), (req, res) => {
+  try {
+    const { metas } = req.body; // [{vendedor_nome, ano, mes, valor_meta, valor_meta_recorrencia}]
+    if (!Array.isArray(metas)) return res.status(400).json({ error: 'metas deve ser um array' });
+    for (const m of metas) {
+      db.prepare(`
+        INSERT INTO metas_vendedor (vendedor_nome, ano, mes, valor_meta, valor_meta_recorrencia, updated_at)
+        VALUES (?, ?, ?, ?, ?, datetime('now'))
+        ON CONFLICT (vendedor_nome, ano, mes) DO UPDATE SET valor_meta = ?, valor_meta_recorrencia = ?, updated_at = datetime('now')
+      `).run(String(m.vendedor_nome), Number(m.ano), Number(m.mes), Number(m.valor_meta || 0), Number(m.valor_meta_recorrencia || 0), Number(m.valor_meta || 0), Number(m.valor_meta_recorrencia || 0));
+    }
+    res.json({ ok: true, count: metas.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── VENDAS COMERCIAL (planilha mensal) ──────────────────────────────────
+app.get('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const ano = Number(req.query.ano) || new Date().getFullYear();
+    const mes = req.query.mes ? Number(req.query.mes) : null;
+    const vendedor = req.query.vendedor || null;
+    let sql = 'SELECT * FROM vendas_comercial WHERE ano = ?';
+    const params = [ano];
+    if (mes) { sql += ' AND mes = ?'; params.push(mes); }
+    if (vendedor) { sql += ' AND vendedor_nome = ?'; params.push(vendedor); }
+    sql += ' ORDER BY mes, vendedor_nome, data_venda';
+    const rows = db.prepare(sql).all(...params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const b = req.body;
+    if (!b.cliente || !b.vendedor_nome || !b.ano || !b.mes) {
+      return res.status(400).json({ error: 'Campos obrigatórios: cliente, vendedor_nome, ano, mes' });
+    }
+    const result = db.prepare(`
+      INSERT INTO vendas_comercial
+        (vendedor_nome, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
+         valor_mensal, total_contrato, qtde_parcelas, previsao_veiculacao,
+         data_emissao_nf, vencimento_boletos, contato, email, obs)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      String(b.vendedor_nome), Number(b.ano), Number(b.mes),
+      b.data_venda || null, b.cliente, b.cnpj || null, b.pontos_contratados || null,
+      Number(b.valor_mensal || 0), Number(b.total_contrato || 0), Number(b.qtde_parcelas || 1),
+      b.previsao_veiculacao || null, b.data_emissao_nf || null, b.vencimento_boletos || null,
+      b.contato || null, b.email || null, b.obs || null
+    );
+    res.json({ ok: true, id: result.lastInsertRowid });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const b = req.body;
+    const id = Number(req.params.id);
+    db.prepare(`
+      UPDATE vendas_comercial SET
+        vendedor_nome = ?, data_venda = ?, cliente = ?, cnpj = ?,
+        pontos_contratados = ?, valor_mensal = ?, total_contrato = ?,
+        qtde_parcelas = ?, previsao_veiculacao = ?, data_emissao_nf = ?,
+        vencimento_boletos = ?, contato = ?, email = ?,
+        status_contrato = ?, status_contrato_assinado = ?,
+        status_conteudo = ?, status_checkin = ?,
+        status_faturado = ?, status_excel_pastas = ?,
+        obs = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      String(b.vendedor_nome || ''),
+      b.data_venda || null, b.cliente || '', b.cnpj || null,
+      b.pontos_contratados || null, Number(b.valor_mensal || 0),
+      Number(b.total_contrato || 0), Number(b.qtde_parcelas || 1),
+      b.previsao_veiculacao || null, b.data_emissao_nf || null,
+      b.vencimento_boletos || null, b.contato || null, b.email || null,
+      b.status_contrato ? 1 : 0, b.status_contrato_assinado ? 1 : 0,
+      b.status_conteudo ? 1 : 0, b.status_checkin ? 1 : 0,
+      b.status_faturado ? 1 : 0, b.status_excel_pastas ? 1 : 0,
+      b.obs || null, id
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/gestao/vendas/:id/status', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { field, value } = req.body;
+    const validFields = ['status_contrato','status_contrato_assinado','status_conteudo','status_checkin','status_faturado','status_excel_pastas'];
+    if (!validFields.includes(field)) return res.status(400).json({ error: 'Campo inválido' });
+    db.prepare(`UPDATE vendas_comercial SET ${field} = ?, updated_at = datetime('now') WHERE id = ?`).run(value ? 1 : 0, id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial']), (req, res) => {
+  try {
+    db.prepare('DELETE FROM vendas_comercial WHERE id = ?').run(Number(req.params.id));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── RENOVAÇÕES ──────────────────────────────────────────────────────────
+app.get('/api/gestao/renovacoes', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const ano = Number(req.query.ano) || new Date().getFullYear();
+    const mes = req.query.mes ? Number(req.query.mes) : null;
+    let sql = 'SELECT * FROM renovacoes WHERE ano = ?';
+    const params = [ano];
+    if (mes) { sql += ' AND mes = ?'; params.push(mes); }
+    sql += ' ORDER BY mes, cliente';
+    const rows = db.prepare(sql).all(...params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/gestao/renovacoes', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const b = req.body;
+    if (!b.cliente || !b.ano || !b.mes) return res.status(400).json({ error: 'Campos obrigatórios: cliente, ano, mes' });
+    const result = db.prepare(`
+      INSERT INTO renovacoes (ano, mes, cliente, cnpj, pontos, valor_mensal, status, vendedor_nome, obs)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      Number(b.ano), Number(b.mes), b.cliente, b.cnpj || null,
+      b.pontos || null, Number(b.valor_mensal || 0),
+      b.status || 'pendente', b.vendedor_nome ? String(b.vendedor_nome) : null,
+      b.obs || null
+    );
+    res.json({ ok: true, id: result.lastInsertRowid });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/gestao/renovacoes/:id', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const b = req.body;
+    const id = Number(req.params.id);
+    db.prepare(`
+      UPDATE renovacoes SET
+        cliente = ?, cnpj = ?, pontos = ?, valor_mensal = ?,
+        status = ?, vendedor_nome = ?, obs = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      b.cliente || '', b.cnpj || null, b.pontos || null,
+      Number(b.valor_mensal || 0), b.status || 'pendente',
+      b.vendedor_nome ? String(b.vendedor_nome).toUpperCase() : null,
+      b.obs || null, id
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/gestao/renovacoes/:id', requireRoles(['admin','gerente_comercial']), (req, res) => {
+  try {
+    db.prepare('DELETE FROM renovacoes WHERE id = ?').run(Number(req.params.id));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── ACUMULADO / DASHBOARD ──────────────────────────────────────────────
+app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const ano = Number(req.query.ano) || new Date().getFullYear();
+
+    // Metas por vendedor/mês
+    const metas = db.prepare('SELECT * FROM metas_vendedor WHERE ano = ? ORDER BY vendedor_nome, mes').all(ano);
+
+    // Vendas realizadas agregadas por vendedor/mês
+    const vendas = db.prepare(`
+      SELECT vendedor_nome, mes,
+             COUNT(*) as qtde_vendas,
+             COALESCE(SUM(valor_mensal), 0) as total_mensal,
+             COALESCE(SUM(total_contrato), 0) as total_contrato
+      FROM vendas_comercial
+      WHERE ano = ?
+      GROUP BY vendedor_nome, mes
+      ORDER BY vendedor_nome, mes
+    `).all(ano);
+
+    // Renovações agregadas por mês
+    const renovacoes = db.prepare(`
+      SELECT mes,
+             COUNT(*) as total,
+             SUM(CASE WHEN status = 'concluida' THEN 1 ELSE 0 END) as concluidas,
+             SUM(CASE WHEN status != 'concluida' THEN 1 ELSE 0 END) as pendentes,
+             COALESCE(SUM(valor_mensal), 0) as valor_total
+      FROM renovacoes
+      WHERE ano = ?
+      GROUP BY mes
+      ORDER BY mes
+    `).all(ano);
+
+    const vendedoresAtivos = getVendedoresAtivos();
+    res.json({ ano, metas, vendas, renovacoes, vendedores: vendedoresAtivos, mesesLabel: MESES_LABEL });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── IMPORT BULK (vendas + metas + renovacoes) ──────────────────────────
+app.post('/api/gestao/import', requireRoles(['admin']), (req, res) => {
+  try {
+    const { vendas, metas, renovacoes } = req.body;
+    let importedVendas = 0, importedMetas = 0, importedRenovacoes = 0;
+
+    if (Array.isArray(vendas)) {
+      const stmtV = db.prepare(`
+        INSERT INTO vendas_comercial
+          (vendedor_nome, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
+           valor_mensal, total_contrato, qtde_parcelas, previsao_veiculacao,
+           data_emissao_nf, status_contrato, status_contrato_assinado,
+           status_conteudo, status_checkin, status_faturado, status_excel_pastas, obs)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const v of vendas) {
+        if (!v.cliente || !v.vendedor_nome || !v.ano || !v.mes) continue;
+        stmtV.run(
+          v.vendedor_nome, Number(v.ano), Number(v.mes),
+          v.data_venda || null, v.cliente, v.cnpj || null,
+          v.pontos_contratados || null, Number(v.valor_mensal || 0),
+          Number(v.total_contrato || 0), Number(v.qtde_parcelas || 1),
+          v.previsao_veiculacao || null, v.data_emissao_nf || null,
+          v.status_contrato ? 1 : 0, v.status_contrato_assinado ? 1 : 0,
+          v.status_conteudo ? 1 : 0, v.status_checkin ? 1 : 0,
+          v.status_faturado ? 1 : 0, v.status_excel_pastas ? 1 : 0,
+          v.obs || null
+        );
+        importedVendas++;
+      }
+    }
+
+    if (Array.isArray(metas)) {
+      for (const m of metas) {
+        if (!m.vendedor_nome || !m.ano || !m.mes) continue;
+        db.prepare(`
+          INSERT INTO metas_vendedor (vendedor_nome, ano, mes, valor_meta)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(vendedor_nome, ano, mes) DO UPDATE SET valor_meta = excluded.valor_meta, updated_at = datetime('now')
+        `).run(m.vendedor_nome, Number(m.ano), Number(m.mes), Number(m.valor_meta || 0));
+        importedMetas++;
+      }
+    }
+
+    if (Array.isArray(renovacoes)) {
+      const stmtR = db.prepare(`
+        INSERT INTO renovacoes (ano, mes, cliente, pontos, valor_mensal, status, vendedor_nome, obs)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const r of renovacoes) {
+        if (!r.cliente || !r.ano || !r.mes) continue;
+        stmtR.run(
+          Number(r.ano), Number(r.mes), r.cliente, r.pontos || null,
+          Number(r.valor_mensal || 0), r.status || 'pendente',
+          r.vendedor_nome || null, r.obs || null
+        );
+        importedRenovacoes++;
+      }
+    }
+
+    res.json({ ok: true, importedVendas, importedMetas, importedRenovacoes });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// SPA fallback
+app.get('*', (req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
+});
+
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Arquivo excede o limite de 50MB.' });
+    }
+    return res.status(400).json({ error: 'Erro de upload.', details: err.message });
+  }
+  if (err?.message === 'Origem não permitida pelo CORS') {
+    return res.status(403).json({ error: err.message });
+  }
+  if (err?.message) {
+    return res.status(400).json({ error: err.message });
+  }
+  next(err);
+});
+
+app.listen(PORT, () => {
+  console.log(`Intermidia Mídia Kit API running on port ${PORT}`);
+  startLicenseWatcher().catch((err) => {
+    console.error('[license] Watcher failed to start:', err.message);
+    process.exit(1);
+  });
+  if (String(process.env.SQLITE_BACKUP_ENABLED || 'true').toLowerCase() !== 'false') {
+    createBackupScheduler(db);
+  } else {
+    console.log('[backup] Automatic SQLite backup disabled by SQLITE_BACKUP_ENABLED=false');
+  }
+  const scheduler = startAutoRefreshScheduler();
+  if (scheduler) {
+    const config = getAutoRefreshConfig();
+    console.log(`[entorno-auto] enabled. interval=${config.intervalMinutes}min radius=${config.radius}m`);
+  } else {
+    console.log('[entorno-auto] disabled by ENTORNO_AUTO_REFRESH_ENABLED=false');
+  }
+});
