@@ -3200,12 +3200,20 @@ app.get('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vendedo
     const ano = Number(req.query.ano) || new Date().getFullYear();
     const mes = req.query.mes ? Number(req.query.mes) : null;
     const vendedor = req.query.vendedor || null;
-    let sql = 'SELECT * FROM vendas_comercial WHERE ano = ?';
+    // Filter out meta-like entries imported from spreadsheet
+    let sql = `SELECT * FROM vendas_comercial WHERE ano = ? AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')`;
     const params = [ano];
     if (mes) { sql += ' AND mes = ?'; params.push(mes); }
     if (vendedor) { sql += ' AND vendedor_nome = ?'; params.push(vendedor); }
     sql += ' ORDER BY mes, vendedor_nome, data_venda';
     const rows = db.prepare(sql).all(...params);
+    // Enrich linked vendas with etapas from venda_etapas (same as vendas page)
+    const etapaStmt = db.prepare('SELECT etapa_key, etapa_label, emoji, confirmado_por, confirmado_at FROM venda_etapas WHERE venda_id = ? AND removido = 0');
+    for (const row of rows) {
+      if (row.venda_id) {
+        row.etapas = etapaStmt.all(row.venda_id);
+      }
+    }
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3274,9 +3282,40 @@ app.patch('/api/gestao/vendas/:id/status', requireRoles(['admin','gerente_comerc
   try {
     const id = Number(req.params.id);
     const { field, value } = req.body;
-    const validFields = ['status_contrato','status_contrato_assinado','status_conteudo','status_checkin','status_faturado','status_excel_pastas'];
-    if (!validFields.includes(field)) return res.status(400).json({ error: 'Campo inválido' });
-    db.prepare(`UPDATE vendas_comercial SET ${field} = ?, updated_at = datetime('now') WHERE id = ?`).run(value ? 1 : 0, id);
+    const ETAPA_KEYS = ['contrato_enviado','contrato_assinado','cobranca_material','material_recebido','veiculando'];
+    // Mapping for manual vendas (no venda_id): etapa key → local boolean column
+    const LOCAL_MAP = {
+      'contrato_enviado': 'status_contrato',
+      'contrato_assinado': 'status_contrato_assinado',
+      'cobranca_material': 'status_conteudo',
+      'material_recebido': 'status_checkin',
+      'veiculando': 'status_faturado',
+    };
+    if (!ETAPA_KEYS.includes(field)) return res.status(400).json({ error: 'Campo inválido' });
+    // Check if this vendas_comercial record is linked to a real venda
+    const row = db.prepare('SELECT venda_id FROM vendas_comercial WHERE id = ?').get(id);
+    if (!row) return res.status(404).json({ error: 'Venda não encontrada' });
+
+    if (row.venda_id) {
+      // Linked venda: toggle in venda_etapas
+      const etapaLabel = ETAPAS_VENDA.find(e => e.key === field)?.label || field;
+      const etapaEmoji = ETAPAS_VENDA.find(e => e.key === field)?.emoji || '';
+      if (value) {
+        db.prepare(`
+          INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_at, confirmado_por, removido)
+          VALUES (?, ?, ?, ?, datetime('now'), 'gestao', 0)
+          ON CONFLICT (venda_id, etapa_key) DO UPDATE SET removido = 0, confirmado_at = datetime('now'), confirmado_por = 'gestao'
+        `).run(row.venda_id, field, etapaLabel, etapaEmoji);
+      } else {
+        db.prepare(`UPDATE venda_etapas SET removido = 1 WHERE venda_id = ? AND etapa_key = ?`).run(row.venda_id, field);
+      }
+    } else {
+      // Manual venda: toggle local boolean column
+      const col = LOCAL_MAP[field];
+      if (col) {
+        db.prepare(`UPDATE vendas_comercial SET ${col} = ?, updated_at = datetime('now') WHERE id = ?`).run(value ? 1 : 0, id);
+      }
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

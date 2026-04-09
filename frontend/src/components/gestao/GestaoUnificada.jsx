@@ -14,14 +14,31 @@ import {
 const GLOBAL_KEY = '__GLOBAL__';
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-const STATUS_FIELDS = [
-  { key: 'status_contrato', label: 'Contrato', emoji: '📄' },
-  { key: 'status_contrato_assinado', label: 'Contrato Assinado', emoji: '✍️' },
-  { key: 'status_conteudo', label: 'Conteúdo', emoji: '📝' },
-  { key: 'status_checkin', label: 'Check-in', emoji: '✅' },
-  { key: 'status_faturado', label: 'Faturado', emoji: '💰' },
-  { key: 'status_excel_pastas', label: 'Excel/Pastas', emoji: '📁' },
+// Etapas pós-venda — same as vendas page (WhatsApp-tracked)
+const ETAPAS_VENDA = [
+  { key: 'contrato_enviado',   label: 'Contrato Enviado',    emoji: '📤' },
+  { key: 'contrato_assinado',  label: 'Contrato Assinado',   emoji: '✅' },
+  { key: 'cobranca_material',  label: 'Cobrança de Material', emoji: '📦' },
+  { key: 'material_recebido',  label: 'Material Recebido',    emoji: '🎨' },
+  { key: 'veiculando',         label: 'Veiculando',           emoji: '📡' },
 ];
+
+// For manual vendas (no venda_id): map etapa keys to local boolean columns
+const ETAPA_TO_LOCAL = {
+  'contrato_enviado': 'status_contrato',
+  'contrato_assinado': 'status_contrato_assinado',
+  'cobranca_material': 'status_conteudo',
+  'material_recebido': 'status_checkin',
+  'veiculando': 'status_faturado',
+};
+
+function isEtapaDone(venda, etapaKey) {
+  if (venda.venda_id && Array.isArray(venda.etapas)) {
+    return venda.etapas.some(e => e.etapa_key === etapaKey);
+  }
+  const col = ETAPA_TO_LOCAL[etapaKey];
+  return col ? !!venda[col] : false;
+}
 
 const fmtCurrency = (v) => {
   const n = Number(v);
@@ -252,10 +269,24 @@ export default function GestaoUnificada({ isDark, ano }) {
     try { await deleteGestaoVenda(id); setDeleteConfirm(null); await loadData(); } catch (err) { alert(err.message); }
   };
 
-  const handleToggleStatus = async (vendaId, field, currentValue) => {
+  const handleToggleStatus = async (vendaId, etapaKey, currentValue) => {
     try {
-      await toggleGestaoVendaStatus(vendaId, field, !currentValue);
-      setVendas(prev => prev.map(v => v.id === vendaId ? { ...v, [field]: !currentValue ? 1 : 0 } : v));
+      await toggleGestaoVendaStatus(vendaId, etapaKey, !currentValue);
+      // Optimistic update
+      setVendas(prev => prev.map(v => {
+        if (v.id !== vendaId) return v;
+        if (v.venda_id && Array.isArray(v.etapas)) {
+          // Linked venda: toggle in etapas array
+          const exists = v.etapas.some(e => e.etapa_key === etapaKey);
+          const newEtapas = exists
+            ? v.etapas.filter(e => e.etapa_key !== etapaKey)
+            : [...v.etapas, { etapa_key: etapaKey, etapa_label: etapaKey }];
+          return { ...v, etapas: newEtapas };
+        }
+        // Manual venda: toggle local boolean
+        const col = ETAPA_TO_LOCAL[etapaKey];
+        return col ? { ...v, [col]: !currentValue ? 1 : 0 } : v;
+      }));
     } catch (err) { alert(err.message); }
   };
 
@@ -482,21 +513,25 @@ export default function GestaoUnificada({ isDark, ano }) {
                                   </div>
                                 </div>
 
-                                {/* Status pills inline */}
+                                {/* Etapas pós-venda (same as vendas page) */}
                                 <div className="flex flex-wrap gap-1.5 mb-2">
-                                  {STATUS_FIELDS.map(sf => (
-                                    <button key={sf.key} onClick={() => handleToggleStatus(v.id, sf.key, v[sf.key])}
-                                      className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors ${
-                                        v[sf.key]
-                                          ? (isDark ? 'bg-green-900/50 text-green-400 border border-green-700' : 'bg-green-100 text-green-700 border border-green-300')
-                                          : (isDark ? 'bg-gray-800 text-gray-500 border border-gray-700' : 'bg-gray-100 text-gray-400 border border-gray-300')
-                                      }`}
-                                      title={v[sf.key] ? `${sf.label}: Concluído` : `${sf.label}: Pendente`}
-                                    >
-                                      {v[sf.key] ? <CheckSquare size={12} /> : <Square size={12} />}
-                                      {sf.label}
-                                    </button>
-                                  ))}
+                                  {ETAPAS_VENDA.map(et => {
+                                    const done = isEtapaDone(v, et.key);
+                                    return (
+                                      <button key={et.key} onClick={() => handleToggleStatus(v.id, et.key, done)}
+                                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                                          done
+                                            ? (isDark ? 'bg-green-900/50 text-green-400 border border-green-700' : 'bg-green-100 text-green-700 border border-green-300')
+                                            : (isDark ? 'bg-gray-800 text-gray-500 border border-gray-700' : 'bg-gray-100 text-gray-400 border border-gray-300')
+                                        }`}
+                                        title={done ? `${et.label}: Concluído` : `${et.label}: Pendente`}
+                                      >
+                                        <span>{et.emoji}</span>
+                                        {done ? <CheckSquare size={12} /> : <Square size={12} />}
+                                        {et.label}
+                                      </button>
+                                    );
+                                  })}
                                 </div>
 
                                 {/* Ver mais / menos */}
