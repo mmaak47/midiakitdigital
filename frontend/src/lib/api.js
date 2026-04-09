@@ -1,4 +1,4 @@
-﻿const API_BASE = '/api';
+const API_BASE = '/api';
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 function getAdminToken() {
@@ -29,11 +29,11 @@ function ensureRequestPolicy(pathname, method) {
   const requiresToken = isAdminOrSensitivePath(pathname) || MUTATION_METHODS.has(normalizedMethod);
 
   if (requiresToken && !token) {
-    throw new Error('Opera├º├úo bloqueada no frontend: autentica├º├úo obrigat├│ria.');
+    throw new Error('Operação bloqueada no frontend: autenticação obrigatória.');
   }
 
   if (requiresToken && !isAdminContext()) {
-    throw new Error('Opera├º├úo bloqueada no frontend fora do contexto administrativo.');
+    throw new Error('Operação bloqueada no frontend fora do contexto administrativo.');
   }
 }
 
@@ -91,19 +91,19 @@ export async function fetchPontos(filters = {}) {
 
 export async function fetchPonto(id) {
   const res = await apiRequest(`/pontos/${id}`);
-  if (!res.ok) throw new Error('Ponto n├úo encontrado');
+  if (!res.ok) throw new Error('Ponto não encontrado');
   return res.json();
 }
 
 export async function fetchStats() {
   const res = await apiRequest('/stats');
-  if (!res.ok) throw new Error('Erro ao carregar estat├¡sticas');
+  if (!res.ok) throw new Error('Erro ao carregar estatísticas');
   return res.json();
 }
 
 export async function fetchPublicos() {
   const res = await apiRequest('/publicos');
-  if (!res.ok) throw new Error('Erro ao carregar p├║blicos');
+  if (!res.ok) throw new Error('Erro ao carregar públicos');
   return res.json();
 }
 
@@ -132,7 +132,7 @@ export async function fetchAdminUsers() {
   const res = await apiRequest('/admin/users');
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Erro ao carregar usu├írios');
+    throw new Error(message || 'Erro ao carregar usuários');
   }
   return res.json();
 }
@@ -144,7 +144,7 @@ export async function createAdminUser({ firstName, lastName, whatsapp, email, pa
   });
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Erro ao criar usu├írio');
+    throw new Error(message || 'Erro ao criar usuário');
   }
   return res.json();
 }
@@ -155,7 +155,7 @@ export async function deleteAdminUser(id) {
   });
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Erro ao remover usu├írio');
+    throw new Error(message || 'Erro ao remover usuário');
   }
   return res.json();
 }
@@ -275,7 +275,7 @@ export async function fetchClientAddressAnalysis({ address, pointIds = [], cidad
 
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Erro ao analisar endere├ºo do cliente');
+    throw new Error(message || 'Erro ao analisar endereço do cliente');
   }
 
   return res.json();
@@ -285,7 +285,7 @@ export async function geocodePoint(address) {
   const res = await apiRequest(`/geocode?q=${encodeURIComponent(address)}`);
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Endere├ºo n├úo encontrado');
+    throw new Error(message || 'Endereço não encontrado');
   }
   return res.json(); // { lat, lng }
 }
@@ -308,7 +308,7 @@ export async function fetchGeoAudienceProfile(pontoId) {
   const res = await apiRequest(`/geoaudience/profile/${pontoId}`);
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Perfil GeoAudience n├úo encontrado');
+    throw new Error(message || 'Perfil GeoAudience não encontrado');
   }
   return res.json();
 }
@@ -341,7 +341,7 @@ export async function requestGeoAudienceAnalysis({ cidade, force = false } = {})
   });
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Erro ao iniciar an├ílise GeoAudience');
+    throw new Error(message || 'Erro ao iniciar análise GeoAudience');
   }
   return res.json();
 }
@@ -357,7 +357,7 @@ export async function fetchCensusProfiles({ municipio, perfil, minScore } = {}) 
   const res = await apiRequest(`/census/profiles${qs ? `?${qs}` : ''}`);
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Erro ao carregar perfis censit├írios');
+    throw new Error(message || 'Erro ao carregar perfis censitários');
   }
   return res.json();
 }
@@ -366,7 +366,7 @@ export async function fetchCensusProfile(pontoId) {
   const res = await apiRequest(`/census/profile/${pontoId}`);
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Perfil censit├írio n├úo encontrado');
+    throw new Error(message || 'Perfil censitário não encontrado');
   }
   return res.json();
 }
@@ -380,14 +380,14 @@ export async function fetchCensusGeoJSON({ municipio, perfil, minScore } = {}) {
   const res = await apiRequest(`/census/geojson${qs ? `?${qs}` : ''}`);
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Erro ao gerar GeoJSON censit├írio');
+    throw new Error(message || 'Erro ao gerar GeoJSON censitário');
   }
   return res.json();
 }
 
 export async function fetchCensusTypes() {
   const res = await apiRequest('/census/types');
-  if (!res.ok) throw new Error('Erro ao carregar tipos de perfil censit├írio');
+  if (!res.ok) throw new Error('Erro ao carregar tipos de perfil censitário');
   return res.json();
 }
 
@@ -398,7 +398,7 @@ export async function requestCensusAnalysis({ municipio, force = false } = {}) {
   });
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Erro ao iniciar an├ílise censit├íria');
+    throw new Error(message || 'Erro ao iniciar análise censitária');
   }
   return res.json();
 }
@@ -409,7 +409,7 @@ export async function fetchAdminSettings() {
   const res = await apiRequest('/admin/settings');
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Erro ao carregar configura├º├Áes');
+    throw new Error(message || 'Erro ao carregar configurações');
   }
   return res.json();
 }
@@ -441,34 +441,18 @@ export async function updateAdminSettings(settings) {
   });
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Erro ao atualizar configura├º├Áes');
+    throw new Error(message || 'Erro ao atualizar configurações');
   }
   return res.json();
 }
 
-// Retorna o usu├írio autenticado atual
+// Retorna o usuário autenticado atual
 export async function fetchCurrentUser() {
   const res = await apiRequest('/users/me');
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Erro ao carregar usu├írio');
+    throw new Error(message || 'Erro ao carregar usuário');
   }
-  return res.json();
-}
-
-export async function uploadMyPhoto(file) {
-  const fd = new FormData();
-  fd.append('photo', file);
-  const res = await apiRequest('/users/me/photo', { method: 'POST', body: fd });
-  if (!res.ok) { const msg = await parseErrorResponse(res); throw new Error(msg || 'Erro ao enviar foto'); }
-  return res.json();
-}
-
-export async function uploadUserPhoto(userId, file) {
-  const fd = new FormData();
-  fd.append('photo', file);
-  const res = await apiRequest(`/admin/users/${userId}/photo`, { method: 'POST', body: fd });
-  if (!res.ok) { const msg = await parseErrorResponse(res); throw new Error(msg || 'Erro ao enviar foto'); }
   return res.json();
 }
 
@@ -482,7 +466,7 @@ export async function fetchVendas({ status, q } = {}) {
   return res.json();
 }
 
-// Etapas p├│s-venda de uma venda (checklist validado por rea├º├úo emoji)
+// Etapas pós-venda de uma venda (checklist validado por reação emoji)
 export async function fetchVendaEtapas(vendaId) {
   const res = await apiRequest(`/vendas/${vendaId}/etapas`);
   if (!res.ok) throw new Error('Erro ao buscar etapas');
@@ -512,7 +496,7 @@ export async function updateVendaStatus(id, { status, obs }) {
   return res.json();
 }
 
-// Registra uma nova venda e dispara notifica├º├úo WhatsApp
+// Registra uma nova venda e dispara notificação WhatsApp
 // Aceita FormData (multipart) para suportar upload do P.I. em PDF
 export async function submitNovaVenda(formData) {
   const res = await apiRequest('/vendas', {
@@ -578,7 +562,7 @@ export async function fetchPropostas(filters = {}) {
 
 export async function fetchProposta(id) {
   const res = await apiRequest(`/propostas/${id}`);
-  if (!res.ok) throw new Error('Proposta n├úo encontrada');
+  if (!res.ok) throw new Error('Proposta não encontrada');
   return res.json();
 }
 
@@ -649,7 +633,7 @@ export async function updateAdminUserRole(id, role, isVendedor) {
   });
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Erro ao atualizar role do usu├írio');
+    throw new Error(message || 'Erro ao atualizar role do usuário');
   }
   return res.json();
 }
@@ -658,7 +642,7 @@ export async function updateAdminUserRole(id, role, isVendedor) {
 
 export async function fetchAudienceProfiles() {
   const res = await apiRequest('/audience-intel/profiles');
-  if (!res.ok) throw new Error('Erro ao buscar perfis de audi├¬ncia');
+  if (!res.ok) throw new Error('Erro ao buscar perfis de audiência');
   return res.json();
 }
 
@@ -731,7 +715,7 @@ export async function requestAudienceCityAnalysis({ cidade, force = false } = {}
   });
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Erro ao iniciar an├ílise');
+    throw new Error(message || 'Erro ao iniciar análise');
   }
   return res.json();
 }
@@ -761,7 +745,7 @@ export async function simulateCampaign({ selectedPoints, investment, periodDays 
   });
   if (!res.ok) {
     const message = await parseErrorResponse(res);
-    throw new Error(message || 'Erro na simula├º├úo');
+    throw new Error(message || 'Erro na simulação');
   }
   return res.json();
 }
@@ -769,7 +753,7 @@ export async function simulateCampaign({ selectedPoints, investment, periodDays 
 // ============== ARTE IA (Replicate / Flux 1.1 Pro) ==============
 
 /**
- * Verifica se o REPLICATE_API_TOKEN est├í configurado no backend.
+ * Verifica se o REPLICATE_API_TOKEN está configurado no backend.
  */
 export async function fetchArteConfig() {
   const res = await apiRequest('/arte/config');
@@ -810,7 +794,7 @@ export async function previewPromptArte({ ponto, contexto = {} }) {
 }
 
 /**
- * Gera arte IA para um ├║nico ponto.
+ * Gera arte IA para um único ponto.
  * @param {Object} params
  * @param {number} params.ponto_id
  * @param {number|null} params.proposta_id
@@ -834,7 +818,7 @@ export async function gerarArteIA({ ponto_id, proposta_id, contexto, prompt_cust
 }
 
 /**
- * Gera arte IA para m├║ltiplos pontos em paralelo.
+ * Gera arte IA para múltiplos pontos em paralelo.
  * @param {Object} params
  * @param {number[]} params.ponto_ids
  * @param {number|null} params.proposta_id
@@ -855,28 +839,28 @@ export async function gerarArteLoteIA({ ponto_ids, proposta_id, contexto, agrupa
 }
 
 /**
- * Busca hist├│rico de gera├º├Áes de arte de uma proposta.
+ * Busca histórico de gerações de arte de uma proposta.
  */
 export async function fetchArteGeracoes(propostaId) {
   const res = await apiRequest(`/arte/geracoes/${propostaId}`);
-  if (!res.ok) throw new Error('Erro ao buscar gera├º├Áes de arte');
+  if (!res.ok) throw new Error('Erro ao buscar gerações de arte');
   return res.json();
 }
 
 /**
- * Marca qual varia├º├úo foi escolhida para uma gera├º├úo.
+ * Marca qual variação foi escolhida para uma geração.
  */
 export async function escolherVariacaoArte(geracaoId, variacaoEscolhida) {
   const res = await apiRequest(`/arte/geracoes/${geracaoId}/escolha`, {
     method: 'PATCH',
     body: JSON.stringify({ variacao_escolhida: variacaoEscolhida })
   });
-  if (!res.ok) throw new Error('Erro ao registrar escolha de varia├º├úo');
+  if (!res.ok) throw new Error('Erro ao registrar escolha de variação');
   return res.json();
 }
 
 /**
- * Busca m├®tricas de gera├º├úo de arte (admin).
+ * Busca métricas de geração de arte (admin).
  */
 export async function fetchArteStats() {
   const res = await apiRequest('/arte/stats');
@@ -884,9 +868,9 @@ export async function fetchArteStats() {
   return res.json();
 }
 
-// ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
-// GEST├âO COMERCIAL ÔÇö Metas, Vendas Comercial, Renova├º├Áes, Acumulado
-// ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+// ═══════════════════════════════════════════════════════════════════════════
+// GESTÃO COMERCIAL — Metas, Vendas Comercial, Renovações, Acumulado
+// ═══════════════════════════════════════════════════════════════════════════
 
 export async function fetchGestaoMetas(ano) {
   const res = await apiRequest(`/gestao/metas?ano=${ano}`);
@@ -960,7 +944,7 @@ export async function fetchGestaoRenovacoes({ ano, mes } = {}) {
   if (ano) params.set('ano', ano);
   if (mes) params.set('mes', mes);
   const res = await apiRequest(`/gestao/renovacoes?${params}`);
-  if (!res.ok) throw new Error('Erro ao buscar renova├º├Áes');
+  if (!res.ok) throw new Error('Erro ao buscar renovações');
   return res.json();
 }
 
@@ -969,7 +953,7 @@ export async function createGestaoRenovacao(data) {
     method: 'POST',
     body: JSON.stringify(data)
   });
-  if (!res.ok) throw new Error('Erro ao criar renova├º├úo');
+  if (!res.ok) throw new Error('Erro ao criar renovação');
   return res.json();
 }
 
@@ -978,13 +962,13 @@ export async function updateGestaoRenovacao(id, data) {
     method: 'PUT',
     body: JSON.stringify(data)
   });
-  if (!res.ok) throw new Error('Erro ao atualizar renova├º├úo');
+  if (!res.ok) throw new Error('Erro ao atualizar renovação');
   return res.json();
 }
 
 export async function deleteGestaoRenovacao(id) {
   const res = await apiRequest(`/gestao/renovacoes/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('Erro ao deletar renova├º├úo');
+  if (!res.ok) throw new Error('Erro ao deletar renovação');
   return res.json();
 }
 
@@ -997,5 +981,21 @@ export async function fetchGestaoAcumulado(ano) {
 export async function fetchGestaoVendedores() {
   const res = await apiRequest('/gestao/vendedores');
   if (!res.ok) throw new Error('Erro ao buscar vendedores');
+  return res.json();
+}
+
+export async function uploadMyPhoto(file) {
+  const fd = new FormData();
+  fd.append('photo', file);
+  const res = await apiRequest('/users/me/photo', { method: 'POST', body: fd });
+  if (!res.ok) throw new Error('Erro ao enviar foto');
+  return res.json();
+}
+
+export async function uploadUserPhoto(userId, file) {
+  const fd = new FormData();
+  fd.append('photo', file);
+  const res = await apiRequest(`/admin/users/${userId}/photo`, { method: 'POST', body: fd });
+  if (!res.ok) throw new Error('Erro ao enviar foto');
   return res.json();
 }

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -43,7 +43,7 @@ import AuditoriaLoopTab from '../components/admin/AuditoriaLoopTab';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
 import { generateTechnicalInfoPdf } from '../lib/technicalInfoPdf';
 
-const DEFAULT_CIDADES = ['Londrina', 'Maring├í', 'Balne├írio Cambori├║', 'Itaja├¡'];
+const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const DEFAULT_TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
 const ELEVADOR_TIPO = 'Elevador';
 const ELEVADOR_CATEGORIAS = ['Comercial', 'Residencial'];
@@ -65,14 +65,14 @@ const USER_ROLES = [
 
 const ADMIN_TABS = [
   { key: 'pontos',           label: 'Pontos',             icon: PanelsTopLeft, roles: ['admin', 'gerente_comercial'] },
-  { key: 'entorno',          label: 'An├ílise de entorno', icon: MapPinned,     roles: ['admin', 'gerente_comercial'] },
+  { key: 'entorno',          label: 'Análise de entorno', icon: MapPinned,     roles: ['admin', 'gerente_comercial'] },
   { key: 'arte_ia',          label: 'Arte IA',            icon: Zap,           roles: ['admin', 'gerente_comercial'] },
-  { key: 'usuarios',         label: 'Usu├írios',           icon: Users,         roles: ['admin'] },
+  { key: 'usuarios',         label: 'Usuários',           icon: Users,         roles: ['admin'] },
   { key: 'vendas',           label: 'Nova Venda',         icon: Zap,           roles: ['admin', 'gerente_comercial', 'vendedor'] },
   { key: 'historico_vendas', label: 'Vendas',             icon: ClipboardList, roles: ['admin', 'gerente_comercial', 'vendedor'] },
-  { key: 'gestao_comercial', label: 'Gest├úo Comercial',   icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'], href: '/comercial/gestao' },
+  { key: 'gestao_comercial', label: 'Gestão Comercial',   icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'], href: '/comercial/gestao' },
   { key: 'auditoria_loop',   label: 'Auditoria de Loop', icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'] },
-  { key: 'configuracoes',    label: 'Configura├º├Áes',      icon: Settings,      roles: ['admin', 'gerente_comercial'] },
+  { key: 'configuracoes',    label: 'Configurações',      icon: Settings,      roles: ['admin', 'gerente_comercial'] },
 ];
 
 function getVisibleTabs(role) {
@@ -86,8 +86,8 @@ function getDefaultTab(role) {
 
 const emptyForm = {
   nome: '', cidade: 'Londrina', tipo: 'Elevador', endereco: '',
-  lat: '', lng: '', horario: '06:00 ├ás 22:00', fluxo: '',
-  insercoes: '', tempo: '15s', loop: '3 min', veiculacao: 'V├¡deo sem ├íudio',
+  lat: '', lng: '', horario: '06:00 às 22:00', fluxo: '',
+  insercoes: '', tempo: '15s', loop: '3 min', veiculacao: 'Vídeo sem áudio',
   publico: 'A/B', telas: '1', preco: '', descricao: '', imagem: '', imagem2: '',
   simulacao_tela: '', simulacao_arte: '', simulacao_preview: '',
   arte_largura: ELEVADOR_ARTE_LARGURA, arte_altura: ELEVADOR_ARTE_ALTURA,
@@ -173,7 +173,7 @@ export default function Admin() {
   const [evoSaving, setEvoSaving] = useState(false);
   const [evoSaveMsg, setEvoSaveMsg] = useState('');
 
-  // Usu├írio logado
+  // Usuário logado
   const [currentUser, setCurrentUser] = useState(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [pdfCacheRows, setPdfCacheRows] = useState([]);
@@ -336,10 +336,10 @@ export default function Admin() {
 
   const handleSessionError = (err) => {
     const message = String(err?.message || '');
-    if (/token inv├ílido|token invalido|expirad|autentica/i.test(message)) {
+    if (/token inválido|token invalido|expirad|autentica/i.test(message)) {
       sessionStorage.removeItem('admin_token');
       setAuth(false);
-      setLoginError('Sua sess├úo expirou. Fa├ºa login novamente.');
+      setLoginError('Sua sessão expirou. Faça login novamente.');
       return true;
     }
     return false;
@@ -359,6 +359,32 @@ export default function Admin() {
       setAuth(true);
     } catch (err) {
       setLoginError(err.message);
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('comercial_manual_login');
+    setAuth(false);
+    setCurrentUser(null);
+    navigate('/comercial');
+  };
+
+  const handleUploadMyPhoto = async (file) => {
+    try {
+      const result = await uploadMyPhoto(file);
+      setCurrentUser(prev => prev ? { ...prev, photo_url: result.photo_url } : prev);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleUploadUserPhoto = async (userId, file) => {
+    try {
+      await uploadUserPhoto(userId, file);
+      await loadUsers();
+    } catch (err) {
+      alert(err.message);
     }
   };
 
@@ -410,7 +436,7 @@ export default function Admin() {
       setUsers(Array.isArray(data) ? data : []);
     } catch (err) {
       if (!handleSessionError(err)) {
-        setUsersError(err.message || 'Falha ao carregar usu├írios');
+        setUsersError(err.message || 'Falha ao carregar usuários');
       }
     } finally {
       setUsersLoading(false);
@@ -421,7 +447,7 @@ export default function Admin() {
     if (auth) {
       loadPontos();
       loadUsers();
-      // Carrega usu├írio atual e ajusta tab inicial pelo role
+      // Carrega usuário atual e ajusta tab inicial pelo role
       fetchCurrentUser()
         .then(u => {
           setCurrentUser(u);
@@ -473,7 +499,7 @@ export default function Admin() {
       insercoes: ponto.insercoes?.toString() || '',
       tempo: ponto.tempo || '15s',
       loop: ponto.loop || '3 min',
-      veiculacao: ponto.veiculacao || 'V├¡deo sem ├íudio',
+      veiculacao: ponto.veiculacao || 'Vídeo sem áudio',
       publico: ponto.publico || 'A/B',
       telas: ponto.telas?.toString() || '1',
       preco: ponto.preco?.toString() || '',
@@ -593,20 +619,20 @@ export default function Admin() {
       setUserModalOpen(false);
       setUserModalInitialData(null);
     } catch (err) {
-      setUsersError(err.message || 'Falha ao criar usu├írio');
+      setUsersError(err.message || 'Falha ao criar usuário');
     } finally {
       setSavingUser(false);
     }
   };
 
   const handleDeleteUser = async (id, usernameValue) => {
-    if (!confirm(`Deseja remover o usu├írio ${usernameValue}?`)) return;
+    if (!confirm(`Deseja remover o usuário ${usernameValue}?`)) return;
     setUsersError('');
     try {
       await deleteAdminUser(id);
       await loadUsers();
     } catch (err) {
-      setUsersError(err.message || 'Falha ao remover usu├írio');
+      setUsersError(err.message || 'Falha ao remover usuário');
     }
   };
 
@@ -634,7 +660,7 @@ export default function Admin() {
       setEvoDestNumber(data.evolution_dest_number || '');
     } catch (err) {
       if (!handleSessionError(err)) {
-        setSettingsError(err.message || 'Falha ao carregar configura├º├Áes');
+        setSettingsError(err.message || 'Falha ao carregar configurações');
       }
     } finally {
       setSettingsLoading(false);
@@ -649,7 +675,7 @@ export default function Admin() {
       await updateAdminSettings({ lucro_minimo_percentual: Number(lucroMinimoValue) });
       await loadSettings();
     } catch (err) {
-      setSettingsError(err.message || 'Falha ao salvar configura├º├Áes');
+      setSettingsError(err.message || 'Falha ao salvar configurações');
     } finally {
       setSavingSettings(false);
     }
@@ -666,7 +692,7 @@ export default function Admin() {
         evolution_api_key: evoApiKey.trim(),
         evolution_dest_number: evoDestNumber.trim()
       });
-      setEvoSaveMsg('Configura├º├Áes salvas!');
+      setEvoSaveMsg('Configurações salvas!');
       setTimeout(() => setEvoSaveMsg(''), 3000);
     } catch (err) {
       setEvoSaveMsg(`Erro: ${err.message}`);
@@ -700,7 +726,7 @@ export default function Admin() {
     } catch (err) {
       if (!handleSessionError(err)) {
         setArteStats(null);
-        setArteStatsError(err.message || 'Falha ao carregar m├®tricas de Arte IA');
+        setArteStatsError(err.message || 'Falha ao carregar métricas de Arte IA');
       }
     } finally {
       setArteStatsLoading(false);
@@ -737,7 +763,7 @@ export default function Admin() {
       const jobsResponse = await fetchEntornoJobs({ limit: 15 });
       setEntornoJobs(Array.isArray(jobsResponse.jobs) ? jobsResponse.jobs : []);
     } catch (err) {
-      setEntornoError(err.message || 'Falha ao enfileirar an├ílise de entorno');
+      setEntornoError(err.message || 'Falha ao enfileirar análise de entorno');
     } finally {
       setEntornoBusy(false);
     }
@@ -748,9 +774,9 @@ export default function Admin() {
     setCensusStatus('');
     try {
       const result = await requestCensusAnalysis({ municipio: censusCidade || null, force });
-      setCensusStatus(result?.message || 'An├ílise censit├íria iniciada com sucesso.');
+      setCensusStatus(result?.message || 'Análise censitária iniciada com sucesso.');
     } catch (err) {
-      setCensusStatus(`Erro: ${err.message || 'Falha ao iniciar an├ílise'}`);
+      setCensusStatus(`Erro: ${err.message || 'Falha ao iniciar análise'}`);
     } finally {
       setCensusBusy(false);
     }
@@ -854,7 +880,7 @@ export default function Admin() {
   const autoArtPrompt = useMemo(() => {
     if (!artWidth || !artHeight || !form.nome) return '';
     const ratio = artRatioText || `${artWidth}x${artHeight}`;
-    return `Crie uma arte visual atraente com dimens├Áes ${artWidth}x${artHeight}px (propor├º├úo ${ratio}) para ${form.tipo} localizado em ${form.cidade}. Ponto: "${form.nome}". ${form.descricao ? `Contexto: ${form.descricao}` : ''}. A arte deve chamar aten├º├úo e ser compat├¡vel com m├¡dia digital outdoor.`;
+    return `Crie uma arte visual atraente com dimensões ${artWidth}x${artHeight}px (proporção ${ratio}) para ${form.tipo} localizado em ${form.cidade}. Ponto: "${form.nome}". ${form.descricao ? `Contexto: ${form.descricao}` : ''}. A arte deve chamar atenção e ser compatível com mídia digital outdoor.`;
   }, [artWidth, artHeight, artRatioText, form.nome, form.tipo, form.cidade, form.descricao]);
 
   const handleCopyPrompt = async () => {
@@ -911,13 +937,13 @@ export default function Admin() {
               </div>
               <div>
                 <h1 className="text-xl font-semibold">Acesso administrativo</h1>
-                <p className="text-sm text-brand-gray-400">Entre para gerenciar pontos, an├ílises e usu├írios.</p>
+                <p className="text-sm text-brand-gray-400">Entre para gerenciar pontos, análises e usuários.</p>
               </div>
             </div>
 
             <form className="space-y-5" onSubmit={handleLogin}>
               <div>
-                <label className="mb-1.5 block text-xs text-brand-gray-400">Usu├írio ou e-mail</label>
+                <label className="mb-1.5 block text-xs text-brand-gray-400">Usuário ou e-mail</label>
                 <input
                   type="text"
                   value={username}
@@ -937,7 +963,7 @@ export default function Admin() {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 pr-10 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
-                    placeholder="ÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇó"
+                    placeholder="••••••••"
                     required
                     autoComplete="current-password"
                   />
@@ -965,14 +991,14 @@ export default function Admin() {
         <footer className={`px-6 pb-6 text-center text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
           <span className="inline-flex items-center gap-1.5">
             <span>Desenvolvido por</span>
-            <span className="font-semibold text-brand-orange animate-pulse">Mait├¬ Doin</span>
+            <span className="font-semibold text-brand-orange animate-pulse">Maitê Doin</span>
           </span>
         </footer>
       </div>
     );
   }
 
-  // Admin panel ÔÇö theme helpers
+  // Admin panel — theme helpers
   const th = {
     card: isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-white shadow-sm',
     inp: isDark
@@ -1006,7 +1032,7 @@ export default function Admin() {
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold">Painel Administrativo</h1>
-            <p className="text-sm text-brand-gray-500 mt-1">Pontos, entorno, calibra├º├úo de PDF e usu├írios em menus separados.</p>
+            <p className="text-sm text-brand-gray-500 mt-1">Pontos, entorno, calibração de PDF e usuários em menus separados.</p>
           </div>
           <div className="flex items-center gap-3">
             {currentUser && (
@@ -1039,11 +1065,12 @@ export default function Admin() {
                 onClick={openNew}
                 className="orange-solid-btn flex items-center gap-2 px-5 py-2.5 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
               >
-                <Plus size={16} />
-                Novo ponto
-              </button>
-            ) : null}
+              <Plus size={16} />
+              Novo ponto
+            </button>
+          ) : null}
           </div>
+        </div>
 
         <div className="mb-6">
           <div className={`flex flex-wrap gap-2 rounded-2xl border p-2 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white shadow-sm'}`}>
@@ -1114,10 +1141,10 @@ export default function Admin() {
                       <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden md:table-cell`}>Cidade</th>
                       <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden md:table-cell`}>Tipo</th>
                       <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden lg:table-cell`}>Telas</th>
-                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden lg:table-cell`}>Propor├º├úo</th>
-                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs`}>Pre├ºo</th>
+                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden lg:table-cell`}>Proporção</th>
+                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs`}>Preço</th>
                       <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden lg:table-cell`}>Status</th>
-                      <th className={`text-right px-4 py-3 ${th.tableHeadText} font-medium text-xs`}>A├º├Áes</th>
+                      <th className={`text-right px-4 py-3 ${th.tableHeadText} font-medium text-xs`}>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1202,10 +1229,10 @@ export default function Admin() {
             <section className={`mb-6 rounded-2xl border p-4 sm:p-5 ${th.card}`}>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Perfis Censit├írios (IBGE + OSM)</h3>
+                  <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Perfis Censitários (IBGE + OSM)</h3>
                   <p className={`text-xs mt-1 ${th.sectionDesc}`}>
-                    Classifica os pontos por perfil de audi├¬ncia (Alta Renda, Massa/Varejo, Jovem/Universit├írio, Terceira Idade)
-                    usando dados do Censo 2022 (IBGE) e POIs do OpenStreetMap. Use &ldquo;For├ºar Rean├ílise&rdquo; ap├│s atualizar pontos.
+                    Classifica os pontos por perfil de audiência (Alta Renda, Massa/Varejo, Jovem/Universitário, Terceira Idade)
+                    usando dados do Censo 2022 (IBGE) e POIs do OpenStreetMap. Use &ldquo;Forçar Reanálise&rdquo; após atualizar pontos.
                   </p>
                 </div>
               </div>
@@ -1239,7 +1266,7 @@ export default function Admin() {
                   className="inline-flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-400 hover:bg-amber-500/25 disabled:opacity-50"
                 >
                   {censusBusy ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
-                  For├ºar Rean├ílise (aplicar novo algoritmo)
+                  Forçar Reanálise (aplicar novo algoritmo)
                 </button>
               </div>
               {censusStatus && (
@@ -1255,9 +1282,9 @@ export default function Admin() {
           <section className={`rounded-2xl border p-4 sm:p-5 ${th.card}`}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>M├®tricas de gera├º├úo de Arte IA</h3>
+                <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Métricas de geração de Arte IA</h3>
                 <p className={`text-xs mt-1 ${th.sectionDesc}`}>
-                  Total de gera├º├Áes, custo acumulado e padr├Áes de uso por resolu├º├úo/ponto.
+                  Total de gerações, custo acumulado e padrões de uso por resolução/ponto.
                 </p>
               </div>
               <button
@@ -1279,7 +1306,7 @@ export default function Admin() {
               <>
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
-                    <div className={`text-[11px] uppercase tracking-wide ${th.sectionDesc}`}>Total de gera├º├Áes</div>
+                    <div className={`text-[11px] uppercase tracking-wide ${th.sectionDesc}`}>Total de gerações</div>
                     <div className={`mt-1 text-xl font-bold ${th.sectionTitle}`}>{Number(arteStats.total_geracoes || 0).toLocaleString('pt-BR')}</div>
                   </div>
                   <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
@@ -1287,14 +1314,14 @@ export default function Admin() {
                     <div className={`mt-1 text-xl font-bold ${th.sectionTitle}`}>US$ {Number(arteStats.custo_total_usd || 0).toFixed(4)}</div>
                   </div>
                   <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
-                    <div className={`text-[11px] uppercase tracking-wide ${th.sectionDesc}`}>Custo m├®dio (USD)</div>
+                    <div className={`text-[11px] uppercase tracking-wide ${th.sectionDesc}`}>Custo médio (USD)</div>
                     <div className={`mt-1 text-xl font-bold ${th.sectionTitle}`}>US$ {Number(arteStats.custo_medio_usd || 0).toFixed(4)}</div>
                   </div>
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
                   <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
-                    <h4 className={`text-xs font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Resolu├º├Áes mais geradas</h4>
+                    <h4 className={`text-xs font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Resoluções mais geradas</h4>
                     <div className="mt-2 space-y-1.5">
                       {(arteStats.resolucoes_mais_usadas || []).length === 0 ? (
                         <p className={`text-xs ${th.sectionDesc}`}>Sem dados ainda.</p>
@@ -1302,7 +1329,7 @@ export default function Admin() {
                         (arteStats.resolucoes_mais_usadas || []).map((row) => (
                           <div key={row.res} className="flex items-center justify-between text-sm">
                             <span className={th.sectionTitle}>{row.res}</span>
-                            <span className={th.sectionDesc}>{row.c} gera├º├úo(├Áes)</span>
+                            <span className={th.sectionDesc}>{row.c} geração(ões)</span>
                           </div>
                         ))
                       )}
@@ -1310,7 +1337,7 @@ export default function Admin() {
                   </div>
 
                   <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
-                    <h4 className={`text-xs font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Pontos com mais regenera├º├Áes</h4>
+                    <h4 className={`text-xs font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Pontos com mais regenerações</h4>
                     <div className="mt-2 space-y-1.5">
                       {(arteStats.pontos_mais_regenerados || []).length === 0 ? (
                         <p className={`text-xs ${th.sectionDesc}`}>Sem dados ainda.</p>
@@ -1367,8 +1394,8 @@ export default function Admin() {
 
             <section className={`rounded-2xl border p-4 sm:p-5 ${th.card}`}>
               <div>
-                <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Configura├º├Áes do sistema</h3>
-                <p className={`text-xs mt-1 ${th.sectionDesc}`}>Configure par├ómetros globais para propostas e vendas.</p>
+                <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Configurações do sistema</h3>
+                <p className={`text-xs mt-1 ${th.sectionDesc}`}>Configure parâmetros globais para propostas e vendas.</p>
               </div>
 
               {settingsError && <p className="mt-3 text-xs text-red-300">{settingsError}</p>}
@@ -1376,10 +1403,10 @@ export default function Admin() {
               <form onSubmit={handleSaveSettings} className="mt-6 space-y-4 max-w-md">
                 <div>
                   <label className={`block text-xs mb-2 ${th.lbl}`}>
-                    Lucro M├¡nimo Obrigat├│rio (%)
+                    Lucro Mínimo Obrigatório (%)
                   </label>
                   <p className={`text-xs mb-2 ${th.sectionDesc}`}>
-                    Vendedores precisar├úo de aprova├º├úo do Gerente Comercial se aplicarem desconto acima desse percentual.
+                    Vendedores precisarão de aprovação do Gerente Comercial se aplicarem desconto acima desse percentual.
                   </p>
                   <div className="flex items-end gap-2">
                     <input
@@ -1405,7 +1432,7 @@ export default function Admin() {
 
               <div className={`mt-6 p-4 rounded-xl ${isDark ? 'bg-brand-orange/5 border border-brand-orange/20' : 'bg-orange-50 border border-orange-200'}`}>
                 <p className={`text-xs leading-relaxed ${isDark ? 'text-brand-orange' : 'text-orange-700'}`}>
-                  <strong>Ôä╣´©Å Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro m├¡nimo obrigat├│rio (desconto acima do valor configurado aqui), a proposta fica aguardando aprova├º├úo de um Gerente Comercial antes de poder ser finalizada.
+                  <strong>ℹ️ Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro mínimo obrigatório (desconto acima do valor configurado aqui), a proposta fica aguardando aprovação de um Gerente Comercial antes de poder ser finalizada.
                 </p>
               </div>
             </section>
@@ -1492,7 +1519,7 @@ export default function Admin() {
                               />
                               <span className="min-w-0 truncate">{point.nome}</span>
                             </label>
-                            <span className={`text-xs ${th.tableCell}`}>{point.cidade} ÔÇó {point.tipo}</span>
+                            <span className={`text-xs ${th.tableCell}`}>{point.cidade} • {point.tipo}</span>
                           </li>
                         );
                       })}
@@ -1508,7 +1535,7 @@ export default function Admin() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Cache de PDFs</h3>
-                  <p className={`text-xs mt-1 ${th.sectionDesc}`}>Controle de combina├º├Áes de cidades e validade dos PDFs em cache.</p>
+                  <p className={`text-xs mt-1 ${th.sectionDesc}`}>Controle de combinações de cidades e validade dos PDFs em cache.</p>
                 </div>
                 <button
                   type="button"
@@ -1527,13 +1554,13 @@ export default function Admin() {
                 <table className="w-full text-sm">
                   <thead className={`${isDark ? 'bg-white/[0.04] text-brand-gray-400' : 'bg-neutral-50 text-neutral-500'}`}>
                     <tr>
-                      <th className="px-3 py-2 text-left font-medium">Combina├º├úo</th>
+                      <th className="px-3 py-2 text-left font-medium">Combinação</th>
                       <th className="px-3 py-2 text-left font-medium">Cidades</th>
                       <th className="px-3 py-2 text-left font-medium">Tamanho</th>
                       <th className="px-3 py-2 text-left font-medium">Gerado em</th>
                       <th className="px-3 py-2 text-left font-medium">Downloads</th>
                       <th className="px-3 py-2 text-left font-medium">Status</th>
-                      <th className="px-3 py-2 text-left font-medium">A├º├úo</th>
+                      <th className="px-3 py-2 text-left font-medium">Ação</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1585,16 +1612,16 @@ export default function Admin() {
               </div>
             </section>
 
-            {/* WAHA ÔÇö WhatsApp */}
+            {/* WAHA — WhatsApp */}
             <section className={`rounded-2xl border p-4 sm:p-5 ${th.card}`}>
               <div className="flex items-center gap-2 mb-1">
                 <Zap size={15} className="text-brand-orange" />
                 <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>
-                  Integra├º├úo WhatsApp ÔÇö WAHA
+                  Integração WhatsApp — WAHA
                 </h3>
               </div>
               <p className={`text-xs mb-5 ${th.sectionDesc}`}>
-                Configure aqui os dados do WAHA para disparo autom├ítico de notifica├º├Áes de nova venda.
+                Configure aqui os dados do WAHA para disparo automático de notificações de nova venda.
                 Preencha e salve antes de usar a aba <strong className={th.lbl}>Nova Venda</strong>.
               </p>
 
@@ -1619,12 +1646,12 @@ export default function Admin() {
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className={`block text-xs mb-1.5 ${th.lbl}`}>Nome da Inst├óncia</label>
+                    <label className={`block text-xs mb-1.5 ${th.lbl}`}>Nome da Instância</label>
                     <input
                       className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                       value={evoInstance}
                       onChange={e => setEvoInstance(e.target.value)}
-                      placeholder="default (n├úo alterar)"
+                      placeholder="default (não alterar)"
                     />
                   </div>
                   <div>
@@ -1634,13 +1661,13 @@ export default function Admin() {
                       className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                       value={evoApiKey}
                       onChange={e => setEvoApiKey(e.target.value)}
-                      placeholder="ÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇó"
+                      placeholder="••••••••••••"
                     />
                   </div>
                 </div>
                 <div>
                   <label className={`block text-xs mb-1.5 ${th.lbl}`}>
-                    N├║mero / Grupo de destino
+                    Número / Grupo de destino
                   </label>
                   <input
                     className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
@@ -1649,7 +1676,7 @@ export default function Admin() {
                     placeholder="5543999999999 ou ID do grupo"
                   />
                   <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
-                    Para n├║mero individual use o formato: 55 + DDD + n├║mero (ex: 5543999990000).
+                    Para número individual use o formato: 55 + DDD + número (ex: 5543999990000).
                     Para grupos, use o ID do grupo com @g.us (ex: 120363XXXXXX@g.us).
                   </p>
                 </div>
@@ -1659,7 +1686,7 @@ export default function Admin() {
                   className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 transition-colors ${isDark ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange hover:bg-brand-orange/25' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
                 >
                   {evoSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                  {evoSaving ? 'Salvando...' : 'Salvar configura├º├úo'}
+                  {evoSaving ? 'Salvando...' : 'Salvar configuração'}
                 </button>
               </form>
             </section>
@@ -1717,17 +1744,17 @@ export default function Admin() {
                   {form.tipo === ELEVADOR_TIPO ? (
                     <FormSelect label="Categoria do Elevador" value={form.elevador_categoria || 'Comercial'} onChange={v => updateField('elevador_categoria', v)} options={ELEVADOR_CATEGORIAS} />
                   ) : null}
-                  <FormSelect label="P├║blico" value={form.publico} onChange={v => updateField('publico', v)} options={PUBLICOS} />
+                  <FormSelect label="Público" value={form.publico} onChange={v => updateField('publico', v)} options={PUBLICOS} />
                   <FormSelect label="Tipo de fluxo" value={form.tipo_fluxo} onChange={v => updateField('tipo_fluxo', v)} options={['pessoas', 'veiculos']} />
                   <div className="md:col-span-2">
-                    <label className="block text-xs text-brand-gray-400 mb-1.5">Endere├ºo</label>
+                    <label className="block text-xs text-brand-gray-400 mb-1.5">Endereço</label>
                     <div className="flex gap-2">
                       <input
                         type="text"
                         value={form.endereco}
                         onChange={e => updateField('endereco', e.target.value)}
                         className={`flex-1 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple/50 ${th.inp}`}
-                        placeholder="Ex: Av. Higien├│polis, 1234, Londrina"
+                        placeholder="Ex: Av. Higienópolis, 1234, Londrina"
                       />
                       <button
                         type="button"
@@ -1755,14 +1782,14 @@ export default function Admin() {
                   </div>
                   <FormField label="Latitude" value={form.lat} onChange={v => updateField('lat', v)} type="number" step="any" />
                   <FormField label="Longitude" value={form.lng} onChange={v => updateField('lng', v)} type="number" step="any" />
-                  <FormField label="Hor├írio" value={form.horario} onChange={v => updateField('horario', v)} />
+                  <FormField label="Horário" value={form.horario} onChange={v => updateField('horario', v)} />
                   <FormField label="Fluxo mensal" value={form.fluxo} onChange={v => updateField('fluxo', v)} type="number" />
-                  <FormField label="Inser├º├Áes mensais" value={form.insercoes} onChange={v => updateField('insercoes', v)} type="number" />
+                  <FormField label="Inserções mensais" value={form.insercoes} onChange={v => updateField('insercoes', v)} type="number" />
                   <FormField label="Tempo" value={form.tempo} onChange={v => updateField('tempo', v)} />
                   <FormField label="Looping" value={form.loop} onChange={v => updateField('loop', v)} />
-                  <FormField label="Veicula├º├úo" value={form.veiculacao} onChange={v => updateField('veiculacao', v)} />
+                  <FormField label="Veiculação" value={form.veiculacao} onChange={v => updateField('veiculacao', v)} />
                   <FormField label="Telas" value={form.telas} onChange={v => updateField('telas', v)} type="number" />
-                  <FormField label="Pre├ºo (R$)" value={form.preco} onChange={v => updateField('preco', v)} type="number" step="0.01" />
+                  <FormField label="Preço (R$)" value={form.preco} onChange={v => updateField('preco', v)} type="number" step="0.01" />
                   <FormField label="Custo Operacional (R$)" value={form.custo_operacional} onChange={v => updateField('custo_operacional', v)} type="number" step="0.01" />
                   <FormField label="Arte largura (px)" value={form.arte_largura} onChange={v => updateField('arte_largura', v)} type="number" min="1" />
                   <FormField label="Arte altura (px)" value={form.arte_altura} onChange={v => updateField('arte_altura', v)} type="number" min="1" />
@@ -1775,7 +1802,7 @@ export default function Admin() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-brand-gray-400 mb-1.5">Descri├º├úo</label>
+                  <label className="block text-xs text-brand-gray-400 mb-1.5">Descrição</label>
                   <textarea
                     value={form.descricao}
                     onChange={e => updateField('descricao', e.target.value)}
@@ -1806,13 +1833,13 @@ export default function Admin() {
                   </div>
                 </div>
 
-                {/* Imagem 2 upload (Elevador ÔÇö segunda foto) */}
+                {/* Imagem 2 upload (Elevador — segunda foto) */}
                 <div>
-                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>Imagem 2 <span className={th.sectionDesc}>(opcional ÔÇö segunda foto para Elevador)</span></label>
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>Imagem 2 <span className={th.sectionDesc}>(opcional — segunda foto para Elevador)</span></label>
                   <div className="flex items-center gap-4">
                     <label className={`flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm cursor-pointer transition-colors ${th.btnOutline}`}>
                       <Upload size={16} />
-                      {imagem2File ? imagem2File.name : 'Upload de 2┬¬ imagem'}
+                      {imagem2File ? imagem2File.name : 'Upload de 2ª imagem'}
                       <input
                         type="file"
                         accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
@@ -1850,7 +1877,7 @@ export default function Admin() {
                       </div>
                     </div>
                   ) : (
-                    <p className="mb-3 text-xs text-gray-500">A sele├º├úo da imagem do PDF aparece quando as duas imagens estiverem preenchidas.</p>
+                    <p className="mb-3 text-xs text-gray-500">A seleção da imagem do PDF aparece quando as duas imagens estiverem preenchidas.</p>
                   )}
 
                   <FocalPointSelector
@@ -1862,9 +1889,9 @@ export default function Admin() {
 
                 <section className={`rounded-xl border p-4 space-y-4 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-neutral-50'}`}>
                   <div>
-                    <h3 className="text-sm font-semibold">Simula├º├úo do ponto</h3>
+                    <h3 className="text-sm font-semibold">Simulação do ponto</h3>
                     <p className="text-xs text-brand-gray-500 mt-1">
-                      Defina aqui apenas a ├írea ├║til da tela. A arte da campanha ser├í enviada no modal de proposta.
+                      Defina aqui apenas a área útil da tela. A arte da campanha será enviada no modal de proposta.
                     </p>
                   </div>
 
@@ -1872,7 +1899,7 @@ export default function Admin() {
                     <div className="space-y-3">
                       <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Faces do painel na simula├º├úo</p>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Faces do painel na simulação</p>
                           <div className={`inline-flex rounded-lg border p-1 ${isDark ? 'border-white/10 bg-white/5' : 'border-neutral-200 bg-neutral-50'}`}>
                             <button
                               type="button"
@@ -1915,8 +1942,8 @@ export default function Admin() {
 
                         <p className="text-[11px] text-brand-gray-500">
                           {simulationFaceCount === 2
-                            ? 'Selecione as duas ├íreas da tela usando as abas Face 1 e Face 2. A simula├º├úo aplicar├í a arte nas duas.'
-                            : 'Use 2 faces quando o painel tiver mais de uma ├írea vis├¡vel para receber a mesma arte.'}
+                            ? 'Selecione as duas áreas da tela usando as abas Face 1 e Face 2. A simulação aplicará a arte nas duas.'
+                            : 'Use 2 faces quando o painel tiver mais de uma área visível para receber a mesma arte.'}
                         </p>
                       </div>
 
@@ -1930,17 +1957,17 @@ export default function Admin() {
                     </div>
                   ) : (
                     <div className="h-56 rounded-lg border border-dashed border-white/15 flex items-center justify-center text-xs text-brand-gray-500">
-                      Envie a imagem base para habilitar a marca├º├úo da tela com o mouse
+                      Envie a imagem base para habilitar a marcação da tela com o mouse
                     </div>
                   )}
 
                   <p className="text-[11px] text-brand-gray-500">
-                    O preview final ser├í gerado no modal de proposta com a arte da campanha selecionada.
+                    O preview final será gerado no modal de proposta com a arte da campanha selecionada.
                   </p>
 
                   <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Enquadramento padr├úo no Explorar</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Enquadramento padrão no Explorar</p>
                       <span className="text-[11px] text-brand-gray-500">Salvo junto do ponto</span>
                     </div>
 
@@ -2011,7 +2038,7 @@ export default function Admin() {
                         }}
                         className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-xs text-white transition-colors"
                       >
-                        Usar foco autom├ítico da tela marcada
+                        Usar foco automático da tela marcada
                       </button>
                       <button
                         type="button"
@@ -2073,7 +2100,7 @@ export default function Admin() {
                         </>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xs text-brand-gray-500">
-                          Envie a imagem base para pr├®-visualizar o enquadramento
+                          Envie a imagem base para pré-visualizar o enquadramento
                         </div>
                       )}
                     </div>
@@ -2081,14 +2108,14 @@ export default function Admin() {
 
                   <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Propor├º├úo da arte para este ponto</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Proporção da arte para este ponto</p>
                       <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${isDark ? 'bg-brand-orange/15 text-brand-orange' : 'bg-orange-50 text-orange-700'}`}>
                         {artRatioText || 'Defina largura e altura'}
                       </span>
                     </div>
 
                     <div>
-                      <label className="block text-xs text-brand-gray-400 mb-1.5">Prompt autom├ítico para IA generativa</label>
+                      <label className="block text-xs text-brand-gray-400 mb-1.5">Prompt automático para IA generativa</label>
                       <textarea
                         value={autoArtPrompt}
                         readOnly
@@ -2268,8 +2295,8 @@ function EntornoAdminPanel({
     <section className={`mb-6 rounded-2xl border p-4 sm:p-5 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-white shadow-sm'}`}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className={`text-sm font-semibold uppercase tracking-wide ${isDark ? 'text-white' : 'text-neutral-900'}`}>An├ílise de entorno</h3>
-          <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Reprocessamento manual por segmento e cidade, com fila ass├¡ncrona e monitoramento de jobs.</p>
+          <h3 className={`text-sm font-semibold uppercase tracking-wide ${isDark ? 'text-white' : 'text-neutral-900'}`}>Análise de entorno</h3>
+          <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Reprocessamento manual por segmento e cidade, com fila assíncrona e monitoramento de jobs.</p>
         </div>
         <button
           type="button"
@@ -2327,11 +2354,11 @@ function EntornoAdminPanel({
           <p className={`font-semibold uppercase tracking-wide mb-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Provedores</p>
           {providers ? (
             <>
-              <p>Ordem: {Array.isArray(providers.providerOrder) ? providers.providerOrder.join(' ÔåÆ ') : '-'}</p>
-              <p className="mt-1">Dispon├¡veis: {Object.entries(providers.availableProviders || {}).filter(([, ok]) => !!ok).map(([name]) => name).join(', ') || 'nenhum'}</p>
+              <p>Ordem: {Array.isArray(providers.providerOrder) ? providers.providerOrder.join(' → ') : '-'}</p>
+              <p className="mt-1">Disponíveis: {Object.entries(providers.availableProviders || {}).filter(([, ok]) => !!ok).map(([name]) => name).join(', ') || 'nenhum'}</p>
             </>
           ) : (
-            <p>Carregando configura├º├úo...</p>
+            <p>Carregando configuração...</p>
           )}
         </div>
       </div>
@@ -2349,8 +2376,8 @@ function EntornoAdminPanel({
         <div className={`mt-3 rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-black/20 text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
           <p className={`font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Job atual #{currentJob.id}</p>
           <p className="mt-1">Status: <span className={processing ? 'text-brand-orange' : currentStatus === 'failed' ? 'text-red-300' : 'text-green-300'}>{currentJob.status}</span></p>
-          <p className="mt-1">Processados: {currentJob.processed_points || 0}/{currentJob.total_points || 0} ÔÇó Erros: {currentJob.error_count || 0}</p>
-          {currentJob.last_error && <p className="mt-1 text-red-300">├Ültimo erro: {currentJob.last_error}</p>}
+          <p className="mt-1">Processados: {currentJob.processed_points || 0}/{currentJob.total_points || 0} • Erros: {currentJob.error_count || 0}</p>
+          {currentJob.last_error && <p className="mt-1 text-red-300">Último erro: {currentJob.last_error}</p>}
         </div>
       )}
 
@@ -2406,8 +2433,8 @@ function UsersAdminPanel({
     <section className={`rounded-2xl border p-4 sm:p-5 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-white shadow-sm'}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className={`text-sm font-semibold uppercase tracking-wide ${isDark ? 'text-white' : 'text-neutral-900'}`}>Cadastro de usu├írios admin</h3>
-          <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Gerencie quem pode acessar o painel administrativo e defina permiss├Áes.</p>
+          <h3 className={`text-sm font-semibold uppercase tracking-wide ${isDark ? 'text-white' : 'text-neutral-900'}`}>Cadastro de usuários admin</h3>
+          <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Gerencie quem pode acessar o painel administrativo e defina permissões.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -2416,7 +2443,7 @@ function UsersAdminPanel({
             className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold ${isDark ? 'border-[#E8591A]/40 bg-[#E8591A]/15 text-[#E8591A] hover:bg-[#E8591A]/25' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
           >
             <UserPlus size={15} />
-            Adicionar Usu├írio
+            Adicionar Usuário
           </button>
           <button
             type="button"
@@ -2437,20 +2464,20 @@ function UsersAdminPanel({
             <tr className={`text-left ${isDark ? 'bg-white/[0.03] text-brand-gray-400' : 'bg-neutral-50 text-neutral-500'}`}>
               <th className="px-3 py-2">Foto</th>
               <th className="px-3 py-2">Nome</th>
-              <th className="px-3 py-2">Usu├írio</th>
+              <th className="px-3 py-2">Usuário</th>
               <th className="px-3 py-2">Contato</th>
               <th className="px-3 py-2">Role</th>
-              <th className="px-3 py-2 text-right">A├º├Áes</th>
+              <th className="px-3 py-2 text-right">Ações</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className={`px-3 py-4 text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Carregando usu├írios...</td>
+                <td colSpan={6} className={`px-3 py-4 text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Carregando usuários...</td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={6} className={`px-3 py-4 text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Nenhum usu├írio cadastrado.</td>
+                <td colSpan={6} className={`px-3 py-4 text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Nenhum usuário cadastrado.</td>
               </tr>
             ) : users.map((user) => (
               <tr key={user.id} className={`border-t ${isDark ? 'border-white/5 text-brand-gray-300' : 'border-neutral-100 text-neutral-600'}`}>
@@ -2511,11 +2538,11 @@ function UsersAdminPanel({
       </div>
 
       <div className={`mt-4 p-4 rounded-xl text-xs ${isDark ? 'bg-brand-orange/5 border border-brand-orange/20 text-brand-gray-300' : 'bg-orange-50 border border-orange-200 text-neutral-600'}`}>
-        <p><strong>Permiss├Áes por Role:</strong></p>
+        <p><strong>Permissões por Role:</strong></p>
         <ul className="list-disc list-inside mt-2 space-y-1">
           <li><strong>Admin:</strong> Acesso total ao painel administrativo</li>
-          <li><strong>Gerente Comercial:</strong> Pode visualizar e aprovar propostas que excedem lucro m├¡nimo</li>
-          <li><strong>Vendedor:</strong> Pode criar propostas, mas propostas precisam de aprova├º├úo se excederem limite de lucro</li>
+          <li><strong>Gerente Comercial:</strong> Pode visualizar e aprovar propostas que excedem lucro mínimo</li>
+          <li><strong>Vendedor:</strong> Pode criar propostas, mas propostas precisam de aprovação se excederem limite de lucro</li>
         </ul>
       </div>
     </section>
