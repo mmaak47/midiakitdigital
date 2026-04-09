@@ -421,6 +421,10 @@ export default function Landing() {
   };
 
   useEffect(() => {
+    document.title = 'Intermidia — Mídia Kit Digital | OOH e DOOH';
+  }, []);
+
+  useEffect(() => {
     let active = true;
     async function loadPontos() {
       try {

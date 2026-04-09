@@ -316,6 +316,11 @@ export default function CampaignPlanner() {
   const [addedToProposal, setAddedToProposal] = useState(false);
 
   useEffect(() => {
+    document.title = 'Planejador de Campanha | Intermidia Mídia Kit Digital';
+    return () => { document.title = 'Intermidia — Mídia Kit Digital | OOH e DOOH'; };
+  }, []);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     localStorage.setItem('intermidia_theme', isDark ? 'dark' : 'light');
   }, [isDark]);
