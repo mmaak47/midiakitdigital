@@ -2545,6 +2545,35 @@ try {
 try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN venda_id INTEGER").run(); } catch {}
 try { db.prepare("ALTER TABLE metas_vendedor ADD COLUMN valor_meta_recorrencia REAL DEFAULT 0").run(); } catch {}
 
+// Repair auto-synced vendas_comercial rows where total_contrato was incorrectly set to valor_mensal
+try {
+  // Only fix records linked to a venda (venda_id IS NOT NULL) with qtde_parcelas=1
+  // and whose period is "N meses" in the source vendas table
+  const toFix = db.prepare(`
+    SELECT vc.id, vc.valor_mensal, v.periodo, v.pontos_nomes
+    FROM vendas_comercial vc
+    JOIN vendas v ON v.id = vc.venda_id
+    WHERE vc.venda_id IS NOT NULL
+      AND vc.qtde_parcelas = 1
+      AND vc.total_contrato = vc.valor_mensal
+      AND v.periodo LIKE '% mes%'
+  `).all();
+  const stmtFix = db.prepare(`
+    UPDATE vendas_comercial SET total_contrato = ?, qtde_parcelas = ?, pontos_contratados = COALESCE(?, pontos_contratados) WHERE id = ?
+  `);
+  for (const row of toFix) {
+    const match = String(row.periodo || '').match(/^(\d+)\s+mes/i);
+    const meses = match ? Number(match[1]) : 1;
+    let pontosStr = null;
+    try {
+      const nomes = Array.isArray(row.pontos_nomes) ? row.pontos_nomes : JSON.parse(row.pontos_nomes || '[]');
+      pontosStr = nomes.length > 0 ? nomes.join(', ') : null;
+    } catch { pontosStr = null; }
+    stmtFix.run(Number(row.valor_mensal || 0) * meses, meses, pontosStr, row.id);
+  }
+  if (toFix.length > 0) console.log(`[gestao] repaired ${toFix.length} auto-synced vendas_comercial rows`);
+} catch (e) { console.error('[gestao] repair auto-sync failed:', e.message); }
+
 try {
   db.prepare(`
     CREATE TABLE IF NOT EXISTS renovacoes (
@@ -2907,6 +2936,16 @@ app.post(
       try {
         const now = new Date();
         const vNome = vendedor_nome || req.authUser?.username || null;
+        // Calcular qtde_parcelas e total_contrato corretamente
+        const qtdeParcelas = (periodo_tipo === 'meses' && periodo_meses) ? Number(periodo_meses) : 1;
+        const valorMensalNum = Number(valor_mensal || 0);
+        const totalContrato = valorMensalNum * qtdeParcelas;
+        // Converter pontos_nomes de JSON para string legível
+        let pontosStr = null;
+        try {
+          const nomes = Array.isArray(pontos_nomes) ? pontos_nomes : JSON.parse(pontos_nomes || '[]');
+          pontosStr = nomes.length > 0 ? nomes.join(', ') : null;
+        } catch { pontosStr = pontos_nomes || null; }
         db.prepare(`
           INSERT INTO vendas_comercial
             (vendedor_nome, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
@@ -2918,10 +2957,10 @@ app.post(
           now.getMonth() + 1,
           String(razao_social).trim(),
           cnpj || null,
-          pontos_nomes || null,
-          Number(valor_mensal || 0),
-          Number(valor_mensal || 0),
-          1,
+          pontosStr,
+          valorMensalNum,
+          totalContrato,
+          qtdeParcelas,
           obs || null,
           vendaId
         );
