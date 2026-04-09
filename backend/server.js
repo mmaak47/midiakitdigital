@@ -3151,6 +3151,18 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
     );
 
     const updated = db.prepare('SELECT * FROM vendas WHERE id = ?').get(id);
+
+    // Sync pontos_contratados in the linked vendas_comercial record
+    if (pontos_nomes) {
+      try {
+        const parsedNomes = JSON.parse(pontos_nomes);
+        if (Array.isArray(parsedNomes)) {
+          const commaList = parsedNomes.join(', ');
+          db.prepare(`UPDATE vendas_comercial SET pontos_contratados = ?, updated_at = datetime('now') WHERE venda_id = ?`).run(commaList, id);
+        }
+      } catch {}
+    }
+
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
