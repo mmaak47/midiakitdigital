@@ -40,7 +40,7 @@ export default function GestaoComercial() {
 
   return (
     <div
-      className={min-h-screen "$"\{isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'\}}
+      className={`min-h-screen ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
       data-theme={isDark ? 'dark' : 'light'}
     >
       <Navbar commercial isDark={isDark} onToggleTheme={() => setIsDark((prev) => !prev)} />
@@ -56,7 +56,7 @@ export default function GestaoComercial() {
         </div>
 
         <div className="mb-6">
-          <div className={lex flex-wrap gap-2 items-center rounded-2xl border p-2 "$"\{isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white shadow-sm'\}}>
+          <div className={`flex flex-wrap gap-2 items-center rounded-2xl border p-2 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white shadow-sm'}`}>
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.key;
@@ -65,13 +65,13 @@ export default function GestaoComercial() {
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors sm:flex-none flex-[0_0_auto] justify-center sm:justify-start "$"\{
+                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors sm:flex-none flex-[0_0_auto] justify-center sm:justify-start ${
                     active
                       ? 'bg-brand-orange text-white'
                       : isDark
                         ? 'text-brand-gray-300 hover:bg-white/10 hover:text-white'
                         : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
-                  \}}
+                  }`}
                 >
                   <Icon size={15} />
                   {tab.label}
@@ -82,18 +82,18 @@ export default function GestaoComercial() {
             <div className="flex items-center gap-2 ml-auto w-full sm:w-auto mt-2 sm:mt-0 justify-center">
               <button
                 onClick={() => setAno(a => a - 1)}
-                className={p-1.5 rounded-lg transition-colors "$"\{
+                className={`p-1.5 rounded-lg transition-colors ${
                   isDark ? 'text-brand-gray-300 hover:bg-white/10 hover:text-white' : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
-                \}}
+                }`}
               >
                 <ChevronLeft size={18} />
               </button>
               <span className="text-base font-bold min-w-[60px] text-center">{ano}</span>
               <button
                 onClick={() => setAno(a => a + 1)}
-                className={p-1.5 rounded-lg transition-colors "$"\{
+                className={`p-1.5 rounded-lg transition-colors ${
                   isDark ? 'text-brand-gray-300 hover:bg-white/10 hover:text-white' : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
-                \}}
+                }`}
               >
                 <ChevronRight size={18} />
               </button>
