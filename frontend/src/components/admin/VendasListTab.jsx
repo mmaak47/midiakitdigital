@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, RefreshCw, CheckCircle2, XCircle, RotateCcw, Clock, ChevronDown, ChevronUp, MessageCircle, Circle, Trash2, Pencil, Plus, X } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Search, RefreshCw, CheckCircle2, XCircle, RotateCcw, Clock, ChevronDown, ChevronUp, MessageCircle, Circle, Trash2, Pencil, X } from 'lucide-react';
 import { fetchVendas, updateVendaStatus, fetchVendaEtapas, deleteVenda, updateVenda } from '../../lib/api';
 
 // Definição ordenada das etapas pós-venda
@@ -46,7 +46,7 @@ function StatusBadge({ status, isDark }) {
   );
 }
 
-function EditVendaModal({ venda, isDark, onClose, onSaved }) {
+function EditVendaModal({ venda, isDark, onClose, onSaved, pontos = [] }) {
   const [form, setForm] = useState({
     tipo: venda.tipo || 'Nova Venda',
     razao_social: venda.razao_social || '',
@@ -67,23 +67,29 @@ function EditVendaModal({ venda, isDark, onClose, onSaved }) {
     obs: venda.obs || '',
     status: venda.status || 'ativa',
   });
-  const [pontosArray, setPontosArray] = useState(() => parsePontos(venda.pontos_nomes));
-  const [pontoInput, setPontoInput] = useState('');
-  const pontoInputRef = useRef(null);
+  // selectedNomes: set of selected point names
+  const [selectedNomes, setSelectedNomes] = useState(() => new Set(parsePontos(venda.pontos_nomes)));
+  const [pontoSearch, setPontoSearch] = useState('');
   const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  function addPonto() {
-    const name = pontoInput.trim();
-    if (!name) return;
-    setPontosArray(prev => [...prev, name]);
-    setPontoInput('');
-    pontoInputRef.current?.focus();
+  const filteredPontos = pontos.filter(p =>
+    !pontoSearch ||
+    p.nome?.toLowerCase().includes(pontoSearch.toLowerCase()) ||
+    p.cidade?.toLowerCase().includes(pontoSearch.toLowerCase())
+  );
+
+  function togglePonto(nome) {
+    setSelectedNomes(prev => {
+      const next = new Set(prev);
+      next.has(nome) ? next.delete(nome) : next.add(nome);
+      return next;
+    });
   }
 
-  function removePonto(idx) {
-    setPontosArray(prev => prev.filter((_, i) => i !== idx));
+  function removeSelected(nome) {
+    setSelectedNomes(prev => { const next = new Set(prev); next.delete(nome); return next; });
   }
 
   const overlay = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50';
@@ -95,7 +101,7 @@ function EditVendaModal({ venda, isDark, onClose, onSaved }) {
     if (!form.razao_social.trim()) return alert('Razão Social é obrigatória.');
     setSaving(true);
     try {
-      await updateVenda(venda.id, { ...form, pontos_nomes: JSON.stringify(pontosArray) });
+      await updateVenda(venda.id, { ...form, pontos_nomes: JSON.stringify(Array.from(selectedNomes)) });
       onSaved();
       onClose();
     } catch (e) {
@@ -234,13 +240,13 @@ function EditVendaModal({ venda, isDark, onClose, onSaved }) {
         {/* Pontos vendidos */}
         <div>
           <label className={lbl}>Pontos Vendidos</label>
-          {pontosArray.length > 0 && (
+          {selectedNomes.size > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2">
-              {pontosArray.map((nome, idx) => (
-                <span key={idx} className={`inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full text-xs font-medium border ${isDark ? 'bg-white/5 border-white/10 text-brand-gray-200' : 'bg-neutral-100 border-neutral-200 text-neutral-700'}`}>
+              {Array.from(selectedNomes).map((nome) => (
+                <span key={nome} className={`inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full text-xs font-medium border ${isDark ? 'bg-brand-orange/15 border-brand-orange/30 text-brand-orange' : 'bg-orange-100 border-orange-300 text-orange-700'}`}>
                   {nome}
-                  <button type="button" onClick={() => removePonto(idx)}
-                    className={`rounded-full p-0.5 transition-colors ${isDark ? 'hover:bg-white/10 text-brand-gray-400 hover:text-white' : 'hover:bg-neutral-200 text-neutral-400 hover:text-neutral-700'}`}
+                  <button type="button" onClick={() => removeSelected(nome)}
+                    className={`rounded-full p-0.5 transition-colors ${isDark ? 'hover:bg-white/10 text-brand-orange/70 hover:text-brand-orange' : 'hover:bg-orange-200 text-orange-500 hover:text-orange-800'}`}
                   >
                     <X size={11} />
                   </button>
@@ -248,20 +254,31 @@ function EditVendaModal({ venda, isDark, onClose, onSaved }) {
               ))}
             </div>
           )}
-          <div className="flex gap-2">
-            <input
-              ref={pontoInputRef}
-              className={`flex-1 rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-orange/30 ${isDark ? 'bg-white/5 border-white/10 text-white placeholder:text-brand-gray-500' : 'bg-white border-neutral-200 text-neutral-900 placeholder:text-neutral-400'}`}
-              placeholder="Nome do ponto..."
-              value={pontoInput}
-              onChange={e => setPontoInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addPonto(); } }}
-            />
-            <button type="button" onClick={addPonto}
-              className={`px-3 py-2 rounded-xl border text-sm transition-colors flex items-center gap-1 ${isDark ? 'border-white/10 text-brand-gray-300 hover:bg-white/5 hover:border-white/20' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100'}`}
-            >
-              <Plus size={14} />
-            </button>
+          <input
+            className={inp}
+            placeholder="Buscar ponto por nome ou cidade..."
+            value={pontoSearch}
+            onChange={e => setPontoSearch(e.target.value)}
+          />
+          <div className={`mt-1.5 max-h-48 overflow-y-auto rounded-xl border divide-y ${isDark ? 'border-white/10 divide-white/5' : 'border-neutral-200 divide-neutral-100'}`}>
+            {filteredPontos.length === 0 ? (
+              <p className={`px-3 py-4 text-sm text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
+                {pontos.length === 0 ? 'Nenhum ponto disponível.' : 'Nenhum ponto encontrado.'}
+              </p>
+            ) : (
+              filteredPontos.slice(0, 60).map(p => {
+                const checked = selectedNomes.has(p.nome);
+                return (
+                  <label key={p.id} className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${checked ? isDark ? 'bg-brand-orange/8' : 'bg-orange-50' : isDark ? 'hover:bg-white/5' : 'hover:bg-neutral-50'}`}>
+                    <input type="checkbox" checked={checked} onChange={() => togglePonto(p.nome)} className="accent-brand-orange shrink-0" />
+                    <div className="min-w-0">
+                      <div className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-neutral-900'}`}>{p.nome}</div>
+                      <div className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{p.cidade}{p.tipo ? ` · ${p.tipo}` : ''}</div>
+                    </div>
+                  </label>
+                );
+              })
+            )}
           </div>
         </div>
 
@@ -432,7 +449,7 @@ const SUMMARY_ITEMS = [
   { key: 'cancelada',label: 'Canceladas',Icon: XCircle,      light: 'text-red-500',   dark: 'text-red-400'   },
 ];
 
-export default function VendasListTab({ isDark = true }) {
+export default function VendasListTab({ isDark = true, pontos = [] }) {
   const [vendas, setVendas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('todas');
@@ -489,7 +506,7 @@ export default function VendasListTab({ isDark = true }) {
   return (
     <div className="space-y-4">
       {editVenda && (
-        <EditVendaModal venda={editVenda} isDark={isDark} onClose={() => setEditVenda(null)} onSaved={load} />
+        <EditVendaModal venda={editVenda} isDark={isDark} onClose={() => setEditVenda(null)} onSaved={load} pontos={pontos} />
       )}
 
       {/* Modal de confirmação de delete */}

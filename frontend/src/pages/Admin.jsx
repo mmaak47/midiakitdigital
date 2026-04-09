@@ -1355,7 +1355,7 @@ export default function Admin() {
         ) : null}
 
         {activeTab === 'historico_vendas' ? (
-          <VendasListTab isDark={isDark} />
+          <VendasListTab isDark={isDark} pontos={pontos.filter(p => Number(p.ativo) === 1)} />
         ) : null}
 
         {activeTab === 'auditoria_loop' ? (
