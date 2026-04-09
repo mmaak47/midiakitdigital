@@ -2,18 +2,16 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  CalendarDays, BarChart3, RefreshCcw, LogOut, ChevronLeft, ChevronRight, Sun, Moon
+  BarChart3, RefreshCcw, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
-import PlanilhaMensal from '../components/gestao/PlanilhaMensal';
-import AcumuladoMeta from '../components/gestao/AcumuladoMeta';
+import GestaoUnificada from '../components/gestao/GestaoUnificada';
 import Renovacoes from '../components/gestao/Renovacoes';
 import ComercialChatBot from '../components/gestao/ComercialChatBot';
 import { fetchCurrentUser } from '../lib/api';
 
 const TABS = [
-  { key: 'planilha', label: 'Planilha Mensal', icon: CalendarDays },
-  { key: 'acumulado', label: 'Acumulado – Meta', icon: BarChart3 },
+  { key: 'vendas', label: 'Vendas & Metas', icon: BarChart3 },
   { key: 'renovacoes', label: 'Renovações', icon: RefreshCcw },
 ];
 
@@ -23,7 +21,7 @@ export default function GestaoComercial() {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('intermidia_theme') !== 'light';
   });
-  const [activeTab, setActiveTab] = useState('planilha');
+  const [activeTab, setActiveTab] = useState('vendas');
   const [ano, setAno] = useState(new Date().getFullYear());
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -103,8 +101,7 @@ export default function GestaoComercial() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2 }}
         >
-          {activeTab === 'planilha' && <PlanilhaMensal isDark={isDark} ano={ano} />}
-          {activeTab === 'acumulado' && <AcumuladoMeta isDark={isDark} ano={ano} />}
+          {activeTab === 'vendas' && <GestaoUnificada isDark={isDark} ano={ano} />}
           {activeTab === 'renovacoes' && <Renovacoes isDark={isDark} ano={ano} />}
         </motion.div>
       </div>
