@@ -3,6 +3,8 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const { execFile, execFileSync } = require('child_process');
 
 let _browser = null;
 let _renderQueue = [];
@@ -196,4 +198,69 @@ async function renderHtmlToPdf(htmlContent) {
   });
 }
 
-module.exports = { renderHtmlToPdf };
+// ─────────────────────────────────────────
+// COMPRESSÃO GHOSTSCRIPT (segundo nível)
+// Aplica após o Puppeteer gerar o PDF.
+// Reduz imagens embutidas para 150 DPI e subseta fontes.
+// Silenciosamente ignorado se o `gs` não estiver instalado na VPS.
+// ─────────────────────────────────────────
+let _gsAvailable = null;
+function isGsAvailable() {
+  if (_gsAvailable !== null) return _gsAvailable;
+  try {
+    execFileSync('gs', ['--version'], { timeout: 3000 });
+    _gsAvailable = true;
+  } catch {
+    _gsAvailable = false;
+    console.warn('[pdf/compress] Ghostscript não encontrado — compressão de segundo nível desabilitada.');
+    console.warn('[pdf/compress] Para instalar: sudo apt-get install ghostscript');
+  }
+  return _gsAvailable;
+}
+
+async function comprimirPdfComGs(inputBuffer) {
+  if (!isGsAvailable()) return inputBuffer;
+
+  const tmpIn  = path.join(os.tmpdir(), `pdf-in-${Date.now()}.pdf`);
+  const tmpOut = path.join(os.tmpdir(), `pdf-out-${Date.now()}.pdf`);
+
+  try {
+    fs.writeFileSync(tmpIn, inputBuffer);
+
+    await new Promise((resolve, reject) => {
+      execFile('gs', [
+        '-sDEVICE=pdfwrite',
+        '-dCompatibilityLevel=1.4',
+        '-dPDFSETTINGS=/ebook',   // 150 DPI — ótimo para tela, bem menor que /printer (300 DPI)
+        '-dNOPAUSE',
+        '-dQUIET',
+        '-dBATCH',
+        '-dDetectDuplicateImages=true',
+        '-dCompressFonts=true',
+        `-sOutputFile=${tmpOut}`,
+        tmpIn,
+      ], { timeout: 120_000 }, (err) => {
+        if (err) reject(err); else resolve();
+      });
+    });
+
+    const outputBuffer = fs.readFileSync(tmpOut);
+    const reducao = (((inputBuffer.length - outputBuffer.length) / inputBuffer.length) * 100).toFixed(1);
+    console.log(`[pdf/compress] Ghostscript: ${(inputBuffer.length / 1024 / 1024).toFixed(1)} MB → ${(outputBuffer.length / 1024 / 1024).toFixed(1)} MB (−${reducao}%)`);
+    return outputBuffer;
+
+  } catch (err) {
+    console.warn('[pdf/compress] Ghostscript falhou, retornando PDF original:', err.message);
+    return inputBuffer;
+  } finally {
+    try { fs.unlinkSync(tmpIn);  } catch {}
+    try { fs.unlinkSync(tmpOut); } catch {}
+  }
+}
+
+async function renderHtmlToPdfCompressed(htmlContent) {
+  const rawBuffer = await renderHtmlToPdf(htmlContent);
+  return comprimirPdfComGs(rawBuffer);
+}
+
+module.exports = { renderHtmlToPdf, renderHtmlToPdfCompressed, comprimirPdfComGs };

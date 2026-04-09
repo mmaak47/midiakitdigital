@@ -31,7 +31,7 @@ const {
   isPasswordHash
 } = require('./auth');
 const { createBackupScheduler } = require('./backupService');
-const { renderHtmlToPdf } = require('./pdfService');
+const { renderHtmlToPdfCompressed: renderHtmlToPdf } = require('./pdfService');
 const {
   slugifyCity,
   normalizeCitySlugs,

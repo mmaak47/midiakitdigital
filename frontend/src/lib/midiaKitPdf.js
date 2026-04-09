@@ -253,6 +253,35 @@ function assetUrl(path) {
   return new URL(path, window.location.origin).toString();
 }
 
+// Comprime uma imagem via Canvas antes de embutir no PDF.
+// Redimensiona para no máximo MAX_IMG_PX em qualquer dimensão e recodifica como JPEG.
+// Reduz o tamanho do HTML enviado ao backend em ~90% sem perda visual perceptível no PDF.
+const MAX_IMG_PX = 1920;   // largura/altura máxima
+const IMG_QUALITY = 0.82;  // qualidade JPEG (0–1)
+
+async function compressImageBlob(blob) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { naturalWidth: w, naturalHeight: h } = img;
+      if (w > MAX_IMG_PX || h > MAX_IMG_PX) {
+        const scale = Math.min(MAX_IMG_PX / w, MAX_IMG_PX / h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width  = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', IMG_QUALITY));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
 async function imageToDataUrl(url) {
   if (!url) return null;
   if (imageCache.has(url)) return imageCache.get(url);
@@ -264,6 +293,10 @@ async function imageToDataUrl(url) {
       const res = await fetch(url, { signal: controller.signal });
       if (!res.ok) return null;
       const blob = await res.blob();
+      // Comprimir via Canvas antes de embutir — evita HTML de 100MB+
+      const compressed = await compressImageBlob(blob);
+      if (compressed) return compressed;
+      // Fallback: embutir sem compressão se o Canvas falhar (ex: SVG, WebP incomum)
       return await new Promise((resolve) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result);
