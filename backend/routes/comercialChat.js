@@ -215,7 +215,7 @@ router.post('/', (req, res) => {
           const breakdown = db.prepare(`
             SELECT vc.vendedor_nome,
                    COALESCE(SUM(vc.total_contrato), 0) as realizado,
-                   COALESCE(mv.valor_meta, 0) as meta
+                   COALESCE(MAX(mv.valor_meta), 0) as meta
             FROM vendas_comercial vc
             LEFT JOIN metas_vendedor mv ON mv.vendedor_nome = vc.vendedor_nome AND mv.mes = ? AND mv.ano = ?
             WHERE vc.mes = ? AND vc.ano = ?
@@ -299,7 +299,7 @@ router.post('/', (req, res) => {
           SELECT vc.vendedor_nome,
                  COALESCE(SUM(vc.total_contrato), 0) as realizado,
                  COUNT(*) as qtd_vendas,
-                 COALESCE(mv.valor_meta, 0) as meta
+                 COALESCE(MAX(mv.valor_meta), 0) as meta
           FROM vendas_comercial vc
           LEFT JOIN metas_vendedor mv ON mv.vendedor_nome = vc.vendedor_nome
             AND mv.mes = ${tudo ? 0 : '?'} AND mv.ano = ?
@@ -368,13 +368,13 @@ router.post('/', (req, res) => {
       case 'atingimento': {
         const { mes, ano } = periodo.tudo ? nowBR() : periodo;
         const metas = db.prepare(`
-          SELECT mv.vendedor_nome, mv.valor_meta,
+          SELECT mv.vendedor_nome, MAX(mv.valor_meta) as valor_meta,
                  COALESCE(SUM(vc.total_contrato), 0) as realizado
           FROM metas_vendedor mv
           LEFT JOIN vendas_comercial vc ON vc.vendedor_nome = mv.vendedor_nome AND vc.mes = mv.mes AND vc.ano = mv.ano
           WHERE mv.mes = ? AND mv.ano = ?
           GROUP BY mv.vendedor_nome
-          ORDER BY (COALESCE(SUM(vc.total_contrato), 0) / mv.valor_meta) DESC
+          ORDER BY (COALESCE(SUM(vc.total_contrato), 0) / MAX(mv.valor_meta)) DESC
         `).all(mes, ano);
 
         if (metas.length === 0) {
