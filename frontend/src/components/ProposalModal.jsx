@@ -237,15 +237,19 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     return () => URL.revokeObjectURL(nextUrl);
   }, [simulationArtFile]);
 
+  // Cleanup blob URLs only on unmount — NOT on every simulationResults change,
+  // because revoking mid-batch would invalidate earlier blob URLs.
+  const simulationResultsRef = useRef(simulationResults);
+  simulationResultsRef.current = simulationResults;
   useEffect(() => {
     return () => {
-      Object.values(simulationResults).forEach((entry) => {
+      Object.values(simulationResultsRef.current).forEach((entry) => {
         if (entry?.previewUrl?.startsWith('blob:')) {
           URL.revokeObjectURL(entry.previewUrl);
         }
       });
     };
-  }, [simulationResults]);
+  }, []);
 
   useEffect(() => {
     if (Object.keys(simulationResults).length > 0) {
