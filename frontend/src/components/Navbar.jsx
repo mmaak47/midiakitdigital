@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
-export default function Navbar({ transparent = false, showNav = true, commercial = false, isDark = true, onToggleTheme }) {
+export default function Navbar({ transparent = false, showNav = true, showCta = false, commercial = false, isDark = true, onToggleTheme }) {
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const logoSrc = isDark ? '/logo.png' : '/logo-light.png';
@@ -63,8 +63,19 @@ export default function Navbar({ transparent = false, showNav = true, commercial
           </div>
         ) : <div />}
 
+        {/* CTA Button (landing, sem nav completo) */}
+        {showCta && (
+          <Link
+            to="/planejar"
+            className="hidden md:inline-flex items-center gap-2 px-5 h-9 bg-brand-orange text-white text-sm font-semibold rounded-lg hover:bg-brand-orange-hover hover:shadow-lg hover:shadow-brand-orange/40 transition-all duration-200"
+          >
+            Planejar campanha
+            <i className="ri-magic-line" style={{ fontSize: 15 }} />
+          </Link>
+        )}
+
         {/* Mobile Toggle */}
-        {showNav ? (
+        {showNav || showCta ? (
           <button
             onClick={() => setOpen(!open)}
             className={`md:hidden p-2 rounded-lg transition-colors ${commercial && !isDark ? 'text-neutral-800 hover:bg-neutral-200' : 'text-white hover:bg-white/10'}`}
@@ -76,15 +87,25 @@ export default function Navbar({ transparent = false, showNav = true, commercial
       </div>
 
       {/* Mobile Menu */}
-      {showNav && open && (
+      {(showNav || showCta) && open && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           className={`md:hidden backdrop-blur-xl border-t px-6 py-4 space-y-3 ${commercial && !isDark ? 'bg-[#f1f2f4]/98 border-neutral-300' : 'bg-brand-gray-900/95 border-white/10'}`}
         >
-          {links.map((link) => (
+          {showNav && links.map((link) => (
             <MobileNavLink key={link.to} to={link.to} label={link.label} onClick={() => setOpen(false)} commercial={commercial} isDark={isDark} />
           ))}
+          {showCta && (
+            <Link
+              to="/planejar"
+              onClick={() => setOpen(false)}
+              className="flex items-center justify-center gap-2 w-full py-2.5 bg-brand-orange text-white text-sm font-semibold rounded-lg"
+            >
+              Planejar campanha
+              <i className="ri-magic-line" style={{ fontSize: 15 }} />
+            </Link>
+          )}
           {commercial && onToggleTheme ? (
             <button
               type="button"
