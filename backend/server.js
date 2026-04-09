@@ -2605,6 +2605,57 @@ try {
   if (toFix.length > 0) console.log(`[gestao] repaired ${toFix.length} auto-synced vendas_comercial rows`);
 } catch (e) { console.error('[gestao] repair auto-sync failed:', e.message); }
 
+// Migration: add data_primeira_parcela column to vendas table
+try { db.prepare("ALTER TABLE vendas ADD COLUMN data_primeira_parcela TEXT").run(); } catch {}
+// Migration: add dia_pagamento_dia column to vendas (integer day only)
+try { db.prepare("ALTER TABLE vendas ADD COLUMN dia_pagamento_dia INTEGER").run(); } catch {}
+
+// ─── Sync vendas_comercial (current month) → vendas table ──────────────────
+// Creates vendas rows for gestão entries that have no linked venda yet
+try {
+  const now = new Date();
+  const syncYear = now.getFullYear();
+  const syncMonth = now.getMonth() + 1;
+  const unlinked = db.prepare(`
+    SELECT * FROM vendas_comercial
+    WHERE ano = ? AND mes = ? AND (venda_id IS NULL OR venda_id = 0)
+    AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
+  `).all(syncYear, syncMonth);
+
+  const insertVenda = db.prepare(`
+    INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal,
+      periodo, vendedor_nome, whatsapp_status, status, obs, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'nao_configurado', 'ativa', ?, COALESCE(?, datetime('now')))
+  `);
+  const linkBack = db.prepare(`UPDATE vendas_comercial SET venda_id = ? WHERE id = ?`);
+
+  let syncCount = 0;
+  for (const vc of unlinked) {
+    try {
+      const pontosNomes = vc.pontos_contratados
+        ? JSON.stringify(vc.pontos_contratados.split(',').map(s => s.trim()).filter(Boolean))
+        : '[]';
+      const periodo = vc.qtde_parcelas > 1 ? `${vc.qtde_parcelas} meses` : null;
+      const result = insertVenda.run(
+        'Nova Venda',
+        vc.cliente,
+        vc.cnpj || null,
+        pontosNomes,
+        vc.valor_mensal || null,
+        periodo,
+        vc.vendedor_nome || null,
+        vc.obs || null,
+        vc.data_venda || null
+      );
+      linkBack.run(result.lastInsertRowid, vc.id);
+      syncCount++;
+    } catch (syncRowErr) {
+      console.warn(`[gestão→vendas] sync failed for vc.id=${vc.id}:`, syncRowErr.message);
+    }
+  }
+  if (syncCount > 0) console.log(`[gestão→vendas] synced ${syncCount} vendas_comercial → vendas for ${syncMonth}/${syncYear}`);
+} catch (e) { console.error('[gestão→vendas] sync failed:', e.message); }
+
 try {
   db.prepare(`
     CREATE TABLE IF NOT EXISTS renovacoes (
@@ -2734,7 +2785,7 @@ async function sendEvolutionDocument({ apiUrl, instance, apiKey, number, caption
 }
 
 function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, cnpj, pontosNomes,
-  valorMensal, tipoValor, periodo, diaPagamento,
+  valorMensal, tipoValor, periodo, diaPagamento, dataPrimeiraParcela, diaPagamentoDia,
   viaAgencia, agenciaNome, comissaoPct,
   trocaMaterial,
   responsavelNome, responsavelWhatsapp, obs }) {
@@ -2767,7 +2818,8 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, cnpj, pont
   const financeiro = [
     valorMensal ? `💰 Valor mensal: *R$ ${valorMensal}*${tipoValor ? ` _(${tipoValor})_` : ''}` : null,
     periodo     ? `📅 Período: *${periodo}*` : null,
-    diaPagamento ? `📆 Dia de pagamento: *dia ${diaPagamento}*` : null,
+    dataPrimeiraParcela ? `📆 Data da 1ª parcela: *${dataPrimeiraParcela}*` : null,
+    diaPagamentoDia ? `📆 Dia de pagamento: *Dia ${diaPagamentoDia} de cada mês*` : (diaPagamento ? `📆 Dia de pagamento: *dia ${diaPagamento}*` : null),
   ].filter(Boolean);
 
   if (financeiro.length > 0) {
@@ -2819,6 +2871,8 @@ app.post(
         periodo_inicio,
         periodo_fim,
         dia_pagamento,
+        data_primeira_parcela,
+        dia_pagamento_dia,
         responsavel_nome,
         responsavel_whatsapp,
         obs,
@@ -2845,9 +2899,10 @@ app.post(
       const stmt = db.prepare(`
         INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal, tipo_valor,
           via_agencia, agencia_nome, comissao_pct, troca_material,
-          periodo, dia_pagamento, responsavel_nome, responsavel_whatsapp,
+          periodo, dia_pagamento, data_primeira_parcela, dia_pagamento_dia,
+          responsavel_nome, responsavel_whatsapp,
           obs, pi_path, vendedor_id, vendedor_nome, whatsapp_status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
       `);
 
       const dbResult = stmt.run(
@@ -2863,6 +2918,8 @@ app.post(
         troca_material === 'true' || troca_material === true ? 1 : 0,
         periodo || null,
         dia_pagamento || null,
+        data_primeira_parcela || null,
+        dia_pagamento_dia ? Number(dia_pagamento_dia) : null,
         responsavel_nome || null,
         responsavel_whatsapp || null,
         obs || null,
@@ -2890,6 +2947,8 @@ app.post(
             tipoValor: tipo_valor || '',
             periodo,
             diaPagamento: dia_pagamento || '',
+            dataPrimeiraParcela: data_primeira_parcela || '',
+            diaPagamentoDia: dia_pagamento_dia || '',
             viaAgencia: via_agencia === 'true' || via_agencia === true,
             agenciaNome: agencia_nome || '',
             comissaoPct: comissao_pct || '',
@@ -3075,6 +3134,8 @@ app.delete('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req
     const venda = db.prepare('SELECT id FROM vendas WHERE id = ?').get(id);
     if (!venda) return res.status(404).json({ error: 'Venda não encontrada.' });
     db.prepare('DELETE FROM venda_etapas WHERE venda_id = ?').run(id);
+    // Also remove linked vendas_comercial record
+    db.prepare('DELETE FROM vendas_comercial WHERE venda_id = ?').run(id);
     db.prepare('DELETE FROM vendas WHERE id = ?').run(id);
     res.json({ ok: true });
   } catch (err) {
@@ -3231,12 +3292,19 @@ app.get('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vendedo
     const ano = Number(req.query.ano) || new Date().getFullYear();
     const mes = req.query.mes ? Number(req.query.mes) : null;
     const vendedor = req.query.vendedor || null;
-    let sql = 'SELECT * FROM vendas_comercial WHERE ano = ?';
+    let sql = `SELECT * FROM vendas_comercial WHERE ano = ? AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')`;
     const params = [ano];
     if (mes) { sql += ' AND mes = ?'; params.push(mes); }
     if (vendedor) { sql += ' AND vendedor_nome = ?'; params.push(vendedor); }
     sql += ' ORDER BY mes, vendedor_nome, data_venda';
     const rows = db.prepare(sql).all(...params);
+    // Enrich linked vendas with etapas from venda_etapas (same as vendas page)
+    const etapaStmt = db.prepare('SELECT etapa_key, etapa_label, emoji, confirmado_por, confirmado_at FROM venda_etapas WHERE venda_id = ? AND removido = 0');
+    for (const row of rows) {
+      if (row.venda_id) {
+        row.etapas = etapaStmt.all(row.venda_id);
+      }
+    }
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3305,9 +3373,40 @@ app.patch('/api/gestao/vendas/:id/status', requireRoles(['admin','gerente_comerc
   try {
     const id = Number(req.params.id);
     const { field, value } = req.body;
-    const validFields = ['status_contrato','status_contrato_assinado','status_conteudo','status_checkin','status_faturado','status_excel_pastas'];
-    if (!validFields.includes(field)) return res.status(400).json({ error: 'Campo inválido' });
-    db.prepare(`UPDATE vendas_comercial SET ${field} = ?, updated_at = datetime('now') WHERE id = ?`).run(value ? 1 : 0, id);
+    const ETAPA_KEYS = ['contrato_enviado','contrato_assinado','cobranca_material','material_recebido','veiculando'];
+    // Mapping for manual vendas (no venda_id): etapa key → local boolean column
+    const LOCAL_MAP = {
+      'contrato_enviado': 'status_contrato',
+      'contrato_assinado': 'status_contrato_assinado',
+      'cobranca_material': 'status_conteudo',
+      'material_recebido': 'status_checkin',
+      'veiculando': 'status_faturado',
+    };
+    if (!ETAPA_KEYS.includes(field)) return res.status(400).json({ error: 'Campo inválido' });
+    // Check if this vendas_comercial record is linked to a real venda
+    const row = db.prepare('SELECT venda_id FROM vendas_comercial WHERE id = ?').get(id);
+    if (!row) return res.status(404).json({ error: 'Venda não encontrada' });
+
+    if (row.venda_id) {
+      // Linked venda: toggle in venda_etapas
+      const etapaLabel = ETAPAS_VENDA.find(e => e.key === field)?.label || field;
+      const etapaEmoji = ETAPAS_VENDA.find(e => e.key === field)?.emoji || '';
+      if (value) {
+        db.prepare(`
+          INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_at, confirmado_por, removido)
+          VALUES (?, ?, ?, ?, datetime('now'), 'gestao', 0)
+          ON CONFLICT (venda_id, etapa_key) DO UPDATE SET removido = 0, confirmado_at = datetime('now'), confirmado_por = 'gestao'
+        `).run(row.venda_id, field, etapaLabel, etapaEmoji);
+      } else {
+        db.prepare(`UPDATE venda_etapas SET removido = 1 WHERE venda_id = ? AND etapa_key = ?`).run(row.venda_id, field);
+      }
+    } else {
+      // Manual venda: toggle local boolean column
+      const col = LOCAL_MAP[field];
+      if (col) {
+        db.prepare(`UPDATE vendas_comercial SET ${col} = ?, updated_at = datetime('now') WHERE id = ?`).run(value ? 1 : 0, id);
+      }
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
