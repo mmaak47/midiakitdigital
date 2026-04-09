@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   Target, Repeat, Loader2, ChevronDown, ChevronUp, Users
@@ -79,6 +79,8 @@ export default function AcumuladoMeta({ isDark, ano }) {
   const [expandedCell, setExpandedCell] = useState(null); // {vendedor, mes}
   const [cellSales, setCellSales] = useState([]);
   const [loadingCell, setLoadingCell] = useState(false);
+  const [showAllMonths, setShowAllMonths] = useState(new Set());
+  const editSectionRef = useRef(null);
 
   useEffect(() => {
     setLoading(true);
@@ -269,7 +271,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
             real={monthTotals.realParcela}
             pct={monthPctParcela}
             cardBg={cardBg} border={border} text={text} textMuted={textMuted} isDark={isDark}
-            onEditClick={() => setEditMetas({})}
+            onEditClick={() => { setEditMetas({}); setTimeout(() => editSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150); }}
           />
           <SummaryCard
             icon={<Repeat size={22} className="text-purple-500" />}
@@ -279,7 +281,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
             real={monthTotals.realRecorrencia}
             pct={monthPctRecorrencia}
             cardBg={cardBg} border={border} text={text} textMuted={textMuted} isDark={isDark}
-            onEditClick={() => setEditMetas({})}
+            onEditClick={() => { setEditMetas({}); setTimeout(() => editSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150); }}
           />
         </div>
       </div>
@@ -296,7 +298,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
             real={ytdTotals.realParcela}
             pct={ytdPctParcela}
             cardBg={cardBg} border={border} text={text} textMuted={textMuted} isDark={isDark}
-            onEditClick={() => setEditMetas({})}
+            onEditClick={() => { setEditMetas({}); setTimeout(() => editSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150); }}
           />
           <SummaryCard
             icon={<Repeat size={22} className="text-purple-400" />}
@@ -306,7 +308,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
             real={ytdTotals.realRecorrencia}
             pct={ytdPctRecorrencia}
             cardBg={cardBg} border={border} text={text} textMuted={textMuted} isDark={isDark}
-            onEditClick={() => setEditMetas({})}
+            onEditClick={() => { setEditMetas({}); setTimeout(() => editSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150); }}
           />
         </div>
       </div>
@@ -405,6 +407,8 @@ export default function AcumuladoMeta({ isDark, ano }) {
         const yearRealR = acumRealR;
         const yearPctR = yearMetaR > 0 ? Math.round((yearRealR / yearMetaR) * 100) : 0;
 
+        const isShowingAll = showAllMonths.has(vendedor);
+        const visibleRows = isShowingAll ? rows : rows.filter(r => r.m === currentMonth);
         return (
           <div key={vendedor} className={`rounded-xl border ${border} overflow-hidden`}>
             <div className={`flex items-center justify-between px-5 py-3 ${cardBg} flex-wrap gap-2`}>
@@ -419,6 +423,16 @@ export default function AcumuladoMeta({ isDark, ano }) {
                 <span className={isDark ? 'text-gray-600' : 'text-gray-300'}>|</span>
                 <span>Meta Recorr.: <strong>{fmtCurrency(yearMetaR)}</strong></span>
                 <span>Real.: <strong className="text-green-500">{fmtCurrency(yearRealR)}</strong></span>
+                <button
+                  onClick={() => setShowAllMonths(prev => {
+                    const next = new Set(prev);
+                    if (next.has(vendedor)) next.delete(vendedor); else next.add(vendedor);
+                    return next;
+                  })}
+                  className={`px-3 py-1 text-xs rounded-full border ${border} ${text} hover:bg-blue-500 hover:text-white transition-colors`}
+                >
+                  {isShowingAll ? 'Ver menos' : 'Ver todos os meses'}
+                </button>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -439,7 +453,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.flatMap(r => {
+                  {visibleRows.flatMap(r => {
                     const isCurrent = r.m === currentMonth;
                     const isExpanded = expandedCell?.vendedor === vendedor && expandedCell?.mes === r.m;
                     const mainRow = (
@@ -562,7 +576,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
       })}
 
       {/* Edit metas button */}
-      <div className="flex justify-end gap-2">
+      <div ref={editSectionRef} className="flex justify-end gap-2">
         {editMetas ? (
           <>
             <button onClick={() => setEditMetas(null)} className={`px-4 py-2 rounded text-sm ${textMuted}`}>Cancelar</button>
