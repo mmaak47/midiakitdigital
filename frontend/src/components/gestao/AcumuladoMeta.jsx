@@ -82,6 +82,17 @@ export default function AcumuladoMeta({ isDark, ano }) {
     return m;
   }, [data]);
 
+  // All unique vendedor keys across all maps (must be before any early return)
+  const currentMonth = new Date().getMonth() + 1;
+  const allVendedorKeys = useMemo(() => {
+    const keys = new Set([
+      ...Object.keys(metaMap),
+      ...Object.keys(vendaMap),
+      ...Object.keys(metaRecorrenciaMap),
+    ]);
+    return Array.from(keys);
+  }, [metaMap, vendaMap, metaRecorrenciaMap]);
+
   const handleSaveMetas = async () => {
     if (!editMetas) return;
     setSavingMetas(true);
@@ -143,17 +154,6 @@ export default function AcumuladoMeta({ isDark, ano }) {
   );
 
   if (!data) return null;
-
-  // All unique vendedor keys across metas + vendas (handles username vs vendedor_nome mismatch)
-  const currentMonth = new Date().getMonth() + 1;
-  const allVendedorKeys = useMemo(() => {
-    const keys = new Set([
-      ...Object.keys(metaMap),
-      ...Object.keys(vendaMap),
-      ...Object.keys(metaRecorrenciaMap),
-    ]);
-    return Array.from(keys);
-  }, [metaMap, vendaMap, metaRecorrenciaMap]);
 
   // Keys to use for totals: if filterVendedor is set, restrict; otherwise all
   const activeKeys = filterVendedor === 'todos' ? allVendedorKeys : allVendedorKeys.filter(k => {
