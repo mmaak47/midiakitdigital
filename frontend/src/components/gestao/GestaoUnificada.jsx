@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Save, Loader2, ChevronDown, ChevronUp, X,
@@ -48,7 +48,7 @@ const fmtCurrency = (v) => {
 
 const pctColor = (pct) => {
   if (pct >= 100) return 'text-green-500';
-  if (pct >= 75) return 'text-blue-500';
+  if (pct >= 75) return 'text-brand-orange';
   if (pct >= 50) return 'text-amber-500';
   return 'text-red-500';
 };
@@ -71,10 +71,10 @@ const emptyVenda = {
 function ProgressCard({ title, subtitle, icon, accentBorder, meta, real, pct, isDark, cardBg, text, textMuted }) {
   const hasMeta = meta > 0;
   const diff = real - meta;
-  const barBg = isDark ? 'bg-gray-700' : 'bg-gray-200';
+  const barBg = isDark ? 'bg-white/10' : 'bg-neutral-200';
 
   return (
-    <div className={`rounded-2xl border-2 ${hasMeta ? accentBorder : 'border-dashed border-gray-400'} ${cardBg} p-5`}>
+    <div className={`rounded-2xl border ${hasMeta ? accentBorder : `border-dashed ${isDark ? 'border-white/20' : 'border-neutral-300'}`} ${cardBg} p-5`}>
       <div className="flex items-center gap-3 mb-3">
         {icon}
         <div>
@@ -298,12 +298,12 @@ export default function GestaoUnificada({ isDark, ano }) {
   };
 
   /* ─── Styles ─── */
-  const cardBg = isDark ? 'bg-gray-800' : 'bg-gray-50';
-  const border = isDark ? 'border-gray-700' : 'border-gray-200';
-  const text = isDark ? 'text-gray-100' : 'text-gray-900';
-  const textMuted = isDark ? 'text-gray-400' : 'text-gray-500';
-  const inputBg = isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-white text-gray-900 border-gray-300';
-  const hoverBg = isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100';
+  const cardBg = isDark ? 'bg-white/[0.03] shadow-md' : 'bg-white shadow-sm';
+  const border = isDark ? 'border-white/10' : 'border-neutral-200';
+  const text = isDark ? 'text-white' : 'text-neutral-900';
+  const textMuted = isDark ? 'text-brand-gray-400' : 'text-neutral-500';
+  const inputBg = isDark ? 'bg-white/5 text-white border-white/10 placeholder:text-brand-gray-500' : 'bg-white text-neutral-900 border-neutral-200 placeholder:text-neutral-400';
+  const hoverBg = isDark ? 'hover:bg-white/5' : 'hover:bg-neutral-50';
 
   /* ═══════ RENDER ═══════ */
   return (
@@ -326,7 +326,7 @@ export default function GestaoUnificada({ isDark, ano }) {
         <h2 className="text-xl font-bold">{MESES[mes - 1]} {ano}</h2>
         {!editingMeta && (
           <button onClick={startEditMeta}
-            className="px-5 py-2.5 text-sm font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-500 transition-colors shadow-lg"
+            className="px-5 py-2.5 text-sm font-bold rounded-xl bg-brand-orange text-white hover:bg-brand-orange/90 transition-colors shadow-lg"
           >
             {globalMeta.parcela > 0 || globalMeta.recorrencia > 0 ? '✏️ Alterar Meta' : '🎯 Definir Meta'}
           </button>
@@ -335,8 +335,8 @@ export default function GestaoUnificada({ isDark, ano }) {
 
       {/* Meta editor */}
       {editingMeta && (
-        <div className={`rounded-2xl border-2 border-blue-500 ${cardBg} p-6 space-y-4`}>
-          <p className="text-lg font-bold text-blue-500">Meta da Equipe — {MESES[mes - 1]} {ano}</p>
+        <div className={`rounded-2xl border border-brand-orange/40 shadow-xl ${cardBg} p-6 space-y-4`}>
+          <p className="text-lg font-bold text-brand-orange">Meta da Equipe — {MESES[mes - 1]} {ano}</p>
           <p className={`text-sm ${textMuted}`}>Valores da meta mensal somando todos os vendedores.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
@@ -345,7 +345,7 @@ export default function GestaoUnificada({ isDark, ano }) {
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">R$</span>
                 <input type="number" value={metaRecorrInput} onChange={e => setMetaRecorrInput(e.target.value)}
                   placeholder="Ex: 355000"
-                  className={`w-full pl-12 pr-4 py-3 text-lg rounded-xl border-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} focus:border-blue-500 outline-none`}
+                  className={`w-full pl-12 pr-4 py-3 text-lg rounded-xl border ${isDark ? 'bg-white/5 border-white/10 text-white placeholder:text-brand-gray-500' : 'bg-white border-neutral-200 text-neutral-900 placeholder:text-neutral-400'} focus:border-brand-orange/60 focus:ring-1 focus:ring-brand-orange/30 outline-none`}
                 />
               </div>
             </div>
@@ -355,7 +355,7 @@ export default function GestaoUnificada({ isDark, ano }) {
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">R$</span>
                 <input type="number" value={metaParcelaInput} onChange={e => setMetaParcelaInput(e.target.value)}
                   placeholder="Ex: 81500"
-                  className={`w-full pl-12 pr-4 py-3 text-lg rounded-xl border-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} focus:border-blue-500 outline-none`}
+                  className={`w-full pl-12 pr-4 py-3 text-lg rounded-xl border ${isDark ? 'bg-white/5 border-white/10 text-white placeholder:text-brand-gray-500' : 'bg-white border-neutral-200 text-neutral-900 placeholder:text-neutral-400'} focus:border-brand-orange/60 focus:ring-1 focus:ring-brand-orange/30 outline-none`}
                 />
               </div>
             </div>
@@ -366,7 +366,7 @@ export default function GestaoUnificada({ isDark, ano }) {
               {savingMeta && <Loader2 size={18} className="animate-spin" />} ✅ Salvar
             </button>
             <button onClick={() => setEditingMeta(false)}
-              className={`px-6 py-2.5 text-base font-bold rounded-xl border-2 ${border} ${text} hover:opacity-70`}>
+              className={`px-6 py-2.5 text-base font-bold rounded-xl border ${border} ${text} hover:opacity-70`}>
               Cancelar
             </button>
           </div>
@@ -541,7 +541,7 @@ export default function GestaoUnificada({ isDark, ano }) {
 
                                 {/* Ver mais / menos */}
                                 <button onClick={() => setDetailSaleId(isDetail ? null : v.id)}
-                                  className={`flex items-center gap-1.5 text-sm font-semibold ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-500'} transition-colors`}
+                                  className={`flex items-center gap-1.5 text-sm font-semibold ${isDark ? 'text-brand-orange hover:text-brand-orange/80' : 'text-blue-600 hover:text-brand-orange'} transition-colors`}
                                 >
                                   {isDetail ? <EyeOff size={14} /> : <Eye size={14} />}
                                   {isDetail ? 'Ver Menos' : 'Ver Mais Detalhes'}
@@ -590,7 +590,7 @@ export default function GestaoUnificada({ isDark, ano }) {
                           />
                         ) : (
                           <button onClick={() => { setShowForm(vendedor); setEditingId(null); setFormData(emptyVenda); }}
-                            className="flex items-center gap-2 text-sm font-semibold text-blue-500 hover:text-blue-400 py-2"
+                            className="flex items-center gap-2 text-sm font-semibold text-brand-orange hover:text-blue-400 py-2"
                           >
                             <Plus size={16} /> Adicionar venda
                           </button>
@@ -641,7 +641,7 @@ function VendaForm({
 
   return (
     <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-      className={`p-5 rounded-xl border-2 border-blue-500 ${cardBg} space-y-4`}
+      className={`p-5 rounded-xl border border-brand-orange/40 shadow-xl ${cardBg} space-y-4`}
     >
       <div className="flex items-center justify-between">
         <h4 className="font-bold text-lg">{editingId ? '✏️ Editar Venda' : '➕ Nova Venda'}</h4>
@@ -666,7 +666,7 @@ function VendaForm({
             onChange={e => { setPontoSearch(e.target.value); setShowPontoDropdown(true); }}
             onFocus={() => setShowPontoDropdown(true)}
             onBlur={() => setTimeout(() => setShowPontoDropdown(false), 150)}
-            className={`w-full px-3 py-2 rounded-lg text-sm ${inputBg} focus:ring-2 focus:ring-blue-500 focus:outline-none`}
+            className={`w-full px-3 py-2 rounded-lg text-sm ${inputBg} focus:ring-2 focus:ring-brand-orange/40 focus:outline-none`}
           />
           {showPontoDropdown && availablePontos.length > 0 && (
             <div className={`absolute z-50 mt-1 w-full max-h-52 overflow-y-auto rounded-lg border ${border} ${cardBg} shadow-xl`}>
@@ -698,7 +698,7 @@ function VendaForm({
             <label className={`block text-xs font-semibold mb-1 ${textMuted}`}>{f.label}{f.required ? ' *' : ''}</label>
             <input type={f.type || 'text'} value={formData[f.key]}
               onChange={e => setFormData(prev => ({ ...prev, [f.key]: e.target.value }))}
-              className={`w-full px-3 py-2 rounded-lg text-sm ${inputBg} focus:ring-2 focus:ring-blue-500 focus:outline-none`}
+              className={`w-full px-3 py-2 rounded-lg text-sm ${inputBg} focus:ring-2 focus:ring-brand-orange/40 focus:outline-none`}
             />
           </div>
         ))}
@@ -707,7 +707,7 @@ function VendaForm({
       <div>
         <label className={`block text-xs font-semibold mb-1 ${textMuted}`}>Observações</label>
         <textarea value={formData.obs} onChange={e => setFormData(prev => ({ ...prev, obs: e.target.value }))} rows={2}
-          className={`w-full px-3 py-2 rounded-lg text-sm ${inputBg} focus:ring-2 focus:ring-blue-500 focus:outline-none`}
+          className={`w-full px-3 py-2 rounded-lg text-sm ${inputBg} focus:ring-2 focus:ring-brand-orange/40 focus:outline-none`}
         />
       </div>
 

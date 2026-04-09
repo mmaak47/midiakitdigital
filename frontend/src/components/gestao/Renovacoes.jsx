@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+﻿import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Save, Loader2, X, RefreshCcw,
@@ -122,12 +122,12 @@ export default function Renovacoes({ isDark, ano }) {
   };
 
   const bg = isDark ? 'bg-gray-900' : 'bg-white';
-  const cardBg = isDark ? 'bg-gray-800' : 'bg-gray-50';
-  const border = isDark ? 'border-gray-700' : 'border-gray-200';
-  const text = isDark ? 'text-gray-100' : 'text-gray-900';
-  const textMuted = isDark ? 'text-gray-400' : 'text-gray-500';
-  const inputBg = isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-white text-gray-900 border-gray-300';
-  const hoverBg = isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100';
+  const cardBg = isDark ? 'bg-white/[0.03] shadow-md' : 'bg-white shadow-sm';
+  const border = isDark ? 'border-white/10' : 'border-neutral-200';
+  const text = isDark ? 'text-white' : 'text-neutral-900';
+  const textMuted = isDark ? 'text-brand-gray-400' : 'text-neutral-500';
+  const inputBg = isDark ? 'bg-white/5 text-white border-white/10 placeholder:text-brand-gray-500' : 'bg-white text-neutral-900 border-neutral-200 placeholder:text-neutral-400';
+  const hoverBg = isDark ? 'hover:bg-white/5' : 'hover:bg-neutral-50';
 
   const statusBadge = (status) => {
     const s = STATUS_OPTIONS.find(o => o.value === status) || STATUS_OPTIONS[0];
@@ -178,7 +178,7 @@ export default function Renovacoes({ isDark, ano }) {
         <button
           onClick={() => setFilterMes(null)}
           className={`px-3 py-1 text-xs font-bold rounded-full transition-all ${
-            filterMes === null ? 'bg-blue-600 text-white' : `${cardBg} ${text} ${hoverBg} border ${border}`
+            filterMes === null ? 'bg-brand-orange text-white' : `${cardBg} ${text} ${hoverBg} border ${border}`
           }`}
         >
           TODOS
@@ -188,7 +188,7 @@ export default function Renovacoes({ isDark, ano }) {
             key={m}
             onClick={() => setFilterMes(i + 1)}
             className={`px-3 py-1 text-xs font-bold rounded-full transition-all ${
-              filterMes === i + 1 ? 'bg-blue-600 text-white' : `${cardBg} ${text} ${hoverBg} border ${border}`
+              filterMes === i + 1 ? 'bg-brand-orange text-white' : `${cardBg} ${text} ${hoverBg} border ${border}`
             }`}
           >
             {m.slice(0, 3)}
@@ -206,7 +206,7 @@ export default function Renovacoes({ isDark, ano }) {
       {/* Add button */}
       <button
         onClick={() => { setShowForm(true); setEditingId(null); setFormData(emptyRenovacao); }}
-        className="flex items-center gap-1 text-sm text-blue-500 hover:text-blue-400"
+        className="flex items-center gap-1 text-sm text-brand-orange hover:text-brand-orange/80"
       >
         <Plus size={14} /> Nova Renovação
       </button>
@@ -310,7 +310,7 @@ export default function Renovacoes({ isDark, ano }) {
               <button
                 onClick={handleSave}
                 disabled={saving || !formData.cliente}
-                className="flex items-center gap-1 px-4 py-1.5 rounded text-sm bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50"
+                className="flex items-center gap-1 px-4 py-1.5 rounded text-sm bg-brand-orange text-white hover:bg-brand-orange/90 disabled:opacity-50"
               >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                 {editingId ? 'Salvar' : 'Adicionar'}
@@ -388,7 +388,7 @@ export default function Renovacoes({ isDark, ano }) {
                               </td>
                               <td className={`px-3 py-2 text-xs max-w-[150px] truncate ${textMuted}`} title={r.obs}>{r.obs || '—'}</td>
                               <td className="px-3 py-2 text-center whitespace-nowrap">
-                                <button onClick={() => handleEdit(r)} className="text-blue-500 hover:text-blue-400 mr-2 text-xs">Editar</button>
+                                <button onClick={() => handleEdit(r)} className="text-brand-orange hover:text-brand-orange/80 mr-2 text-xs">Editar</button>
                                 {deleteConfirm === r.id ? (
                                   <span className="text-xs">
                                     <button onClick={() => handleDelete(r.id)} className="text-red-500 font-bold mr-1">Sim</button>

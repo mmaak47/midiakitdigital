@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
-  BarChart3, RefreshCcw, ChevronLeft, ChevronRight
+  BarChart3, RefreshCcw, ChevronLeft, ChevronRight, Calculator
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import GestaoUnificada from '../components/gestao/GestaoUnificada';
@@ -37,76 +36,77 @@ export default function GestaoComercial() {
     localStorage.setItem('intermidia_theme', cls);
   }, [isDark]);
 
-  const bg = isDark ? 'bg-gray-950' : 'bg-gray-50';
-  const cardBg = isDark ? 'bg-gray-800' : 'bg-white';
-  const border = isDark ? 'border-gray-700' : 'border-gray-200';
-  const text = isDark ? 'text-gray-100' : 'text-gray-900';
-  const textMuted = isDark ? 'text-gray-400' : 'text-gray-500';
-  const hoverBg = isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100';
-
   if (!currentUser) return null;
 
   return (
-    <div className={`min-h-screen ${bg} ${text}`}>
-      <Navbar isDark={isDark} setIsDark={setIsDark} />
+    <div
+      className={min-h-screen "$"\{isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'\}}
+      data-theme={isDark ? 'dark' : 'light'}
+    >
+      <Navbar commercial isDark={isDark} onToggleTheme={() => setIsDark((prev) => !prev)} />
 
-      <div className="max-w-[1600px] mx-auto px-4 pt-20 pb-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+      <div className="pt-20 max-w-[1600px] mx-auto px-6 pb-12">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold">Gestão Comercial</h1>
-            <p className={`text-sm ${textMuted}`}>
+            <p className="text-sm text-brand-gray-500 mt-1">
               {currentUser.first_name} {currentUser.last_name} • {currentUser.role === 'admin' ? 'Administrador' : currentUser.role === 'gerente_comercial' ? 'Gerente Comercial' : 'Vendedor'}
             </p>
           </div>
+        </div>
 
-          {/* Year selector */}
-          <div className="flex items-center gap-2">
-            <button onClick={() => setAno(a => a - 1)} className={`p-1 rounded ${hoverBg}`}>
-              <ChevronLeft size={18} />
-            </button>
-            <span className="text-lg font-bold min-w-[60px] text-center">{ano}</span>
-            <button onClick={() => setAno(a => a + 1)} className={`p-1 rounded ${hoverBg}`}>
-              <ChevronRight size={18} />
-            </button>
+        <div className="mb-6">
+          <div className={lex flex-wrap gap-2 items-center rounded-2xl border p-2 "$"\{isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white shadow-sm'\}}>
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors sm:flex-none flex-[0_0_auto] justify-center sm:justify-start "$"\{
+                    active
+                      ? 'bg-brand-orange text-white'
+                      : isDark
+                        ? 'text-brand-gray-300 hover:bg-white/10 hover:text-white'
+                        : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
+                  \}}
+                >
+                  <Icon size={15} />
+                  {tab.label}
+                </button>
+              );
+            })}
+
+            <div className="flex items-center gap-2 ml-auto w-full sm:w-auto mt-2 sm:mt-0 justify-center">
+              <button
+                onClick={() => setAno(a => a - 1)}
+                className={p-1.5 rounded-lg transition-colors "$"\{
+                  isDark ? 'text-brand-gray-300 hover:bg-white/10 hover:text-white' : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
+                \}}
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <span className="text-base font-bold min-w-[60px] text-center">{ano}</span>
+              <button
+                onClick={() => setAno(a => a + 1)}
+                className={p-1.5 rounded-lg transition-colors "$"\{
+                  isDark ? 'text-brand-gray-300 hover:bg-white/10 hover:text-white' : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
+                \}}
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className={`flex gap-1 p-1 rounded-xl ${cardBg} border ${border} mb-6`}>
-          {TABS.map(tab => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex-1 justify-center ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-lg'
-                    : `${text} ${hoverBg}`
-                }`}
-              >
-                <Icon size={16} />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Content */}
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-        >
+        <div>
           {activeTab === 'vendas' && <GestaoUnificada isDark={isDark} ano={ano} />}
           {activeTab === 'renovacoes' && <Renovacoes isDark={isDark} ano={ano} />}
-        </motion.div>
+        </div>
       </div>
 
-      {/* Chatbot flutuante de gestão comercial */}
       <ComercialChatBot isDark={isDark} />
     </div>
   );
