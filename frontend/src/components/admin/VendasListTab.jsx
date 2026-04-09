@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Search, RefreshCw, CheckCircle2, XCircle, RotateCcw, Clock, ChevronDown, ChevronUp, MessageCircle, Circle, Trash2, Pencil } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Search, RefreshCw, CheckCircle2, XCircle, RotateCcw, Clock, ChevronDown, ChevronUp, MessageCircle, Circle, Trash2, Pencil, Plus, X } from 'lucide-react';
 import { fetchVendas, updateVendaStatus, fetchVendaEtapas, deleteVenda, updateVenda } from '../../lib/api';
 
 // Definição ordenada das etapas pós-venda
@@ -66,11 +66,25 @@ function EditVendaModal({ venda, isDark, onClose, onSaved }) {
     vendedor_nome: venda.vendedor_nome || '',
     obs: venda.obs || '',
     status: venda.status || 'ativa',
-    pontos_nomes: venda.pontos_nomes || '[]',
   });
+  const [pontosArray, setPontosArray] = useState(() => parsePontos(venda.pontos_nomes));
+  const [pontoInput, setPontoInput] = useState('');
+  const pontoInputRef = useRef(null);
   const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  function addPonto() {
+    const name = pontoInput.trim();
+    if (!name) return;
+    setPontosArray(prev => [...prev, name]);
+    setPontoInput('');
+    pontoInputRef.current?.focus();
+  }
+
+  function removePonto(idx) {
+    setPontosArray(prev => prev.filter((_, i) => i !== idx));
+  }
 
   const overlay = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50';
   const modal = `w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl p-6 space-y-4 border ${isDark ? 'bg-[#111] border-white/10 text-white' : 'bg-white border-neutral-200 text-neutral-900'}`;
@@ -81,7 +95,7 @@ function EditVendaModal({ venda, isDark, onClose, onSaved }) {
     if (!form.razao_social.trim()) return alert('Razão Social é obrigatória.');
     setSaving(true);
     try {
-      await updateVenda(venda.id, form);
+      await updateVenda(venda.id, { ...form, pontos_nomes: JSON.stringify(pontosArray) });
       onSaved();
       onClose();
     } catch (e) {
@@ -214,6 +228,40 @@ function EditVendaModal({ venda, isDark, onClose, onSaved }) {
           <div>
             <label className={lbl}>Responsável (WhatsApp)</label>
             <input className={inp} value={form.responsavel_whatsapp} onChange={e => set('responsavel_whatsapp', e.target.value)} />
+          </div>
+        </div>
+
+        {/* Pontos vendidos */}
+        <div>
+          <label className={lbl}>Pontos Vendidos</label>
+          {pontosArray.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {pontosArray.map((nome, idx) => (
+                <span key={idx} className={`inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full text-xs font-medium border ${isDark ? 'bg-white/5 border-white/10 text-brand-gray-200' : 'bg-neutral-100 border-neutral-200 text-neutral-700'}`}>
+                  {nome}
+                  <button type="button" onClick={() => removePonto(idx)}
+                    className={`rounded-full p-0.5 transition-colors ${isDark ? 'hover:bg-white/10 text-brand-gray-400 hover:text-white' : 'hover:bg-neutral-200 text-neutral-400 hover:text-neutral-700'}`}
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              ref={pontoInputRef}
+              className={`flex-1 rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-orange/30 ${isDark ? 'bg-white/5 border-white/10 text-white placeholder:text-brand-gray-500' : 'bg-white border-neutral-200 text-neutral-900 placeholder:text-neutral-400'}`}
+              placeholder="Nome do ponto..."
+              value={pontoInput}
+              onChange={e => setPontoInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addPonto(); } }}
+            />
+            <button type="button" onClick={addPonto}
+              className={`px-3 py-2 rounded-xl border text-sm transition-colors flex items-center gap-1 ${isDark ? 'border-white/10 text-brand-gray-300 hover:bg-white/5 hover:border-white/20' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100'}`}
+            >
+              <Plus size={14} />
+            </button>
           </div>
         </div>
 
