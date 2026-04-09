@@ -983,9 +983,3 @@ export async function fetchGestaoVendedores() {
   if (!res.ok) throw new Error('Erro ao buscar vendedores');
   return res.json();
 }
-
-export async function fetchGestaoVendedores() {
-  const res = await apiRequest('/gestao/vendedores');
-  if (!res.ok) throw new Error('Erro ao buscar vendedores');
-  return res.json();
-}
