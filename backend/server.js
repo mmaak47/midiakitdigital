@@ -326,7 +326,7 @@ function resolveAuthenticatedUser(req, res, next) {
 
     const claims = parseAuthToken(token);
     const user = db.prepare(`
-      SELECT id, first_name, last_name, username, email, whatsapp, role
+      SELECT id, first_name, last_name, username, email, whatsapp, role, photo_url
       FROM admin_users
       WHERE id = ? AND lower(username) = lower(?)
       LIMIT 1
@@ -1930,7 +1930,7 @@ app.get('/api/admin/pontos', requireRoles(['admin', 'gerente_comercial', 'vended
 
 app.get('/api/admin/users', requireRoles(['admin']), (req, res) => {
   try {
-    const users = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, is_vendedor, created_at FROM admin_users ORDER BY first_name ASC, last_name ASC, username ASC').all();
+    const users = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, is_vendedor, photo_url, created_at FROM admin_users ORDER BY first_name ASC, last_name ASC, username ASC').all();
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2403,8 +2403,34 @@ app.delete('/api/admin/pdf-layout', requireRoles(['admin']), (req, res) => {
 // ==================== USUÁRIO ATUAL ====================
 
 app.get('/api/users/me', resolveAuthenticatedUser, (req, res) => {
-  const { id, first_name, last_name, username, email, whatsapp, role } = req.authUser;
-  res.json({ id, first_name, last_name, username, email, whatsapp, role });
+  const { id, first_name, last_name, username, email, whatsapp, role, photo_url } = req.authUser;
+  res.json({ id, first_name, last_name, username, email, whatsapp, role, photo_url });
+});
+
+// Upload photo for own user
+app.post('/api/users/me/photo', resolveAuthenticatedUser, upload.fields([{ name: 'photo', maxCount: 1 }]), (req, res) => {
+  try {
+    const file = req.files?.photo?.[0];
+    if (!file) return res.status(400).json({ error: 'Nenhuma foto enviada' });
+    const photoUrl = `/uploads/${file.filename}`;
+    db.prepare("UPDATE admin_users SET photo_url = ?, updated_at = datetime('now') WHERE id = ?").run(photoUrl, req.authUser.id);
+    res.json({ success: true, photo_url: photoUrl });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Admin: upload photo for any user
+app.post('/api/admin/users/:id/photo', requireRoles(['admin']), upload.fields([{ name: 'photo', maxCount: 1 }]), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido' });
+    const user = db.prepare('SELECT id FROM admin_users WHERE id = ?').get(id);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+    const file = req.files?.photo?.[0];
+    if (!file) return res.status(400).json({ error: 'Nenhuma foto enviada' });
+    const photoUrl = `/uploads/${file.filename}`;
+    db.prepare("UPDATE admin_users SET photo_url = ?, updated_at = datetime('now') WHERE id = ?").run(photoUrl, id);
+    res.json({ success: true, photo_url: photoUrl });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ==================== VENDAS ====================
@@ -2473,6 +2499,7 @@ try {
   'ALTER TABLE vendas ADD COLUMN troca_material INTEGER DEFAULT 0',
   'ALTER TABLE pontos ADD COLUMN monitor_last_seen TEXT DEFAULT NULL',
   'ALTER TABLE admin_users ADD COLUMN is_vendedor INTEGER DEFAULT 0',
+  'ALTER TABLE admin_users ADD COLUMN photo_url TEXT DEFAULT NULL',
 ].forEach(sql => {
   try { db.prepare(sql).run(); } catch { /* coluna já existe */ }
 });

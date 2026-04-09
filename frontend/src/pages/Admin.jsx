@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
   Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings,
-  Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap, ClipboardList, Activity
+  Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap, ClipboardList, Activity,
+  LogOut, Camera
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import {
@@ -28,7 +29,9 @@ import {
   updateAdminSettings,
   geocodePoint,
   fetchCurrentUser,
-  fetchArteStats
+  fetchArteStats,
+  uploadMyPhoto,
+  uploadUserPhoto
 } from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
 import FocalPointSelector from '../components/admin/FocalPointSelector';
@@ -356,6 +359,32 @@ export default function Admin() {
       setAuth(true);
     } catch (err) {
       setLoginError(err.message);
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('comercial_manual_login');
+    setAuth(false);
+    setCurrentUser(null);
+    navigate('/comercial');
+  };
+
+  const handleUploadMyPhoto = async (file) => {
+    try {
+      const result = await uploadMyPhoto(file);
+      setCurrentUser(prev => prev ? { ...prev, photo_url: result.photo_url } : prev);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleUploadUserPhoto = async (userId, file) => {
+    try {
+      await uploadUserPhoto(userId, file);
+      await loadUsers();
+    } catch (err) {
+      alert(err.message);
     }
   };
 
@@ -979,16 +1008,42 @@ export default function Admin() {
             <h1 className="text-2xl font-bold">Painel Administrativo</h1>
             <p className="text-sm text-brand-gray-500 mt-1">Pontos, entorno, calibração de PDF e usuários em menus separados.</p>
           </div>
-          {activeTab === 'pontos' ? (
-            <button
-              onClick={openNew}
-              className="orange-solid-btn flex items-center gap-2 px-5 py-2.5 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
-            >
-              <Plus size={16} />
-              Novo ponto
+          <div className="flex items-center gap-3">
+            {currentUser && (
+              <div className="flex items-center gap-3">
+                <label className="relative cursor-pointer group">
+                  {currentUser.photo_url ? (
+                    <img src={currentUser.photo_url} alt="" className="w-9 h-9 rounded-full object-cover border-2 border-brand-orange/40 group-hover:border-brand-orange transition-colors" />
+                  ) : (
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${isDark ? 'bg-brand-orange/20 text-brand-orange' : 'bg-orange-100 text-orange-700'} border-2 border-transparent group-hover:border-brand-orange transition-colors`}>
+                      {(currentUser.first_name?.[0] || currentUser.username?.[0] || '?').toUpperCase()}
+                    </div>
+                  )}
+                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-brand-orange flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera size={9} className="text-white" />
+                  </div>
+                  <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={e => { if (e.target.files?.[0]) handleUploadMyPhoto(e.target.files[0]); e.target.value = ''; }} />
+                </label>
+                <div className="hidden sm:block">
+                  <p className={`text-sm font-semibold leading-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>{[currentUser.first_name, currentUser.last_name].filter(Boolean).join(' ') || currentUser.username}</p>
+                  <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>{currentUser.role}</p>
+                </div>
+              </div>
+            )}
+            <button onClick={handleLogout} title="Sair" className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${isDark ? 'text-red-400 hover:bg-red-400/10 border border-red-400/20' : 'text-red-600 hover:bg-red-50 border border-red-200'}`}>
+              <LogOut size={16} />
+              <span className="hidden sm:inline">Sair</span>
             </button>
-          ) : null}
-        </div>
+            {activeTab === 'pontos' ? (
+              <button
+                onClick={openNew}
+                className="orange-solid-btn flex items-center gap-2 px-5 py-2.5 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
+              >
+                <Plus size={16} />
+                Novo ponto
+              </button>
+            ) : null}
+          </div>
 
         <div className="mb-6">
           <div className={`flex flex-wrap gap-2 rounded-2xl border p-2 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white shadow-sm'}`}>
@@ -1283,6 +1338,7 @@ export default function Admin() {
             onOpenNew={handleOpenNewUserModal}
             onOpenEdit={handleOpenEditUserModal}
             onDelete={handleDeleteUser}
+            onUploadPhoto={handleUploadUserPhoto}
             userRoles={USER_ROLES}
             onReload={loadUsers}
             isDark={isDark}
@@ -2341,6 +2397,7 @@ function UsersAdminPanel({
   onOpenNew,
   onOpenEdit,
   onDelete,
+  onUploadPhoto,
   userRoles,
   onReload,
   isDark = true
@@ -2378,6 +2435,7 @@ function UsersAdminPanel({
         <table className="w-full text-xs">
           <thead>
             <tr className={`text-left ${isDark ? 'bg-white/[0.03] text-brand-gray-400' : 'bg-neutral-50 text-neutral-500'}`}>
+              <th className="px-3 py-2">Foto</th>
               <th className="px-3 py-2">Nome</th>
               <th className="px-3 py-2">Usuário</th>
               <th className="px-3 py-2">Contato</th>
@@ -2388,14 +2446,26 @@ function UsersAdminPanel({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className={`px-3 py-4 text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Carregando usuários...</td>
+                <td colSpan={6} className={`px-3 py-4 text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Carregando usuários...</td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={5} className={`px-3 py-4 text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Nenhum usuário cadastrado.</td>
+                <td colSpan={6} className={`px-3 py-4 text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Nenhum usuário cadastrado.</td>
               </tr>
             ) : users.map((user) => (
               <tr key={user.id} className={`border-t ${isDark ? 'border-white/5 text-brand-gray-300' : 'border-neutral-100 text-neutral-600'}`}>
+                <td className="px-3 py-2">
+                  <label className="relative cursor-pointer group">
+                    {user.photo_url ? (
+                      <img src={user.photo_url} alt="" className="w-8 h-8 rounded-full object-cover border border-white/10 group-hover:border-brand-orange transition-colors" />
+                    ) : (
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${isDark ? 'bg-brand-orange/20 text-brand-orange' : 'bg-orange-100 text-orange-700'} group-hover:ring-2 ring-brand-orange transition-all`}>
+                        {(user.first_name?.[0] || user.username?.[0] || '?').toUpperCase()}
+                      </div>
+                    )}
+                    <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={e => { if (e.target.files?.[0]) onUploadPhoto(user.id, e.target.files[0]); e.target.value = ''; }} />
+                  </label>
+                </td>
                 <td className="px-3 py-2">
                   <div className={`font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>{[user.first_name, user.last_name].filter(Boolean).join(' ') || 'Sem nome'}</div>
                 </td>

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Save, Loader2, ChevronDown, ChevronUp, X,
-  CheckSquare, Square, FileText, Target, Repeat, Eye, EyeOff
+  CheckSquare, Square, FileText, Target, Repeat, Eye, EyeOff, MapPin
 } from 'lucide-react';
 import {
   fetchGestaoVendas, createGestaoVenda, updateGestaoVenda,
@@ -340,21 +340,21 @@ export default function GestaoUnificada({ isDark, ano }) {
           <p className={`text-sm ${textMuted}`}>Valores da meta mensal somando todos os vendedores.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className={`block text-sm font-semibold mb-1.5 ${text}`}>Meta 1ª Parcela</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">R$</span>
-                <input type="number" value={metaParcelaInput} onChange={e => setMetaParcelaInput(e.target.value)}
-                  placeholder="Ex: 81500"
-                  className={`w-full pl-12 pr-4 py-3 text-lg rounded-xl border-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} focus:border-blue-500 outline-none`}
-                />
-              </div>
-            </div>
-            <div>
               <label className={`block text-sm font-semibold mb-1.5 ${text}`}>Meta Recorrência</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">R$</span>
                 <input type="number" value={metaRecorrInput} onChange={e => setMetaRecorrInput(e.target.value)}
                   placeholder="Ex: 355000"
+                  className={`w-full pl-12 pr-4 py-3 text-lg rounded-xl border-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} focus:border-blue-500 outline-none`}
+                />
+              </div>
+            </div>
+            <div>
+              <label className={`block text-sm font-semibold mb-1.5 ${text}`}>Meta 1ª Parcela</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">R$</span>
+                <input type="number" value={metaParcelaInput} onChange={e => setMetaParcelaInput(e.target.value)}
+                  placeholder="Ex: 81500"
                   className={`w-full pl-12 pr-4 py-3 text-lg rounded-xl border-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} focus:border-blue-500 outline-none`}
                 />
               </div>
@@ -376,17 +376,17 @@ export default function GestaoUnificada({ isDark, ano }) {
       {/* Progress cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <ProgressCard
-          title="1ª Parcela" subtitle="Valor mensal vendido"
-          icon={<Target size={24} className="text-amber-500" />}
-          accentBorder="border-amber-400"
-          meta={globalMeta.parcela} real={monthTotals.mensal} pct={pctP}
-          isDark={isDark} cardBg={cardBg} text={text} textMuted={textMuted}
-        />
-        <ProgressCard
           title="Recorrência" subtitle="Total de contratos"
           icon={<Repeat size={24} className="text-purple-500" />}
           accentBorder="border-purple-400"
           meta={globalMeta.recorrencia} real={monthTotals.contrato} pct={pctR}
+          isDark={isDark} cardBg={cardBg} text={text} textMuted={textMuted}
+        />
+        <ProgressCard
+          title="1ª Parcela" subtitle="Valor mensal vendido"
+          icon={<Target size={24} className="text-amber-500" />}
+          accentBorder="border-amber-400"
+          meta={globalMeta.parcela} real={monthTotals.mensal} pct={pctP}
           isDark={isDark} cardBg={cardBg} text={text} textMuted={textMuted}
         />
       </div>
@@ -477,13 +477,18 @@ export default function GestaoUnificada({ isDark, ano }) {
                                 <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
                                   <div className="flex-1 min-w-0">
                                     <p className={`font-bold text-base ${text} truncate`}>{v.cliente}</p>
-                                    {v.pontos_contratados && <p className={`text-sm ${textMuted} truncate`}>{v.pontos_contratados}</p>}
+                                    {v.pontos_contratados && (
+                                      <div className="flex flex-wrap gap-1 mt-1">
+                                        {v.pontos_contratados.split(',').map(s => s.trim()).filter(Boolean).map(nome => (
+                                          <span key={nome} className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${isDark ? 'bg-orange-900/40 text-orange-300 border border-orange-700/50' : 'bg-orange-100 text-orange-700 border border-orange-200'}`}>
+                                            <MapPin size={10} className="shrink-0" />{nome}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                   <div className="flex items-center gap-2 flex-shrink-0">
                                     {v.data_venda && <span className={`text-sm ${textMuted}`}>{v.data_venda}</span>}
-                                    <button onClick={() => handleEdit(v)} className="text-blue-500 hover:text-blue-400 p-1" title="Editar">
-                                      <FileText size={16} />
-                                    </button>
                                     {deleteConfirm === v.id ? (
                                       <span className="text-xs flex items-center gap-1">
                                         <button onClick={() => handleDelete(v.id)} className="text-red-500 hover:text-red-400 font-bold">Sim</button>
