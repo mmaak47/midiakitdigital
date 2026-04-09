@@ -151,6 +151,9 @@ router.post('/', (req, res) => {
         SELECT DISTINCT vc.vendedor_nome FROM vendas_comercial vc WHERE vc.vendedor_nome IS NOT NULL
         UNION
         SELECT DISTINCT mv.vendedor_nome FROM metas_vendedor mv WHERE mv.vendedor_nome IS NOT NULL
+      `).all();
+      vendedores = rows.map(r => r.vendedor_nome).filter(Boolean);
+    } catch (e) { /* ignora */ }
 
   const vendedorAlvo = detectarVendedor(txt, vendedores);
 
