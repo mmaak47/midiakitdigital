@@ -148,12 +148,9 @@ router.post('/', (req, res) => {
   let vendedores = [];
   try {
     const rows = db.prepare(`
-      SELECT DISTINCT vendedor_nome FROM vendas_comercial WHERE vendedor_nome IS NOT NULL
-      UNION
-      SELECT DISTINCT vendedor_nome FROM metas_vendedor WHERE vendedor_nome IS NOT NULL
-    `).all();
-    vendedores = rows.map(r => r.vendedor_nome).filter(Boolean);
-  } catch (e) { /* ignora */ }
+        SELECT DISTINCT vc.vendedor_nome FROM vendas_comercial vc WHERE vc.vendedor_nome IS NOT NULL
+        UNION
+        SELECT DISTINCT mv.vendedor_nome FROM metas_vendedor mv WHERE mv.vendedor_nome IS NOT NULL
 
   const vendedorAlvo = detectarVendedor(txt, vendedores);
 
@@ -183,8 +180,8 @@ router.post('/', (req, res) => {
       case 'meta_restante': {
         const { mes, ano } = periodo.tudo ? nowBR() : periodo;
         if (vendedorAlvo) {
-          const meta = db.prepare(`SELECT valor_meta FROM metas_vendedor WHERE vendedor_nome = ? AND mes = ? AND ano = ?`).get(vendedorAlvo, mes, ano);
-          const realizado = db.prepare(`SELECT COALESCE(SUM(total_contrato), 0) as total FROM vendas_comercial WHERE vendedor_nome = ? AND mes = ? AND ano = ?`).get(vendedorAlvo, mes, ano);
+          const meta = db.prepare(`SELECT mv.valor_meta FROM metas_vendedor mv WHERE mv.vendedor_nome = ? AND mv.mes = ? AND mv.ano = ?`).get(vendedorAlvo, mes, ano);
+          const realizado = db.prepare(`SELECT COALESCE(SUM(vc.total_contrato), 0) as total FROM vendas_comercial vc WHERE vc.vendedor_nome = ? AND vc.mes = ? AND vc.ano = ?`).get(vendedorAlvo, mes, ano);
           const metaVal = meta?.valor_meta || 0;
           const realizadoVal = realizado?.total || 0;
           const faltam = Math.max(0, metaVal - realizadoVal);
@@ -197,8 +194,8 @@ router.post('/', (req, res) => {
           }
         } else {
           // Geral: soma de todas as metas vs realizado
-          const metaGeral = db.prepare(`SELECT COALESCE(SUM(valor_meta), 0) as total FROM metas_vendedor WHERE mes = ? AND ano = ?`).get(mes, ano);
-          const realizadoGeral = db.prepare(`SELECT COALESCE(SUM(total_contrato), 0) as total FROM vendas_comercial WHERE mes = ? AND ano = ?`).get(mes, ano);
+          const metaGeral = db.prepare(`SELECT COALESCE(SUM(mv.valor_meta), 0) as total FROM metas_vendedor mv WHERE mv.mes = ? AND mv.ano = ?`).get(mes, ano);
+          const realizadoGeral = db.prepare(`SELECT COALESCE(SUM(vc.total_contrato), 0) as total FROM vendas_comercial vc WHERE vc.mes = ? AND vc.ano = ?`).get(mes, ano);
           const metaVal = metaGeral?.total || 0;
           const realizadoVal = realizadoGeral?.total || 0;
           const faltam = Math.max(0, metaVal - realizadoVal);
@@ -243,22 +240,22 @@ router.post('/', (req, res) => {
         let labelPeriodo = '';
 
         if (tudo) {
-          whereExtra = 'AND ano = ?';
+          whereExtra = 'AND vc.ano = ?';
           params = [ano];
           labelPeriodo = `${ano}`;
         } else if (trimestre) {
           const meses = [trimestre*3-2, trimestre*3-1, trimestre*3];
-          whereExtra = `AND ano = ? AND mes IN (${meses.join(',')})`;
+          whereExtra = `AND vc.ano = ? AND vc.mes IN (${meses.join(',')})`;
           params = [ano];
           labelPeriodo = `Q${trimestre}/${ano}`;
         } else {
-          whereExtra = 'AND mes = ? AND ano = ?';
+          whereExtra = 'AND vc.mes = ? AND vc.ano = ?';
           params = [mes, ano];
           labelPeriodo = `${mesLabel(mes)}/${ano}`;
         }
 
         if (vendedorAlvo) {
-          const rows = db.prepare(`SELECT total_contrato, cliente, mes, data_venda FROM vendas_comercial WHERE vendedor_nome = ? ${whereExtra} ORDER BY data_venda DESC`).all(vendedorAlvo, ...params);
+          const rows = db.prepare(`SELECT vc.total_contrato, vc.cliente, vc.mes, vc.data_venda FROM vendas_comercial vc WHERE vc.vendedor_nome = ? ${whereExtra} ORDER BY vc.data_venda DESC`).all(vendedorAlvo, ...params);
           const total = rows.reduce((s, r) => s + (r.total_contrato || 0), 0);
           if (rows.length === 0) {
             resposta = `Não encontrei vendas de *${vendedorAlvo}* em ${labelPeriodo}.`;
@@ -273,7 +270,7 @@ router.post('/', (req, res) => {
           }
           dados = { vendedor: vendedorAlvo, total, vendas: rows };
         } else {
-          const rows = db.prepare(`SELECT vendedor_nome, COALESCE(SUM(total_contrato),0) as total, COUNT(*) as qtd FROM vendas_comercial WHERE 1=1 ${whereExtra} GROUP BY vendedor_nome ORDER BY total DESC`).all(...params);
+          const rows = db.prepare(`SELECT vc.vendedor_nome, COALESCE(SUM(vc.total_contrato),0) as total, COUNT(*) as qtd FROM vendas_comercial vc WHERE 1=1 ${whereExtra} GROUP BY vc.vendedor_nome ORDER BY total DESC`).all(...params);
           if (rows.length === 0) {
             resposta = `Não encontrei vendas em ${labelPeriodo}.`;
           } else {
@@ -291,7 +288,7 @@ router.post('/', (req, res) => {
       // ── Ranking ──────────────────────────────────────────────────────────
       case 'ranking': {
         const { mes, ano, tudo } = periodo;
-        const whereExtra = tudo ? 'AND ano = ?' : 'AND mes = ? AND ano = ?';
+        const whereExtra = tudo ? 'AND vc.ano = ?' : 'AND vc.mes = ? AND vc.ano = ?';
         const params = tudo ? [ano] : [mes, ano];
         const labelPeriodo = tudo ? `${ano}` : `${mesLabel(mes)}/${ano}`;
 
@@ -329,8 +326,8 @@ router.post('/', (req, res) => {
 
         if (tudo) {
           const rows = db.prepare(`
-            SELECT mes, COALESCE(SUM(total_contrato), 0) as total, COUNT(*) as qtd
-            FROM vendas_comercial WHERE ano = ? GROUP BY mes ORDER BY mes
+            SELECT vc.mes, COALESCE(SUM(vc.total_contrato), 0) as total, COUNT(*) as qtd
+            FROM vendas_comercial vc WHERE vc.ano = ? GROUP BY vc.mes ORDER BY vc.mes
           `).all(ano);
           const totalAno = rows.reduce((s, r) => s + r.total, 0);
           resposta = `📅 Total de vendas em ${ano}: *${fmtBRL(totalAno)}*\n`;
@@ -341,8 +338,8 @@ router.post('/', (req, res) => {
         } else if (trimestre) {
           const meses = [trimestre*3-2, trimestre*3-1, trimestre*3];
           const rows = db.prepare(`
-            SELECT mes, COALESCE(SUM(total_contrato), 0) as total, COUNT(*) as qtd
-            FROM vendas_comercial WHERE ano = ? AND mes IN (${meses.join(',')}) GROUP BY mes ORDER BY mes
+            SELECT vc.mes, COALESCE(SUM(vc.total_contrato), 0) as total, COUNT(*) as qtd
+            FROM vendas_comercial vc WHERE vc.ano = ? AND vc.mes IN (${meses.join(',')}) GROUP BY vc.mes ORDER BY vc.mes
           `).all(ano);
           const totalQ = rows.reduce((s, r) => s + r.total, 0);
           resposta = `📅 Q${trimestre}/${ano}: *${fmtBRL(totalQ)}*`;
@@ -351,8 +348,8 @@ router.post('/', (req, res) => {
           }
           dados = rows;
         } else {
-          const result = db.prepare(`SELECT COALESCE(SUM(total_contrato), 0) as total, COUNT(*) as qtd FROM vendas_comercial WHERE mes = ? AND ano = ?`).get(mes, ano);
-          const meta = db.prepare(`SELECT COALESCE(SUM(valor_meta), 0) as total FROM metas_vendedor WHERE mes = ? AND ano = ?`).get(mes, ano);
+          const result = db.prepare(`SELECT COALESCE(SUM(vc.total_contrato), 0) as total, COUNT(*) as qtd FROM vendas_comercial vc WHERE vc.mes = ? AND vc.ano = ?`).get(mes, ano);
+          const meta = db.prepare(`SELECT COALESCE(SUM(mv.valor_meta), 0) as total FROM metas_vendedor mv WHERE mv.mes = ? AND mv.ano = ?`).get(mes, ano);
           const t = result?.total || 0;
           const m = meta?.total || 0;
           resposta = `📅 Total de vendas em ${mesLabel(mes)}/${ano}:\n• Realizado: *${fmtBRL(t)}* (${result?.qtd || 0} venda${result?.qtd !== 1 ? 's' : ''})`;
@@ -398,16 +395,16 @@ router.post('/', (req, res) => {
       case 'historico': {
         const { ano } = periodo;
         const rows = db.prepare(`
-          SELECT mes,
-                 COALESCE(SUM(total_contrato), 0) as realizado,
+          SELECT vc.mes,
+                 COALESCE(SUM(vc.total_contrato), 0) as realizado,
                  COUNT(*) as qtd
-          FROM vendas_comercial WHERE ano = ?
-          GROUP BY mes ORDER BY mes
+          FROM vendas_comercial vc WHERE vc.ano = ?
+          GROUP BY vc.mes ORDER BY vc.mes
         `).all(ano);
         const metas = db.prepare(`
-          SELECT mes, COALESCE(SUM(valor_meta), 0) as meta
-          FROM metas_vendedor WHERE ano = ?
-          GROUP BY mes ORDER BY mes
+          SELECT mv.mes, COALESCE(SUM(mv.valor_meta), 0) as meta
+          FROM metas_vendedor mv WHERE mv.ano = ?
+          GROUP BY mv.mes ORDER BY mv.mes
         `).all(ano);
         const metaMap = {};
         for (const m of metas) metaMap[m.mes] = m.meta;
@@ -443,8 +440,8 @@ router.post('/', (req, res) => {
 
       // ── Contratos ativos ─────────────────────────────────────────────────
       case 'contratos_ativos': {
-        const rows = db.prepare(`SELECT COUNT(*) as total, COALESCE(SUM(valor_mensal), 0) as mrr FROM vendas WHERE status = 'ativa'`).get();
-        const porVendedor = db.prepare(`SELECT vendedor_nome, COUNT(*) as qtd FROM vendas WHERE status = 'ativa' GROUP BY vendedor_nome ORDER BY qtd DESC`).all();
+        const rows = db.prepare(`SELECT COUNT(*) as total, COALESCE(SUM(v.valor_mensal), 0) as mrr FROM vendas v WHERE v.status = 'ativa'`).get();
+        const porVendedor = db.prepare(`SELECT v.vendedor_nome, COUNT(*) as qtd FROM vendas v WHERE v.status = 'ativa' GROUP BY v.vendedor_nome ORDER BY qtd DESC`).all();
         resposta = `📋 Contratos ativos:\n• Total: *${rows?.total || 0}* contratos\n• MRR: *${fmtBRL(rows?.mrr || 0)}*`;
         if (porVendedor.length > 0) {
           resposta += '\n\n*Por vendedor:*';
@@ -459,18 +456,18 @@ router.post('/', (req, res) => {
       // ── Ticket médio ─────────────────────────────────────────────────────
       case 'ticket_medio': {
         const { mes, ano, tudo } = periodo;
-        const whereExtra = tudo ? 'WHERE ano = ?' : 'WHERE mes = ? AND ano = ?';
+        const whereExtra = tudo ? 'WHERE vc.ano = ?' : 'WHERE vc.mes = ? AND vc.ano = ?';
         const params = tudo ? [ano] : [mes, ano];
         const labelPeriodo = tudo ? `${ano}` : `${mesLabel(mes)}/${ano}`;
 
-        const result = db.prepare(`SELECT AVG(NULLIF(total_contrato, 0)) as media, COUNT(*) as qtd FROM vendas_comercial ${whereExtra} AND total_contrato > 0`).get(...params);
+        const result = db.prepare(`SELECT AVG(NULLIF(vc.total_contrato, 0)) as media, COUNT(*) as qtd FROM vendas_comercial vc ${whereExtra} AND vc.total_contrato > 0`).get(...params);
         const geral = result?.media || 0;
         resposta = `💰 Ticket médio em ${labelPeriodo}:\n• Ticket médio: *${fmtBRL(geral)}*\n• Baseado em ${result?.qtd || 0} venda${result?.qtd !== 1 ? 's' : ''}`;
 
         const porVendedor = db.prepare(`
-          SELECT vendedor_nome, AVG(NULLIF(total_contrato, 0)) as media, COUNT(*) as qtd
-          FROM vendas_comercial ${whereExtra} AND total_contrato > 0
-          GROUP BY vendedor_nome ORDER BY media DESC
+          SELECT vc.vendedor_nome, AVG(NULLIF(vc.total_contrato, 0)) as media, COUNT(*) as qtd
+          FROM vendas_comercial vc ${whereExtra} AND vc.total_contrato > 0
+          GROUP BY vc.vendedor_nome ORDER BY media DESC
         `).all(...params);
 
         if (porVendedor.length > 1) {
@@ -492,8 +489,8 @@ router.post('/', (req, res) => {
         const diasRestantes = diasNoMes - diasPassados;
         const diasUteis = Math.round(diasRestantes * 5 / 7); // Estimativa
 
-        const realizadoAtual = db.prepare(`SELECT COALESCE(SUM(total_contrato), 0) as total, COUNT(*) as qtd FROM vendas_comercial WHERE mes = ? AND ano = ?`).get(mes, ano);
-        const metaAtual = db.prepare(`SELECT COALESCE(SUM(valor_meta), 0) as total FROM metas_vendedor WHERE mes = ? AND ano = ?`).get(mes, ano);
+        const realizadoAtual = db.prepare(`SELECT COALESCE(SUM(vc.total_contrato), 0) as total, COUNT(*) as qtd FROM vendas_comercial vc WHERE vc.mes = ? AND vc.ano = ?`).get(mes, ano);
+        const metaAtual = db.prepare(`SELECT COALESCE(SUM(mv.valor_meta), 0) as total FROM metas_vendedor mv WHERE mv.mes = ? AND mv.ano = ?`).get(mes, ano);
 
         const realizado = realizadoAtual?.total || 0;
         const meta = metaAtual?.total || 0;
@@ -518,12 +515,12 @@ router.post('/', (req, res) => {
       // ── Últimas vendas ───────────────────────────────────────────────────
       case 'ultimas_vendas': {
         const limit = 8;
-        const whereVendedor = vendedorAlvo ? 'AND vendedor_nome = ?' : '';
+        const whereVendedor = vendedorAlvo ? 'AND vc.vendedor_nome = ?' : '';
         const params = vendedorAlvo ? [vendedorAlvo] : [];
         const rows = db.prepare(`
-          SELECT cliente, vendedor_nome, total_contrato, data_venda, mes, ano
-          FROM vendas_comercial WHERE 1=1 ${whereVendedor}
-          ORDER BY COALESCE(data_venda, created_at) DESC LIMIT ?
+          SELECT vc.cliente, vc.vendedor_nome, vc.total_contrato, vc.data_venda, vc.mes, vc.ano
+          FROM vendas_comercial vc WHERE 1=1 ${whereVendedor}
+          ORDER BY COALESCE(vc.data_venda, vc.created_at) DESC LIMIT ?
         `).all(...params, limit);
 
         if (rows.length === 0) {
@@ -542,8 +539,8 @@ router.post('/', (req, res) => {
       // ── Sem venda ────────────────────────────────────────────────────────
       case 'sem_venda': {
         const { mes, ano } = periodo.tudo ? nowBR() : periodo;
-        const comVenda = db.prepare(`SELECT DISTINCT vendedor_nome FROM vendas_comercial WHERE mes = ? AND ano = ?`).all(mes, ano).map(r => r.vendedor_nome);
-        const todosVendedores = db.prepare(`SELECT DISTINCT vendedor_nome FROM metas_vendedor WHERE ano = ?`).all(ano).map(r => r.vendedor_nome);
+        const comVenda = db.prepare(`SELECT DISTINCT vc.vendedor_nome FROM vendas_comercial vc WHERE vc.mes = ? AND vc.ano = ?`).all(mes, ano).map(r => r.vendedor_nome);
+        const todosVendedores = db.prepare(`SELECT DISTINCT mv.vendedor_nome FROM metas_vendedor mv WHERE mv.ano = ?`).all(ano).map(r => r.vendedor_nome);
         const semVenda = todosVendedores.filter(v => !comVenda.includes(v));
 
         if (semVenda.length === 0) {
@@ -551,7 +548,7 @@ router.post('/', (req, res) => {
         } else {
           resposta = `⚠️ Vendedores sem venda em ${mesLabel(mes)}/${ano}:`;
           for (const v of semVenda) {
-            const meta = db.prepare(`SELECT valor_meta FROM metas_vendedor WHERE vendedor_nome = ? AND mes = ? AND ano = ?`).get(v, mes, ano);
+            const meta = db.prepare(`SELECT mv.valor_meta FROM metas_vendedor mv WHERE mv.vendedor_nome = ? AND mv.mes = ? AND mv.ano = ?`).get(v, mes, ano);
             resposta += `\n• ${v}${meta ? ` (meta: ${fmtBRL(meta.valor_meta)})` : ''}`;
           }
         }
