@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  TrendingUp, TrendingDown, Target, BarChart3, Calendar, Loader2, ArrowUpRight, ArrowDownRight, Minus
+  TrendingUp, Target, BarChart3, Loader2, Repeat
 } from 'lucide-react';
 import { fetchGestaoAcumulado, updateGestaoMetasBatch, fetchGestaoVendedores } from '../../lib/api';
 
@@ -69,11 +69,11 @@ export default function AcumuladoMeta({ isDark, ano }) {
     return m;
   }, [data]);
 
-  const vendaAnteriorMap = useMemo(() => {
+  const metaRecorrenciaMap = useMemo(() => {
     const m = {};
-    (data?.vendasAnterior || []).forEach(r => {
+    (data?.metas || []).forEach(r => {
       if (!m[r.vendedor_nome]) m[r.vendedor_nome] = {};
-      m[r.vendedor_nome][r.mes] = Number(r.total_mensal || 0);
+      m[r.vendedor_nome][r.mes] = Number(r.valor_meta_recorrencia || 0);
     });
     return m;
   }, [data]);
@@ -81,12 +81,25 @@ export default function AcumuladoMeta({ isDark, ano }) {
   const handleSaveMetas = async () => {
     if (!editMetas) return;
     setSavingMetas(true);
-    const batch = [];
-    Object.entries(editMetas).forEach(([vendedor, meses]) => {
-      Object.entries(meses).forEach(([mes, val]) => {
-        batch.push({ vendedor_nome: vendedor, ano, mes: Number(mes), valor_meta: Number(val) });
+    // Group edits by vendedor+mes, sending both parcela and recorrencia
+    const batchMap = {};
+    Object.entries(editMetas).forEach(([vendedor, fields]) => {
+      Object.entries(fields).forEach(([key, val]) => {
+        const [mesStr, type] = key.split('_');
+        const mes = Number(mesStr);
+        const k = `${vendedor}__${mes}`;
+        if (!batchMap[k]) {
+          batchMap[k] = {
+            vendedor_nome: vendedor, ano, mes,
+            valor_meta: metaMap[vendedor]?.[mes] || 0,
+            valor_meta_recorrencia: metaRecorrenciaMap[vendedor]?.[mes] || 0,
+          };
+        }
+        if (type === 'parcela') batchMap[k].valor_meta = Number(val);
+        if (type === 'recorrencia') batchMap[k].valor_meta_recorrencia = Number(val);
       });
     });
+    const batch = Object.values(batchMap);
     try {
       await updateGestaoMetasBatch(batch);
       setEditMetas(null);
@@ -115,20 +128,17 @@ export default function AcumuladoMeta({ isDark, ano }) {
   // Compute grand totals for summary cards
   const currentMonth = new Date().getMonth() + 1;
   const grandTotals = vendedores.reduce((acc, v) => {
-    let metaTotal = 0, realTotal = 0, anteriorTotal = 0;
     for (let m = 1; m <= 12; m++) {
-      metaTotal += metaMap[v]?.[m] || 0;
-      realTotal += vendaMap[v]?.[m]?.mensal || 0;
-      anteriorTotal += vendaAnteriorMap[v]?.[m] || 0;
+      acc.metaParcela += metaMap[v]?.[m] || 0;
+      acc.metaRecorrencia += metaRecorrenciaMap[v]?.[m] || 0;
+      acc.realParcela += vendaMap[v]?.[m]?.mensal || 0;
+      acc.realRecorrencia += vendaMap[v]?.[m]?.contrato || 0;
     }
-    acc.metaTotal += metaTotal;
-    acc.realTotal += realTotal;
-    acc.anteriorTotal += anteriorTotal;
     return acc;
-  }, { metaTotal: 0, realTotal: 0, anteriorTotal: 0 });
+  }, { metaParcela: 0, metaRecorrencia: 0, realParcela: 0, realRecorrencia: 0 });
 
-  const grandPct = grandTotals.metaTotal > 0 ? Math.round((grandTotals.realTotal / grandTotals.metaTotal) * 100) : 0;
-  const grandDiff = grandTotals.realTotal - grandTotals.anteriorTotal;
+  const grandPctParcela = grandTotals.metaParcela > 0 ? Math.round((grandTotals.realParcela / grandTotals.metaParcela) * 100) : 0;
+  const grandPctRecorrencia = grandTotals.metaRecorrencia > 0 ? Math.round((grandTotals.realRecorrencia / grandTotals.metaRecorrencia) * 100) : 0;
 
   return (
     <div className={`space-y-6 ${text}`}>
@@ -137,69 +147,82 @@ export default function AcumuladoMeta({ isDark, ano }) {
         <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
           <div className="flex items-center gap-2 mb-1">
             <Target size={16} className="text-amber-500" />
-            <span className={`text-xs font-semibold ${textMuted}`}>META ANUAL {ano}</span>
+            <span className={`text-xs font-semibold ${textMuted}`}>META 1ª PARCELA {ano}</span>
           </div>
-          <p className="text-2xl font-bold">{fmtCurrency(grandTotals.metaTotal)}</p>
-        </div>
-        <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
-          <div className="flex items-center gap-2 mb-1">
-            <BarChart3 size={16} className="text-green-500" />
-            <span className={`text-xs font-semibold ${textMuted}`}>REALIZADO {ano}</span>
-          </div>
-          <p className="text-2xl font-bold text-green-500">{fmtCurrency(grandTotals.realTotal)}</p>
+          <p className="text-2xl font-bold">{fmtCurrency(grandTotals.metaParcela)}</p>
+          <p className="text-sm text-green-500 mt-1">Realizado: {fmtCurrency(grandTotals.realParcela)}</p>
         </div>
         <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp size={16} className="text-blue-500" />
-            <span className={`text-xs font-semibold ${textMuted}`}>ATINGIMENTO</span>
+            <span className={`text-xs font-semibold ${textMuted}`}>% 1ª PARCELA</span>
           </div>
-          <p className={`text-2xl font-bold ${pctColor(grandPct)}`}>{grandPct}%</p>
+          <p className={`text-2xl font-bold ${pctColor(grandPctParcela)}`}>{grandPctParcela}%</p>
           <div className="w-full h-2 rounded-full bg-gray-700 mt-2">
-            <div className={`h-full rounded-full ${pctBg(grandPct)} transition-all`} style={{ width: `${Math.min(grandPct, 100)}%` }} />
+            <div className={`h-full rounded-full ${pctBg(grandPctParcela)} transition-all`} style={{ width: `${Math.min(grandPctParcela, 100)}%` }} />
           </div>
         </div>
         <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
           <div className="flex items-center gap-2 mb-1">
-            {grandDiff >= 0 ? <ArrowUpRight size={16} className="text-green-500" /> : <ArrowDownRight size={16} className="text-red-500" />}
-            <span className={`text-xs font-semibold ${textMuted}`}>vs. {ano - 1}</span>
+            <Repeat size={16} className="text-purple-500" />
+            <span className={`text-xs font-semibold ${textMuted}`}>META RECORRÊNCIA {ano}</span>
           </div>
-          <p className={`text-2xl font-bold ${grandDiff >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-            {grandDiff >= 0 ? '+' : ''}{fmtCurrency(grandDiff)}
-          </p>
+          <p className="text-2xl font-bold">{fmtCurrency(grandTotals.metaRecorrencia)}</p>
+          <p className="text-sm text-green-500 mt-1">Realizado: {fmtCurrency(grandTotals.realRecorrencia)}</p>
+        </div>
+        <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
+          <div className="flex items-center gap-2 mb-1">
+            <BarChart3 size={16} className="text-green-500" />
+            <span className={`text-xs font-semibold ${textMuted}`}>% RECORRÊNCIA</span>
+          </div>
+          <p className={`text-2xl font-bold ${pctColor(grandPctRecorrencia)}`}>{grandPctRecorrencia}%</p>
+          <div className="w-full h-2 rounded-full bg-gray-700 mt-2">
+            <div className={`h-full rounded-full ${pctBg(grandPctRecorrencia)} transition-all`} style={{ width: `${Math.min(grandPctRecorrencia, 100)}%` }} />
+          </div>
         </div>
       </div>
 
       {/* Per-vendedor tables */}
       {vendedores.map(vendedor => {
-        let acumMeta = 0, acumReal = 0;
+        let acumMetaP = 0, acumRealP = 0, acumMetaR = 0, acumRealR = 0;
         const rows = [];
         for (let m = 1; m <= 12; m++) {
-          const meta = metaMap[vendedor]?.[m] || 0;
-          const real = vendaMap[vendedor]?.[m]?.mensal || 0;
-          const anterior = vendaAnteriorMap[vendedor]?.[m] || 0;
-          acumMeta += meta;
-          acumReal += real;
-          const saldo = acumMeta - acumReal;
-          const pctMes = meta > 0 ? Math.round((real / meta) * 100) : 0;
-          const pctAcum = acumMeta > 0 ? Math.round((acumReal / acumMeta) * 100) : 0;
-          rows.push({ m, meta, real, anterior, acumMeta, acumReal, saldo, pctMes, pctAcum });
+          const metaP = metaMap[vendedor]?.[m] || 0;
+          const metaR = metaRecorrenciaMap[vendedor]?.[m] || 0;
+          const realP = vendaMap[vendedor]?.[m]?.mensal || 0;
+          const realR = vendaMap[vendedor]?.[m]?.contrato || 0;
+          acumMetaP += metaP;
+          acumRealP += realP;
+          acumMetaR += metaR;
+          acumRealR += realR;
+          const saldoP = acumMetaP - acumRealP;
+          const pctMesP = metaP > 0 ? Math.round((realP / metaP) * 100) : 0;
+          const pctMesR = metaR > 0 ? Math.round((realR / metaR) * 100) : 0;
+          const pctAcumP = acumMetaP > 0 ? Math.round((acumRealP / acumMetaP) * 100) : 0;
+          rows.push({ m, metaP, metaR, realP, realR, pctMesP, pctMesR, acumMetaP, acumRealP, saldoP, pctAcumP, acumMetaR, acumRealR });
         }
 
-        const yearMeta = acumMeta;
-        const yearReal = acumReal;
-        const yearPct = yearMeta > 0 ? Math.round((yearReal / yearMeta) * 100) : 0;
+        const yearMetaP = acumMetaP;
+        const yearRealP = acumRealP;
+        const yearPctP = yearMetaP > 0 ? Math.round((yearRealP / yearMetaP) * 100) : 0;
+        const yearMetaR = acumMetaR;
+        const yearRealR = acumRealR;
+        const yearPctR = yearMetaR > 0 ? Math.round((yearRealR / yearMetaR) * 100) : 0;
 
         return (
           <div key={vendedor} className={`rounded-xl border ${border} overflow-hidden`}>
-            <div className={`flex items-center justify-between px-5 py-3 ${cardBg}`}>
+            <div className={`flex items-center justify-between px-5 py-3 ${cardBg} flex-wrap gap-2`}>
               <div className="flex items-center gap-3">
                 <span className="font-bold text-lg">{vendedorDisplayName[vendedor] || vendedor}</span>
-                <span className={`text-sm ${pctColor(yearPct)} font-semibold`}>{yearPct}% atingido</span>
+                <span className={`text-sm ${pctColor(yearPctP)} font-semibold`}>{yearPctP}% 1ª Parc.</span>
+                <span className={`text-sm ${pctColor(yearPctR)} font-semibold`}>{yearPctR}% Recorr.</span>
               </div>
-              <div className="flex items-center gap-4 text-sm">
-                <span>Meta: <strong>{fmtCurrency(yearMeta)}</strong></span>
-                <span>Realizado: <strong className="text-green-500">{fmtCurrency(yearReal)}</strong></span>
-                <span>Saldo: <strong className={yearMeta - yearReal > 0 ? 'text-red-400' : 'text-green-500'}>{fmtCurrency(yearMeta - yearReal)}</strong></span>
+              <div className="flex items-center gap-4 text-sm flex-wrap">
+                <span>Meta 1ª P.: <strong>{fmtCurrency(yearMetaP)}</strong></span>
+                <span>Real.: <strong className="text-green-500">{fmtCurrency(yearRealP)}</strong></span>
+                <span className={isDark ? 'text-gray-600' : 'text-gray-300'}>|</span>
+                <span>Meta Recorr.: <strong>{fmtCurrency(yearMetaR)}</strong></span>
+                <span>Real.: <strong className="text-green-500">{fmtCurrency(yearRealR)}</strong></span>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -207,20 +230,20 @@ export default function AcumuladoMeta({ isDark, ano }) {
                 <thead>
                   <tr className={`${textMuted} border-b ${border}`}>
                     <th className="px-3 py-2 text-left">Mês</th>
-                    <th className="px-3 py-2 text-right">Meta</th>
-                    <th className="px-3 py-2 text-right">Realizado</th>
-                    <th className="px-3 py-2 text-center">% Mês</th>
+                    <th className="px-3 py-2 text-right">Meta 1ª Parc.</th>
+                    <th className="px-3 py-2 text-right">Real. Mensal</th>
+                    <th className="px-3 py-2 text-center">%</th>
+                    <th className="px-3 py-2 text-right">Meta Recorr.</th>
+                    <th className="px-3 py-2 text-right">Real. Contrato</th>
+                    <th className="px-3 py-2 text-center">%</th>
                     <th className="px-3 py-2 text-right">Acum. Meta</th>
                     <th className="px-3 py-2 text-right">Acum. Real</th>
                     <th className="px-3 py-2 text-right">Saldo</th>
                     <th className="px-3 py-2 text-center">% Acum.</th>
-                    <th className="px-3 py-2 text-right">{ano - 1}</th>
-                    <th className="px-3 py-2 text-center">Var.</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map(r => {
-                    const diff = r.real - r.anterior;
                     const isCurrent = r.m === currentMonth;
                     return (
                       <tr key={r.m} className={`border-b ${border} ${isCurrent ? (isDark ? 'bg-blue-900/20' : 'bg-blue-50') : ''}`}>
@@ -231,44 +254,51 @@ export default function AcumuladoMeta({ isDark, ano }) {
                           {editMetas ? (
                             <input
                               type="number"
-                              value={editMetas[vendedor]?.[r.m] ?? r.meta}
+                              value={editMetas[vendedor]?.[`${r.m}_parcela`] ?? r.metaP}
                               onChange={e => {
                                 setEditMetas(prev => ({
                                   ...prev,
-                                  [vendedor]: { ...(prev?.[vendedor] || {}), [r.m]: e.target.value }
+                                  [vendedor]: { ...(prev?.[vendedor] || {}), [`${r.m}_parcela`]: e.target.value }
                                 }));
                               }}
                               className={`w-24 px-2 py-0.5 rounded text-sm text-right ${inputBg}`}
                             />
                           ) : (
-                            fmtCurrency(r.meta)
+                            fmtCurrency(r.metaP)
                           )}
                         </td>
-                        <td className="px-3 py-2 text-right text-green-500 font-medium">{fmtCurrency(r.real)}</td>
+                        <td className="px-3 py-2 text-right text-green-500 font-medium">{fmtCurrency(r.realP)}</td>
                         <td className="px-3 py-2 text-center">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${pctBg(r.pctMes)} text-white`}>{r.pctMes}%</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${pctBg(r.pctMesP)} text-white`}>{r.pctMesP}%</span>
                         </td>
-                        <td className="px-3 py-2 text-right">{fmtCurrency(r.acumMeta)}</td>
-                        <td className="px-3 py-2 text-right font-medium">{fmtCurrency(r.acumReal)}</td>
-                        <td className={`px-3 py-2 text-right ${r.saldo > 0 ? 'text-red-400' : 'text-green-500'}`}>
-                          {fmtCurrency(r.saldo)}
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <span className={`text-xs font-bold ${pctColor(r.pctAcum)}`}>{r.pctAcum}%</span>
-                        </td>
-                        <td className={`px-3 py-2 text-right ${textMuted}`}>{fmtCurrency(r.anterior)}</td>
-                        <td className="px-3 py-2 text-center">
-                          {diff > 0 ? (
-                            <span className="text-green-500 text-xs flex items-center justify-center gap-0.5">
-                              <ArrowUpRight size={12} /> {Math.round((diff / (r.anterior || 1)) * 100)}%
-                            </span>
-                          ) : diff < 0 ? (
-                            <span className="text-red-500 text-xs flex items-center justify-center gap-0.5">
-                              <ArrowDownRight size={12} /> {Math.abs(Math.round((diff / (r.anterior || 1)) * 100))}%
-                            </span>
+                        <td className="px-3 py-2 text-right">
+                          {editMetas ? (
+                            <input
+                              type="number"
+                              value={editMetas[vendedor]?.[`${r.m}_recorrencia`] ?? r.metaR}
+                              onChange={e => {
+                                setEditMetas(prev => ({
+                                  ...prev,
+                                  [vendedor]: { ...(prev?.[vendedor] || {}), [`${r.m}_recorrencia`]: e.target.value }
+                                }));
+                              }}
+                              className={`w-24 px-2 py-0.5 rounded text-sm text-right ${inputBg}`}
+                            />
                           ) : (
-                            <Minus size={12} className={textMuted} />
+                            fmtCurrency(r.metaR)
                           )}
+                        </td>
+                        <td className="px-3 py-2 text-right text-purple-400 font-medium">{fmtCurrency(r.realR)}</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${pctBg(r.pctMesR)} text-white`}>{r.pctMesR}%</span>
+                        </td>
+                        <td className="px-3 py-2 text-right">{fmtCurrency(r.acumMetaP)}</td>
+                        <td className="px-3 py-2 text-right font-medium">{fmtCurrency(r.acumRealP)}</td>
+                        <td className={`px-3 py-2 text-right ${r.saldoP > 0 ? 'text-red-400' : 'text-green-500'}`}>
+                          {fmtCurrency(r.saldoP)}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`text-xs font-bold ${pctColor(r.pctAcumP)}`}>{r.pctAcumP}%</span>
                         </td>
                       </tr>
                     );

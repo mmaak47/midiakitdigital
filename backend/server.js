@@ -2543,6 +2543,7 @@ try {
   `).run();
 } catch (e) { console.error('[vendas_comercial] init:', e.message); }
 try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN venda_id INTEGER").run(); } catch {}
+try { db.prepare("ALTER TABLE metas_vendedor ADD COLUMN valor_meta_recorrencia REAL DEFAULT 0").run(); } catch {}
 
 try {
   db.prepare(`
@@ -3124,13 +3125,13 @@ app.get('/api/gestao/metas', requireRoles(['admin','gerente_comercial','vendedor
 
 app.put('/api/gestao/metas', requireRoles(['admin','gerente_comercial']), (req, res) => {
   try {
-    const { vendedor_nome, ano, mes, valor_meta } = req.body;
+    const { vendedor_nome, ano, mes, valor_meta, valor_meta_recorrencia } = req.body;
     if (!vendedor_nome || !ano || !mes) return res.status(400).json({ error: 'Campos obrigatórios: vendedor_nome, ano, mes' });
     db.prepare(`
-      INSERT INTO metas_vendedor (vendedor_nome, ano, mes, valor_meta, updated_at)
-      VALUES (?, ?, ?, ?, datetime('now'))
-      ON CONFLICT (vendedor_nome, ano, mes) DO UPDATE SET valor_meta = ?, updated_at = datetime('now')
-    `).run(String(vendedor_nome).toUpperCase(), Number(ano), Number(mes), Number(valor_meta || 0), Number(valor_meta || 0));
+      INSERT INTO metas_vendedor (vendedor_nome, ano, mes, valor_meta, valor_meta_recorrencia, updated_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT (vendedor_nome, ano, mes) DO UPDATE SET valor_meta = ?, valor_meta_recorrencia = ?, updated_at = datetime('now')
+    `).run(String(vendedor_nome), Number(ano), Number(mes), Number(valor_meta || 0), Number(valor_meta_recorrencia || 0), Number(valor_meta || 0), Number(valor_meta_recorrencia || 0));
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3139,14 +3140,14 @@ app.put('/api/gestao/metas', requireRoles(['admin','gerente_comercial']), (req, 
 
 app.put('/api/gestao/metas/batch', requireRoles(['admin','gerente_comercial']), (req, res) => {
   try {
-    const { metas } = req.body; // [{vendedor_nome, ano, mes, valor_meta}]
+    const { metas } = req.body; // [{vendedor_nome, ano, mes, valor_meta, valor_meta_recorrencia}]
     if (!Array.isArray(metas)) return res.status(400).json({ error: 'metas deve ser um array' });
     for (const m of metas) {
       db.prepare(`
-        INSERT INTO metas_vendedor (vendedor_nome, ano, mes, valor_meta, updated_at)
-        VALUES (?, ?, ?, ?, datetime('now'))
-        ON CONFLICT (vendedor_nome, ano, mes) DO UPDATE SET valor_meta = ?, updated_at = datetime('now')
-      `).run(String(m.vendedor_nome).toUpperCase(), Number(m.ano), Number(m.mes), Number(m.valor_meta || 0), Number(m.valor_meta || 0));
+        INSERT INTO metas_vendedor (vendedor_nome, ano, mes, valor_meta, valor_meta_recorrencia, updated_at)
+        VALUES (?, ?, ?, ?, ?, datetime('now'))
+        ON CONFLICT (vendedor_nome, ano, mes) DO UPDATE SET valor_meta = ?, valor_meta_recorrencia = ?, updated_at = datetime('now')
+      `).run(String(m.vendedor_nome), Number(m.ano), Number(m.mes), Number(m.valor_meta || 0), Number(m.valor_meta_recorrencia || 0), Number(m.valor_meta || 0), Number(m.valor_meta_recorrencia || 0));
     }
     res.json({ ok: true, count: metas.length });
   } catch (err) {
@@ -3350,21 +3351,8 @@ app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vend
       ORDER BY mes
     `).all(ano);
 
-    // Dados do ano anterior para comparação
-    const anoAnterior = ano - 1;
-    const vendasAnterior = db.prepare(`
-      SELECT vendedor_nome, mes,
-             COUNT(*) as qtde_vendas,
-             COALESCE(SUM(valor_mensal), 0) as total_mensal,
-             COALESCE(SUM(total_contrato), 0) as total_contrato
-      FROM vendas_comercial
-      WHERE ano = ?
-      GROUP BY vendedor_nome, mes
-      ORDER BY vendedor_nome, mes
-    `).all(anoAnterior);
-
     const vendedoresAtivos = getVendedoresAtivos();
-    res.json({ ano, metas, vendas, renovacoes, vendasAnterior, vendedores: vendedoresAtivos, mesesLabel: MESES_LABEL });
+    res.json({ ano, metas, vendas, renovacoes, vendedores: vendedoresAtivos, mesesLabel: MESES_LABEL });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

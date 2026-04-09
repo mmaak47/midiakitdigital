@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Save, Loader2, ChevronDown, ChevronUp, X,
-  CheckSquare, Square, FileText, Calendar, DollarSign, Users, Target
+  CheckSquare, Square, FileText, Calendar, DollarSign, Users, Target, Repeat
 } from 'lucide-react';
 import {
   fetchGestaoVendas, createGestaoVenda, updateGestaoVenda,
@@ -39,6 +39,7 @@ export default function PlanilhaMensal({ isDark, ano }) {
   const [vendas, setVendas] = useState([]);
   const [vendedores, setVendedores] = useState([]); // [{username, first_name, last_name}]
   const [metas, setMetas] = useState({});
+  const [metasRecorr, setMetasRecorr] = useState({});
   const [loading, setLoading] = useState(false);
   const [expandedVendedor, setExpandedVendedor] = useState(null);
   const [showForm, setShowForm] = useState(null); // vendedor name
@@ -59,11 +60,15 @@ export default function PlanilhaMensal({ isDark, ano }) {
       setVendas(v);
       setVendedores(vds || []);
       const metaMap = {};
+      const metaRecorrMap = {};
       (m || []).forEach(row => {
         if (!metaMap[row.vendedor_nome]) metaMap[row.vendedor_nome] = {};
         metaMap[row.vendedor_nome][row.mes] = row.valor_meta;
+        if (!metaRecorrMap[row.vendedor_nome]) metaRecorrMap[row.vendedor_nome] = {};
+        metaRecorrMap[row.vendedor_nome][row.mes] = row.valor_meta_recorrencia || 0;
       });
       setMetas(metaMap);
+      setMetasRecorr(metaRecorrMap);
     } catch { /* ignore */ }
     setLoading(false);
   }, [ano, mes]);
@@ -139,16 +144,30 @@ export default function PlanilhaMensal({ isDark, ano }) {
     } catch (err) { alert(err.message); }
   };
 
-  const handleMetaSave = async (vendedor_nome) => {
-    const val = editingMeta[vendedor_nome];
+  const handleMetaSave = async (vendedor_nome, type) => {
+    const val = editingMeta[`${vendedor_nome}_${type}`];
     if (val === undefined) return;
     try {
-      await updateGestaoMeta({ vendedor_nome, ano, mes, valor_meta: Number(val) });
-      setMetas(prev => ({
-        ...prev,
-        [vendedor_nome]: { ...(prev[vendedor_nome] || {}), [mes]: Number(val) }
-      }));
-      setEditingMeta(prev => { const n = { ...prev }; delete n[vendedor_nome]; return n; });
+      const currentParcela = metas?.[vendedor_nome]?.[mes] || 0;
+      const currentRecorr = metasRecorr?.[vendedor_nome]?.[mes] || 0;
+      const payload = {
+        vendedor_nome, ano, mes,
+        valor_meta: type === 'parcela' ? Number(val) : currentParcela,
+        valor_meta_recorrencia: type === 'recorrencia' ? Number(val) : currentRecorr,
+      };
+      await updateGestaoMeta(payload);
+      if (type === 'parcela') {
+        setMetas(prev => ({
+          ...prev,
+          [vendedor_nome]: { ...(prev[vendedor_nome] || {}), [mes]: Number(val) }
+        }));
+      } else {
+        setMetasRecorr(prev => ({
+          ...prev,
+          [vendedor_nome]: { ...(prev[vendedor_nome] || {}), [mes]: Number(val) }
+        }));
+      }
+      setEditingMeta(prev => { const n = { ...prev }; delete n[`${vendedor_nome}_${type}`]; return n; });
     } catch (err) { alert(err.message); }
   };
 
@@ -192,7 +211,9 @@ export default function PlanilhaMensal({ isDark, ano }) {
         const totalMensal = items.reduce((s, v) => s + Number(v.valor_mensal || 0), 0);
         const totalContrato = items.reduce((s, v) => s + Number(v.total_contrato || 0), 0);
         const meta = metas?.[vendedor]?.[mes] || 0;
+        const metaRecorr = metasRecorr?.[vendedor]?.[mes] || 0;
         const pct = meta > 0 ? Math.round((totalMensal / meta) * 100) : 0;
+        const pctRecorr = metaRecorr > 0 ? Math.round((totalContrato / metaRecorr) * 100) : 0;
         const isExpanded = expandedVendedor === vendedor;
 
         return (
@@ -210,28 +231,53 @@ export default function PlanilhaMensal({ isDark, ano }) {
                 </span>
               </div>
               <div className="flex items-center gap-4">
-                {/* Meta */}
+                {/* Meta 1ª Parcela */}
                 <div className="flex items-center gap-1 text-sm">
                   <Target size={14} className="text-amber-500" />
-                  {editingMeta[vendedor] !== undefined ? (
+                  {editingMeta[`${vendedor}_parcela`] !== undefined ? (
                     <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                       <input
                         type="number"
-                        value={editingMeta[vendedor]}
-                        onChange={e => setEditingMeta(prev => ({ ...prev, [vendedor]: e.target.value }))}
+                        value={editingMeta[`${vendedor}_parcela`]}
+                        onChange={e => setEditingMeta(prev => ({ ...prev, [`${vendedor}_parcela`]: e.target.value }))}
                         className={`w-28 px-2 py-0.5 rounded text-sm ${inputBg}`}
-                        onKeyDown={e => e.key === 'Enter' && handleMetaSave(vendedor)}
+                        onKeyDown={e => e.key === 'Enter' && handleMetaSave(vendedor, 'parcela')}
                       />
-                      <button onClick={() => handleMetaSave(vendedor)} className="text-green-500 hover:text-green-400">
+                      <button onClick={() => handleMetaSave(vendedor, 'parcela')} className="text-green-500 hover:text-green-400">
                         <Save size={14} />
                       </button>
                     </div>
                   ) : (
                     <span
                       className="cursor-pointer hover:underline"
-                      onClick={e => { e.stopPropagation(); setEditingMeta(prev => ({ ...prev, [vendedor]: meta })); }}
+                      onClick={e => { e.stopPropagation(); setEditingMeta(prev => ({ ...prev, [`${vendedor}_parcela`]: meta })); }}
                     >
-                      Meta: {fmtCurrency(meta)}
+                      1ª Parc.: {fmtCurrency(meta)}
+                    </span>
+                  )}
+                </div>
+                {/* Meta Recorrência */}
+                <div className="flex items-center gap-1 text-sm">
+                  <Repeat size={14} className="text-purple-500" />
+                  {editingMeta[`${vendedor}_recorrencia`] !== undefined ? (
+                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="number"
+                        value={editingMeta[`${vendedor}_recorrencia`]}
+                        onChange={e => setEditingMeta(prev => ({ ...prev, [`${vendedor}_recorrencia`]: e.target.value }))}
+                        className={`w-28 px-2 py-0.5 rounded text-sm ${inputBg}`}
+                        onKeyDown={e => e.key === 'Enter' && handleMetaSave(vendedor, 'recorrencia')}
+                      />
+                      <button onClick={() => handleMetaSave(vendedor, 'recorrencia')} className="text-green-500 hover:text-green-400">
+                        <Save size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <span
+                      className="cursor-pointer hover:underline"
+                      onClick={e => { e.stopPropagation(); setEditingMeta(prev => ({ ...prev, [`${vendedor}_recorrencia`]: metaRecorr })); }}
+                    >
+                      Recorr.: {fmtCurrency(metaRecorr)}
                     </span>
                   )}
                 </div>

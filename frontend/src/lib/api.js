@@ -878,10 +878,10 @@ export async function fetchGestaoMetas(ano) {
   return res.json();
 }
 
-export async function updateGestaoMeta({ vendedor_nome, ano, mes, valor_meta }) {
+export async function updateGestaoMeta({ vendedor_nome, ano, mes, valor_meta, valor_meta_recorrencia }) {
   const res = await apiRequest('/gestao/metas', {
     method: 'PUT',
-    body: JSON.stringify({ vendedor_nome, ano, mes, valor_meta })
+    body: JSON.stringify({ vendedor_nome, ano, mes, valor_meta, valor_meta_recorrencia })
   });
   if (!res.ok) throw new Error('Erro ao atualizar meta');
   return res.json();
