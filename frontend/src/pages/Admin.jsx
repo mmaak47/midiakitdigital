@@ -388,32 +388,6 @@ export default function Admin() {
     }
   };
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('admin_token');
-    sessionStorage.removeItem('comercial_manual_login');
-    setAuth(false);
-    setCurrentUser(null);
-    navigate('/comercial');
-  };
-
-  const handleUploadMyPhoto = async (file) => {
-    try {
-      const result = await uploadMyPhoto(file);
-      setCurrentUser(prev => prev ? { ...prev, photo_url: result.photo_url } : prev);
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  const handleUploadUserPhoto = async (userId, file) => {
-    try {
-      await uploadUserPhoto(userId, file);
-      await loadUsers();
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
   const loadPontos = async () => {
     setLoading(true);
     try {
