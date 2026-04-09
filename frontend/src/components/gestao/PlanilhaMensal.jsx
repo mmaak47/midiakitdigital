@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Save, Loader2, ChevronDown, ChevronUp, X,
@@ -7,7 +7,7 @@ import {
 import {
   fetchGestaoVendas, createGestaoVenda, updateGestaoVenda,
   deleteGestaoVenda, toggleGestaoVendaStatus, fetchGestaoMetas,
-  updateGestaoMeta, fetchGestaoVendedores
+  updateGestaoMeta, fetchGestaoVendedores, fetchPontos
 } from '../../lib/api';
 
 const MESES = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
@@ -48,6 +48,10 @@ export default function PlanilhaMensal({ isDark, ano }) {
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [editingMeta, setEditingMeta] = useState({});
+  const [availablePontos, setAvailablePontos] = useState([]);
+  const [pontoSearch, setPontoSearch] = useState('');
+  const [showPontoDropdown, setShowPontoDropdown] = useState(false);
+  const pontoDropdownRef = useRef(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -74,6 +78,10 @@ export default function PlanilhaMensal({ isDark, ano }) {
   }, [ano, mes]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    fetchPontos().then(pts => setAvailablePontos(pts || [])).catch(() => {});
+  }, []);
 
   const vendedorUsernames = useMemo(() => vendedores.map(v => v.username), [vendedores]);
   const vendedorDisplayName = useMemo(() => {
@@ -169,6 +177,15 @@ export default function PlanilhaMensal({ isDark, ano }) {
       }
       setEditingMeta(prev => { const n = { ...prev }; delete n[`${vendedor_nome}_${type}`]; return n; });
     } catch (err) { alert(err.message); }
+  };
+
+  const togglePonto = (nome) => {
+    const names = formData.pontos_contratados
+      ? formData.pontos_contratados.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+    const idx = names.indexOf(nome);
+    const newNames = idx === -1 ? [...names, nome] : names.filter((_, i) => i !== idx);
+    setFormData(prev => ({ ...prev, pontos_contratados: newNames.join(', ') }));
   };
 
   const bg = isDark ? 'bg-gray-900' : 'bg-white';
@@ -409,7 +426,7 @@ export default function PlanilhaMensal({ isDark, ano }) {
                             { key: 'data_venda', label: 'Data da Venda', type: 'date' },
                             { key: 'cliente', label: 'Cliente', required: true },
                             { key: 'cnpj', label: 'CNPJ' },
-                            { key: 'pontos_contratados', label: 'Pontos Contratados' },
+                            { key: 'pontos_contratados', label: 'Pontos Contratados', customType: 'pontos_multiselect' },
                             { key: 'valor_mensal', label: 'Valor Mensal', type: 'number' },
                             { key: 'total_contrato', label: 'Total Contrato', type: 'number' },
                             { key: 'qtde_parcelas', label: 'Qtde Parcelas', type: 'number' },
@@ -418,7 +435,60 @@ export default function PlanilhaMensal({ isDark, ano }) {
                             { key: 'vencimento_boletos', label: 'Vencimento Boletos' },
                             { key: 'contato', label: 'Contato' },
                             { key: 'email', label: 'Email', type: 'email' },
-                          ].map(f => (
+                          ].map(f => f.customType === 'pontos_multiselect' ? (
+                            <div key={f.key} className="col-span-2 md:col-span-4">
+                              <label className={`block text-xs mb-1 ${textMuted}`}>Pontos Contratados</label>
+                              {/* Selected chips */}
+                              {formData.pontos_contratados && (
+                                <div className="flex flex-wrap gap-1 mb-2">
+                                  {formData.pontos_contratados.split(',').map(s => s.trim()).filter(Boolean).map(nome => (
+                                    <span key={nome} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>
+                                      {nome}
+                                      <button type="button" onClick={() => togglePonto(nome)} className="hover:text-red-400 ml-0.5"><X size={10}/></button>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="relative" ref={pontoDropdownRef}>
+                                <input
+                                  type="text"
+                                  placeholder="Pesquisar ponto..."
+                                  value={pontoSearch}
+                                  onChange={e => { setPontoSearch(e.target.value); setShowPontoDropdown(true); }}
+                                  onFocus={() => setShowPontoDropdown(true)}
+                                  onBlur={() => setTimeout(() => setShowPontoDropdown(false), 150)}
+                                  className={`w-full px-3 py-1.5 rounded text-sm ${inputBg} focus:ring-2 focus:ring-blue-500 focus:outline-none`}
+                                />
+                                {showPontoDropdown && availablePontos.length > 0 && (
+                                  <div className={`absolute z-50 mt-1 w-full max-h-52 overflow-y-auto rounded border ${border} ${cardBg} shadow-xl`}>
+                                    {availablePontos
+                                      .filter(p => !pontoSearch || p.nome.toLowerCase().includes(pontoSearch.toLowerCase()) || (p.cidade || '').toLowerCase().includes(pontoSearch.toLowerCase()))
+                                      .slice(0, 60)
+                                      .map(p => {
+                                        const selNames = formData.pontos_contratados ? formData.pontos_contratados.split(',').map(s => s.trim()).filter(Boolean) : [];
+                                        const isSel = selNames.includes(p.nome);
+                                        return (
+                                          <button
+                                            key={p.id}
+                                            type="button"
+                                            onMouseDown={e => e.preventDefault()}
+                                            onClick={() => { togglePonto(p.nome); setPontoSearch(''); }}
+                                            className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 ${isSel ? (isDark ? 'bg-blue-900/30 text-blue-300' : 'bg-blue-50 text-blue-700') : (isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50')}`}
+                                          >
+                                            {isSel ? <CheckSquare size={12} className="text-blue-400 flex-shrink-0" /> : <Square size={12} className={`${textMuted} flex-shrink-0`} />}
+                                            <span className="font-medium truncate">{p.nome}</span>
+                                            <span className={`${textMuted} ml-auto flex-shrink-0 pl-2`}>{p.cidade}</span>
+                                          </button>
+                                        );
+                                      })}
+                                    {availablePontos.filter(p => !pontoSearch || p.nome.toLowerCase().includes(pontoSearch.toLowerCase()) || (p.cidade || '').toLowerCase().includes(pontoSearch.toLowerCase())).length === 0 && (
+                                      <p className={`px-3 py-2 text-xs ${textMuted}`}>Nenhum ponto encontrado</p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
                             <div key={f.key}>
                               <label className={`block text-xs mb-1 ${textMuted}`}>{f.label}{f.required && ' *'}</label>
                               <input

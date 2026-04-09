@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  TrendingUp, Target, BarChart3, Loader2, Repeat
+  TrendingUp, Target, BarChart3, Loader2, Repeat, ChevronDown, ChevronUp, Users
 } from 'lucide-react';
-import { fetchGestaoAcumulado, updateGestaoMetasBatch, fetchGestaoVendedores } from '../../lib/api';
+import { fetchGestaoAcumulado, updateGestaoMetasBatch, fetchGestaoVendedores, fetchGestaoVendas } from '../../lib/api';
 
 const fmtCurrency = (v) => {
   const n = Number(v);
@@ -31,6 +31,10 @@ export default function AcumuladoMeta({ isDark, ano }) {
   const [loading, setLoading] = useState(false);
   const [editMetas, setEditMetas] = useState(null);
   const [savingMetas, setSavingMetas] = useState(false);
+  const [filterVendedor, setFilterVendedor] = useState('todos');
+  const [expandedCell, setExpandedCell] = useState(null); // {vendedor, mes}
+  const [cellSales, setCellSales] = useState([]);
+  const [loadingCell, setLoadingCell] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -109,6 +113,21 @@ export default function AcumuladoMeta({ isDark, ano }) {
     setSavingMetas(false);
   };
 
+  const handleExpandMonth = async (vendedor, mes) => {
+    if (expandedCell?.vendedor === vendedor && expandedCell?.mes === mes) {
+      setExpandedCell(null);
+      setCellSales([]);
+      return;
+    }
+    setExpandedCell({ vendedor, mes });
+    setLoadingCell(true);
+    try {
+      const sales = await fetchGestaoVendas({ ano, mes, vendedor });
+      setCellSales(sales || []);
+    } catch { setCellSales([]); }
+    setLoadingCell(false);
+  };
+
   const bg = isDark ? 'bg-gray-900' : 'bg-white';
   const cardBg = isDark ? 'bg-gray-800' : 'bg-gray-50';
   const border = isDark ? 'border-gray-700' : 'border-gray-200';
@@ -125,10 +144,10 @@ export default function AcumuladoMeta({ isDark, ano }) {
 
   if (!data) return null;
 
-  // Compute grand totals for summary cards
+  // Compute grand totals for summary cards (only months up to current month)
   const currentMonth = new Date().getMonth() + 1;
   const grandTotals = vendedores.reduce((acc, v) => {
-    for (let m = 1; m <= 12; m++) {
+    for (let m = 1; m <= currentMonth; m++) {
       acc.metaParcela += metaMap[v]?.[m] || 0;
       acc.metaRecorrencia += metaRecorrenciaMap[v]?.[m] || 0;
       acc.realParcela += vendaMap[v]?.[m]?.mensal || 0;
@@ -142,15 +161,40 @@ export default function AcumuladoMeta({ isDark, ano }) {
 
   return (
     <div className={`space-y-6 ${text}`}>
+
+      {/* Vendedor filter */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Users size={14} className={textMuted} />
+        <span className={`text-xs font-semibold ${textMuted}`}>Exibir:</span>
+        <button
+          onClick={() => setFilterVendedor('todos')}
+          className={`px-3 py-1 text-xs font-bold rounded-full transition-all ${filterVendedor === 'todos' ? 'bg-blue-600 text-white' : `${cardBg} ${text} border ${border}`}`}
+        >
+          Todos
+        </button>
+        {vendedores.map(v => (
+          <button
+            key={v}
+            onClick={() => setFilterVendedor(v)}
+            className={`px-3 py-1 text-xs font-bold rounded-full transition-all ${filterVendedor === v ? 'bg-blue-600 text-white' : `${cardBg} ${text} border ${border}`}`}
+          >
+            {vendedorDisplayName[v] || v}
+          </button>
+        ))}
+      </div>
+
       {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
           <div className="flex items-center gap-2 mb-1">
             <Target size={16} className="text-amber-500" />
-            <span className={`text-xs font-semibold ${textMuted}`}>META 1ª PARCELA {ano}</span>
+            <span className={`text-xs font-semibold ${textMuted}`}>META 1ª PARCELA até {mesesLabel[currentMonth - 1] || currentMonth}</span>
           </div>
           <p className="text-2xl font-bold">{fmtCurrency(grandTotals.metaParcela)}</p>
-          <p className="text-sm text-green-500 mt-1">Realizado: {fmtCurrency(grandTotals.realParcela)}</p>
+          <p className="text-sm text-green-500 mt-1">Alcançado: {fmtCurrency(grandTotals.realParcela)}</p>
+          <p className={`text-xs mt-0.5 ${grandTotals.realParcela - grandTotals.metaParcela >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {fmtCurrency(grandTotals.realParcela - grandTotals.metaParcela)}
+          </p>
         </div>
         <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
           <div className="flex items-center gap-2 mb-1">
@@ -165,10 +209,13 @@ export default function AcumuladoMeta({ isDark, ano }) {
         <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
           <div className="flex items-center gap-2 mb-1">
             <Repeat size={16} className="text-purple-500" />
-            <span className={`text-xs font-semibold ${textMuted}`}>META RECORRÊNCIA {ano}</span>
+            <span className={`text-xs font-semibold ${textMuted}`}>META RECORRÊNCIA até {mesesLabel[currentMonth - 1] || currentMonth}</span>
           </div>
           <p className="text-2xl font-bold">{fmtCurrency(grandTotals.metaRecorrencia)}</p>
-          <p className="text-sm text-green-500 mt-1">Realizado: {fmtCurrency(grandTotals.realRecorrencia)}</p>
+          <p className="text-sm text-green-500 mt-1">Alcançado: {fmtCurrency(grandTotals.realRecorrencia)}</p>
+          <p className={`text-xs mt-0.5 ${grandTotals.realRecorrencia - grandTotals.metaRecorrencia >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {fmtCurrency(grandTotals.realRecorrencia - grandTotals.metaRecorrencia)}
+          </p>
         </div>
         <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
           <div className="flex items-center gap-2 mb-1">
@@ -182,8 +229,75 @@ export default function AcumuladoMeta({ isDark, ano }) {
         </div>
       </div>
 
+      {/* Aggregate view for "todos" */}
+      {filterVendedor === 'todos' && (() => {
+        let acumMetaP = 0, acumRealP = 0, acumMetaR = 0, acumRealR = 0;
+        const aggRows = mesesLabel.map((label, idx) => {
+          const m = idx + 1;
+          const metaP = vendedores.reduce((s, v) => s + (metaMap[v]?.[m] || 0), 0);
+          const metaR = vendedores.reduce((s, v) => s + (metaRecorrenciaMap[v]?.[m] || 0), 0);
+          const realP = vendedores.reduce((s, v) => s + (vendaMap[v]?.[m]?.mensal || 0), 0);
+          const realR = vendedores.reduce((s, v) => s + (vendaMap[v]?.[m]?.contrato || 0), 0);
+          acumMetaP += metaP; acumRealP += realP; acumMetaR += metaR; acumRealR += realR;
+          return {
+            m, label, metaP, metaR, realP, realR,
+            pctMesP: metaP > 0 ? Math.round((realP / metaP) * 100) : 0,
+            pctMesR: metaR > 0 ? Math.round((realR / metaR) * 100) : 0,
+            acumMetaP, acumRealP, saldoP: acumMetaP - acumRealP,
+            pctAcumP: acumMetaP > 0 ? Math.round((acumRealP / acumMetaP) * 100) : 0,
+          };
+        });
+        return (
+          <div className={`rounded-xl border ${border} overflow-hidden`}>
+            <div className={`flex items-center gap-3 px-5 py-3 ${cardBg}`}>
+              <Users size={16} className="text-blue-500" />
+              <span className="font-bold text-lg">Consolidado — Todos os Vendedores</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className={`${textMuted} border-b ${border}`}>
+                    <th className="px-3 py-2 text-left">Mês</th>
+                    <th className="px-3 py-2 text-right">Meta 1ª Parc.</th>
+                    <th className="px-3 py-2 text-right">Real. Mensal</th>
+                    <th className="px-3 py-2 text-center">%</th>
+                    <th className="px-3 py-2 text-right">Meta Recorr.</th>
+                    <th className="px-3 py-2 text-right">Real. Contrato</th>
+                    <th className="px-3 py-2 text-center">%</th>
+                    <th className="px-3 py-2 text-right">Acum. Meta</th>
+                    <th className="px-3 py-2 text-right">Acum. Real</th>
+                    <th className="px-3 py-2 text-right">Saldo</th>
+                    <th className="px-3 py-2 text-center">% Acum.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {aggRows.map(r => {
+                    const isCurrent = r.m === currentMonth;
+                    return (
+                      <tr key={r.m} className={`border-b ${border} ${isCurrent ? (isDark ? 'bg-blue-900/20' : 'bg-blue-50') : ''}`}>
+                        <td className={`px-3 py-2 font-medium ${isCurrent ? 'text-blue-400' : ''}`}>{r.label}</td>
+                        <td className="px-3 py-2 text-right">{fmtCurrency(r.metaP)}</td>
+                        <td className="px-3 py-2 text-right text-green-500 font-medium">{fmtCurrency(r.realP)}</td>
+                        <td className="px-3 py-2 text-center"><span className={`text-xs px-2 py-0.5 rounded-full ${pctBg(r.pctMesP)} text-white`}>{r.pctMesP}%</span></td>
+                        <td className="px-3 py-2 text-right">{fmtCurrency(r.metaR)}</td>
+                        <td className="px-3 py-2 text-right text-purple-400 font-medium">{fmtCurrency(r.realR)}</td>
+                        <td className="px-3 py-2 text-center"><span className={`text-xs px-2 py-0.5 rounded-full ${pctBg(r.pctMesR)} text-white`}>{r.pctMesR}%</span></td>
+                        <td className="px-3 py-2 text-right">{fmtCurrency(r.acumMetaP)}</td>
+                        <td className="px-3 py-2 text-right font-medium">{fmtCurrency(r.acumRealP)}</td>
+                        <td className={`px-3 py-2 text-right ${r.saldoP > 0 ? 'text-red-400' : 'text-green-500'}`}>{fmtCurrency(r.saldoP)}</td>
+                        <td className="px-3 py-2 text-center"><span className={`text-xs font-bold ${pctColor(r.pctAcumP)}`}>{r.pctAcumP}%</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Per-vendedor tables */}
-      {vendedores.map(vendedor => {
+      {vendedores.filter(v => filterVendedor === 'todos' || filterVendedor === v).map(vendedor => {
         let acumMetaP = 0, acumRealP = 0, acumMetaR = 0, acumRealR = 0;
         const rows = [];
         for (let m = 1; m <= 12; m++) {
@@ -243,12 +357,20 @@ export default function AcumuladoMeta({ isDark, ano }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(r => {
+                  {rows.flatMap(r => {
                     const isCurrent = r.m === currentMonth;
-                    return (
-                      <tr key={r.m} className={`border-b ${border} ${isCurrent ? (isDark ? 'bg-blue-900/20' : 'bg-blue-50') : ''}`}>
+                    const isExpanded = expandedCell?.vendedor === vendedor && expandedCell?.mes === r.m;
+                    const mainRow = (
+                      <tr
+                        key={r.m}
+                        onClick={() => !editMetas && handleExpandMonth(vendedor, r.m)}
+                        className={`border-b ${border} ${!editMetas ? 'cursor-pointer hover:bg-opacity-80' : ''} ${isCurrent ? (isDark ? 'bg-blue-900/20' : 'bg-blue-50') : (isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50')}`}
+                      >
                         <td className={`px-3 py-2 font-medium ${isCurrent ? 'text-blue-400' : ''}`}>
-                          {mesesLabel[r.m - 1] || r.m}
+                          <div className="flex items-center gap-1">
+                            {mesesLabel[r.m - 1] || r.m}
+                            {!editMetas && (isExpanded ? <ChevronUp size={12} className="text-blue-400" /> : <ChevronDown size={12} className={textMuted} />)}
+                          </div>
                         </td>
                         <td className="px-3 py-2 text-right">
                           {editMetas ? (
@@ -261,6 +383,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
                                   [vendedor]: { ...(prev?.[vendedor] || {}), [`${r.m}_parcela`]: e.target.value }
                                 }));
                               }}
+                              onClick={e => e.stopPropagation()}
                               className={`w-24 px-2 py-0.5 rounded text-sm text-right ${inputBg}`}
                             />
                           ) : (
@@ -282,6 +405,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
                                   [vendedor]: { ...(prev?.[vendedor] || {}), [`${r.m}_recorrencia`]: e.target.value }
                                 }));
                               }}
+                              onClick={e => e.stopPropagation()}
                               className={`w-24 px-2 py-0.5 rounded text-sm text-right ${inputBg}`}
                             />
                           ) : (
@@ -302,6 +426,51 @@ export default function AcumuladoMeta({ isDark, ano }) {
                         </td>
                       </tr>
                     );
+                    if (!isExpanded) return [mainRow];
+                    const expandRow = (
+                      <tr key={`${r.m}-exp`} className={isDark ? 'bg-gray-900' : 'bg-gray-50'}>
+                        <td colSpan={11} className={`px-4 py-3 border-b ${border}`}>
+                          {loadingCell ? (
+                            <div className="flex items-center gap-2 justify-center py-2">
+                              <Loader2 size={14} className="animate-spin" />
+                              <span className={`text-xs ${textMuted}`}>Carregando vendas...</span>
+                            </div>
+                          ) : cellSales.length === 0 ? (
+                            <p className={`text-xs text-center py-2 ${textMuted}`}>Nenhuma venda registrada em {mesesLabel[r.m - 1]}.</p>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className={`${textMuted} border-b ${border}`}>
+                                    <th className="px-2 py-1 text-left">Data</th>
+                                    <th className="px-2 py-1 text-left">Cliente</th>
+                                    <th className="px-2 py-1 text-left">Pontos</th>
+                                    <th className="px-2 py-1 text-right">V. Mensal</th>
+                                    <th className="px-2 py-1 text-right">Total Contrato</th>
+                                    <th className="px-2 py-1 text-center">Parc.</th>
+                                    <th className="px-2 py-1 text-left">Obs</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {cellSales.map(s => (
+                                    <tr key={s.id} className={`border-b ${border}`}>
+                                      <td className="px-2 py-1 whitespace-nowrap">{s.data_venda || '—'}</td>
+                                      <td className="px-2 py-1 font-medium max-w-[140px] truncate">{s.cliente}</td>
+                                      <td className="px-2 py-1 max-w-[160px] truncate">{s.pontos_contratados || '—'}</td>
+                                      <td className="px-2 py-1 text-right text-green-500 font-medium whitespace-nowrap">{fmtCurrency(s.valor_mensal)}</td>
+                                      <td className="px-2 py-1 text-right whitespace-nowrap">{fmtCurrency(s.total_contrato)}</td>
+                                      <td className="px-2 py-1 text-center">{s.qtde_parcelas || 1}</td>
+                                      <td className="px-2 py-1 max-w-[120px] truncate">{s.obs || '—'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                    return [mainRow, expandRow];
                   })}
                 </tbody>
               </table>
