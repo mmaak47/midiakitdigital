@@ -37,7 +37,7 @@ const emptyVenda = {
 export default function PlanilhaMensal({ isDark, ano }) {
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [vendas, setVendas] = useState([]);
-  const [vendedores, setVendedores] = useState([]);
+  const [vendedores, setVendedores] = useState([]); // [{username, first_name, last_name}]
   const [metas, setMetas] = useState({});
   const [loading, setLoading] = useState(false);
   const [expandedVendedor, setExpandedVendedor] = useState(null);
@@ -57,7 +57,7 @@ export default function PlanilhaMensal({ isDark, ano }) {
         fetchGestaoVendedores(),
       ]);
       setVendas(v);
-      setVendedores((vds || []).map(u => u.username));
+      setVendedores(vds || []);
       const metaMap = {};
       (m || []).forEach(row => {
         if (!metaMap[row.vendedor_nome]) metaMap[row.vendedor_nome] = {};
@@ -70,16 +70,25 @@ export default function PlanilhaMensal({ isDark, ano }) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const vendedorUsernames = useMemo(() => vendedores.map(v => v.username), [vendedores]);
+  const vendedorDisplayName = useMemo(() => {
+    const map = {};
+    vendedores.forEach(v => {
+      map[v.username] = [v.first_name, v.last_name].filter(Boolean).join(' ') || v.username;
+    });
+    return map;
+  }, [vendedores]);
+
   const vendasByVendedor = useMemo(() => {
     const map = {};
-    vendedores.forEach(v => { map[v] = []; });
+    vendedorUsernames.forEach(v => { map[v] = []; });
     vendas.forEach(v => {
       const key = v.vendedor_nome || '';
       if (!map[key]) map[key] = [];
       map[key].push(v);
     });
     return map;
-  }, [vendas, vendedores]);
+  }, [vendas, vendedorUsernames]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -178,7 +187,7 @@ export default function PlanilhaMensal({ isDark, ano }) {
         </div>
       )}
 
-      {!loading && vendedores.map(vendedor => {
+      {!loading && vendedorUsernames.map(vendedor => {
         const items = vendasByVendedor[vendedor] || [];
         const totalMensal = items.reduce((s, v) => s + Number(v.valor_mensal || 0), 0);
         const totalContrato = items.reduce((s, v) => s + Number(v.total_contrato || 0), 0);
@@ -195,7 +204,7 @@ export default function PlanilhaMensal({ isDark, ano }) {
             >
               <div className="flex items-center gap-3">
                 <Users size={18} className="text-blue-500" />
-                <span className="font-bold text-lg">{vendedor}</span>
+                <span className="font-bold text-lg">{vendedorDisplayName[vendedor] || vendedor}</span>
                 <span className={`text-sm ${textMuted}`}>
                   {items.length} venda{items.length !== 1 ? 's' : ''}
                 </span>

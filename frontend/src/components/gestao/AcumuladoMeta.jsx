@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
   TrendingUp, TrendingDown, Target, BarChart3, Calendar, Loader2, ArrowUpRight, ArrowDownRight, Minus
 } from 'lucide-react';
-import { fetchGestaoAcumulado, updateGestaoMetasBatch } from '../../lib/api';
+import { fetchGestaoAcumulado, updateGestaoMetasBatch, fetchGestaoVendedores } from '../../lib/api';
 
 const fmtCurrency = (v) => {
   const n = Number(v);
@@ -27,16 +27,27 @@ const pctBg = (pct) => {
 
 export default function AcumuladoMeta({ isDark, ano }) {
   const [data, setData] = useState(null);
+  const [vendedoresInfo, setVendedoresInfo] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [editMetas, setEditMetas] = useState(null); // null or { vendedor: { mes: val } }
+  const [editMetas, setEditMetas] = useState(null);
   const [savingMetas, setSavingMetas] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    fetchGestaoAcumulado(ano).then(setData).catch(() => {}).finally(() => setLoading(false));
+    Promise.all([
+      fetchGestaoAcumulado(ano),
+      fetchGestaoVendedores(),
+    ]).then(([d, vds]) => { setData(d); setVendedoresInfo(vds || []); }).catch(() => {}).finally(() => setLoading(false));
   }, [ano]);
 
   const vendedores = data?.vendedores || [];
+  const vendedorDisplayName = useMemo(() => {
+    const map = {};
+    vendedoresInfo.forEach(v => {
+      map[v.username] = [v.first_name, v.last_name].filter(Boolean).join(' ') || v.username;
+    });
+    return map;
+  }, [vendedoresInfo]);
   const mesesLabel = data?.mesesLabel || [];
 
   // Build lookup maps
@@ -182,7 +193,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
           <div key={vendedor} className={`rounded-xl border ${border} overflow-hidden`}>
             <div className={`flex items-center justify-between px-5 py-3 ${cardBg}`}>
               <div className="flex items-center gap-3">
-                <span className="font-bold text-lg">{vendedor}</span>
+                <span className="font-bold text-lg">{vendedorDisplayName[vendedor] || vendedor}</span>
                 <span className={`text-sm ${pctColor(yearPct)} font-semibold`}>{yearPct}% atingido</span>
               </div>
               <div className="flex items-center gap-4 text-sm">

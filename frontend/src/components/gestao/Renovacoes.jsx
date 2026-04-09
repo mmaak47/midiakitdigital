@@ -49,7 +49,7 @@ export default function Renovacoes({ isDark, ano }) {
         fetchGestaoVendedores(),
       ]);
       setRenovacoes(data);
-      setVendedores((vds || []).map(u => u.username));
+      setVendedores(vds || []);
     } catch { /* ignore */ }
     setLoading(false);
   }, [ano, filterMes]);
@@ -280,7 +280,7 @@ export default function Renovacoes({ isDark, ano }) {
                   className={`w-full px-3 py-1.5 rounded text-sm ${inputBg}`}
                 >
                   <option value="">— Selecione —</option>
-                  {vendedores.map(v => <option key={v} value={v}>{v}</option>)}
+                  {vendedores.map(v => <option key={v.username} value={v.username}>{[v.first_name, v.last_name].filter(Boolean).join(' ') || v.username}</option>)}
                 </select>
               </div>
               <div>

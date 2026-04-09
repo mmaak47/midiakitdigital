@@ -2542,6 +2542,7 @@ try {
     )
   `).run();
 } catch (e) { console.error('[vendas_comercial] init:', e.message); }
+try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN venda_id INTEGER").run(); } catch {}
 
 try {
   db.prepare(`
@@ -2901,6 +2902,32 @@ app.post(
         } catch { /* ignora */ }
       }
 
+      // Auto-sync para vendas_comercial (Gestão Comercial)
+      try {
+        const now = new Date();
+        const vNome = vendedor_nome || req.authUser?.username || null;
+        db.prepare(`
+          INSERT INTO vendas_comercial
+            (vendedor_nome, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
+             valor_mensal, total_contrato, qtde_parcelas, obs, venda_id)
+          VALUES (?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          vNome,
+          now.getFullYear(),
+          now.getMonth() + 1,
+          String(razao_social).trim(),
+          cnpj || null,
+          pontos_nomes || null,
+          Number(valor_mensal || 0),
+          Number(valor_mensal || 0),
+          1,
+          obs || null,
+          vendaId
+        );
+      } catch (syncErr) {
+        console.warn('[vendas] auto-sync vendas_comercial falhou:', syncErr.message);
+      }
+
       res.json({
         success: true,
         id: vendaId,
@@ -3136,7 +3163,7 @@ app.get('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vendedo
     let sql = 'SELECT * FROM vendas_comercial WHERE ano = ?';
     const params = [ano];
     if (mes) { sql += ' AND mes = ?'; params.push(mes); }
-    if (vendedor) { sql += ' AND vendedor_nome = ?'; params.push(vendedor.toUpperCase()); }
+    if (vendedor) { sql += ' AND vendedor_nome = ?'; params.push(vendedor); }
     sql += ' ORDER BY mes, vendedor_nome, data_venda';
     const rows = db.prepare(sql).all(...params);
     res.json(rows);
@@ -3158,7 +3185,7 @@ app.post('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vended
          data_emissao_nf, vencimento_boletos, contato, email, obs)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      String(b.vendedor_nome).toUpperCase(), Number(b.ano), Number(b.mes),
+      String(b.vendedor_nome), Number(b.ano), Number(b.mes),
       b.data_venda || null, b.cliente, b.cnpj || null, b.pontos_contratados || null,
       Number(b.valor_mensal || 0), Number(b.total_contrato || 0), Number(b.qtde_parcelas || 1),
       b.previsao_veiculacao || null, b.data_emissao_nf || null, b.vencimento_boletos || null,
@@ -3186,7 +3213,7 @@ app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','ven
         obs = ?, updated_at = datetime('now')
       WHERE id = ?
     `).run(
-      String(b.vendedor_nome || '').toUpperCase(),
+      String(b.vendedor_nome || ''),
       b.data_venda || null, b.cliente || '', b.cnpj || null,
       b.pontos_contratados || null, Number(b.valor_mensal || 0),
       Number(b.total_contrato || 0), Number(b.qtde_parcelas || 1),
@@ -3251,7 +3278,7 @@ app.post('/api/gestao/renovacoes', requireRoles(['admin','gerente_comercial','ve
     `).run(
       Number(b.ano), Number(b.mes), b.cliente, b.cnpj || null,
       b.pontos || null, Number(b.valor_mensal || 0),
-      b.status || 'pendente', b.vendedor_nome ? String(b.vendedor_nome).toUpperCase() : null,
+      b.status || 'pendente', b.vendedor_nome ? String(b.vendedor_nome) : null,
       b.obs || null
     );
     res.json({ ok: true, id: result.lastInsertRowid });
@@ -3338,6 +3365,72 @@ app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vend
 
     const vendedoresAtivos = getVendedoresAtivos();
     res.json({ ano, metas, vendas, renovacoes, vendasAnterior, vendedores: vendedoresAtivos, mesesLabel: MESES_LABEL });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── IMPORT BULK (vendas + metas + renovacoes) ──────────────────────────
+app.post('/api/gestao/import', requireRoles(['admin']), (req, res) => {
+  try {
+    const { vendas, metas, renovacoes } = req.body;
+    let importedVendas = 0, importedMetas = 0, importedRenovacoes = 0;
+
+    if (Array.isArray(vendas)) {
+      const stmtV = db.prepare(`
+        INSERT INTO vendas_comercial
+          (vendedor_nome, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
+           valor_mensal, total_contrato, qtde_parcelas, previsao_veiculacao,
+           data_emissao_nf, status_contrato, status_contrato_assinado,
+           status_conteudo, status_checkin, status_faturado, status_excel_pastas, obs)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const v of vendas) {
+        if (!v.cliente || !v.vendedor_nome || !v.ano || !v.mes) continue;
+        stmtV.run(
+          v.vendedor_nome, Number(v.ano), Number(v.mes),
+          v.data_venda || null, v.cliente, v.cnpj || null,
+          v.pontos_contratados || null, Number(v.valor_mensal || 0),
+          Number(v.total_contrato || 0), Number(v.qtde_parcelas || 1),
+          v.previsao_veiculacao || null, v.data_emissao_nf || null,
+          v.status_contrato ? 1 : 0, v.status_contrato_assinado ? 1 : 0,
+          v.status_conteudo ? 1 : 0, v.status_checkin ? 1 : 0,
+          v.status_faturado ? 1 : 0, v.status_excel_pastas ? 1 : 0,
+          v.obs || null
+        );
+        importedVendas++;
+      }
+    }
+
+    if (Array.isArray(metas)) {
+      for (const m of metas) {
+        if (!m.vendedor_nome || !m.ano || !m.mes) continue;
+        db.prepare(`
+          INSERT INTO metas_vendedor (vendedor_nome, ano, mes, valor_meta)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(vendedor_nome, ano, mes) DO UPDATE SET valor_meta = excluded.valor_meta, updated_at = datetime('now')
+        `).run(m.vendedor_nome, Number(m.ano), Number(m.mes), Number(m.valor_meta || 0));
+        importedMetas++;
+      }
+    }
+
+    if (Array.isArray(renovacoes)) {
+      const stmtR = db.prepare(`
+        INSERT INTO renovacoes (ano, mes, cliente, pontos, valor_mensal, status, vendedor_nome, obs)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const r of renovacoes) {
+        if (!r.cliente || !r.ano || !r.mes) continue;
+        stmtR.run(
+          Number(r.ano), Number(r.mes), r.cliente, r.pontos || null,
+          Number(r.valor_mensal || 0), r.status || 'pendente',
+          r.vendedor_nome || null, r.obs || null
+        );
+        importedRenovacoes++;
+      }
+    }
+
+    res.json({ ok: true, importedVendas, importedMetas, importedRenovacoes });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
