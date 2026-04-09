@@ -1883,6 +1883,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
       <td style="padding:12px 16px;font-size:13px;font-weight:600;color:#fff;border-bottom:1px solid rgba(255,255,255,0.06);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.nome || 'Ponto')}</td>
       <td style="padding:12px 16px;font-size:12px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.06);">${escapeHtml(p.cidade || '—')}</td>
       <td style="padding:12px 16px;font-size:12px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.06);">${escapeHtml(getPointTypeLabel(p) || '—')}</td>
+      <td style="padding:12px 16px;font-size:13px;font-weight:700;color:${PROPOSAL_ACCENT};border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;white-space:nowrap;">${formatMoney(p.preco || 0)}</td>
       <td style="padding:12px 16px;font-size:13px;font-weight:700;color:${PROPOSAL_ACCENT};border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;white-space:nowrap;">${formatMoney(p.precoFinal ?? p.preco ?? 0)}</td>
     </tr>
   `).join('');
@@ -1890,7 +1891,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
   if (hiddenPoints > 0) {
     pointRows += `
       <tr>
-        <td colspan="4" style="padding:14px 16px;font-size:12px;font-style:italic;color:rgba(255,255,255,0.5);text-align:center;background:rgba(255,255,255,0.02);border-top:1px solid rgba(255,255,255,0.05);">
+        <td colspan="5" style="padding:14px 16px;font-size:12px;font-style:italic;color:rgba(255,255,255,0.5);text-align:center;background:rgba(255,255,255,0.02);border-top:1px solid rgba(255,255,255,0.05);">
           E mais ${hiddenPoints} ${hiddenPoints === 1 ? 'ponto detalhado' : 'pontos detalhados'} ao longo desta proposta...
         </td>
       </tr>
@@ -1945,7 +1946,8 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
                   <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Ponto</th>
                   <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Cidade</th>
                   <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Tipo</th>
-                  <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:right;border-bottom:1px solid rgba(255,255,255,0.1);">Valor</th>
+                  <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:right;border-bottom:1px solid rgba(255,255,255,0.1);">Valor Tabela</th>
+                  <th style="padding:5px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:right;border-bottom:1px solid rgba(255,255,255,0.1);line-height:1.2;">Valor Negociado<br>no Combo</th>
                 </tr>
               </thead>
               <tbody>
@@ -2005,7 +2007,11 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
               <div style="display:flex;flex-direction:column;gap:6px;">
                 <div style="font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:rgba(255,255,255,0.7);">Total Mensal</div>
                 <div style="font-size:32px;font-weight:800;color:#fff;font-family:Poppins, system-ui, sans-serif;line-height:1.1;letter-spacing:-0.02em;">${formatMoney(finalTotal)}</div>
-                <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:8px;line-height:1.4;">Valores em moeda local (BRL).<br>Proposta sujeita a disponibilidade de espaço.</div>
+                <div style="font-size:9.5px;color:rgba(255,255,255,0.5);margin-top:12px;line-height:1.45;">
+                  Negociação válida <strong>exclusivamente</strong> para o plano e quantidade de pontos apresentados.<br>
+                  Para outras condições de compra, os valores deverão ser consultados.<br>
+                  * Produção de materiais por conta do cliente.
+                </div>
               </div>
             </div>
           </div>
