@@ -8,6 +8,7 @@ const INITIAL_FORM = {
   email: '',
   login: '',
   senha: '',
+  isVendedor: false,
 };
 
 function buildInitialForm(initialData) {
@@ -25,6 +26,7 @@ function buildInitialForm(initialData) {
     email: initialData.email || '',
     login: initialData.username || '',
     senha: '',
+    isVendedor: Boolean(initialData.is_vendedor),
   };
 }
 
@@ -189,6 +191,19 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
               />
             </Field>
           </div>
+
+          <label className="flex items-center gap-3 cursor-pointer rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 transition-colors hover:bg-white/[0.06]">
+            <input
+              type="checkbox"
+              checked={form.isVendedor}
+              onChange={(event) => setForm((prev) => ({ ...prev, isVendedor: event.target.checked }))}
+              className="h-4 w-4 rounded border-white/20 accent-brand-orange"
+            />
+            <div>
+              <span className="text-sm font-semibold text-white">É vendedor (Gestão Comercial)</span>
+              <p className="text-xs text-brand-gray-500">Marcar esta opção faz este usuário aparecer como vendedor na planilha de gestão comercial, independente do cargo.</p>
+            </div>
+          </label>
 
           <div className="flex items-center justify-end gap-2 pt-2">
             <button

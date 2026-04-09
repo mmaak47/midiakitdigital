@@ -1930,7 +1930,7 @@ app.get('/api/admin/pontos', requireRoles(['admin', 'gerente_comercial', 'vended
 
 app.get('/api/admin/users', requireRoles(['admin']), (req, res) => {
   try {
-    const users = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, created_at FROM admin_users ORDER BY first_name ASC, last_name ASC, username ASC').all();
+    const users = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, is_vendedor, created_at FROM admin_users ORDER BY first_name ASC, last_name ASC, username ASC').all();
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1972,11 +1972,13 @@ app.post('/api/admin/users', requireRoles(['admin']), (req, res) => {
 
     const passwordHash = hashPassword(password);
 
+    const isVendedor = req.body?.is_vendedor ? 1 : 0;
+
     const result = db.prepare(`
-      INSERT INTO admin_users (first_name, last_name, username, email, whatsapp, password, role, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    `).run(firstName, lastName, username, email, whatsapp, passwordHash, role);
-    const created = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, created_at FROM admin_users WHERE id = ?').get(result.lastInsertRowid);
+      INSERT INTO admin_users (first_name, last_name, username, email, whatsapp, password, role, is_vendedor, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    `).run(firstName, lastName, username, email, whatsapp, passwordHash, role, isVendedor);
+    const created = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, is_vendedor, created_at FROM admin_users WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(created);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2020,12 +2022,16 @@ app.put('/api/admin/users/:id', requireRoles(['admin']), (req, res) => {
       return res.status(400).json({ error: 'Role inválido. Valores permitidos: admin, gerente_comercial, vendedor' });
     }
 
-    const result = db.prepare("UPDATE admin_users SET role = ?, updated_at = datetime('now') WHERE id = ?").run(role, id);
-    if (!result.changes) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
+    const isVendedor = req.body?.is_vendedor !== undefined ? (req.body.is_vendedor ? 1 : 0) : null;
+    if (isVendedor !== null) {
+      db.prepare("UPDATE admin_users SET role = ?, is_vendedor = ?, updated_at = datetime('now') WHERE id = ?").run(role, isVendedor, id);
+    } else {
+      db.prepare("UPDATE admin_users SET role = ?, updated_at = datetime('now') WHERE id = ?").run(role, id);
     }
+    const result = db.prepare('SELECT changes() as changes').get ? { changes: 1 } : { changes: 1 };
 
-    const updated = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role FROM admin_users WHERE id = ?').get(id);
+    const updated = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, is_vendedor FROM admin_users WHERE id = ?').get(id);
+    if (!updated) return res.status(404).json({ error: 'Usuário não encontrado' });
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2466,6 +2472,7 @@ try {
   'ALTER TABLE vendas ADD COLUMN comissao_pct TEXT',
   'ALTER TABLE vendas ADD COLUMN troca_material INTEGER DEFAULT 0',
   'ALTER TABLE pontos ADD COLUMN monitor_last_seen TEXT DEFAULT NULL',
+  'ALTER TABLE admin_users ADD COLUMN is_vendedor INTEGER DEFAULT 0',
 ].forEach(sql => {
   try { db.prepare(sql).run(); } catch { /* coluna já existe */ }
 });
@@ -3060,8 +3067,22 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
 // GESTÃO COMERCIAL — Metas, Vendas Comercial, Renovações, Acumulado
 // ═══════════════════════════════════════════════════════════════════════════
 
-const VENDEDORES_PADRAO = ['EDUARDA', 'JULIANA', 'ESCRITÓRIO'];
 const MESES_LABEL = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+
+function getVendedoresAtivos() {
+  const rows = db.prepare("SELECT username, first_name, last_name FROM admin_users WHERE is_vendedor = 1 ORDER BY first_name, last_name").all();
+  return rows.map(r => r.username);
+}
+
+// Endpoint público (autenticado) para listar vendedores
+app.get('/api/gestao/vendedores', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const rows = db.prepare("SELECT id, username, first_name, last_name, role FROM admin_users WHERE is_vendedor = 1 ORDER BY first_name, last_name").all();
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ─── METAS ───────────────────────────────────────────────────────────────
 app.get('/api/gestao/metas', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
@@ -3315,7 +3336,8 @@ app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vend
       ORDER BY vendedor_nome, mes
     `).all(anoAnterior);
 
-    res.json({ ano, metas, vendas, renovacoes, vendasAnterior, vendedores: VENDEDORES_PADRAO, mesesLabel: MESES_LABEL });
+    const vendedoresAtivos = getVendedoresAtivos();
+    res.json({ ano, metas, vendas, renovacoes, vendasAnterior, vendedores: vendedoresAtivos, mesesLabel: MESES_LABEL });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

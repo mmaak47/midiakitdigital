@@ -137,10 +137,10 @@ export async function fetchAdminUsers() {
   return res.json();
 }
 
-export async function createAdminUser({ firstName, lastName, whatsapp, email, password, role }) {
+export async function createAdminUser({ firstName, lastName, whatsapp, email, password, role, is_vendedor }) {
   const res = await apiRequest('/admin/users', {
     method: 'POST',
-    body: JSON.stringify({ firstName, lastName, whatsapp, email, password, role })
+    body: JSON.stringify({ firstName, lastName, whatsapp, email, password, role, is_vendedor })
   });
   if (!res.ok) {
     const message = await parseErrorResponse(res);
@@ -624,10 +624,12 @@ export async function rejeitarProposta(id, { gerente_id, motivo_rejeicao }) {
 
 // ============== ADMIN USERS WITH ROLES ==============
 
-export async function updateAdminUserRole(id, role) {
+export async function updateAdminUserRole(id, role, isVendedor) {
+  const body = { role };
+  if (isVendedor !== undefined) body.is_vendedor = isVendedor;
   const res = await apiRequest(`/admin/users/${id}`, {
     method: 'PUT',
-    body: JSON.stringify({ role })
+    body: JSON.stringify(body)
   });
   if (!res.ok) {
     const message = await parseErrorResponse(res);
@@ -973,5 +975,17 @@ export async function deleteGestaoRenovacao(id) {
 export async function fetchGestaoAcumulado(ano) {
   const res = await apiRequest(`/gestao/acumulado?ano=${ano}`);
   if (!res.ok) throw new Error('Erro ao buscar acumulado');
+  return res.json();
+}
+
+export async function fetchGestaoVendedores() {
+  const res = await apiRequest('/gestao/vendedores');
+  if (!res.ok) throw new Error('Erro ao buscar vendedores');
+  return res.json();
+}
+
+export async function fetchGestaoVendedores() {
+  const res = await apiRequest('/gestao/vendedores');
+  if (!res.ok) throw new Error('Erro ao buscar vendedores');
   return res.json();
 }

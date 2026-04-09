@@ -6,10 +6,9 @@ import {
 } from 'lucide-react';
 import {
   fetchGestaoRenovacoes, createGestaoRenovacao,
-  updateGestaoRenovacao, deleteGestaoRenovacao
+  updateGestaoRenovacao, deleteGestaoRenovacao, fetchGestaoVendedores
 } from '../../lib/api';
 
-const VENDEDORES = ['EDUARDA', 'JULIANA', 'ESCRITÓRIO'];
 const MESES = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
 const STATUS_OPTIONS = [
   { value: 'pendente', label: 'Pendente', color: 'amber', icon: Clock },
@@ -31,6 +30,7 @@ const emptyRenovacao = {
 
 export default function Renovacoes({ isDark, ano }) {
   const [renovacoes, setRenovacoes] = useState([]);
+  const [vendedores, setVendedores] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterMes, setFilterMes] = useState(null); // null = ALL
   const [showForm, setShowForm] = useState(false);
@@ -44,8 +44,12 @@ export default function Renovacoes({ isDark, ano }) {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchGestaoRenovacoes({ ano, mes: filterMes });
+      const [data, vds] = await Promise.all([
+        fetchGestaoRenovacoes({ ano, mes: filterMes }),
+        fetchGestaoVendedores(),
+      ]);
       setRenovacoes(data);
+      setVendedores((vds || []).map(u => u.username));
     } catch { /* ignore */ }
     setLoading(false);
   }, [ano, filterMes]);
@@ -276,7 +280,7 @@ export default function Renovacoes({ isDark, ano }) {
                   className={`w-full px-3 py-1.5 rounded text-sm ${inputBg}`}
                 >
                   <option value="">— Selecione —</option>
-                  {VENDEDORES.map(v => <option key={v} value={v}>{v}</option>)}
+                  {vendedores.map(v => <option key={v} value={v}>{v}</option>)}
                 </select>
               </div>
               <div>

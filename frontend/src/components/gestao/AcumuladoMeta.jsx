@@ -36,7 +36,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
     fetchGestaoAcumulado(ano).then(setData).catch(() => {}).finally(() => setLoading(false));
   }, [ano]);
 
-  const vendedores = data?.vendedores || ['EDUARDA', 'JULIANA', 'ESCRITÓRIO'];
+  const vendedores = data?.vendedores || [];
   const mesesLabel = data?.mesesLabel || [];
 
   // Build lookup maps

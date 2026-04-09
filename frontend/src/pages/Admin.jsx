@@ -546,7 +546,7 @@ export default function Admin() {
     setUsersError('');
     try {
       if (userModalInitialData?.id) {
-        await updateAdminUserRole(userModalInitialData.id, formData.tipoUsuario || 'vendedor');
+        await updateAdminUserRole(userModalInitialData.id, formData.tipoUsuario || 'vendedor', formData.isVendedor);
       } else {
         const parsed = splitName(formData.nome, formData.login);
         const normalizedEmail = String(formData.email || '').trim() || `${String(formData.login || '').trim()}@intermidia.local`;
@@ -556,7 +556,8 @@ export default function Admin() {
           whatsapp: '',
           email: normalizedEmail,
           password: String(formData.senha || '').trim(),
-          role: formData.tipoUsuario || 'vendedor'
+          role: formData.tipoUsuario || 'vendedor',
+          is_vendedor: formData.isVendedor,
         });
       }
       await loadUsers();
@@ -2409,6 +2410,11 @@ function UsersAdminPanel({
                   <span className={`inline-block px-2 py-1 rounded-lg text-xs ${isDark ? 'bg-brand-orange/10 text-brand-orange' : 'bg-orange-50 text-orange-700'}`}>
                     {userRoles.find(r => r.value === user.role)?.label || user.role}
                   </span>
+                  {user.is_vendedor ? (
+                    <span className={`ml-1 inline-block px-2 py-1 rounded-lg text-xs ${isDark ? 'bg-green-500/10 text-green-400' : 'bg-green-50 text-green-700'}`}>
+                      Vendedor
+                    </span>
+                  ) : null}
                 </td>
                 <td className="px-3 py-2 text-right space-x-2">
                   <button

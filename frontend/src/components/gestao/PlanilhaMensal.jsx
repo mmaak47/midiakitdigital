@@ -7,10 +7,9 @@ import {
 import {
   fetchGestaoVendas, createGestaoVenda, updateGestaoVenda,
   deleteGestaoVenda, toggleGestaoVendaStatus, fetchGestaoMetas,
-  updateGestaoMeta
+  updateGestaoMeta, fetchGestaoVendedores
 } from '../../lib/api';
 
-const VENDEDORES = ['EDUARDA', 'JULIANA', 'ESCRITÓRIO'];
 const MESES = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
 
 const STATUS_FIELDS = [
@@ -38,6 +37,7 @@ const emptyVenda = {
 export default function PlanilhaMensal({ isDark, ano }) {
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [vendas, setVendas] = useState([]);
+  const [vendedores, setVendedores] = useState([]);
   const [metas, setMetas] = useState({});
   const [loading, setLoading] = useState(false);
   const [expandedVendedor, setExpandedVendedor] = useState(null);
@@ -51,11 +51,13 @@ export default function PlanilhaMensal({ isDark, ano }) {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [v, m] = await Promise.all([
+      const [v, m, vds] = await Promise.all([
         fetchGestaoVendas({ ano, mes }),
         fetchGestaoMetas(ano),
+        fetchGestaoVendedores(),
       ]);
       setVendas(v);
+      setVendedores((vds || []).map(u => u.username));
       const metaMap = {};
       (m || []).forEach(row => {
         if (!metaMap[row.vendedor_nome]) metaMap[row.vendedor_nome] = {};
@@ -70,14 +72,14 @@ export default function PlanilhaMensal({ isDark, ano }) {
 
   const vendasByVendedor = useMemo(() => {
     const map = {};
-    VENDEDORES.forEach(v => { map[v] = []; });
+    vendedores.forEach(v => { map[v] = []; });
     vendas.forEach(v => {
-      const key = v.vendedor_nome || 'ESCRITÓRIO';
+      const key = v.vendedor_nome || '';
       if (!map[key]) map[key] = [];
       map[key].push(v);
     });
     return map;
-  }, [vendas]);
+  }, [vendas, vendedores]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -176,7 +178,7 @@ export default function PlanilhaMensal({ isDark, ano }) {
         </div>
       )}
 
-      {!loading && VENDEDORES.map(vendedor => {
+      {!loading && vendedores.map(vendedor => {
         const items = vendasByVendedor[vendedor] || [];
         const totalMensal = items.reduce((s, v) => s + Number(v.valor_mensal || 0), 0);
         const totalContrato = items.reduce((s, v) => s + Number(v.total_contrato || 0), 0);
