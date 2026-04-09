@@ -1447,7 +1447,7 @@ app.post('/api/entorno/analyze', requireRoles(['admin', 'gerente_comercial']), (
 });
 
 // Get job status
-app.get('/api/entorno/jobs/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+app.get('/api/entorno/jobs/:id', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
     const jobId = Number(req.params.id);
     if (!Number.isFinite(jobId)) {
@@ -2040,7 +2040,7 @@ app.put('/api/admin/users/:id', requireRoles(['admin']), (req, res) => {
   }
 });
 
-app.get('/api/admin/pdf-layout', requireRoles(['admin']), (req, res) => {
+app.get('/api/admin/pdf-layout', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
     res.json(readPdfLayoutOverrides());
   } catch (err) {
