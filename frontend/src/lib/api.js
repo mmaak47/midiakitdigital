@@ -865,3 +865,113 @@ export async function fetchArteStats() {
   if (!res.ok) throw new Error('Erro ao buscar stats de arte IA');
   return res.json();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GESTÃO COMERCIAL — Metas, Vendas Comercial, Renovações, Acumulado
+// ═══════════════════════════════════════════════════════════════════════════
+
+export async function fetchGestaoMetas(ano) {
+  const res = await apiRequest(`/gestao/metas?ano=${ano}`);
+  if (!res.ok) throw new Error('Erro ao buscar metas');
+  return res.json();
+}
+
+export async function updateGestaoMeta({ vendedor_nome, ano, mes, valor_meta }) {
+  const res = await apiRequest('/gestao/metas', {
+    method: 'PUT',
+    body: JSON.stringify({ vendedor_nome, ano, mes, valor_meta })
+  });
+  if (!res.ok) throw new Error('Erro ao atualizar meta');
+  return res.json();
+}
+
+export async function updateGestaoMetasBatch(metas) {
+  const res = await apiRequest('/gestao/metas/batch', {
+    method: 'PUT',
+    body: JSON.stringify({ metas })
+  });
+  if (!res.ok) throw new Error('Erro ao atualizar metas em lote');
+  return res.json();
+}
+
+export async function fetchGestaoVendas({ ano, mes, vendedor } = {}) {
+  const params = new URLSearchParams();
+  if (ano) params.set('ano', ano);
+  if (mes) params.set('mes', mes);
+  if (vendedor) params.set('vendedor', vendedor);
+  const res = await apiRequest(`/gestao/vendas?${params}`);
+  if (!res.ok) throw new Error('Erro ao buscar vendas comerciais');
+  return res.json();
+}
+
+export async function createGestaoVenda(data) {
+  const res = await apiRequest('/gestao/vendas', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) { const m = await parseErrorResponse(res); throw new Error(m || 'Erro ao criar venda'); }
+  return res.json();
+}
+
+export async function updateGestaoVenda(id, data) {
+  const res = await apiRequest(`/gestao/vendas/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Erro ao atualizar venda');
+  return res.json();
+}
+
+export async function toggleGestaoVendaStatus(id, field, value) {
+  const res = await apiRequest(`/gestao/vendas/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ field, value })
+  });
+  if (!res.ok) throw new Error('Erro ao atualizar status');
+  return res.json();
+}
+
+export async function deleteGestaoVenda(id) {
+  const res = await apiRequest(`/gestao/vendas/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Erro ao deletar venda');
+  return res.json();
+}
+
+export async function fetchGestaoRenovacoes({ ano, mes } = {}) {
+  const params = new URLSearchParams();
+  if (ano) params.set('ano', ano);
+  if (mes) params.set('mes', mes);
+  const res = await apiRequest(`/gestao/renovacoes?${params}`);
+  if (!res.ok) throw new Error('Erro ao buscar renovações');
+  return res.json();
+}
+
+export async function createGestaoRenovacao(data) {
+  const res = await apiRequest('/gestao/renovacoes', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Erro ao criar renovação');
+  return res.json();
+}
+
+export async function updateGestaoRenovacao(id, data) {
+  const res = await apiRequest(`/gestao/renovacoes/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Erro ao atualizar renovação');
+  return res.json();
+}
+
+export async function deleteGestaoRenovacao(id) {
+  const res = await apiRequest(`/gestao/renovacoes/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Erro ao deletar renovação');
+  return res.json();
+}
+
+export async function fetchGestaoAcumulado(ano) {
+  const res = await apiRequest(`/gestao/acumulado?ano=${ano}`);
+  if (!res.ok) throw new Error('Erro ao buscar acumulado');
+  return res.json();
+}

@@ -2488,6 +2488,73 @@ try {
   console.error('[venda_etapas] falha ao criar tabela:', dbInitErr.message);
 }
 
+// ─── GESTÃO COMERCIAL: metas, vendas_comercial, renovações ─────────────
+try {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS metas_vendedor (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vendedor_nome TEXT NOT NULL,
+      ano INTEGER NOT NULL,
+      mes INTEGER NOT NULL,
+      valor_meta REAL NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT,
+      UNIQUE(vendedor_nome, ano, mes)
+    )
+  `).run();
+} catch (e) { console.error('[metas_vendedor] init:', e.message); }
+
+try {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS vendas_comercial (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vendedor_nome TEXT NOT NULL,
+      ano INTEGER NOT NULL,
+      mes INTEGER NOT NULL,
+      data_venda TEXT,
+      cliente TEXT NOT NULL,
+      cnpj TEXT,
+      pontos_contratados TEXT,
+      valor_mensal REAL DEFAULT 0,
+      total_contrato REAL DEFAULT 0,
+      qtde_parcelas INTEGER DEFAULT 1,
+      previsao_veiculacao TEXT,
+      data_emissao_nf TEXT,
+      vencimento_boletos TEXT,
+      contato TEXT,
+      email TEXT,
+      status_contrato INTEGER DEFAULT 0,
+      status_contrato_assinado INTEGER DEFAULT 0,
+      status_conteudo INTEGER DEFAULT 0,
+      status_checkin INTEGER DEFAULT 0,
+      status_faturado INTEGER DEFAULT 0,
+      status_excel_pastas INTEGER DEFAULT 0,
+      obs TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT
+    )
+  `).run();
+} catch (e) { console.error('[vendas_comercial] init:', e.message); }
+
+try {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS renovacoes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ano INTEGER NOT NULL,
+      mes INTEGER NOT NULL,
+      cliente TEXT NOT NULL,
+      cnpj TEXT,
+      pontos TEXT,
+      valor_mensal REAL DEFAULT 0,
+      status TEXT DEFAULT 'pendente',
+      vendedor_nome TEXT,
+      obs TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT
+    )
+  `).run();
+} catch (e) { console.error('[renovacoes] init:', e.message); }
+
 function getEvolutionSettings() {
   const keys = [
     'evolution_api_url',
@@ -2986,6 +3053,271 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
   } catch (err) {
     console.error('[webhook] erro:', err.message);
     res.json({ ok: true, error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GESTÃO COMERCIAL — Metas, Vendas Comercial, Renovações, Acumulado
+// ═══════════════════════════════════════════════════════════════════════════
+
+const VENDEDORES_PADRAO = ['EDUARDA', 'JULIANA', 'ESCRITÓRIO'];
+const MESES_LABEL = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+
+// ─── METAS ───────────────────────────────────────────────────────────────
+app.get('/api/gestao/metas', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const ano = Number(req.query.ano) || new Date().getFullYear();
+    const rows = db.prepare('SELECT * FROM metas_vendedor WHERE ano = ? ORDER BY vendedor_nome, mes').all(ano);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/gestao/metas', requireRoles(['admin','gerente_comercial']), (req, res) => {
+  try {
+    const { vendedor_nome, ano, mes, valor_meta } = req.body;
+    if (!vendedor_nome || !ano || !mes) return res.status(400).json({ error: 'Campos obrigatórios: vendedor_nome, ano, mes' });
+    db.prepare(`
+      INSERT INTO metas_vendedor (vendedor_nome, ano, mes, valor_meta, updated_at)
+      VALUES (?, ?, ?, ?, datetime('now'))
+      ON CONFLICT (vendedor_nome, ano, mes) DO UPDATE SET valor_meta = ?, updated_at = datetime('now')
+    `).run(String(vendedor_nome).toUpperCase(), Number(ano), Number(mes), Number(valor_meta || 0), Number(valor_meta || 0));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/gestao/metas/batch', requireRoles(['admin','gerente_comercial']), (req, res) => {
+  try {
+    const { metas } = req.body; // [{vendedor_nome, ano, mes, valor_meta}]
+    if (!Array.isArray(metas)) return res.status(400).json({ error: 'metas deve ser um array' });
+    for (const m of metas) {
+      db.prepare(`
+        INSERT INTO metas_vendedor (vendedor_nome, ano, mes, valor_meta, updated_at)
+        VALUES (?, ?, ?, ?, datetime('now'))
+        ON CONFLICT (vendedor_nome, ano, mes) DO UPDATE SET valor_meta = ?, updated_at = datetime('now')
+      `).run(String(m.vendedor_nome).toUpperCase(), Number(m.ano), Number(m.mes), Number(m.valor_meta || 0), Number(m.valor_meta || 0));
+    }
+    res.json({ ok: true, count: metas.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── VENDAS COMERCIAL (planilha mensal) ──────────────────────────────────
+app.get('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const ano = Number(req.query.ano) || new Date().getFullYear();
+    const mes = req.query.mes ? Number(req.query.mes) : null;
+    const vendedor = req.query.vendedor || null;
+    let sql = 'SELECT * FROM vendas_comercial WHERE ano = ?';
+    const params = [ano];
+    if (mes) { sql += ' AND mes = ?'; params.push(mes); }
+    if (vendedor) { sql += ' AND vendedor_nome = ?'; params.push(vendedor.toUpperCase()); }
+    sql += ' ORDER BY mes, vendedor_nome, data_venda';
+    const rows = db.prepare(sql).all(...params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const b = req.body;
+    if (!b.cliente || !b.vendedor_nome || !b.ano || !b.mes) {
+      return res.status(400).json({ error: 'Campos obrigatórios: cliente, vendedor_nome, ano, mes' });
+    }
+    const result = db.prepare(`
+      INSERT INTO vendas_comercial
+        (vendedor_nome, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
+         valor_mensal, total_contrato, qtde_parcelas, previsao_veiculacao,
+         data_emissao_nf, vencimento_boletos, contato, email, obs)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      String(b.vendedor_nome).toUpperCase(), Number(b.ano), Number(b.mes),
+      b.data_venda || null, b.cliente, b.cnpj || null, b.pontos_contratados || null,
+      Number(b.valor_mensal || 0), Number(b.total_contrato || 0), Number(b.qtde_parcelas || 1),
+      b.previsao_veiculacao || null, b.data_emissao_nf || null, b.vencimento_boletos || null,
+      b.contato || null, b.email || null, b.obs || null
+    );
+    res.json({ ok: true, id: result.lastInsertRowid });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const b = req.body;
+    const id = Number(req.params.id);
+    db.prepare(`
+      UPDATE vendas_comercial SET
+        vendedor_nome = ?, data_venda = ?, cliente = ?, cnpj = ?,
+        pontos_contratados = ?, valor_mensal = ?, total_contrato = ?,
+        qtde_parcelas = ?, previsao_veiculacao = ?, data_emissao_nf = ?,
+        vencimento_boletos = ?, contato = ?, email = ?,
+        status_contrato = ?, status_contrato_assinado = ?,
+        status_conteudo = ?, status_checkin = ?,
+        status_faturado = ?, status_excel_pastas = ?,
+        obs = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      String(b.vendedor_nome || '').toUpperCase(),
+      b.data_venda || null, b.cliente || '', b.cnpj || null,
+      b.pontos_contratados || null, Number(b.valor_mensal || 0),
+      Number(b.total_contrato || 0), Number(b.qtde_parcelas || 1),
+      b.previsao_veiculacao || null, b.data_emissao_nf || null,
+      b.vencimento_boletos || null, b.contato || null, b.email || null,
+      b.status_contrato ? 1 : 0, b.status_contrato_assinado ? 1 : 0,
+      b.status_conteudo ? 1 : 0, b.status_checkin ? 1 : 0,
+      b.status_faturado ? 1 : 0, b.status_excel_pastas ? 1 : 0,
+      b.obs || null, id
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/gestao/vendas/:id/status', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { field, value } = req.body;
+    const validFields = ['status_contrato','status_contrato_assinado','status_conteudo','status_checkin','status_faturado','status_excel_pastas'];
+    if (!validFields.includes(field)) return res.status(400).json({ error: 'Campo inválido' });
+    db.prepare(`UPDATE vendas_comercial SET ${field} = ?, updated_at = datetime('now') WHERE id = ?`).run(value ? 1 : 0, id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial']), (req, res) => {
+  try {
+    db.prepare('DELETE FROM vendas_comercial WHERE id = ?').run(Number(req.params.id));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── RENOVAÇÕES ──────────────────────────────────────────────────────────
+app.get('/api/gestao/renovacoes', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const ano = Number(req.query.ano) || new Date().getFullYear();
+    const mes = req.query.mes ? Number(req.query.mes) : null;
+    let sql = 'SELECT * FROM renovacoes WHERE ano = ?';
+    const params = [ano];
+    if (mes) { sql += ' AND mes = ?'; params.push(mes); }
+    sql += ' ORDER BY mes, cliente';
+    const rows = db.prepare(sql).all(...params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/gestao/renovacoes', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const b = req.body;
+    if (!b.cliente || !b.ano || !b.mes) return res.status(400).json({ error: 'Campos obrigatórios: cliente, ano, mes' });
+    const result = db.prepare(`
+      INSERT INTO renovacoes (ano, mes, cliente, cnpj, pontos, valor_mensal, status, vendedor_nome, obs)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      Number(b.ano), Number(b.mes), b.cliente, b.cnpj || null,
+      b.pontos || null, Number(b.valor_mensal || 0),
+      b.status || 'pendente', b.vendedor_nome ? String(b.vendedor_nome).toUpperCase() : null,
+      b.obs || null
+    );
+    res.json({ ok: true, id: result.lastInsertRowid });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/gestao/renovacoes/:id', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const b = req.body;
+    const id = Number(req.params.id);
+    db.prepare(`
+      UPDATE renovacoes SET
+        cliente = ?, cnpj = ?, pontos = ?, valor_mensal = ?,
+        status = ?, vendedor_nome = ?, obs = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      b.cliente || '', b.cnpj || null, b.pontos || null,
+      Number(b.valor_mensal || 0), b.status || 'pendente',
+      b.vendedor_nome ? String(b.vendedor_nome).toUpperCase() : null,
+      b.obs || null, id
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/gestao/renovacoes/:id', requireRoles(['admin','gerente_comercial']), (req, res) => {
+  try {
+    db.prepare('DELETE FROM renovacoes WHERE id = ?').run(Number(req.params.id));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── ACUMULADO / DASHBOARD ──────────────────────────────────────────────
+app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    const ano = Number(req.query.ano) || new Date().getFullYear();
+
+    // Metas por vendedor/mês
+    const metas = db.prepare('SELECT * FROM metas_vendedor WHERE ano = ? ORDER BY vendedor_nome, mes').all(ano);
+
+    // Vendas realizadas agregadas por vendedor/mês
+    const vendas = db.prepare(`
+      SELECT vendedor_nome, mes,
+             COUNT(*) as qtde_vendas,
+             COALESCE(SUM(valor_mensal), 0) as total_mensal,
+             COALESCE(SUM(total_contrato), 0) as total_contrato
+      FROM vendas_comercial
+      WHERE ano = ?
+      GROUP BY vendedor_nome, mes
+      ORDER BY vendedor_nome, mes
+    `).all(ano);
+
+    // Renovações agregadas por mês
+    const renovacoes = db.prepare(`
+      SELECT mes,
+             COUNT(*) as total,
+             SUM(CASE WHEN status = 'concluida' THEN 1 ELSE 0 END) as concluidas,
+             SUM(CASE WHEN status != 'concluida' THEN 1 ELSE 0 END) as pendentes,
+             COALESCE(SUM(valor_mensal), 0) as valor_total
+      FROM renovacoes
+      WHERE ano = ?
+      GROUP BY mes
+      ORDER BY mes
+    `).all(ano);
+
+    // Dados do ano anterior para comparação
+    const anoAnterior = ano - 1;
+    const vendasAnterior = db.prepare(`
+      SELECT vendedor_nome, mes,
+             COUNT(*) as qtde_vendas,
+             COALESCE(SUM(valor_mensal), 0) as total_mensal,
+             COALESCE(SUM(total_contrato), 0) as total_contrato
+      FROM vendas_comercial
+      WHERE ano = ?
+      GROUP BY vendedor_nome, mes
+      ORDER BY vendedor_nome, mes
+    `).all(anoAnterior);
+
+    res.json({ ano, metas, vendas, renovacoes, vendasAnterior, vendedores: VENDEDORES_PADRAO, mesesLabel: MESES_LABEL });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

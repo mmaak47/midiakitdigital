@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
@@ -67,6 +67,7 @@ const ADMIN_TABS = [
   { key: 'usuarios',         label: 'Usuários',           icon: Users,         roles: ['admin'] },
   { key: 'vendas',           label: 'Nova Venda',         icon: Zap,           roles: ['admin', 'gerente_comercial', 'vendedor'] },
   { key: 'historico_vendas', label: 'Vendas',             icon: ClipboardList, roles: ['admin', 'gerente_comercial', 'vendedor'] },
+  { key: 'gestao_comercial', label: 'Gestão Comercial',   icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'], href: '/comercial/gestao' },
   { key: 'auditoria_loop',   label: 'Auditoria de Loop', icon: Activity,      roles: ['admin', 'gerente_comercial'] },
   { key: 'configuracoes',    label: 'Configurações',      icon: Settings,      roles: ['admin', 'gerente_comercial'] },
 ];
@@ -115,6 +116,7 @@ function enforceElevadorDimensions(nextForm) {
 
 export default function Admin() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('intermidia_theme') !== 'light';
@@ -996,7 +998,7 @@ export default function Admin() {
                 <button
                   key={tab.key}
                   type="button"
-                  onClick={() => setActiveTab(tab.key)}
+                  onClick={() => tab.href ? navigate(tab.href) : setActiveTab(tab.key)}
                   className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${active ? 'bg-brand-orange text-white' : th.tabInactive}`}
                 >
                   <Icon size={15} />
