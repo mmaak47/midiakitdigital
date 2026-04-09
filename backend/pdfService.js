@@ -92,7 +92,7 @@ async function _processRenderQueue() {
         task.reject(err);
       }
       // Small delay between renders to allow memory cleanup
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 200));
     }
   } finally {
     _isRendering = false;
@@ -181,8 +181,8 @@ async function renderHtmlToPdf(htmlContent) {
         console.warn('[pdf/render] image wait skipped:', err?.message || err);
       }
 
-      // Let layout settle
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      // Let layout settle — imagens já chegam como data URLs, o layout estabiliza rápido
+      await new Promise((resolve) => setTimeout(resolve, 350));
 
       const pdfBuffer = await page.pdf({
         printBackground: true,

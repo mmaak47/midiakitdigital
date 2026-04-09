@@ -256,8 +256,8 @@ function assetUrl(path) {
 // Comprime uma imagem via Canvas antes de embutir no PDF.
 // Redimensiona para no máximo MAX_IMG_PX em qualquer dimensão e recodifica como JPEG.
 // Reduz o tamanho do HTML enviado ao backend em ~90% sem perda visual perceptível no PDF.
-const MAX_IMG_PX = 1920;   // largura/altura máxima
-const IMG_QUALITY = 0.82;  // qualidade JPEG (0–1)
+const MAX_IMG_PX = 1366;   // largura/altura máxima — igual à largura do PDF
+const IMG_QUALITY = 0.75;  // qualidade JPEG (0–1)
 
 async function compressImageBlob(blob) {
   return new Promise((resolve) => {
@@ -2039,7 +2039,9 @@ export async function generateMidiaKitPdf({ praca, pracas, pontos }) {
     totalEnderecos: new Set(kitPontos.map((p) => `${p.cidade || ''}-${p.endereco || ''}`.trim())).size
   };
 
-  const pointImages = kitPontos.map((ponto) => pickImageUrl(ponto));
+  // Pré-carrega todas as imagens dos pontos em paralelo com compressão via canvas
+  // antes de montar o HTML — o Puppeteer recebe data URLs prontas (sem downloads externos)
+  const pointImages = await Promise.all(kitPontos.map((ponto) => imageToDataUrl(pickImageUrl(ponto))));
   const pages = [
     buildMidiaKitCoverPage({ cidade, pontos: kitPontos, resumo, assets, selectedCities }),
     buildMidiaKitManifestoPage({ assets }),
@@ -2115,8 +2117,9 @@ export async function generateProposalPdf({
   const strategicTopicsList = normalizeLines(strategicTopics, 6);
   const hasEntornoData = proposalPoints.some((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0);
   const assets = await loadPdfAssets();
+  // Pré-carrega e comprime todas as imagens da proposta em paralelo via canvas
   const proposalImages = await Promise.all(
-    proposalPoints.map(async (point) => blobUrlToDataUrl(pickProposalImageUrl(point)))
+    proposalPoints.map((point) => imageToDataUrl(pickProposalImageUrl(point)))
   );
   const pages = [
     buildProposalCoverPage({
