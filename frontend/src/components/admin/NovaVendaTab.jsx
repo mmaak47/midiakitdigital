@@ -21,7 +21,7 @@ const emptyForm = {
   periodo_fim: '',
   data_primeira_parcela: '',
   dia_pagamento_dia: '',
-  responsavel_nome: '',,
+  responsavel_nome: '',
   responsavel_whatsapp: '',
   obs: '',
 };
