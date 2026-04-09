@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  TrendingUp, Target, BarChart3, Loader2, Repeat, ChevronDown, ChevronUp, Users
+  Target, Repeat, Loader2, ChevronDown, ChevronUp, Users
 } from 'lucide-react';
 import { fetchGestaoAcumulado, updateGestaoMetasBatch, fetchGestaoVendedores, fetchGestaoVendas } from '../../lib/api';
 
@@ -24,6 +24,50 @@ const pctBg = (pct) => {
   if (pct >= 50) return 'bg-amber-500';
   return 'bg-red-500';
 };
+
+function SummaryCard({ icon, title, accentClass, meta, real, pct, cardBg, border, text, textMuted, isDark, onEditClick }) {
+  const hasGoal = meta > 0;
+  const diff = real - meta;
+  return (
+    <div className={`rounded-xl border-2 ${hasGoal ? accentClass : 'border-orange-400'} ${cardBg} p-5`}>
+      <div className="flex items-center gap-2 mb-3">
+        {icon}
+        <span className={`font-bold text-base ${text}`}>{title}</span>
+      </div>
+      {hasGoal ? (
+        <>
+          <p className={`text-xs mb-0.5 ${textMuted}`}>Meta</p>
+          <p className={`text-3xl font-bold mb-3 ${text}`}>{fmtCurrency(meta)}</p>
+          <div className="flex justify-between items-center mb-1">
+            <span className={`text-sm ${textMuted}`}>Realizado</span>
+            <span className={`text-sm font-bold ${pctColor(pct)}`}>{pct}%</span>
+          </div>
+          <div className={`w-full h-3 rounded-full mb-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+            <div className={`h-full rounded-full ${pctBg(pct)} transition-all`} style={{ width: `${Math.min(pct, 100)}%` }} />
+          </div>
+          <p className={`text-xl font-semibold ${real >= meta ? 'text-green-500' : 'text-amber-500'}`}>{fmtCurrency(real)}</p>
+          <p className={`text-sm mt-0.5 ${diff >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            {diff >= 0 ? `+${fmtCurrency(diff)} acima da meta` : `${fmtCurrency(diff)} abaixo da meta`}
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-orange-500 font-semibold text-sm mb-2">⚠ Meta não configurada</p>
+          {real > 0 && (
+            <p className={`text-xl font-semibold text-green-500 mb-1`}>{fmtCurrency(real)} já realizado</p>
+          )}
+          <p className={`text-sm ${textMuted} mb-3`}>Defina a meta para ver o progresso.</p>
+          <button
+            onClick={onEditClick}
+            className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-400 transition-colors"
+          >
+            Definir Meta
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function AcumuladoMeta({ isDark, ano }) {
   const [data, setData] = useState(null);
@@ -215,99 +259,55 @@ export default function AcumuladoMeta({ isDark, ano }) {
 
       {/* Summary cards — current month */}
       <div>
-        <p className={`text-xs font-bold uppercase tracking-widest mb-3 ${textMuted}`}>{mesesLabel[currentMonth - 1]} {ano}</p>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
-            <div className="flex items-center gap-2 mb-1">
-              <Target size={16} className="text-amber-500" />
-              <span className={`text-xs font-semibold ${textMuted}`}>META 1ª PARCELA</span>
-            </div>
-            <p className="text-2xl font-bold">{fmtCurrency(monthTotals.metaParcela)}</p>
-            <p className="text-sm text-green-500 mt-1">Alcançado: {fmtCurrency(monthTotals.realParcela)}</p>
-            <p className={`text-xs mt-0.5 ${monthTotals.realParcela - monthTotals.metaParcela >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {fmtCurrency(monthTotals.realParcela - monthTotals.metaParcela)}
-            </p>
-          </div>
-          <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp size={16} className="text-blue-500" />
-              <span className={`text-xs font-semibold ${textMuted}`}>% 1ª PARCELA</span>
-            </div>
-            <p className={`text-2xl font-bold ${pctColor(monthPctParcela)}`}>{monthPctParcela}%</p>
-            <div className="w-full h-2 rounded-full bg-gray-700 mt-2">
-              <div className={`h-full rounded-full ${pctBg(monthPctParcela)} transition-all`} style={{ width: `${Math.min(monthPctParcela, 100)}%` }} />
-            </div>
-          </div>
-          <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
-            <div className="flex items-center gap-2 mb-1">
-              <Repeat size={16} className="text-purple-500" />
-              <span className={`text-xs font-semibold ${textMuted}`}>META RECORRÊNCIA</span>
-            </div>
-            <p className="text-2xl font-bold">{fmtCurrency(monthTotals.metaRecorrencia)}</p>
-            <p className="text-sm text-green-500 mt-1">Alcançado: {fmtCurrency(monthTotals.realRecorrencia)}</p>
-            <p className={`text-xs mt-0.5 ${monthTotals.realRecorrencia - monthTotals.metaRecorrencia >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {fmtCurrency(monthTotals.realRecorrencia - monthTotals.metaRecorrencia)}
-            </p>
-          </div>
-          <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
-            <div className="flex items-center gap-2 mb-1">
-              <BarChart3 size={16} className="text-green-500" />
-              <span className={`text-xs font-semibold ${textMuted}`}>% RECORRÊNCIA</span>
-            </div>
-            <p className={`text-2xl font-bold ${pctColor(monthPctRecorrencia)}`}>{monthPctRecorrencia}%</p>
-            <div className="w-full h-2 rounded-full bg-gray-700 mt-2">
-              <div className={`h-full rounded-full ${pctBg(monthPctRecorrencia)} transition-all`} style={{ width: `${Math.min(monthPctRecorrencia, 100)}%` }} />
-            </div>
-          </div>
+        <p className={`text-sm font-bold mb-3 ${textMuted}`}>{mesesLabel[currentMonth - 1]} {ano}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <SummaryCard
+            icon={<Target size={22} className="text-amber-500" />}
+            title="1ª Parcela"
+            accentClass="border-amber-400"
+            meta={monthTotals.metaParcela}
+            real={monthTotals.realParcela}
+            pct={monthPctParcela}
+            cardBg={cardBg} border={border} text={text} textMuted={textMuted} isDark={isDark}
+            onEditClick={() => setEditMetas({})}
+          />
+          <SummaryCard
+            icon={<Repeat size={22} className="text-purple-500" />}
+            title="Recorrência"
+            accentClass="border-purple-400"
+            meta={monthTotals.metaRecorrencia}
+            real={monthTotals.realRecorrencia}
+            pct={monthPctRecorrencia}
+            cardBg={cardBg} border={border} text={text} textMuted={textMuted} isDark={isDark}
+            onEditClick={() => setEditMetas({})}
+          />
         </div>
       </div>
 
       {/* YTD cards — Jan → current month */}
       <div>
-        <p className={`text-xs font-bold uppercase tracking-widest mb-3 ${textMuted}`}>Acumulado Jan → {mesesLabel[currentMonth - 1]}</p>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
-            <div className="flex items-center gap-2 mb-1">
-              <Target size={16} className="text-amber-400" />
-              <span className={`text-xs font-semibold ${textMuted}`}>META 1ª PARCELA</span>
-            </div>
-            <p className="text-2xl font-bold">{fmtCurrency(ytdTotals.metaParcela)}</p>
-            <p className="text-sm text-green-500 mt-1">Alcançado: {fmtCurrency(ytdTotals.realParcela)}</p>
-            <p className={`text-xs mt-0.5 ${ytdTotals.realParcela - ytdTotals.metaParcela >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {fmtCurrency(ytdTotals.realParcela - ytdTotals.metaParcela)}
-            </p>
-          </div>
-          <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp size={16} className="text-blue-400" />
-              <span className={`text-xs font-semibold ${textMuted}`}>% 1ª PARCELA</span>
-            </div>
-            <p className={`text-2xl font-bold ${pctColor(ytdPctParcela)}`}>{ytdPctParcela}%</p>
-            <div className="w-full h-2 rounded-full bg-gray-700 mt-2">
-              <div className={`h-full rounded-full ${pctBg(ytdPctParcela)} transition-all`} style={{ width: `${Math.min(ytdPctParcela, 100)}%` }} />
-            </div>
-          </div>
-          <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
-            <div className="flex items-center gap-2 mb-1">
-              <Repeat size={16} className="text-purple-400" />
-              <span className={`text-xs font-semibold ${textMuted}`}>META RECORRÊNCIA</span>
-            </div>
-            <p className="text-2xl font-bold">{fmtCurrency(ytdTotals.metaRecorrencia)}</p>
-            <p className="text-sm text-green-500 mt-1">Alcançado: {fmtCurrency(ytdTotals.realRecorrencia)}</p>
-            <p className={`text-xs mt-0.5 ${ytdTotals.realRecorrencia - ytdTotals.metaRecorrencia >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {fmtCurrency(ytdTotals.realRecorrencia - ytdTotals.metaRecorrencia)}
-            </p>
-          </div>
-          <div className={`rounded-xl border ${border} ${cardBg} p-4`}>
-            <div className="flex items-center gap-2 mb-1">
-              <BarChart3 size={16} className="text-green-400" />
-              <span className={`text-xs font-semibold ${textMuted}`}>% RECORRÊNCIA</span>
-            </div>
-            <p className={`text-2xl font-bold ${pctColor(ytdPctRecorrencia)}`}>{ytdPctRecorrencia}%</p>
-            <div className="w-full h-2 rounded-full bg-gray-700 mt-2">
-              <div className={`h-full rounded-full ${pctBg(ytdPctRecorrencia)} transition-all`} style={{ width: `${Math.min(ytdPctRecorrencia, 100)}%` }} />
-            </div>
-          </div>
+        <p className={`text-sm font-bold mb-3 ${textMuted}`}>Acumulado Jan → {mesesLabel[currentMonth - 1]}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <SummaryCard
+            icon={<Target size={22} className="text-amber-400" />}
+            title="1ª Parcela"
+            accentClass="border-amber-300"
+            meta={ytdTotals.metaParcela}
+            real={ytdTotals.realParcela}
+            pct={ytdPctParcela}
+            cardBg={cardBg} border={border} text={text} textMuted={textMuted} isDark={isDark}
+            onEditClick={() => setEditMetas({})}
+          />
+          <SummaryCard
+            icon={<Repeat size={22} className="text-purple-400" />}
+            title="Recorrência"
+            accentClass="border-purple-300"
+            meta={ytdTotals.metaRecorrencia}
+            real={ytdTotals.realRecorrencia}
+            pct={ytdPctRecorrencia}
+            cardBg={cardBg} border={border} text={text} textMuted={textMuted} isDark={isDark}
+            onEditClick={() => setEditMetas({})}
+          />
         </div>
       </div>
 
