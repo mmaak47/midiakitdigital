@@ -144,9 +144,28 @@ export default function AcumuladoMeta({ isDark, ano }) {
 
   if (!data) return null;
 
-  // Compute grand totals for summary cards (current month ONLY)
+  // All unique vendedor keys across metas + vendas (handles username vs vendedor_nome mismatch)
   const currentMonth = new Date().getMonth() + 1;
-  const monthTotals = vendedores.reduce((acc, v) => {
+  const allVendedorKeys = useMemo(() => {
+    const keys = new Set([
+      ...Object.keys(metaMap),
+      ...Object.keys(vendaMap),
+      ...Object.keys(metaRecorrenciaMap),
+    ]);
+    return Array.from(keys);
+  }, [metaMap, vendaMap, metaRecorrenciaMap]);
+
+  // Keys to use for totals: if filterVendedor is set, restrict; otherwise all
+  const activeKeys = filterVendedor === 'todos' ? allVendedorKeys : allVendedorKeys.filter(k => {
+    // match by exact key OR by username from vendedoresInfo
+    if (k === filterVendedor) return true;
+    const info = vendedoresInfo.find(vi => vi.username === filterVendedor);
+    if (!info) return false;
+    const fullName = [info.first_name, info.last_name].filter(Boolean).join(' ');
+    return k === fullName;
+  });
+
+  const monthTotals = activeKeys.reduce((acc, v) => {
     acc.metaParcela += metaMap[v]?.[currentMonth] || 0;
     acc.metaRecorrencia += metaRecorrenciaMap[v]?.[currentMonth] || 0;
     acc.realParcela += vendaMap[v]?.[currentMonth]?.mensal || 0;
@@ -155,7 +174,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
   }, { metaParcela: 0, metaRecorrencia: 0, realParcela: 0, realRecorrencia: 0 });
 
   // YTD totals (Jan → current month)
-  const ytdTotals = vendedores.reduce((acc, v) => {
+  const ytdTotals = activeKeys.reduce((acc, v) => {
     for (let m = 1; m <= currentMonth; m++) {
       acc.metaParcela += metaMap[v]?.[m] || 0;
       acc.metaRecorrencia += metaRecorrenciaMap[v]?.[m] || 0;
@@ -183,7 +202,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
         >
           Todos
         </button>
-        {vendedores.map(v => (
+        {allVendedorKeys.map(v => (
           <button
             key={v}
             onClick={() => setFilterVendedor(v)}
@@ -297,10 +316,10 @@ export default function AcumuladoMeta({ isDark, ano }) {
         let acumMetaP = 0, acumRealP = 0, acumMetaR = 0, acumRealR = 0;
         const aggRows = mesesLabel.map((label, idx) => {
           const m = idx + 1;
-          const metaP = vendedores.reduce((s, v) => s + (metaMap[v]?.[m] || 0), 0);
-          const metaR = vendedores.reduce((s, v) => s + (metaRecorrenciaMap[v]?.[m] || 0), 0);
-          const realP = vendedores.reduce((s, v) => s + (vendaMap[v]?.[m]?.mensal || 0), 0);
-          const realR = vendedores.reduce((s, v) => s + (vendaMap[v]?.[m]?.contrato || 0), 0);
+          const metaP = allVendedorKeys.reduce((s, v) => s + (metaMap[v]?.[m] || 0), 0);
+          const metaR = allVendedorKeys.reduce((s, v) => s + (metaRecorrenciaMap[v]?.[m] || 0), 0);
+          const realP = allVendedorKeys.reduce((s, v) => s + (vendaMap[v]?.[m]?.mensal || 0), 0);
+          const realR = allVendedorKeys.reduce((s, v) => s + (vendaMap[v]?.[m]?.contrato || 0), 0);
           acumMetaP += metaP; acumRealP += realP; acumMetaR += metaR; acumRealR += realR;
           return {
             m, label, metaP, metaR, realP, realR,
@@ -360,7 +379,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
       })()}
 
       {/* Per-vendedor tables */}
-      {vendedores.filter(v => filterVendedor === 'todos' || filterVendedor === v).map(vendedor => {
+      {allVendedorKeys.filter(v => filterVendedor === 'todos' || activeKeys.includes(v)).map(vendedor => {
         let acumMetaP = 0, acumRealP = 0, acumMetaR = 0, acumRealR = 0;
         const rows = [];
         for (let m = 1; m <= 12; m++) {
