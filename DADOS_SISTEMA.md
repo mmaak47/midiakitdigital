@@ -10,6 +10,7 @@ Documentação completa de todos os dados utilizados no sistema, suas origens, t
 2. [APIs Externas Consumidas](#2-apis-externas)
 3. [Processamento de Dados (Backend)](#3-processamento-backend)
 4. [Motor de Recomendação (Frontend)](#4-motor-de-recomendação)
+   - [4.4 Métricas Estimadas — Como Cada Dado É Calculado](#44-métricas-estimadas--como-cada-dado-é-calculado)
 5. [Endpoints da API Interna](#5-endpoints-api)
 6. [Upload de Arquivos](#6-uploads)
 7. [Autenticação e Segurança](#7-autenticação)
@@ -931,7 +932,280 @@ O motor de recomendação em `strategy.js` calcula uma pontuação de compatibil
 
 ---
 
-## 5. Endpoints API
+## 4.4 Métricas Estimadas — Como Cada Dado É Calculado
+
+Esta seção explica, em linguagem natural com fórmulas matemáticas, como o sistema calcula cada métrica exibida no Planejador de Campanha e demais telas. Nenhum dado de audiência é coletado em tempo real; todos os valores são **estimativas baseadas em modelos estatísticos** amplamente utilizados no mercado DOOH.
+
+---
+
+### Fluxo Mensal
+
+**O que é:** Quantidade total de pessoas que passam pelo ponto de mídia por mês. É a unidade-base de todas as demais estimativas.
+
+**Como é obtido:** O fluxo de cada ponto é informado manualmente no cadastro, podendo ser baseado em dados de concessionária, estudo de tráfego, medição de câmera ou estimativa de mercado. Não há cálculo automático — o sistema usa o valor registrado como campo `fluxo` do ponto.
+
+**Usado como:** Numerador do CPM, base para Share of Voice, soma total de impactos da campanha.
+
+---
+
+### CPM — Custo por Mil Impressões
+
+**O que é:** Quanto custa atingir 1.000 pessoas (impactos) com o plano. É a métrica-padrão de eficiência de mídia.
+
+**Fórmula:**
+
+$$
+\text{CPM} = \frac{\text{Investimento total (R\$)}}{\text{Fluxo total} / 1.000}
+$$
+
+**Exemplo:** Investimento de R$ 3.000 num ponto com 200.000 impactos/mês → CPM = R$ 15,00.
+
+**Classificação de eficiência usada internamente:**
+
+| CPM | Classe |
+|-----|--------|
+| ≤ R$ 5,00 | Muito eficiente |
+| R$ 5,01 – R$ 15,00 | Eficiente |
+| R$ 15,01 – R$ 30,00 | Médio |
+| > R$ 30,00 | Alto |
+
+---
+
+### Alcance Estimado (por ponto individual, tela de Ranking)
+
+**O que é:** Estimativa de quantas pessoas únicas são impactadas por um único ponto por mês.
+
+**Raciocínio:** Nem toda pessoa que passa por um painel o vê com atenção, e a mesma pessoa pode passar mais de uma vez (ou seja, o fluxo bruto conta múltiplas passagens da mesma pessoa). O sistema aplica um **fator de alcance único de 38%** — valor conservador calibrado para o perfil de mídia exterior urbana brasileira, onde se estima que cerca de um terço do fluxo corresponde a pessoas distintas que efetivamente notam o anúncio.
+
+**Fórmula:**
+
+$$
+\text{Alcance individual} = \text{Fluxo} \times 0{,}38
+$$
+
+**Exemplo:** Ponto com 50.000 impactos/mês → 50.000 × 0,38 = **19.000 pessoas únicas alcançadas**.
+
+---
+
+### Alcance Efetivo da Campanha (%)
+
+**O que é:** Porcentagem da audiência total da praça (cidade) que a campanha como um todo consegue atingir ao menos uma vez. É o indicador principal de cobertura de mercado.
+
+**Por que não é simplesmente a soma dos alcances individuais?** Porque pontos de mídia numa mesma cidade compartilham audiência — a mesma pessoa pode passar por múltiplos painéis. Somar os alcances individuais geraria dupla contagem. O sistema usa um modelo de saturação exponencial (baseado na metodologia Metheringham/Agostini, padrão em planejamento de mídia) para estimar o alcance único acumulado.
+
+**Etapa 1 — Share of Voice (SoV):**
+
+O SoV é a fatia do fluxo total da praça que a campanha representa.
+
+$$
+\text{SoV} = \frac{\text{Fluxo total dos pontos selecionados}}{\text{Fluxo total do inventário da cidade}}
+$$
+
+**Etapa 2 — Alcance bruto:**
+
+Usando a curva exponencial de saturação de mídia:
+
+$$
+\text{Alcance bruto (\%)} = 100 \times \left(1 - e^{-2{,}65 \times \text{SoV}}\right)
+$$
+
+Onde o coeficiente 2,65 representa a velocidade com que a campanha "esgota" novas pessoas da audiência à medida que aumenta sua presença no mercado. Conforme o SoV cresce, cada novo ponto adiciona proporcionalmente menos pessoas únicas novas (lei dos rendimentos decrescentes).
+
+**Etapa 3 — Multiplicador de qualidade:**
+
+Campanhas com maior diversidade de formatos (LED + backlight + indoor) e/ou presença em múltiplas cidades tendem a atingir audiências diferentes. O sistema aplica um multiplicador para capturar esse efeito:
+
+$$
+M_{qualidade} = \min(1{,}15;\; 0{,}72 + N_{formatos} \times 0{,}055 + N_{cidades} \times 0{,}03)
+$$
+
+Onde $N_{formatos}$ é o número de tipos de mídia distintos (LED, frontlight, indoor, etc.) e $N_{cidades}$ é o número de cidades distintas na campanha.
+
+**Etapa 4 — Alcance efetivo:**
+
+$$
+\text{Alcance efetivo (\%)} = \min(96;\; \text{Alcance bruto} \times M_{qualidade})
+$$
+
+O teto de 96% reflete a impossibilidade prática de atingir 100% de uma audiência urbana com mídia exterior.
+
+**Exemplo:** Campanha com SoV de 30%, 2 formatos, 1 cidade:
+- Alcance bruto = 100 × (1 − e^−0,795) = 54,9%
+- Multiplicador = min(1,15; 0,72 + 0,11) = 0,83
+- Alcance efetivo = min(96; 45,6%) = **45,6%**
+
+---
+
+### Frequência Média
+
+**O que é:** Número médio de vezes que cada pessoa alcançada pela campanha viu o anúncio no período.
+
+**Raciocínio:** Uma vez que o sistema estima o número de pessoas únicas (alcance), divide o total de impactos brutos por esse número. O resultado é a frequência média — quanto mais alto, mais "repetitivo" é o plano para o mesmo público.
+
+**Etapas do cálculo:**
+
+**1. Estimar o universo de pessoas únicas da praça:**
+
+O sistema usa o fluxo total da cidade para inferir o tamanho do mercado de audiência única. A premissa é que o fluxo mensal de toda a praça equivale aproximadamente a 6,8 "passagens por pessoa" por mês — ou seja, o habitante típico contribui com cerca de 6 a 7 contatos mensais com a mídia exterior da cidade.
+
+$$
+\text{Base do mercado} = \max\left(45.000;\; \frac{\text{Fluxo total da cidade}}{6{,}8}\right)
+$$
+
+O mínimo de 45.000 existe para cidades menores, evitando estimativas irrealistas de alcance absoluto.
+
+**2. Estimar pessoas únicas alcançadas pela campanha:**
+
+$$
+\text{Pessoas únicas} = \text{Base do mercado} \times \frac{\text{Alcance efetivo}}{100}
+$$
+
+**3. Calcular a frequência média:**
+
+$$
+\text{Frequência média} = \frac{\text{Fluxo total dos pontos selecionados}}{\text{Pessoas únicas}}
+$$
+
+**Exemplo:** Fluxo total da campanha = 500.000 impactos/mês, 80.000 pessoas únicas → **Frequência média = 6,25×** (cada pessoa viu o anúncio, em média, 6,25 vezes no mês).
+
+**Referência de frequência:** No mercado DOOH, frequência entre 2,0× e 6,0× é considerada ótima — abaixo disso pode não fixar a mensagem; acima de 8× pode gerar fadiga de anúncio.
+
+---
+
+### GRPs (Gross Rating Points)
+
+**O que é:** Métrica agregada de pressão de mídia. Combina alcance e frequência numa única grandeza.
+
+**Fórmula:**
+
+$$
+\text{GRPs} = \text{Alcance efetivo (\%)} \times \text{Frequência média}
+$$
+
+**Exemplo:** Alcance de 45% × Frequência de 6,25× = **281,3 GRPs/mês**.
+
+GRPs altos indicam campanha de alta pressão. Valores típicos no DOOH regional ficam entre 50 e 400 GRPs/mês.
+
+---
+
+### Score da Campanha (0 a 10)
+
+**O que é:** Avaliação geral da qualidade e eficiência do plano gerado. Combina cinco dimensões ponderadas num número de 0 a 10.
+
+**Composição (pesos fixos):**
+
+$$
+\text{Score} = Q \times 0{,}30 + A \times 0{,}25 + F \times 0{,}20 + E \times 0{,}15 + C \times 0{,}10 + B
+$$
+
+| Dimensão | Símbolo | Peso | O que mede |
+|----------|---------|------|------------|
+| Qualidade dos pontos | $Q$ | 30% | Média ponderada da compatibilidade individual de cada ponto com o objetivo, ponderada pelo investimento em cada ponto |
+| Alcance | $A$ | 25% | Baseado no alcance efetivo (%): quanto maior o alcance da praça, maior a nota |
+| Frequência | $F$ | 20% | Avalia se a frequência está na faixa ideal (2–6×): muito baixa ou muito alta penaliza |
+| Eficiência de custo | $E$ | 15% | Compara o CPM da campanha com a mediana do CPM do inventário da cidade (benchmark local) |
+| Cobertura estratégica | $C$ | 10% | Combina (a) qualidade do formato dos pontos selecionados, (b) diversidade geográfica, (c) porcentagem do inventário coberto, (d) aderência ao público-alvo |
+| Bônus de equilíbrio | $B$ | — | Pequeno bônus (máx. 0,5 ponto) se todas as 5 dimensões estiverem acima de 5,0 e próximas entre si (spread < 3 pontos) — campanha equilibrada recebe reconhecimento |
+
+**Escalas internas de cada dimensão:**
+
+*Alcance (A):*
+
+| Alcance efetivo | Nota atribuída |
+|-----------------|----------------|
+| ≥ 50% | 9,0 a 10,0 |
+| 25%–49% | 7,0 a 9,0 |
+| 10%–24% | 4,5 a 7,0 |
+| 3%–9% | 2,0 a 4,5 |
+| < 3% | 0 a 2,0 |
+
+*Frequência (F):*
+
+| Frequência média | Nota atribuída |
+|-----------------|----------------|
+| 2× a 6× | 7,5 a 9,5 (faixa ótima) |
+| 1,5× a 2× | 5,0 a 7,5 |
+| < 1,5× | 1,5 a 5,0 |
+| > 8× | penalidade progressiva (−0,5 por × extra) |
+
+*Eficiência de custo (E):*
+
+A eficiência usa a razão entre o CPM da campanha e o CPM mediano da cidade ($\text{CPM}_{ref}$):
+
+$$
+\text{razão} = \frac{\text{CPM da campanha}}{\text{CPM}_{ref}}
+$$
+
+$$
+E = \text{clamp}(0{,}5;\; 10;\; 6 + (1 - \text{razão}) \times 6)
+$$
+
+Razão 0,5 (CPM 50% abaixo da mediana) → nota 9. Razão 1,0 (CPM igual à mediana) → nota 6. Razão 1,5 → nota 3.
+
+**Interpretação:**
+
+| Score | Classificação |
+|-------|--------------|
+| 8,5 – 9,8 | Excelente |
+| 7,0 – 8,4 | Boa |
+| 5,0 – 6,9 | Regular |
+| < 5,0 | Fraca |
+
+---
+
+### Compatibilidade do Ponto (0 a 100)
+
+**O que é:** Score individual atribuído a cada ponto do ranking, indicando o quanto aquele ponto é adequado para a campanha com os critérios informados (objetivo, segmento, público, cidade, orçamento).
+
+**Como é calculado:** É a soma ponderada de múltiplos sub-scores de afinidade, com pesos configuráveis (padrão):
+
+| Dimensão | Peso padrão | O que avalia |
+|----------|-------------|--------------|
+| Objetivo | 28/100 | Aderência do formato/fluxo/tipo ao objetivo da campanha (reconhecimento, presença premium, cobertura, etc.) |
+| Público | 18/100 | Correspondência entre o público-alvo do ponto e o público-alvo desejado |
+| Eficiência | 16/100 | CPM individual do ponto vs. mediana da praça |
+| Entorno | 14/100 | Score de afinidade com o segmento de negócio (calculado via análise da vizinhança 800m) |
+| GeoAudiência | 12/100 | Bônus do tipo de bairro para o segmento (ex: polo de saúde para clínica) |
+| Segmento | 10/100 | Correspondência lexical entre nome/descrição do ponto e setor do anunciante |
+| Formato | 8/100 | Qualidade do formato (LED e outdoor recebem mais que indoor para reconhecimento de marca, por exemplo) |
+| Disponibilidade | 6/100 | Adequação do horário de funcionamento à faixa horária desejada |
+| Perfil demográfico | 6/100 | Compatibilidade do perfil census (alta renda, jovem universitário, etc.) com o público-alvo |
+| Audience Tags | — | Afinidade de etiquetas de audiência (classe A, executivos, motoristas, etc.) com as tags selecionadas |
+
+O resultado final é normalizado ao intervalo [0, 100] e exibido nos cards de ponto.
+
+---
+
+### Nível de Cobertura da Praça
+
+**O que é:** Indicador qualitativo de quanto da oferta de mídia disponível na cidade o plano ocupa.
+
+**Fórmula (% de pontos cobertos):**
+
+$$
+\text{Cobertura (\%)} = \frac{\text{Pontos selecionados}}{\text{Total de pontos da cidade}} \times 100
+$$
+
+**Classificações:**
+
+| Threshold | Nível |
+|-----------|-------|
+| ≥ 50% dos pontos ou ≥ 55% do fluxo | Domínio regional |
+| ≥ 25% dos pontos ou ≥ 30% do fluxo | Estratégico |
+| < 25% dos pontos | Essencial |
+
+---
+
+### Notas Gerais sobre as Estimativas
+
+- Todos os valores de audiência são **projeções baseadas em modelos**, não medições diretas. A precisão depende da qualidade do dado de `fluxo` cadastrado por cada ponto.
+- O modelo de alcance exponencial (Etapa 2 acima) é uma adaptação dos modelos clássicos de mídia (Agostini, 1961; Metheringham, 1964) aplicados ao contexto DOOH urbano brasileiro.
+- O fator 6,8 passagens/pessoa/mês foi calibrado para características de cidades médias brasileiras (Londrina, Maringá, Balneário Camboriú). Em cidades muito grandes (São Paulo, Curitiba), esse fator seria maior; em cidades pequenas, menor.
+- O teto de 96% no alcance efetivo e o fator 0,38 no alcance individual são valores conservadores intencionais — preferindo subestimar a superestimar a audiência.
+
+---
+
+
 
 ### 5.1 Pontos de Mídia
 

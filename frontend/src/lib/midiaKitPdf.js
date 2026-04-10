@@ -313,16 +313,19 @@ async function imageToDataUrl(url) {
   return promise;
 }
 
-function createPage(content, background = '#050505') {
+function createPage(content, background = '#050505', options = {}) {
+  const pageH = options.height || PAGE_HEIGHT;
   const page = document.createElement('section');
+  if (options.cssClass) page.className = options.cssClass;
+  if (options.height) page.dataset.customHeight = String(options.height);
   Object.assign(page.style, {
     display: 'block',
     width: `${PAGE_WIDTH}px`,
-    height: `${PAGE_HEIGHT}px`,
-    minHeight: `${PAGE_HEIGHT}px`,
-    maxHeight: `${PAGE_HEIGHT}px`,
+    height: `${pageH}px`,
+    minHeight: `${pageH}px`,
+    maxHeight: `${pageH}px`,
     position: 'relative',
-    overflow: 'hidden',
+    overflow: options.height ? 'visible' : 'hidden',
     background,
     color: '#ffffff',
     fontFamily: 'Poppins, system-ui, sans-serif',
@@ -440,6 +443,19 @@ async function renderPagesToPdf(pages, fileName, options = {}) {
   const origin = window.location.origin;
   const pdfTitle = String(fileName || 'documento.pdf').replace(/\.pdf$/i, '').trim() || 'Documento';
   const pageHtmlParts = pages.map((p) => p.outerHTML).join('\n');
+  // Inject named @page rules for sections that require a non-standard height
+  const customPageCss = pages
+    .filter((p) => p.dataset?.customHeight && p.className)
+    .map((p) => {
+      const h = parseInt(p.dataset.customHeight, 10);
+      const cls = p.className.split(/\s+/)[0];
+      const pageName = cls.replace(/[^a-zA-Z0-9]/g, '_') + '_named';
+      return [
+        `@page ${pageName} { size: ${PAGE_WIDTH}px ${h}px; margin: 0; }`,
+        `section.${cls} { page: ${pageName}; height: ${h}px !important; max-height: ${h}px !important; overflow: visible !important; }`,
+      ].join('\n');
+    })
+    .join('\n');
   const fullHtml = `<!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="utf-8">
 <base href="${origin}">
@@ -469,6 +485,7 @@ section:last-child {
     overflow: visible;
   }
 }
+${customPageCss}
 </style>
 </head>
 <body>${pageHtmlParts}</body></html>`;
@@ -1874,36 +1891,27 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
   const fluxoLabel = proposalTotals?.fluxoTotal ? proposalTotals.fluxoTotal.toLocaleString('pt-BR') : '—';
   const cpmLabel = proposalTotals?.cpmEstimado ? formatMoney(proposalTotals.cpmEstimado) : '—';
 
-  const maxPointsToDisplay = 10;
-  const displayPoints = proposalPoints.slice(0, maxPointsToDisplay);
-  const hiddenPoints = proposalPoints.length - displayPoints.length;
+  // Dynamic page height: fixed overhead + per-row height for all points
+  const IMPACT_ROW_HEIGHT_PX = 44;
+  const IMPACT_OVERHEAD_PX = 340;
+  const impactPageHeight = Math.max(PAGE_HEIGHT, IMPACT_OVERHEAD_PX + proposalPoints.length * IMPACT_ROW_HEIGHT_PX);
 
-  let pointRows = displayPoints.map((p) => `
+  let pointRows = proposalPoints.map((p) => `
     <tr>
       <td style="padding:12px 16px;font-size:13px;font-weight:600;color:#fff;border-bottom:1px solid rgba(255,255,255,0.06);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.nome || 'Ponto')}</td>
       <td style="padding:12px 16px;font-size:12px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.06);">${escapeHtml(p.cidade || '—')}</td>
       <td style="padding:12px 16px;font-size:12px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.06);">${escapeHtml(getPointTypeLabel(p) || '—')}</td>
-      <td style="padding:12px 16px;font-size:13px;font-weight:700;color:${PROPOSAL_ACCENT};border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;white-space:nowrap;">${formatMoney(p.preco || 0)}</td>
+      <td style="padding:12px 16px;font-size:13px;font-weight:700;color:${PROPOSAL_ACCENT};border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;white-space:nowrap;">${formatMoney(p.precoOriginal ?? p.preco ?? 0)}</td>
       <td style="padding:12px 16px;font-size:13px;font-weight:700;color:${PROPOSAL_ACCENT};border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;white-space:nowrap;">${formatMoney(p.precoFinal ?? p.preco ?? 0)}</td>
     </tr>
   `).join('');
-
-  if (hiddenPoints > 0) {
-    pointRows += `
-      <tr>
-        <td colspan="5" style="padding:14px 16px;font-size:12px;font-style:italic;color:rgba(255,255,255,0.5);text-align:center;background:rgba(255,255,255,0.02);border-top:1px solid rgba(255,255,255,0.05);">
-          E mais ${hiddenPoints} ${hiddenPoints === 1 ? 'ponto detalhado' : 'pontos detalhados'} ao longo desta proposta...
-        </td>
-      </tr>
-    `;
-  }
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
     <div style="position:absolute;top:-20%;right:-10%;width:800px;height:800px;background:radial-gradient(circle, rgba(255,90,31,0.08) 0%, transparent 60%);border-radius:50%;filter:blur(60px);pointer-events:none;"></div>
     <div style="position:absolute;bottom:-20%;left:-10%;width:600px;height:600px;background:radial-gradient(circle, rgba(255,90,31,0.05) 0%, transparent 60%);border-radius:50%;filter:blur(60px);pointer-events:none;"></div>
 
-    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:42px 52px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;">
+    <div style="position:relative;z-index:1;height:${impactPageHeight}px;max-height:${impactPageHeight}px;padding:42px 52px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:visible;font-family:Poppins, system-ui, sans-serif;">
 
       <!-- Header -->
       <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -1914,10 +1922,10 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
         </div>
       </div>
 
-      <div style="display:flex;gap:24px;flex:1;overflow:hidden;">
+      <div style="display:flex;gap:24px;flex:1;overflow:visible;">
         
         <!-- LEFT COLUMN (Points & Info) -->
-        <div style="flex:1;display:flex;flex-direction:column;gap:20px;overflow:hidden;">
+        <div style="flex:1;display:flex;flex-direction:column;gap:20px;overflow:visible;">
           
           <!-- Summary cards -->
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
@@ -1935,7 +1943,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
           </div>
 
           <!-- Points table -->
-          <div style="flex:1;display:flex;flex-direction:column;border-radius:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+          <div style="flex:1;display:flex;flex-direction:column;border-radius:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};overflow:visible;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
             <div style="padding:14px 20px;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;">
               <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.6);">Pontos da campanha</div>
               <div style="font-size:11px;font-weight:700;color:${PROPOSAL_ACCENT};background:rgba(255,90,31,0.1);border:1px solid rgba(255,90,31,0.2);padding:4px 12px;border-radius:100px;">Total de ${pointCount} pontos</div>
@@ -2019,7 +2027,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
         </div>
       </div>
     </div>
-  `, BRAND_DARK);
+  `, BRAND_DARK, { height: impactPageHeight, cssClass: 'impact-page' });
 }
 
 export async function generateMidiaKitPdf({ praca, pracas, pontos }) {
