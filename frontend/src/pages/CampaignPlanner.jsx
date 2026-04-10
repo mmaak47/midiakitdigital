@@ -313,6 +313,8 @@ export default function CampaignPlanner() {
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [selectedPoint, setSelectedPoint] = useState(null);
+  const [aiPhase, setAiPhase] = useState(null); // null | 'thinking' | 'done'
+  const [aiPhaseIndex, setAiPhaseIndex] = useState(0);
 
   useEffect(() => {
     document.title = 'Planejador de Campanha | Intermidia Mídia Kit Digital';
@@ -362,92 +364,113 @@ export default function CampaignPlanner() {
     }
   }, [step, empresa, segmento, objetivos, publicoAlvo, audienceTags, cidade, budget]);
 
+  const AI_PHASES = [
+    { icon: '🔍', label: 'Analisando o perfil de ' + (empresa || 'sua empresa') + '...' },
+    { icon: '📊', label: 'Mapeando pontos estratégicos em ' + (cidade || 'sua cidade') + '...' },
+    { icon: '🧠', label: 'Calculando alcance e frequência ideal...' },
+    { icon: '💰', label: 'Otimizando investimento e CPM...' },
+    { icon: '🤖', label: 'Gerando análise inteligente da campanha...' },
+    { icon: '✨', label: 'Montando recomendação personalizada...' },
+  ];
+
   const runRecommendation = useCallback(() => {
+    // 1. Show the AI thinking screen immediately
+    setAiPhase('thinking');
+    setAiPhaseIndex(0);
     setComputing(true);
-    // give the UI a frame to show the loading state
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        const objetivo = objetivos[0] || '';
-        const cityPontos = allPontos.filter((p) =>
-          !cidade || p.cidade === cidade
-        );
-        const plan = suggestIdealPlan({
-          pontos: allPontos,
-          cidade: cidade || undefined,
-          publico: publicoAlvo.length ? publicoAlvo : undefined,
-          audienceTags: audienceTags.map((key) => ({ key, weight: 1 })),
-          objetivo,
-          segmento,
-          periodWeeks: period,
-          investimentoMensal: budget || 0,
-          geoProfilesByPoint: geoProfiles,
-          censusProfilesByPoint: censusProfiles,
-          cityInventory: cityPontos,
-        });
+    setStep(4);
 
-        const scoreInfo = calculateCampaignScore({
-          selected: plan.pontos,
-          objective: objetivo,
-          desiredPublico: publicoAlvo,
-          cityInventory: cityPontos,
-        });
+    // 2. Advance phases on a timer (visual progression)
+    const phaseTimers = [];
+    const phaseDelay = 2500; // ms between phases
+    for (let i = 1; i < 6; i++) {
+      phaseTimers.push(setTimeout(() => setAiPhaseIndex(i), phaseDelay * i));
+    }
 
-        const strategic = generateStrategicJustification({
-          selected: plan.pontos,
-          totals: plan.totals,
-          reachFrequency: plan.reachFrequency,
-          optimizer: plan.optimizer,
-          empresa,
-          segmento,
-          objetivo,
-          cidade,
-          budget: budget || 0,
-          periodWeeks: period,
-          publicoAlvo,
-          cityInventory: cityPontos,
-          geoProfilesByPoint: geoProfiles,
-          censusProfilesByPoint: censusProfiles,
-        });
+    // 3. Run algorithmic computation (instant, but we delay to show phases)
+    const algoPromise = new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const objetivo = objetivos[0] || '';
+          const cityPontos = allPontos.filter((p) => !cidade || p.cidade === cidade);
+          const plan = suggestIdealPlan({
+            pontos: allPontos,
+            cidade: cidade || undefined,
+            publico: publicoAlvo.length ? publicoAlvo : undefined,
+            audienceTags: audienceTags.map((key) => ({ key, weight: 1 })),
+            objetivo,
+            segmento,
+            periodWeeks: period,
+            investimentoMensal: budget || 0,
+            geoProfilesByPoint: geoProfiles,
+            censusProfilesByPoint: censusProfiles,
+            cityInventory: cityPontos,
+          });
+          const scoreInfo = calculateCampaignScore({
+            selected: plan.pontos,
+            objective: objetivo,
+            desiredPublico: publicoAlvo,
+            cityInventory: cityPontos,
+          });
+          const strategic = generateStrategicJustification({
+            selected: plan.pontos,
+            totals: plan.totals,
+            reachFrequency: plan.reachFrequency,
+            optimizer: plan.optimizer,
+            empresa, segmento, objetivo, cidade,
+            budget: budget || 0,
+            periodWeeks: period,
+            publicoAlvo,
+            cityInventory: cityPontos,
+            geoProfilesByPoint: geoProfiles,
+            censusProfilesByPoint: censusProfiles,
+          });
+          const ranked = rankPointsWithScore({
+            pontos: allPontos,
+            cidade: cidade || undefined,
+            publico: publicoAlvo.length ? publicoAlvo : undefined,
+            audienceTags: audienceTags.map((key) => ({ key, weight: 1 })),
+            objetivo, segmento,
+            budget: budget || 0,
+            geoProfilesByPoint: geoProfiles,
+            censusProfilesByPoint: censusProfiles,
+          });
+          resolve({ plan, scoreInfo, strategic, ranked, objetivo });
+        }, 200);
+      });
+    });
 
-        // Rank ALL city inventory with 0-100 compatibility scores
-        const ranked = rankPointsWithScore({
-          pontos: allPontos,
-          cidade: cidade || undefined,
-          publico: publicoAlvo.length ? publicoAlvo : undefined,
-          audienceTags: audienceTags.map((key) => ({ key, weight: 1 })),
-          objetivo,
-          segmento,
-          budget: budget || 0,
-          geoProfilesByPoint: geoProfiles,
-          censusProfilesByPoint: censusProfiles,
-        });
+    // 4. Fire AI analysis in parallel
+    const aiPromise = algoPromise.then((algoResult) => {
+      const { plan, scoreInfo } = algoResult;
+      return fetchAICampaignAnalysis({
+        cidade: cidade || '',
+        objetivo: objetivos[0] || '',
+        segmento,
+        empresa,
+        pontos_selecionados: plan.pontos.length,
+        formatos: Array.from(new Set(plan.pontos.map((p) => p.tipo).filter(Boolean))),
+        fluxo_total: plan.totals?.fluxoTotal || 0,
+        investimento: plan.totals?.valorTotal || 0,
+        cpm: plan.totals?.cpmEstimado || 0,
+        alcance_pct: plan.reachFrequency?.effectiveReachPct || 0,
+        frequencia: plan.reachFrequency?.avgFrequency || 0,
+        score: scoreInfo?.score || 0,
+        breakdown: scoreInfo?.breakdown || {},
+        publico: publicoAlvo,
+      }).catch(() => null);
+    });
 
-        setResult({ plan, scoreInfo, strategic, ranked, objetivo });
-        setComputing(false);
-        setStep(4);
+    // 5. Wait for both algo and a minimum display time, then reveal results
+    const minDisplayPromise = new Promise((resolve) => setTimeout(resolve, 6 * phaseDelay + 1500));
 
-        // Fire async AI analysis (non-blocking)
-        setAiAnalysis(null);
-        setAiLoading(true);
-        fetchAICampaignAnalysis({
-          cidade: cidade || '',
-          objetivo,
-          segmento,
-          empresa,
-          pontos_selecionados: plan.pontos.length,
-          formatos: Array.from(new Set(plan.pontos.map((p) => p.tipo).filter(Boolean))),
-          fluxo_total: plan.totals?.fluxoTotal || 0,
-          investimento: plan.totals?.valorTotal || 0,
-          cpm: plan.totals?.cpmEstimado || 0,
-          alcance_pct: plan.reachFrequency?.effectiveReachPct || 0,
-          frequencia: plan.reachFrequency?.avgFrequency || 0,
-          score: scoreInfo?.score || 0,
-          breakdown: scoreInfo?.breakdown || {},
-          publico: publicoAlvo,
-        }).then((data) => {
-          if (data) setAiAnalysis(data);
-        }).catch(() => {}).finally(() => setAiLoading(false));
-      }, 100);
+    Promise.all([algoPromise, aiPromise, minDisplayPromise]).then(([algoResult, aiData]) => {
+      phaseTimers.forEach(clearTimeout);
+      setResult(algoResult);
+      if (aiData) setAiAnalysis(aiData);
+      setAiLoading(false);
+      setComputing(false);
+      setAiPhase('done');
     });
   }, [allPontos, cidade, publicoAlvo, audienceTags, objetivos, segmento, budget, period, empresa, geoProfiles, censusProfiles]);
 
@@ -463,6 +486,8 @@ export default function CampaignPlanner() {
     if (step === 4) {
       setResult(null);
       setAiAnalysis(null);
+      setAiPhase(null);
+      setAiPhaseIndex(0);
     }
     setStep((s) => Math.max(0, s - 1));
   }, [step]);
@@ -703,6 +728,96 @@ export default function CampaignPlanner() {
   const [rankExpanded, setRankExpanded] = useState(10);
   const [strategyTextExpanded, setStrategyTextExpanded] = useState(false);
 
+  /* ─── AI THINKING SCREEN ─── */
+  const renderThinkingScreen = () => (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="flex flex-col items-center justify-center py-20 px-4"
+    >
+      {/* Pulsing brain icon */}
+      <div className="relative mb-8">
+        <div className={`absolute -inset-6 rounded-full blur-2xl ${isDark ? 'bg-brand-orange/20' : 'bg-brand-orange/10'} animate-pulse`} />
+        <div className={`relative w-20 h-20 rounded-2xl flex items-center justify-center ${isDark ? 'bg-white/[0.06] border border-white/10' : 'bg-white border border-neutral-200 shadow-lg'}`}>
+          <Cpu size={36} className="text-brand-orange animate-pulse" />
+        </div>
+      </div>
+
+      {/* Title */}
+      <h2 className={`text-xl sm:text-2xl font-bold mb-2 text-center ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+        IA montando seu plano de campanha
+      </h2>
+      <p className={`text-sm mb-10 text-center max-w-md ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>
+        Nossa inteligência artificial está analisando {allPontos.filter(p => !cidade || p.cidade === cidade).length} pontos
+        de mídia em {cidade || 'sua cidade'} para criar a melhor estratégia para <span className="font-semibold text-brand-orange">{empresa}</span>.
+      </p>
+
+      {/* Phase list */}
+      <div className="w-full max-w-md space-y-3">
+        {AI_PHASES.map((phase, i) => {
+          const isActive = i === aiPhaseIndex;
+          const isDone = i < aiPhaseIndex;
+          return (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: isDone || isActive ? 1 : 0.3, x: 0 }}
+              transition={{ delay: i * 0.1, duration: 0.3 }}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-500 ${
+                isActive
+                  ? isDark
+                    ? 'bg-brand-orange/10 border border-brand-orange/30'
+                    : 'bg-orange-50 border border-orange-200'
+                  : isDone
+                    ? isDark
+                      ? 'bg-white/[0.03] border border-white/5'
+                      : 'bg-white border border-neutral-100'
+                    : 'border border-transparent'
+              }`}
+            >
+              <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
+                {isDone ? (
+                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400 }}>
+                    <CheckCircle size={20} className="text-emerald-500" />
+                  </motion.div>
+                ) : isActive ? (
+                  <Loader2 size={20} className="text-brand-orange animate-spin" />
+                ) : (
+                  <span className="text-base">{phase.icon}</span>
+                )}
+              </div>
+              <span className={`text-sm font-medium ${
+                isActive
+                  ? 'text-brand-orange'
+                  : isDone
+                    ? isDark ? 'text-white/60' : 'text-neutral-500'
+                    : isDark ? 'text-white/25' : 'text-neutral-300'
+              }`}>
+                {phase.label}
+              </span>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Progress bar */}
+      <div className={`w-full max-w-md mt-8 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`}>
+        <motion.div
+          className="h-full bg-gradient-to-r from-brand-orange to-amber-400 rounded-full"
+          initial={{ width: '0%' }}
+          animate={{ width: `${Math.min(100, ((aiPhaseIndex + 1) / AI_PHASES.length) * 100)}%` }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+        />
+      </div>
+
+      {/* Subtle note */}
+      <p className={`text-[11px] mt-4 ${isDark ? 'text-white/20' : 'text-neutral-300'}`}>
+        Inteligência Artificial Intermidia · Powered by AI
+      </p>
+    </motion.div>
+  );
+
   const renderResults = () => {
     if (!result) return null;
     const { plan, scoreInfo, strategic, ranked } = result;
@@ -753,6 +868,11 @@ export default function CampaignPlanner() {
         <div className={`rounded-2xl border p-6 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand-orange/10 text-brand-orange border border-brand-orange/20">
+                  <Cpu size={10} /> Plano gerado por IA
+                </span>
+              </div>
               <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
                 Recomendação inteligente para {empresa}
               </h2>
@@ -1287,21 +1407,9 @@ export default function CampaignPlanner() {
           Gostou do que viu? Fale conosco no WhatsApp!
         </a>
 
-        {/* Action buttons
-        <div className="flex flex-col sm:flex-row gap-3">
-          <a
-            href={`https://wa.me/554398450480?text=${encodeURIComponent(`Olá! Finalizei meu planejamento de campanha no Mídia Kit Digital da Intermidia. Empresa: ${empresa}${cidade ? ` | Cidade: ${cidade}` : ''}. Gostaria de receber uma proposta!`)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white transition-all bg-[#25D366] hover:bg-[#22c55e] active:scale-[0.98] shadow-sm"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 flex-shrink-0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-            Solicitar proposta no WhatsApp
-          </a>
-        </div>
       </motion.div>
     );
-  }; */}
+  };
 
   return (
     <div
@@ -1313,6 +1421,7 @@ export default function CampaignPlanner() {
       <main className="pt-20 pb-16 px-4 sm:px-6">
         <div className={`mx-auto ${step === 4 ? 'max-w-5xl' : 'max-w-2xl'}`}>
           {/* Title */}
+          {(step < 4 || aiPhase === 'done') && (
           <div className="text-center mb-6">
             <h1 className={`text-2xl sm:text-3xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
               Planejador de Campanha
@@ -1321,23 +1430,25 @@ export default function CampaignPlanner() {
               Responda algumas perguntas e receba um plano de mídia personalizado com os melhores pontos.
             </p>
           </div>
+          )}
 
           {/* Step indicator */}
-          <StepIndicator current={step} total={STEPS.length} isDark={isDark} />
+          {step < 4 && <StepIndicator current={step} total={STEPS.length} isDark={isDark} />}
 
           {/* Step content */}
           <AnimatePresence mode="wait">
-            <div key={step}>
+            <div key={step === 4 && aiPhase === 'done' ? 'results' : step}>
               {step === 0 && renderStep0()}
               {step === 1 && renderStep1()}
               {step === 2 && renderStep2()}
               {step === 3 && renderStep3()}
-              {step === 4 && renderResults()}
+              {step === 4 && aiPhase === 'thinking' && renderThinkingScreen()}
+              {step === 4 && aiPhase === 'done' && renderResults()}
             </div>
           </AnimatePresence>
 
           {/* Navigation buttons */}
-          {step < 4 && (
+          {step < 4 && !computing && (
             <div className="flex items-center justify-between mt-6">
               <button
                 type="button"
@@ -1388,7 +1499,7 @@ export default function CampaignPlanner() {
           )}
 
           {/* Back to edit on results page */}
-          {step === 4 && (
+          {step === 4 && aiPhase === 'done' && (
             <div className="mt-6">
               <button
                 type="button"
