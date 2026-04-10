@@ -577,10 +577,44 @@ Orçamento R$${fmt(campaignData.budget || 0)}, ${campaignData.periodoSemanas || 
 Pontos(${campaignData.pontos?.length || 0}): ${pontosSummary || 'nenhum'}
 Investimento R$${fmt(campaignData.investimento || 0)}, Fluxo ${fmt(campaignData.fluxoTotal || 0)}/mês, CPM R$${Number(campaignData.cpm || 0).toFixed(2)}, Cobertura ${campaignData.coberturaPct || 0}%.${cityLine}
 
-IMPORTANTE: Gere conteúdo REAL e ESPECÍFICO para esta campanha. NÃO copie os exemplos, crie textos originais.
+Escreva uma análise estratégica desta campanha. Use EXATAMENTE este formato:
 
-Gere JSON puro (sem markdown):
-{"avaliacao":"escreva Excelente ou Boa ou Regular","resumo_executivo":"escreva 2-3 frases reais sobre esta campanha específica","pontos_fortes":["escreva ponto forte real 1","escreva ponto forte real 2"],"oportunidades_melhoria":["escreva sugestão real 1","escreva sugestão real 2"],"argumentacao_comercial":["escreva argumento comercial real 1","escreva argumento real 2","escreva argumento real 3"],"estrategia_recomendada":"escreva a estratégia recomendada para esta campanha"}`;
+AVALIACAO: Excelente ou Boa ou Regular
+RESUMO: 2-3 frases sobre esta campanha específica
+FORTE1: primeiro ponto forte desta campanha
+FORTE2: segundo ponto forte desta campanha
+OPORTUNIDADE1: primeira sugestão de melhoria
+OPORTUNIDADE2: segunda sugestão de melhoria
+ARGUMENTO1: primeiro argumento comercial para vender esta campanha
+ARGUMENTO2: segundo argumento comercial
+ARGUMENTO3: terceiro argumento comercial
+ESTRATEGIA: a estratégia recomendada para esta campanha`;
+}
+
+/**
+ * Parse text-marker format for campaign analysis.
+ */
+function parseCampaignAnalysisText(text) {
+  const get = (key) => {
+    const re = new RegExp(`${key}:\\s*(.+)`, 'i');
+    const m = text.match(re);
+    return m ? m[1].trim() : '';
+  };
+  const avaliacao = get('AVALIACAO') || get('AVALIAÇÃO');
+  const resumo = get('RESUMO');
+  const fortes = [get('FORTE1'), get('FORTE2')].filter(Boolean);
+  const oportunidades = [get('OPORTUNIDADE1'), get('OPORTUNIDADE2')].filter(Boolean);
+  const args = [get('ARGUMENTO1'), get('ARGUMENTO2'), get('ARGUMENTO3')].filter(Boolean);
+  const estrategia = get('ESTRATEGIA') || get('ESTRATÉGIA');
+  if (!resumo && !avaliacao) return null;
+  return {
+    avaliacao: avaliacao || 'Boa',
+    resumo_executivo: resumo,
+    pontos_fortes: fortes.length ? fortes : (resumo ? [resumo] : []),
+    oportunidades_melhoria: oportunidades,
+    argumentacao_comercial: args,
+    estrategia_recomendada: estrategia,
+  };
 }
 
 /**
@@ -790,7 +824,8 @@ async function analyzeCampaign(campaignData, userId = null) {
   const prompt = buildCampaignAnalysisPrompt(campaignData, cityStats);
 
   const result = await generateWithFallback(prompt);
-  const parsed = extractJSON(result.text);
+  // Try text markers first (more reliable for small models), then JSON
+  const parsed = parseCampaignAnalysisText(result.text) || extractJSON(result.text);
 
   if (!parsed) {
     return {
