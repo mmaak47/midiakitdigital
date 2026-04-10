@@ -388,6 +388,12 @@ function authenticateSensitiveApi(req, res, next) {
     return next();
   }
 
+  // AI campaign analysis + recommendation — public for /planejar
+  const publicPostPaths = ['/ai/campaign', '/ai/recommend'];
+  if (method === 'POST' && publicPostPaths.includes(routePath)) {
+    return next();
+  }
+
   return resolveAuthenticatedUser(req, res, next);
 }
 
