@@ -24,6 +24,7 @@ const cidadeFotosRouter = require('./routes/cidadeFotos');
 const arteRouter          = require('./routes/arte');
 const comercialChatRouter = require('./routes/comercialChat');
 const geoRouter           = require('./routes/geo');
+const aiRouter            = require('./routes/ai');
 const {
   createAuthToken,
   parseAuthToken,
@@ -378,7 +379,9 @@ function authenticateSensitiveApi(req, res, next) {
     '/audience-intel/profiles',
     '/monitors',
     '/loop-audit',
-    '/geo'
+    '/geo',
+    '/ai/health',
+    '/ai/stats'
   ];
 
   if (method === 'GET' && publicGetPrefixes.some((prefix) => routePath === prefix || routePath.startsWith(`${prefix}/`))) {
@@ -450,6 +453,7 @@ app.use('/api', cidadeFotosRouter);
 app.use('/api/arte', arteRouter);
 app.use('/api/comercial/chat', requireRoles(['admin', 'gerente_comercial', 'vendedor']), comercialChatRouter);
 app.use('/api/geo', geoRouter);
+app.use('/api/ai', aiRouter);
 
 function parseOptionalCity(value) {
   if (Array.isArray(value)) {
