@@ -520,10 +520,34 @@ function buildPointInsightPrompt(point, entorno, geoProfile, census) {
 PONTO: ${point.nome} (${point.tipo}) em ${point.cidade}
 Preço R$${fmt(point.preco)}/mês, Fluxo ${fmt(point.fluxo)}/mês, CPM R$${cpm.toFixed(2)}, Score ${Number(point.score_base || 0).toFixed(1)}.${extra}
 
-IMPORTANTE: Gere conteúdo REAL e ESPECÍFICO para este ponto. NÃO copie os exemplos.
+Escreva uma análise comercial para este ponto DOOH. Use EXATAMENTE este formato:
 
-Gere JSON puro (sem markdown):
-{"headline":"escreva frase comercial impactante sobre este ponto","narrativa":"escreva 2-3 frases para convencer anunciante","argumentos":["escreva argumento real 1","escreva argumento real 2","escreva argumento real 3"],"publico_ideal":["escreva segmento ideal 1","escreva segmento ideal 2"],"destaque":"escreva a principal vantagem deste ponto"}`;
+HEADLINE: uma frase comercial impactante sobre este ponto
+NARRATIVA: 2-3 frases para convencer um anunciante a investir neste ponto
+ARGUMENTO1: primeiro argumento de venda real
+ARGUMENTO2: segundo argumento de venda real
+ARGUMENTO3: terceiro argumento de venda real
+PUBLICO1: primeiro segmento de público ideal
+PUBLICO2: segundo segmento de público ideal
+DESTAQUE: a principal vantagem competitiva deste ponto`;
+}
+
+/**
+ * Parse text-marker format from LLM into structured object.
+ */
+function parsePointInsightText(text) {
+  const get = (key) => {
+    const re = new RegExp(`${key}:\\s*(.+)`, 'i');
+    const m = text.match(re);
+    return m ? m[1].trim() : '';
+  };
+  const headline = get('HEADLINE');
+  const narrativa = get('NARRATIVA');
+  const args = [get('ARGUMENTO1'), get('ARGUMENTO2'), get('ARGUMENTO3')].filter(Boolean);
+  const publico = [get('PUBLICO1'), get('PUBLICO2')].filter(Boolean);
+  const destaque = get('DESTAQUE');
+  if (!headline && !narrativa) return null;
+  return { headline, narrativa, argumentos: args, publico_ideal: publico, destaque };
 }
 
 /**
@@ -720,7 +744,8 @@ async function generatePointInsight(pontoId, userId = null) {
   const prompt = buildPointInsightPrompt(point, entorno, geoProfile, census);
 
   const result = await generateWithFallback(prompt);
-  const parsed = extractJSON(result.text);
+  // Try text markers first (more reliable for small models), then JSON
+  const parsed = parsePointInsightText(result.text) || extractJSON(result.text);
 
   if (!parsed) {
     return {
