@@ -900,10 +900,14 @@ async function analyzeCampaign(campaignData, userId = null) {
     cidade: campaignData.cidade,
     segmento: campaignData.segmento,
     objetivo: campaignData.objetivo,
-    pontos_count: campaignData.pontos?.length || 0,
+    empresa: campaignData.empresa,
+    pontos_count: campaignData.pontos_selecionados || campaignData.pontos?.length || 0,
     investimento: campaignData.investimento,
+    cpm: campaignData.cpm,
+    score: campaignData.score,
+    alcance_pct: campaignData.alcance_pct,
   });
-  const inputHash = hashInput('campaign_' + inputStr);
+  const inputHash = hashInput('campaign_v2_' + inputStr);
 
   const cached = getCached(inputHash);
   if (cached) {
