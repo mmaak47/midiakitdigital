@@ -23,6 +23,7 @@ const db = require('./database');
 const cidadeFotosRouter = require('./routes/cidadeFotos');
 const arteRouter          = require('./routes/arte');
 const comercialChatRouter = require('./routes/comercialChat');
+const geoRouter           = require('./routes/geo');
 const {
   createAuthToken,
   parseAuthToken,
@@ -447,6 +448,7 @@ app.set('uploadsDir', uploadsPath);
 app.use('/api', cidadeFotosRouter);
 app.use('/api/arte', arteRouter);
 app.use('/api/comercial/chat', requireRoles(['admin', 'gerente_comercial', 'vendedor']), comercialChatRouter);
+app.use('/api/geo', geoRouter);
 
 function parseOptionalCity(value) {
   if (Array.isArray(value)) {
