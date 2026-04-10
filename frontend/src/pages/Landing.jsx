@@ -13,8 +13,8 @@ const MidiaKitSlidesMode = lazy(() => import('../components/MidiaKitSlidesMode')
 
 // ── WhatsApp comercial ──────────────────────────────────────────────
 // Substitua pelo número com DDI+DDD sem espaços ou traços (ex: 554399999999)
-const WA_COMERCIAL = '554399999999';
-const WA_HREF = `https://wa.me/${WA_COMERCIAL}?text=${encodeURIComponent('Olá! Gostaria de saber mais sobre a Intermidia.')}`;
+const WA_COMERCIAL = '554398450480';
+const WA_HREF = `https://wa.me/${WA_COMERCIAL}?text=${encodeURIComponent('Olá! Vim pelo mídia kit digital e gostaria de saber mais sobre a Intermidia.')}`;
 // ───────────────────────────────────────────────────────────────────
 
 const fadeUp = {

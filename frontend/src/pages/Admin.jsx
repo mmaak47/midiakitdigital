@@ -170,6 +170,7 @@ export default function Admin() {
   const [evoInstance, setEvoInstance] = useState('');
   const [evoApiKey, setEvoApiKey] = useState('');
   const [evoDestNumber, setEvoDestNumber] = useState('');
+  const [evoFinanceiroNumber, setEvoFinanceiroNumber] = useState('');
   const [evoSaving, setEvoSaving] = useState(false);
   const [evoSaveMsg, setEvoSaveMsg] = useState('');
 
@@ -632,6 +633,7 @@ export default function Admin() {
       setEvoInstance(data.evolution_instance || '');
       setEvoApiKey(data.evolution_api_key || '');
       setEvoDestNumber(data.evolution_dest_number || '');
+      setEvoFinanceiroNumber(data.evolution_financeiro_number || '');
     } catch (err) {
       if (!handleSessionError(err)) {
         setSettingsError(err.message || 'Falha ao carregar configurações');
@@ -664,7 +666,8 @@ export default function Admin() {
         evolution_api_url: evoApiUrl.trim(),
         evolution_instance: evoInstance.trim(),
         evolution_api_key: evoApiKey.trim(),
-        evolution_dest_number: evoDestNumber.trim()
+        evolution_dest_number: evoDestNumber.trim(),
+        evolution_financeiro_number: evoFinanceiroNumber.trim()
       });
       setEvoSaveMsg('Configurações salvas!');
       setTimeout(() => setEvoSaveMsg(''), 3000);
@@ -1652,6 +1655,20 @@ export default function Admin() {
                   <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
                     Para número individual use o formato: 55 + DDD + número (ex: 5543999990000).
                     Para grupos, use o ID do grupo com @g.us (ex: 120363XXXXXX@g.us).
+                  </p>
+                </div>
+                <div>
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>
+                    Número do Financeiro (lembrete semanal)
+                  </label>
+                  <input
+                    className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
+                    value={evoFinanceiroNumber}
+                    onChange={e => setEvoFinanceiroNumber(e.target.value)}
+                    placeholder="5543999990000"
+                  />
+                  <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
+                    Toda segunda-feira às 08:30 será enviado um lembrete com os contratos pendentes de assinatura.
                   </p>
                 </div>
                 <button

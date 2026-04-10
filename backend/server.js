@@ -32,6 +32,7 @@ const {
   isPasswordHash
 } = require('./auth');
 const { createBackupScheduler } = require('./backupService');
+const { startScheduledMessages } = require('./services/scheduledMessagesService');
 const { renderHtmlToPdfCompressed: renderHtmlToPdf } = require('./pdfService');
 const {
   slugifyCity,
@@ -2101,7 +2102,8 @@ app.put('/api/admin/settings', requireRoles(['admin']), (req, res) => {
       evolution_api_url,
       evolution_instance,
       evolution_api_key,
-      evolution_dest_number
+      evolution_dest_number,
+      evolution_financeiro_number
     } = req.body;
 
     if (lucro_minimo_percentual !== undefined) {
@@ -2116,7 +2118,7 @@ app.put('/api/admin/settings', requireRoles(['admin']), (req, res) => {
     }
 
     // Evolution API settings (string values — salva independente do valor)
-    const evoFields = { evolution_api_url, evolution_instance, evolution_api_key, evolution_dest_number };
+    const evoFields = { evolution_api_url, evolution_instance, evolution_api_key, evolution_dest_number, evolution_financeiro_number };
     Object.entries(evoFields).forEach(([key, val]) => {
       if (val !== undefined) {
         db.prepare("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))").run(
@@ -2680,7 +2682,8 @@ function getEvolutionSettings() {
     'evolution_api_url',
     'evolution_instance',
     'evolution_api_key',
-    'evolution_dest_number'
+    'evolution_dest_number',
+    'evolution_financeiro_number'
   ];
   const result = {};
   keys.forEach(k => {
@@ -3697,4 +3700,7 @@ app.listen(PORT, () => {
   } else {
     console.log('[entorno-auto] disabled by ENTORNO_AUTO_REFRESH_ENABLED=false');
   }
+
+  // Agendador de mensagens (lembrete financeiro toda segunda 08:30)
+  startScheduledMessages({ db, sendEvolutionText, getEvolutionSettings });
 });
