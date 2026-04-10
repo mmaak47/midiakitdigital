@@ -278,7 +278,7 @@ function DividerSlide({ tipo, count, totaisTipo, points }) {
           <div className="mt-5 grid grid-cols-3 gap-8 text-center">
             <div>
               <div className="text-2xl font-bold">{fmtInt(totaisTipo.telas)}</div>
-              <div className="text-[11px] uppercase tracking-wide text-brand-gray-400 mt-1">Telas</div>
+              <div className="text-[11px] uppercase tracking-wide text-brand-gray-400 mt-1">Pontos de Impacto</div>
             </div>
             <div>
               <div className="text-2xl font-bold">{fmtInt(totaisTipo.fluxo)}</div>
@@ -465,7 +465,7 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
               {fmtInt(Number(point.fluxo) || 0)} / mês
             </div>
             <div>
-              <span className="text-brand-gray-500">Telas: </span>
+              <span className="text-brand-gray-500">Pontos de Impacto: </span>
               {fmtInt(Number(point.telas) || 0)}
             </div>
             <div>
@@ -728,7 +728,7 @@ export default function MidiaKitSlidesMode({
                 <div className="text-sm md:text-base font-extrabold tracking-tight text-white">{topViewingText}</div>
                 <div className="mt-1 grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-0.5 text-[11px] text-brand-gray-300">
                   <span>Pontos: <strong className="text-white">{fmtInt(totals.quantidade)}</strong></span>
-                  <span>Telas: <strong className="text-white">{fmtInt(totals.telasTotal)}</strong></span>
+                  <span>Pontos de Impacto: <strong className="text-white">{fmtInt(totals.telasTotal)}</strong></span>
                   <span>Fluxo: <strong className="text-white">{fmtInt(totals.fluxoTotal)}</strong></span>
                   <span>Invest.: <strong className="text-white">{fmtMoney(totals.valorTotal)}</strong></span>
                 </div>

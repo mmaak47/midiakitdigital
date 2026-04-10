@@ -144,7 +144,7 @@ export default function PointModal({ ponto, onClose, isDark = true, geoProfile, 
     { icon: Play, label: 'Tempo do anúncio', value: ponto.tempo },
     { icon: RotateCcw, label: 'Looping', value: ponto.loop ? `Mínimo de ${ponto.loop}` : '' },
     { icon: Monitor, label: 'Veiculação', value: ponto.veiculacao },
-    { icon: Monitor, label: 'Quantidade de telas', value: ponto.telas },
+    { icon: Monitor, label: 'Quantidade de pontos de impacto', value: ponto.telas },
     { icon: Users, label: 'Público', value: `Classe ${ponto.publico}` },
   ];
 

@@ -640,7 +640,7 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets, selectedCities
   const isMultiCity = normalizedSelectedCities.length > 1;
   const cards = [
     { label: 'Pontos ativos', value: formatInt(pontos.length), icon: 'type' },
-    { label: 'Telas disponíveis', value: formatInt(resumo.telas), icon: 'type' },
+    { label: 'Pontos de Impacto disponíveis', value: formatInt(resumo.telas), icon: 'type' },
     { label: 'Fluxo mensal', value: formatInt(resumo.fluxo), icon: 'coordinates' },
     { label: 'Formatos no kit', value: formatInt(totalFormatos), icon: 'city' }
   ];
@@ -769,7 +769,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
   const cards = [
     { label: 'Endereços', value: formatInt(totalEnderecos), icon: 'location' },
     { label: 'Pontos', value: formatInt(totalPontos), icon: 'type' },
-    { label: 'Telas', value: formatInt(resumo.telas), icon: 'city' },
+    { label: 'Pontos de Impacto', value: formatInt(resumo.telas), icon: 'city' },
     { label: 'Ticket médio', value: formatMoney(resumo.ticketMedio), icon: 'money' }
   ];
 
@@ -804,7 +804,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
 
         <div style="margin-top:12px;padding:16px 20px;border-radius:28px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.10);">
           <div style="font-size:11px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND_ORANGE};">Leitura rápida do inventário</div>
-          <div style="margin-top:14px;font-size:17px;line-height:1.42;color:rgba(255,255,255,0.8);">Praça com <strong style="color:#fff;">${formatInt(totalPontos)} pontos</strong>, <strong style="color:#fff;">${formatInt(resumo.telas)} telas</strong> e fluxo mensal consolidado de <strong style="color:#fff;">${formatInt(resumo.fluxo)}</strong>. A composição por formato facilita montar uma grade equilibrada entre cobertura e frequência.</div>
+          <div style="margin-top:14px;font-size:17px;line-height:1.42;color:rgba(255,255,255,0.8);">Praça com <strong style="color:#fff;">${formatInt(totalPontos)} pontos</strong>, <strong style="color:#fff;">${formatInt(resumo.telas)} pontos de impacto</strong> e fluxo mensal consolidado de <strong style="color:#fff;">${formatInt(resumo.fluxo)}</strong>. A composição por formato facilita montar uma grade equilibrada entre cobertura e frequência.</div>
         </div>
       </div>
 
@@ -819,7 +819,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
               <div style="display:grid;grid-template-columns:minmax(0,1fr) 88px 138px;gap:12px;align-items:center;padding:8px 2px 8px 12px;border-left:3px solid ${BRAND_ORANGE};border-bottom:1px solid rgba(255,255,255,0.08);">
                 <div>
                   <div style="font-size:14px;font-weight:700;color:#fff;line-height:1.2;">${escapeHtml(row.tipo)}</div>
-                  <div style="margin-top:3px;font-size:10px;color:rgba(255,255,255,0.5);">${formatInt(row.telas)} telas disponíveis</div>
+                  <div style="margin-top:3px;font-size:10px;color:rgba(255,255,255,0.5);">${formatInt(row.telas)} pontos de impacto disponíveis</div>
                 </div>
                 <div style="text-align:right;">
                   <div style="font-family:Poppins, system-ui, sans-serif;font-size:20px;line-height:1;font-weight:700;color:#fff;">${formatInt(row.pontos)}</div>
@@ -922,7 +922,7 @@ function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }
 
       <div style="display:grid;grid-template-columns:repeat(2,minmax(0,180px));gap:16px;">
         <div style="padding:20px 22px;border-left:3px solid ${BRAND_ORANGE};">
-          <div style="font-size:11px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.48);">Telas</div>
+          <div style="font-size:11px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.48);">Pontos de Impacto</div>
           <div style="margin-top:10px;font-family:Poppins, system-ui, sans-serif;font-size:42px;line-height:1;font-weight:700;color:#fff;">${escapeHtml(formatInt(telas))}</div>
         </div>
         <div style="padding:20px 22px;border-left:3px solid ${BRAND_ORANGE};">
@@ -963,7 +963,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   const metrics = [
     { key: 'publico', label: 'Público', value: ponto.publico || '-' },
     { key: 'fluxo', label: fluxoLabel, value: formatInt(ponto.fluxo) },
-    { key: 'telas', label: 'Telas', value: formatInt(ponto.telas) },
+    { key: 'telas', label: 'Pontos de Impacto', value: formatInt(ponto.telas) },
     { key: 'insercoes', label: 'Inserções', value: `Mín. ${formatInt(ponto.insercoes)}` },
     { key: 'tempo', label: 'Tempo', value: ponto.tempo || '-' },
     { key: 'loop', label: 'Loop', value: ponto.loop ? `Mín. ${ponto.loop}` : '-' }
@@ -1298,7 +1298,7 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
   })();
   const stats = [
     { label: 'Fluxo', value: `${formatInt(point.fluxo)} ${fluxoLabel}` },
-    { label: 'Telas', value: formatInt(point.telas) },
+    { label: 'Pontos de Impacto', value: formatInt(point.telas) },
     { label: 'Inserções', value: `Mínimo de ${formatInt(point.insercoes)}` },
     { label: 'Valor Negociado', value: formatMoney(point.preco) }
   ];

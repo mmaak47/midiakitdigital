@@ -181,7 +181,7 @@ export default function PresentationMode({ points = [], totals, segmento, client
                   <div className="grid gap-3 md:grid-cols-4">
                     <MetricCard icon={Target} label="Valor Negociado" value={formatCurrency(current.preco || 0)} accent="orange" />
                     <MetricCard icon={TrendingUp} label="Fluxo mensal" value={formatNumber(current.fluxo || 0)} accent="white" />
-                    <MetricCard icon={Monitor} label="Telas" value={formatNumber(current.telas || 0)} accent="white" />
+                    <MetricCard icon={Monitor} label="Pontos de Impacto" value={formatNumber(current.telas || 0)} accent="white" />
                     <MetricCard icon={Users} label="Público" value={current.publico || 'A/B'} accent="orange" />
                   </div>
 

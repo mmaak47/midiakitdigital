@@ -213,7 +213,7 @@ const RecommendationEngine = memo(function RecommendationEngine({
       <div className="flex items-center gap-2">
         <Sparkles size={18} className="text-brand-orange" />
         <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? '' : 'text-neutral-800'}`}>
-          Telas Recomendadas
+          Pontos de Impacto Recomendados
         </h3>
         {recommended.length > 0 && (
           <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full font-medium ${isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-700'}`}>
@@ -234,7 +234,7 @@ const RecommendationEngine = memo(function RecommendationEngine({
         <div className={`rounded-xl border p-5 text-center ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-neutral-50'}`}>
           <div className={`text-3xl mb-2`}>🔍</div>
           <p className={`text-sm font-medium mb-1 ${isDark ? 'text-white' : 'text-neutral-800'}`}>
-            Não encontramos telas ideais para este público nesta região.
+            Não encontramos pontos de impacto ideais para este público nesta região.
           </p>
           <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
             Sugerimos ampliar o raio da campanha ou ajustar o público-alvo para encontrar melhores oportunidades.
@@ -269,7 +269,7 @@ const RecommendationEngine = memo(function RecommendationEngine({
               : 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100'
           }`}
         >
-          Adicionar todas as {recommended.length} telas recomendadas ao plano
+          Adicionar todos os {recommended.length} pontos de impacto recomendados ao plano
         </button>
       )}
 

@@ -81,7 +81,7 @@ export default function FavoritesBar({ isDark = true }) {
 
         {/* Summary strip */}
         <div className={`px-4 py-2.5 border-b text-[11px] flex items-center justify-between ${isDark ? 'border-white/5 text-brand-gray-500' : 'border-neutral-100 text-neutral-500'}`}>
-          <span>{totalTelas} telas</span>
+          <span>{totalTelas} pontos de impacto</span>
           <span>·</span>
           <span>{formatNumber(totalFluxo)} pessoas/mês</span>
         </div>

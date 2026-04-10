@@ -348,7 +348,7 @@ function MapModal({ pontos, onClose, isDark }) {
                   <div className={`font-semibold mt-1 ${m.title}`}>{formatInt(Number(selectedPoint.fluxo) || 0)}<span className={`text-xs ${m.label}`}>/mês</span></div>
                 </div>
                 <div className={m.miniCell}>
-                  <div className={`text-[11px] uppercase flex items-center gap-1 ${m.label}`}><i className="ri-tv-2-line" style={{ fontSize: 11 }} /> Telas</div>
+                  <div className={`text-[11px] uppercase flex items-center gap-1 ${m.label}`}><i className="ri-tv-2-line" style={{ fontSize: 11 }} /> Pontos de Impacto</div>
                   <div className={`font-semibold mt-1 ${m.title}`}>{formatInt(Number(selectedPoint.telas) || 0)}</div>
                 </div>
               </div>
@@ -689,7 +689,7 @@ export default function Landing() {
                   <div>
                     <div className="text-sm font-semibold text-white mb-1">Visualizar o Mídia Kit</div>
                     <div className="text-[11px] text-brand-gray-500 leading-snug">
-                      Conheça nosso inventário de telas, formatos e praças disponíveis.
+                      Conheça nosso inventário de pontos de impacto, formatos e praças disponíveis.
                     </div>
                   </div>
                 </button>
@@ -706,7 +706,7 @@ export default function Landing() {
                   <div>
                     <div className="text-sm font-semibold text-white mb-1">Planejar uma Campanha</div>
                     <div className="text-[11px] text-brand-gray-500 leading-snug">
-                      Monte seu plano com recomendações inteligentes de telas e audiência.
+                      Monte seu plano com recomendações inteligentes de pontos de impacto e audiência.
                     </div>
                   </div>
                 </button>
@@ -995,7 +995,7 @@ export default function Landing() {
             <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
               {[
                 { label: 'Pontos', raw: resumo.pontos, iconClass: 'ri-pin-distance-line', fmt: formatInt },
-                { label: 'Telas', raw: resumo.telas, iconClass: 'ri-tv-2-line', fmt: formatInt },
+                { label: 'Pontos de Impacto', raw: resumo.telas, iconClass: 'ri-tv-2-line', fmt: formatInt },
                 { label: 'Fluxo mensal', raw: resumo.fluxo, iconClass: 'ri-group-line', fmt: formatInt },
                 { label: 'Alcance estimado', raw: reachFrequency.estimatedUnique, iconClass: 'ri-user-star-line', fmt: formatInt },
                 { label: 'Ticket médio', raw: resumo.ticketMedio, iconClass: 'ri-coins-line', fmt: formatMoney },
@@ -1054,7 +1054,7 @@ export default function Landing() {
                   <tr>
                     <th className="text-left font-medium px-5 py-3">Formato</th>
                     <th className="text-left font-medium px-5 py-3">Pontos</th>
-                    <th className="text-left font-medium px-5 py-3">Telas</th>
+                    <th className="text-left font-medium px-5 py-3">Pontos de Impacto</th>
                     <th className="text-left font-medium px-5 py-3">Fluxo</th>
                     <th className="text-left font-medium px-5 py-3">CPM est.</th>
                   </tr>
@@ -1279,7 +1279,7 @@ export default function Landing() {
                               <div className="font-medium">{formatInt(Number(ponto.insercoes) || 0)} / mês</div>
                             </div>
                             <div className={t.miniCell}>
-                              <div className={`text-[11px] uppercase tracking-wide flex items-center gap-1 ${t.miniLabel}`}><i className="ri-tv-2-line" style={{ fontSize: 12 }} /> Telas</div>
+                              <div className={`text-[11px] uppercase tracking-wide flex items-center gap-1 ${t.miniLabel}`}><i className="ri-tv-2-line" style={{ fontSize: 12 }} /> Pontos de Impacto</div>
                               <div className="font-medium">{formatInt(Number(ponto.telas) || 0)}</div>
                             </div>
                             <div className={t.miniCell}>

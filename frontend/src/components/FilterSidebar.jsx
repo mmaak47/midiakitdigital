@@ -8,13 +8,13 @@ import { fetchPublicos } from '../lib/api';
 
 const CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const TIPOS = [
-  { value: 'Elevador', icon: Building2, help: 'Telas em elevadores residenciais e comerciais.' },
+  { value: 'Elevador', icon: Building2, help: 'Pontos de impacto em elevadores residenciais e comerciais.' },
   { value: 'Tela Indoor', icon: Tv, help: 'Painéis em ambientes internos com fluxo constante.' },
   { value: 'Painel LED', icon: Monitor, help: 'Painel digital externo de alto impacto visual.' },
-  { value: 'Totem Digital', icon: Columns3, help: 'Tela vertical digital em pontos de circulação.' },
-  { value: 'Circuito Muffato', icon: ShoppingCart, help: 'Rede de telas em supermercados do grupo.' },
+  { value: 'Totem Digital', icon: Columns3, help: 'Ponto de impacto vertical digital em pontos de circulação.' },
+  { value: 'Circuito Muffato', icon: ShoppingCart, help: 'Rede de pontos de impacto em supermercados do grupo.' },
   { value: 'LED Posto', icon: Fuel, help: 'Mídia digital em postos de combustível.' },
-  { value: 'Video Wall', icon: Monitor, help: 'Conjunto de telas formando um painel maior.' },
+  { value: 'Video Wall', icon: Monitor, help: 'Conjunto de pontos de impacto formando um painel maior.' },
   { value: 'Backlight', icon: Lightbulb, help: 'Painel iluminado por trás, visível à noite.' },
   { value: 'Frontlight', icon: Sun, help: 'Painel iluminado por refletores frontais.' },
 ];

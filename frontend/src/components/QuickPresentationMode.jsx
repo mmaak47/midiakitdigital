@@ -65,7 +65,7 @@ export default function QuickPresentationMode({ points = [], totals = {}, segmen
         metrics: [
           { label: 'Fluxo', value: `${formatNumber(point.fluxo || 0)}/mês` },
           { label: 'Inserções', value: `Mínimo de ${formatNumber(point.insercoes || 0)}` },
-          { label: 'Telas', value: formatNumber(point.telas || 0) },
+          { label: 'Pontos de Impacto', value: formatNumber(point.telas || 0) },
           { label: 'Valor Negociado', value: formatCurrency(point.preco || 0) }
         ],
         extraMetrics: [
