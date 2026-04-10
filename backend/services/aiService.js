@@ -596,6 +596,43 @@ function extractJSON(text) {
   if (objMatch) {
     try { return JSON.parse(objMatch[0]); } catch { /* continue */ }
   }
+  // Repair attempt: fix common LLM JSON errors
+  const repaired = repairJSON(text);
+  if (repaired) return repaired;
+  return null;
+}
+
+/**
+ * Attempt to repair broken JSON from small LLMs:
+ * - unquoted keys (narrativa: → "narrativa":)
+ * - missing commas between fields
+ * - truncated JSON (add closing })
+ * - newlines inside strings
+ */
+function repairJSON(text) {
+  let raw = text.match(/\{[\s\S]*/)?.[0];
+  if (!raw) return null;
+  // Ensure it ends with }
+  if (!raw.includes('}')) raw += '"}';
+  raw = raw.replace(/\}\s*[\s\S]*$/, '}'); // keep only first object
+  // Fix unquoted keys: word: → "word":
+  raw = raw.replace(/([{,]\s*)(\w+)\s*:/g, '$1"$2":');
+  // Fix missing comma before "key":
+  raw = raw.replace(/(["\d\]}])\s*\n\s*"/g, '$1,\n"');
+  // Fix trailing comma before }
+  raw = raw.replace(/,\s*\}/g, '}');
+  // Fix newlines inside string values
+  raw = raw.replace(/"([^"]*)\n([^"]*)"/g, (_, a, b) => `"${a} ${b}"`);
+  // Truncated: if last string value has no closing quote, close it
+  if ((raw.match(/"/g) || []).length % 2 !== 0) raw += '"';
+  // Ensure closing brackets
+  const opens = (raw.match(/\{/g) || []).length;
+  const closes = (raw.match(/\}/g) || []).length;
+  for (let i = closes; i < opens; i++) raw += '}';
+  const arrOpens = (raw.match(/\[/g) || []).length;
+  const arrCloses = (raw.match(/\]/g) || []).length;
+  for (let i = arrCloses; i < arrOpens; i++) raw += ']';
+  try { return JSON.parse(raw); } catch { /* continue */ }
   return null;
 }
 
