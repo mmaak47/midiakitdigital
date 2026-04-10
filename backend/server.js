@@ -377,7 +377,8 @@ function authenticateSensitiveApi(req, res, next) {
     '/census/profiles',
     '/audience-intel/profiles',
     '/monitors',
-    '/loop-audit'
+    '/loop-audit',
+    '/geo'
   ];
 
   if (method === 'GET' && publicGetPrefixes.some((prefix) => routePath === prefix || routePath.startsWith(`${prefix}/`))) {
