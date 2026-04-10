@@ -654,34 +654,27 @@ function buildCampaignAnalysisPrompt(campaignData, cityStats) {
     breakdownCtx = `\nDETALHE DO SCORE: ${Object.entries(breakdown).map(([k,v]) => `${k}=${fmtDec(v.score || v, 1)}`).join(', ')}.`;
   }
 
-  return `Você é consultor sênior de mídia DOOH no Brasil. Analise esta campanha com dados reais e responda de forma específica.
+  return `Analise esta campanha DOOH. Responda usando EXATAMENTE as tags abaixo, cada uma em sua própria linha.
 
-CAMPANHA:
-- Empresa: ${empresa || 'cliente'}
-- Cidade: ${cidade}
-- Segmento: ${segmento}
-- Objetivo: ${objetivo}
-- Público-alvo: ${publico || 'não definido'}
-- ${pontosSel} pontos selecionados, formatos: ${formatos.length ? formatos.join(', ') : 'variados'}
-${pontosSummary ? `- Pontos: ${pontosSummary}` : ''}
+DADOS:
+Empresa: ${empresa || 'cliente'}, Cidade: ${cidade}, Segmento: ${segmento}
+Objetivo: ${objetivo}, Público: ${publico || 'geral'}
+${pontosSel} pontos, formatos: ${formatos.length ? formatos.join(', ') : 'variados'}
+Investimento: R$${fmt(investimento)}/mês, Fluxo: ${fmt(fluxoTotal)} impactos/mês
+CPM: R$${fmtDec(cpm)} (${cpmClass}), Alcance: ${fmtDec(alcancePct, 1)}%, Frequência: ${fmtDec(frequencia, 1)}x
+Score: ${fmtDec(score, 1)}/10 (${scoreClass})${cityCtx}${breakdownCtx}
 
-MÉTRICAS DA CAMPANHA:
-- Investimento: R$${fmt(investimento)}/mês
-- Fluxo total: ${fmt(fluxoTotal)} impactos/mês
-- CPM: R$${fmtDec(cpm)} (${cpmClass})
-- Alcance: ${fmtDec(alcancePct, 1)}%
-- Frequência média: ${fmtDec(frequencia, 1)}x
-- Score geral: ${fmtDec(score, 1)}/10 (${scoreClass})${cityCtx}${breakdownCtx}
+Responda EXATAMENTE neste formato (cada tag em nova linha):
 
-Analise esta campanha ESPECÍFICA usando os números acima. Escreva em português brasileiro profissional.
+AVALIACAO: ${scoreClass === 'excelente' ? 'Excelente' : scoreClass === 'bom' ? 'Boa' : 'Regular'}. [justifique em 1 frase com dados]
+RESUMO: [2-3 frases analisando a campanha de ${empresa || 'cliente'} em ${cidade}, cite investimento R$${fmt(investimento)}, CPM R$${fmtDec(cpm)} e alcance ${fmtDec(alcancePct,1)}%]
+FORTE1: [melhor aspecto desta campanha, cite um número]
+FORTE2: [segundo ponto forte, cite um número]
+OPORTUNIDADE1: [uma melhoria concreta]
+OPORTUNIDADE2: [segunda melhoria]
+ESTRATEGIA: [recomendação para ${objetivo} em ${segmento}]
 
-AVALIACAO: ${scoreClass === 'excelente' ? 'Excelente' : scoreClass === 'bom' ? 'Boa' : 'Regular'}. Justifique com dados.
-RESUMO: Analise os ${pontosSel} pontos em ${cidade} para ${segmento}, CPM R$${fmtDec(cpm)}, alcance ${fmtDec(alcancePct,1)}%.
-FORTE1: cite o melhor aspecto desta campanha usando dados reais acima
-FORTE2: cite outro ponto forte com números
-OPORTUNIDADE1: sugira uma melhoria concreta para esta campanha
-OPORTUNIDADE2: segunda sugestão de otimização
-ESTRATEGIA: recomende ação específica para ${objetivo} em ${segmento} em ${cidade}`;
+IMPORTANTE: Use EXATAMENTE as tags acima (AVALIACAO, RESUMO, FORTE1, FORTE2, OPORTUNIDADE1, OPORTUNIDADE2, ESTRATEGIA). Cada tag deve iniciar uma nova linha.`;
 }
 
 /**
@@ -703,14 +696,67 @@ function parseCampaignAnalysisText(text) {
   const oportunidades = [get('OPORTUNIDADE1'), get('OPORTUNIDADE2')].filter(Boolean);
   const args = [get('ARGUMENTO1'), get('ARGUMENTO2'), get('ARGUMENTO3')].filter(Boolean);
   const estrategia = get('ESTRATEGIA') || get('ESTRATÉGIA');
-  if (!resumo && !avaliacao) return null;
+
+  // If markers were found properly, return structured data
+  if (resumo && (fortes.length || oportunidades.length)) {
+    return {
+      avaliacao: avaliacao || 'Boa',
+      resumo_executivo: resumo,
+      pontos_fortes: fortes,
+      oportunidades_melhoria: oportunidades,
+      argumentacao_comercial: args,
+      estrategia_recomendada: estrategia,
+    };
+  }
+
+  // Fallback: split prose into sections by paragraphs/sentences
+  const clean = text.replace(/^(Resumo|Avalia[çc][ãa]o|An[aá]lise):\s*/i, '').trim();
+  if (clean.length < 30) return null;
+
+  // Split into paragraphs or sentences
+  const paragraphs = clean.split(/\n{2,}/).map(p => p.trim()).filter(p => p.length > 15);
+  if (paragraphs.length === 0) return null;
+
+  // First paragraph/section → resumo
+  const resumoFallback = paragraphs[0];
+  // Look for anything that looks like strengths/positives
+  const fortesFromText = [];
+  const oportFromText = [];
+  const estratFromText = [];
+  for (let i = 1; i < paragraphs.length; i++) {
+    const p = paragraphs[i];
+    const lower = p.toLowerCase();
+    if (lower.includes('melhoria') || lower.includes('oportunidade') || lower.includes('sugir') || lower.includes('considerar') || lower.includes('aumentar') || lower.includes('reduzir')) {
+      oportFromText.push(p.replace(/^[\d\-\.\)]+\s*/, ''));
+    } else if (lower.includes('estratégia') || lower.includes('estrategia') || lower.includes('recomen') || lower.includes('ação')) {
+      estratFromText.push(p);
+    } else if (lower.includes('forte') || lower.includes('destaque') || lower.includes('positiv') || lower.includes('eficien') || lower.includes('alcance') || lower.includes('investimento')) {
+      fortesFromText.push(p.replace(/^[\d\-\.\)]+\s*/, ''));
+    }
+  }
+
+  // If we couldn't classify paragraphs, split sentences from the text
+  if (fortesFromText.length === 0 && oportFromText.length === 0) {
+    const sentences = clean.split(/(?<=[.!?])\s+/).filter(s => s.length > 20);
+    if (sentences.length >= 3) {
+      return {
+        avaliacao: avaliacao || 'Boa',
+        resumo_executivo: sentences.slice(0, 3).join(' '),
+        pontos_fortes: sentences.length > 3 ? [sentences[3]] : [sentences[1]],
+        oportunidades_melhoria: sentences.length > 4 ? [sentences[4]] : [],
+        argumentacao_comercial: [],
+        estrategia_recomendada: sentences.length > 5 ? sentences[5] : '',
+      };
+    }
+  }
+
   return {
     avaliacao: avaliacao || 'Boa',
-    resumo_executivo: resumo,
-    pontos_fortes: fortes.length ? fortes : (resumo ? [resumo] : []),
-    oportunidades_melhoria: oportunidades,
+    resumo_executivo: resumoFallback,
+    pontos_fortes: fortesFromText.length ? fortesFromText.slice(0, 2) : (resumo ? [resumo] : [resumoFallback.slice(0, 200)]),
+    oportunidades_melhoria: oportFromText.slice(0, 2),
     argumentacao_comercial: args,
-    estrategia_recomendada: estrategia,
+    estrategia_recomendada: estratFromText.join(' ') || estrategia,
   };
 }
 
