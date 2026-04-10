@@ -467,23 +467,25 @@ function buildMemoryBlock(memories, patterns) {
 }
 
 function buildPrompt(data, memories = [], patterns = []) {
-  return `${getKnowledge()}
+  const fmt = n => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
+  const nome = data.nome || data.empresa || 'ponto';
+  const tipo = data.tipo || 'DOOH';
+  const cidade = data.cidade || '';
+  const fluxo = Number(data.fluxo || 0);
+  const preco = Number(data.preco || 0);
+  const cpm = fluxo > 0 ? preco / (fluxo / 1000) : 0;
+
+  return `Você é consultor de mídia DOOH. Crie conteúdo comercial ESPECÍFICO.
 ${buildMemoryBlock(memories, patterns)}
-Com base nos dados abaixo, gere uma saída EXCLUSIVAMENTE em JSON válido (sem texto adicional, sem markdown):
+DADOS: ${nome} (${tipo}) em ${cidade}. Preço R$${fmt(preco)}/mês, Fluxo ${fmt(fluxo)} impactos/mês, CPM R$${cpm.toFixed(2)}.
 
-DADOS DO PONTO/CAMPANHA:
-${JSON.stringify(data, null, 2)}
+Usando os dados acima, escreva conteúdo original e específico para "${nome}".
 
-REGRAS ABSOLUTAS:
-- Seja comercial, direto e persuasivo
-- Use os dados numéricos REAIS fornecidos — NUNCA invente números
-- Linguagem profissional de mercado publicitário brasileiro
-- Destaque os diferenciais que tornam este ponto/campanha único
-
-IMPORTANTE: Gere conteúdo REAL e ESPECÍFICO. NÃO copie os exemplos, crie textos originais baseados nos dados.
-
-Gere JSON puro (sem markdown):
-{"headline":"escreva um título impactante sobre este ponto/campanha específico","descricao":"escreva 2-3 frases comerciais usando os dados reais acima","pontos_fortes":["escreva argumento real 1","escreva argumento real 2","escreva argumento real 3"]}`;
+HEADLINE: frase de impacto comercial sobre ${nome} citando o fluxo de ${fmt(fluxo)} impactos
+DESCRICAO: 2-3 frases comerciais para vender ${nome}, cite CPM R$${cpm.toFixed(2)} e localização em ${cidade}
+FORTE1: argumento de venda baseado no alcance e fluxo
+FORTE2: argumento sobre custo-benefício e CPM
+FORTE3: argumento sobre localização e público`;
 }
 
 function buildAnalysisPrompt(input, memories = [], patterns = []) {
@@ -504,32 +506,58 @@ function buildPointInsightPrompt(point, entorno, geoProfile, census) {
   const fmt = n => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
   const cpm = Number(point.fluxo) > 0 ? (Number(point.preco) / (Number(point.fluxo) / 1000)) : 0;
 
-  let extra = '';
+  // Classify the point
+  let cpmClass = cpm <= 5 ? 'muito eficiente' : cpm <= 15 ? 'eficiente' : cpm <= 30 ? 'médio' : 'premium';
+  let tipoVantagem = '';
+  const tipo = (point.tipo || '').toLowerCase();
+  if (tipo.includes('led') || tipo.includes('painel')) tipoVantagem = 'alta visibilidade 24h, grande formato, impacto visual';
+  else if (tipo.includes('elevador')) tipoVantagem = 'público cativo, alta frequência 4-8x/dia, perfil A/B';
+  else if (tipo.includes('indoor') || tipo.includes('tela')) tipoVantagem = 'perto do ponto de venda, momento de decisão de compra';
+  else if (tipo.includes('backlight')) tipoVantagem = 'grande formato iluminado, vias arteriais';
+  else if (tipo.includes('frontlight')) tipoVantagem = 'rodovias de alto tráfego, alcance veicular';
+
+  let geoCtx = '';
   if (geoProfile) {
-    extra += ` Bairro: ${geoProfile.neighborhood_label || geoProfile.neighborhood_type}, nível ${geoProfile.socioeconomic_level || 'n/a'}.`;
+    geoCtx = `\nLOCALIZAÇÃO: Bairro tipo "${geoProfile.neighborhood_label || geoProfile.neighborhood_type}", nível socioeconômico ${geoProfile.socioeconomic_level || 'n/a'}, densidade ${geoProfile.urban_density || 'n/a'}, atividade dominante: ${geoProfile.dominant_activity || 'n/a'}.`;
+    if (geoProfile.audience_narrative) geoCtx += ` ${geoProfile.audience_narrative}`;
   }
+
+  let censusCtx = '';
   if (census) {
-    extra += ` Perfil: ${census.perfil_dominante || 'n/a'}.`;
+    const perfis = [];
+    if (Number(census.perfil_alta_renda) > 0.3) perfis.push('alta renda');
+    if (Number(census.perfil_massa_varejo) > 0.3) perfis.push('massa/varejo');
+    if (Number(census.perfil_jovem_universitario) > 0.3) perfis.push('jovem universitário');
+    if (Number(census.perfil_terceira_idade) > 0.3) perfis.push('terceira idade');
+    censusCtx = `\nPERFIL DEMOGRÁFICO: ${census.perfil_dominante || 'misto'}${perfis.length ? ` (destaque: ${perfis.join(', ')})` : ''}, score geral ${Number(census.score_geral || 0).toFixed(1)}.`;
   }
+
+  let entornoCtx = '';
   if (entorno?.length) {
-    extra += ` Entorno: ${entorno.slice(0, 3).map(e => `${e.segmento_analisado}(${e.total_estabelecimentos_relacionados})`).join(', ')}.`;
+    entornoCtx = `\nENTORNO COMERCIAL: ${entorno.slice(0, 4).map(e => `${e.segmento_analisado} (${e.total_estabelecimentos_relacionados} estabelecimentos, relevância ${Number(e.score_relevancia || 0).toFixed(1)})`).join('; ')}.`;
   }
 
-  return `${getKnowledge()}
+  return `Você é consultor sênior de mídia DOOH. Analise este ponto com dados reais e crie argumentos comerciais específicos.
 
-PONTO: ${point.nome} (${point.tipo}) em ${point.cidade}
-Preço R$${fmt(point.preco)}/mês, Fluxo ${fmt(point.fluxo)}/mês, CPM R$${cpm.toFixed(2)}, Score ${Number(point.score_base || 0).toFixed(1)}.${extra}
+PONTO DE MÍDIA: ${point.nome}
+- Formato: ${point.tipo}
+- Cidade: ${point.cidade}
+- Preço: R$${fmt(point.preco)}/mês
+- Fluxo: ${fmt(point.fluxo)} impactos/mês
+- CPM: R$${cpm.toFixed(2)} (${cpmClass})
+- Score: ${Number(point.score_base || 0).toFixed(1)}/10
+- Vantagem do formato: ${tipoVantagem || 'mídia digital'}${geoCtx}${censusCtx}${entornoCtx}
 
-Escreva uma análise comercial para este ponto DOOH. Use EXATAMENTE este formato:
+Crie uma análise comercial ESPECÍFICA para o ponto "${point.nome}" usando os dados acima. Mencione o nome, cidade, valores e fluxo reais.
 
-HEADLINE: uma frase comercial impactante sobre este ponto
-NARRATIVA: 2-3 frases para convencer um anunciante a investir neste ponto
-ARGUMENTO1: primeiro argumento de venda real
-ARGUMENTO2: segundo argumento de venda real
-ARGUMENTO3: terceiro argumento de venda real
-PUBLICO1: primeiro segmento de público ideal
-PUBLICO2: segundo segmento de público ideal
-DESTAQUE: a principal vantagem competitiva deste ponto`;
+HEADLINE: frase de venda para ${point.nome} em ${point.cidade}, cite o fluxo de ${fmt(point.fluxo)} impactos
+NARRATIVA: por que anunciar no ${point.nome} é uma boa decisão, cite CPM R$${cpm.toFixed(2)} e dados do entorno
+ARGUMENTO1: argumento sobre o alcance de ${fmt(point.fluxo)} impactos/mês nesta localização
+ARGUMENTO2: argumento sobre eficiência do CPM R$${cpm.toFixed(2)} comparado ao mercado
+ARGUMENTO3: argumento sobre o perfil do público que circula nesta região
+PUBLICO1: segmento ideal de anunciante para este ponto, baseado no entorno
+PUBLICO2: segundo segmento ideal
+DESTAQUE: a vantagem competitiva única do ${point.nome}`;
 }
 
 /**
@@ -551,44 +579,105 @@ function parsePointInsightText(text) {
 }
 
 /**
+ * Parse text-marker format for /generate endpoint.
+ */
+function parseGenerateText(text) {
+  const get = (key) => {
+    const re = new RegExp(`${key}:\\s*(.+)`, 'i');
+    const m = text.match(re);
+    return m ? m[1].trim() : '';
+  };
+  const headline = get('HEADLINE');
+  const descricao = get('DESCRICAO') || get('DESCRIÇÃO');
+  const fortes = [get('FORTE1'), get('FORTE2'), get('FORTE3')].filter(Boolean);
+  if (!headline && !descricao) return null;
+  return { headline, descricao, pontos_fortes: fortes };
+}
+
+/**
  * Build prompt for full campaign analysis.
+ * Uses all enrichment data sent by the frontend CampaignPlanner.
  */
 function buildCampaignAnalysisPrompt(campaignData, cityStats) {
   const fmt = n => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
+  const fmtDec = (n, d = 2) => Number(n || 0).toFixed(d);
 
+  // Extract all available data from the frontend payload
+  const cidade = campaignData.cidade || 'n/a';
+  const segmento = campaignData.segmento || 'Geral';
+  const objetivo = campaignData.objetivo || 'awareness';
+  const empresa = campaignData.empresa || '';
+  const publico = campaignData.publico || '';
+  const pontosSel = Number(campaignData.pontos_selecionados || campaignData.pontos?.length || 0);
+  const formatos = campaignData.formatos || [];
+  const fluxoTotal = Number(campaignData.fluxo_total || campaignData.fluxoTotal || 0);
+  const investimento = Number(campaignData.investimento || 0);
+  const cpm = Number(campaignData.cpm || 0);
+  const alcancePct = Number(campaignData.alcance_pct || campaignData.coberturaPct || 0);
+  const frequencia = Number(campaignData.frequencia || 0);
+  const score = Number(campaignData.score || 0);
+  const breakdown = campaignData.breakdown || {};
+
+  // Classify CPM efficiency
+  let cpmClass = 'alto';
+  if (cpm <= 5) cpmClass = 'muito eficiente';
+  else if (cpm <= 15) cpmClass = 'eficiente';
+  else if (cpm <= 30) cpmClass = 'médio';
+
+  // Classify score
+  let scoreClass = 'fraco';
+  if (score >= 8) scoreClass = 'excelente';
+  else if (score >= 6) scoreClass = 'bom';
+  else if (score >= 4) scoreClass = 'regular';
+
+  // Points summary
   let pontosSummary = '';
   if (campaignData.pontos?.length) {
-    pontosSummary = campaignData.pontos.slice(0, 10).map(p =>
+    pontosSummary = campaignData.pontos.slice(0, 8).map(p =>
       `${p.nome}(${p.tipo},Fluxo${fmt(p.fluxo)},R$${fmt(p.preco)})`
     ).join('; ');
   }
 
-  let cityLine = '';
+  // City context
+  let cityCtx = '';
   if (cityStats) {
-    cityLine = ` Cidade: ${cityStats.total_pontos} pontos, CPM médio R$${cityStats.cpm_medio.toFixed(2)}.`;
+    cityCtx = `\nCONTEXTO DA CIDADE: ${cidade} tem ${cityStats.total_pontos} pontos DOOH disponíveis. CPM médio R$${fmtDec(cityStats.cpm_medio)}. Formatos: ${Object.entries(cityStats.formatos || {}).map(([k,v]) => `${k}(${v})`).join(', ')}. Score médio ${fmtDec(cityStats.score_medio, 1)}/10.`;
   }
 
-  return `${getKnowledge()}
+  // Score breakdown detail
+  let breakdownCtx = '';
+  if (Object.keys(breakdown).length) {
+    breakdownCtx = `\nDETALHE DO SCORE: ${Object.entries(breakdown).map(([k,v]) => `${k}=${fmtDec(v.score || v, 1)}`).join(', ')}.`;
+  }
 
-ANALISE ESTA CAMPANHA DOOH E GERE RECOMENDAÇÕES ESTRATÉGICAS:
+  return `Você é consultor sênior de mídia DOOH no Brasil. Analise esta campanha com dados reais e responda de forma específica.
 
-Campanha: ${campaignData.cidade || 'n/a'}, segmento ${campaignData.segmento || 'n/a'}, objetivo ${campaignData.objetivo || 'n/a'}.
-Orçamento R$${fmt(campaignData.budget || 0)}, ${campaignData.periodoSemanas || 4} semanas.
-Pontos(${campaignData.pontos?.length || 0}): ${pontosSummary || 'nenhum'}
-Investimento R$${fmt(campaignData.investimento || 0)}, Fluxo ${fmt(campaignData.fluxoTotal || 0)}/mês, CPM R$${Number(campaignData.cpm || 0).toFixed(2)}, Cobertura ${campaignData.coberturaPct || 0}%.${cityLine}
+CAMPANHA:
+- Empresa: ${empresa || 'cliente'}
+- Cidade: ${cidade}
+- Segmento: ${segmento}
+- Objetivo: ${objetivo}
+- Público-alvo: ${publico || 'não definido'}
+- ${pontosSel} pontos selecionados, formatos: ${formatos.length ? formatos.join(', ') : 'variados'}
+${pontosSummary ? `- Pontos: ${pontosSummary}` : ''}
 
-Escreva uma análise estratégica desta campanha. Use EXATAMENTE este formato:
+MÉTRICAS DA CAMPANHA:
+- Investimento: R$${fmt(investimento)}/mês
+- Fluxo total: ${fmt(fluxoTotal)} impactos/mês
+- CPM: R$${fmtDec(cpm)} (${cpmClass})
+- Alcance: ${fmtDec(alcancePct, 1)}%
+- Frequência média: ${fmtDec(frequencia, 1)}x
+- Score geral: ${fmtDec(score, 1)}/10 (${scoreClass})${cityCtx}${breakdownCtx}
 
-AVALIACAO: Excelente ou Boa ou Regular
-RESUMO: 2-3 frases sobre esta campanha específica
-FORTE1: primeiro ponto forte desta campanha
-FORTE2: segundo ponto forte desta campanha
-OPORTUNIDADE1: primeira sugestão de melhoria
-OPORTUNIDADE2: segunda sugestão de melhoria
-ARGUMENTO1: primeiro argumento comercial para vender esta campanha
-ARGUMENTO2: segundo argumento comercial
-ARGUMENTO3: terceiro argumento comercial
-ESTRATEGIA: a estratégia recomendada para esta campanha`;
+Analise esta campanha ESPECÍFICA usando os números acima. Escreva em português brasileiro profissional.
+
+AVALIACAO: ${scoreClass === 'excelente' ? 'Excelente' : scoreClass === 'bom' ? 'Boa' : 'Regular'}. Justifique com dados.
+RESUMO: Analise os ${pontosSel} pontos em ${cidade} para ${segmento}, CPM R$${fmtDec(cpm)}, alcance ${fmtDec(alcancePct,1)}%.
+FORTE1: cite o melhor aspecto desta campanha usando dados reais acima
+FORTE2: cite outro ponto forte com números
+OPORTUNIDADE1: sugira uma melhoria concreta para esta campanha
+OPORTUNIDADE2: segunda sugestão de otimização
+ESTRATEGIA: recomende ação específica para ${objetivo} em ${segmento} em ${cidade}`;
 }
 
 /**
@@ -712,7 +801,8 @@ async function generateStructuredOutput(data, userId = null) {
 
   const result = await generateWithFallback(prompt);
 
-  const parsed = extractJSON(result.text);
+  // Try text markers first, then JSON
+  const parsed = parseGenerateText(result.text) || extractJSON(result.text);
   if (!parsed) {
     return {
       headline: '',
