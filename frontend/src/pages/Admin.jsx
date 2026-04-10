@@ -27,6 +27,7 @@ import {
   fetchAdminPdfCache,
   invalidateAdminPdfCache,
   updateAdminSettings,
+  testFinanceiroReminder,
   geocodePoint,
   fetchCurrentUser,
   fetchArteStats,
@@ -684,16 +685,7 @@ export default function Admin() {
     setEvoTestLoading(true);
     setEvoTestMsg('');
     try {
-      const resp = await fetch('/api/admin/test-financeiro-reminder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!resp.ok) {
-        const err = await resp.json();
-        setEvoTestMsg(`Erro: ${err.error || 'Falha ao enviar teste'}`);
-        return;
-      }
-      const data = await resp.json();
+      const data = await testFinanceiroReminder();
       setEvoTestMsg(`✓ Lembrete enviado com ${data.vendaCount} venda(s) pendente(s)`);
       setTimeout(() => setEvoTestMsg(''), 4000);
     } catch (err) {

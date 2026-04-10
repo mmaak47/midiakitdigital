@@ -446,6 +446,18 @@ export async function updateAdminSettings(settings) {
   return res.json();
 }
 
+// Testa o envio do lembrete financeiro
+export async function testFinanceiroReminder() {
+  const res = await apiRequest('/admin/test-financeiro-reminder', {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao enviar lembrete de teste');
+  }
+  return res.json();
+}
+
 // Retorna o usuário autenticado atual
 export async function fetchCurrentUser() {
   const res = await apiRequest('/users/me');
