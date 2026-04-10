@@ -86,24 +86,23 @@ SELECT
   c.perfil_jovem_universitario,
   c.perfil_terceira_idade,
   -- Entorno (best segment)
-  e_best.affinity_score  AS entorno_affinity,
   e_best.score_relevancia AS entorno_relevancia,
   e_best.total_estabelecimentos_relacionados AS entorno_total_pois,
   -- Pre-computed base score
   (
     COALESCE(p.fluxo, 0) * 0.00002 +
     COALESCE(g.socioeconomic_score, 0) * 0.01 +
-    COALESCE(e_best.affinity_score, 0) * 0.003 +
+    COALESCE(e_best.score_relevancia, 0) * 0.003 +
     COALESCE(c.score_geral, 0) * 10
   ) AS score_base
 FROM pontos p
 LEFT JOIN geo_audience_profiles g ON g.ponto_id = p.id
 LEFT JOIN census_audience_profiles c ON c.ponto_id = p.id
 LEFT JOIN LATERAL (
-  SELECT affinity_score, score_relevancia, total_estabelecimentos_relacionados
+  SELECT score_relevancia, total_estabelecimentos_relacionados
   FROM entorno_cache ec
   WHERE ec.ponto_id = p.id
-  ORDER BY affinity_score DESC
+  ORDER BY score_relevancia DESC
   LIMIT 1
 ) e_best ON TRUE
 WHERE p.ativo = 1;
@@ -158,6 +157,10 @@ $$ LANGUAGE plpgsql STABLE;
 
 CREATE OR REPLACE FUNCTION fn_rebuild_clusters(p_cidade TEXT DEFAULT NULL, p_k INTEGER DEFAULT 5)
 RETURNS void AS $$
+DECLARE
+  v_city RECORD;
+  v_count BIGINT;
+  v_k INTEGER;
 BEGIN
   -- Clear existing clusters for the target city
   IF p_cidade IS NOT NULL THEN
@@ -166,16 +169,29 @@ BEGIN
     DELETE FROM ponto_clusters;
   END IF;
 
-  -- Build clusters using K-Means
-  INSERT INTO ponto_clusters (ponto_id, cluster_id, cidade)
-  SELECT
-    p.id,
-    ST_ClusterKMeans(p.location, p_k) OVER (PARTITION BY p.cidade) AS cluster_id,
-    p.cidade
-  FROM pontos p
-  WHERE p.ativo = 1
-    AND p.location IS NOT NULL
-    AND (p_cidade IS NULL OR p.cidade = p_cidade);
+  -- Build clusters per city, adapting K to city size
+  FOR v_city IN
+    SELECT DISTINCT cidade FROM pontos
+    WHERE ativo = 1 AND location IS NOT NULL
+      AND (p_cidade IS NULL OR cidade = p_cidade)
+  LOOP
+    SELECT COUNT(*) INTO v_count
+    FROM pontos WHERE ativo = 1 AND location IS NOT NULL AND cidade = v_city.cidade;
+
+    -- K must be < number of distinct points; min 1
+    v_k := LEAST(p_k, GREATEST(1, v_count - 1));
+    IF v_k < 1 THEN v_k := 1; END IF;
+
+    INSERT INTO ponto_clusters (ponto_id, cluster_id, cidade)
+    SELECT
+      p.id,
+      ST_ClusterKMeans(p.location, v_k) OVER () AS cluster_id,
+      p.cidade
+    FROM pontos p
+    WHERE p.ativo = 1
+      AND p.location IS NOT NULL
+      AND p.cidade = v_city.cidade;
+  END LOOP;
 END;
 $$ LANGUAGE plpgsql;
 
