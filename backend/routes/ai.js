@@ -1,5 +1,5 @@
 /**
- * routes/ai.js — AI generation + analysis + memory endpoints
+ * routes/ai.js — AI generation, DOOH intelligence, analysis + memory endpoints
  */
 'use strict';
 
@@ -47,6 +47,60 @@ router.post('/analyze', async (req, res) => {
   } catch (err) {
     console.error('[ai/analyze]', err.message);
     res.status(503).json({ error: 'AI analysis failed', detail: err.message });
+  }
+});
+
+// ── GET /api/ai/point/:pontoId — AI insight for a single DOOH point ────────
+router.get('/point/:pontoId', async (req, res) => {
+  try {
+    const pontoId = parseInt(req.params.pontoId);
+    if (!pontoId || pontoId < 1) {
+      return res.status(400).json({ error: 'pontoId inválido' });
+    }
+
+    const userId = req.authUser?.id || null;
+    const result = await ai.generatePointInsight(pontoId, userId);
+    res.json(result);
+  } catch (err) {
+    console.error(`[ai/point/${req.params.pontoId}]`, err.message);
+    if (err.message === 'PONTO_NOT_FOUND') {
+      return res.status(404).json({ error: 'Ponto não encontrado' });
+    }
+    res.status(503).json({ error: 'AI insight failed', detail: err.message });
+  }
+});
+
+// ── POST /api/ai/campaign — AI analysis for a full campaign ─────────────────
+router.post('/campaign', async (req, res) => {
+  try {
+    const campaignData = req.body;
+    if (!campaignData || !campaignData.cidade) {
+      return res.status(400).json({ error: 'Campaign data with cidade is required' });
+    }
+
+    const userId = req.authUser?.id || null;
+    const result = await ai.analyzeCampaign(campaignData, userId);
+    res.json(result);
+  } catch (err) {
+    console.error('[ai/campaign]', err.message);
+    res.status(503).json({ error: 'Campaign analysis failed', detail: err.message });
+  }
+});
+
+// ── POST /api/ai/recommend — AI-powered point selection ─────────────────────
+router.post('/recommend', async (req, res) => {
+  try {
+    const params = req.body;
+    if (!params || !params.cidade) {
+      return res.status(400).json({ error: 'cidade is required' });
+    }
+
+    const userId = req.authUser?.id || null;
+    const result = await ai.smartRecommendation(params, userId);
+    res.json(result);
+  } catch (err) {
+    console.error('[ai/recommend]', err.message);
+    res.status(503).json({ error: 'Recommendation failed', detail: err.message });
   }
 });
 

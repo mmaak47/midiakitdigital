@@ -1,13 +1,13 @@
 /**
- * services/aiService.js — Local AI layer with Ollama + Replicate fallback
+ * services/aiService.js — DOOH Intelligence Layer
  *
- * Modules:
- *   - generateLocal(prompt)        → Ollama llama3/mistral
- *   - generateWithReplicate(prompt) → Replicate API fallback
- *   - generateWithFallback(prompt) → local → replicate chain
- *   - generateStructuredOutput(data) → prompt engineering + JSON parsing
- *   - Cache layer (PostgreSQL ai_cache)
- *   - Memory/learning layer (ai_memory + ai_patterns)
+ * Full AI engine trained on Digital Out-of-Home media data:
+ *   - DOOH knowledge base (formats, metrics, benchmarks)
+ *   - Point-level AI insights (commercial arguments, audience narrative)
+ *   - Campaign AI analysis (strategy, optimization, competitive positioning)
+ *   - Smart recommendations powered by PostGIS enriched data
+ *   - generateLocal/generateWithFallback (Ollama + Replicate)
+ *   - Cache + Memory + Pattern learning layers
  */
 'use strict';
 
@@ -22,6 +22,153 @@ const OLLAMA_FALLBACK_MODEL = process.env.OLLAMA_FALLBACK_MODEL || 'mistral';
 const OLLAMA_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS) || 30000;
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN || '';
 const CACHE_TTL_HOURS = Number(process.env.AI_CACHE_TTL_HOURS) || 72;
+
+// ── DOOH Knowledge Base ─────────────────────────────────────────────────────
+
+const DOOH_KNOWLEDGE = `
+## CONHECIMENTO PROFUNDO: MÍDIA DOOH (Digital Out-of-Home)
+
+Você é um especialista sênior em mídia DOOH no mercado brasileiro, operando o sistema MidiaKit Digital da Rede Intermidia.
+
+### FORMATOS E CARACTERÍSTICAS:
+- **Painel LED**: Grande formato digital em vias de alto tráfego. Fluxo veicular + pedestre. Spots de 15s em loop de 3min. Visibilidade diurna e noturna excepcional. CPM médio: R$5-15.
+- **Elevador**: Telas em elevadores residenciais e comerciais. Alta frequência (moradores veem 4-8x/dia). Público cativo, classe A/B. Ideal para awareness e prestígio. CPM de R$2-8 (muito eficiente).
+- **Tela Indoor**: Ambientes internos (supermercados, academias, consultórios). Proximidade ao PDV. Público qualificado no momento de decisão. CPM: R$3-12.
+- **Backlight**: Painéis iluminados por trás, grande formato. Excelente visibilidade noturna em vias arteriais. Impacto premium. CPM: R$8-20.
+- **Frontlight**: Painéis iluminados frontalmente. Destaque em rodovias e grandes avenidas. Alto alcance veicular. CPM: R$10-25.
+
+### MÉTRICAS ESSENCIAIS:
+- **Fluxo**: Impactos mensais estimados (pessoas ou veículos que passam pelo ponto)
+- **Inserções**: Quantas vezes o spot é exibido por mês
+- **CPM**: Custo por Mil impactos = (Preço / Fluxo) * 1000 — quanto menor, mais eficiente
+- **SOV (Share of Voice)**: Proporção da presença do anunciante em uma região vs concorrentes
+- **GRP (Gross Rating Points)**: Alcance × Frequência — métrica padrão de mídia
+- **Cobertura**: % dos pontos disponíveis na cidade que fazem parte do plano
+- **Frequência ideal**: 2-6 contatos/semana para recall ótimo (nem pouco nem saturação)
+
+### CLASSIFICAÇÃO DE AUDIÊNCIA (9 tipos de bairro):
+- Centro Corporativo: Executivos, decisores B2B, horário comercial intenso
+- Zona Comercial: Shoppers, consumidores ativos, oportunidade de conversão
+- Residencial Premium: Classe A/B, moradores com alto poder aquisitivo
+- Residencial Médio: Famílias, consumo recorrente, massa crítica
+- Zona Universitária: Jovens 18-29, tendências, tech-savvy
+- Zona de Lazer: Público em momento de lazer, receptivo a entretenimento
+- Zona Popular Densa: Alto volume, varejo de massa, frequência elevada
+- Polo de Saúde: Profissionais e pacientes, decisão importante
+- Polo Educacional: Famílias com filhos, educação e serviços
+
+### PERFIS DEMOGRÁFICOS (Censo IBGE):
+- Alta Renda: Renda >R$5k, superior completo >40%, serviços premium
+- Massa/Varejo: Renda R$1.5-5k, alta densidade, comércio popular
+- Jovem Universitário: 18-29 anos >35%, cultura e tecnologia
+- Terceira Idade: 60+ >25%, saúde e bem-estar
+
+### ESTRATÉGIAS POR OBJETIVO:
+- **Presença Premium**: Alta classe, formatos elevador/LED, bairros nobres, frequência moderada
+- **Cobertura Regional**: Múltiplos formatos, dispersão geográfica, maximizar alcance
+- **Proximidade da Decisão**: Indoor/PDV, pontos perto do estabelecimento do cliente
+- **Lembrança Contínua**: Alta frequência, elevadores e telas indoor, recorrência mensal
+
+### REGRAS DE ARGUMENTAÇÃO COMERCIAL:
+1. NUNCA inventar dados — usar sempre os números reais fornecidos
+2. CPM baixo = eficiência → destacar quando CPM < R$10
+3. Fluxo alto = alcance → destaque quando > 500k
+4. Diversidade de formatos = complementaridade → sempre positivo
+5. Entorno relevante (POIs) = contexto de marca → usar dados de score de entorno
+6. "Público cativo" para elevadores (moradores recorrentes)
+7. "Momento de decisão" para indoor/PDV
+8. "Visibilidade 24h" para LED
+9. Frequência ideal 2-6 contatos = "sweet spot de recall"
+`;
+
+// ── Data helpers: pull real data from PostgreSQL ────────────────────────────
+
+function getEnrichedPoints(cidade) {
+  try {
+    if (cidade) {
+      return db.prepare(
+        `SELECT * FROM pontos_enriquecidos WHERE cidade = ? ORDER BY score_base DESC`
+      ).all(cidade);
+    }
+    return db.prepare(`SELECT * FROM pontos_enriquecidos ORDER BY score_base DESC`).all();
+  } catch { return []; }
+}
+
+function getPointById(pontoId) {
+  try {
+    return db.prepare(`SELECT * FROM pontos_enriquecidos WHERE id = ? LIMIT 1`).get(Number(pontoId));
+  } catch { return null; }
+}
+
+function getClusters(cidade) {
+  try {
+    if (cidade) {
+      return db.prepare(
+        `SELECT pc.cluster_id, pc.ponto_id, p.nome, p.tipo, p.fluxo, p.preco
+         FROM ponto_clusters pc JOIN pontos p ON p.id = pc.ponto_id
+         WHERE pc.cidade = ? ORDER BY pc.cluster_id`
+      ).all(cidade);
+    }
+    return [];
+  } catch { return []; }
+}
+
+function getCityStats(cidade) {
+  try {
+    const rows = getEnrichedPoints(cidade);
+    if (!rows.length) return null;
+    const totalFluxo = rows.reduce((s, r) => s + (Number(r.fluxo) || 0), 0);
+    const totalPreco = rows.reduce((s, r) => s + (Number(r.preco) || 0), 0);
+    const tipos = {};
+    const bairros = {};
+    const perfis = {};
+    rows.forEach(r => {
+      if (r.tipo) tipos[r.tipo] = (tipos[r.tipo] || 0) + 1;
+      if (r.neighborhood_type) bairros[r.neighborhood_type] = (bairros[r.neighborhood_type] || 0) + 1;
+      if (r.perfil_dominante) perfis[r.perfil_dominante] = (perfis[r.perfil_dominante] || 0) + 1;
+    });
+    return {
+      cidade,
+      total_pontos: rows.length,
+      total_fluxo: totalFluxo,
+      investimento_total: totalPreco,
+      cpm_medio: totalFluxo > 0 ? totalPreco / (totalFluxo / 1000) : 0,
+      formatos: tipos,
+      bairros,
+      perfis_demograficos: perfis,
+      score_medio: rows.reduce((s, r) => s + (Number(r.score_base) || 0), 0) / rows.length,
+    };
+  } catch { return null; }
+}
+
+function getPointEntorno(pontoId) {
+  try {
+    return db.prepare(
+      `SELECT segmento_analisado, score_relevancia, total_estabelecimentos_relacionados, categorias_encontradas
+       FROM entorno_cache WHERE ponto_id = ? ORDER BY score_relevancia DESC LIMIT 5`
+    ).all(Number(pontoId));
+  } catch { return []; }
+}
+
+function getPointGeoProfile(pontoId) {
+  try {
+    return db.prepare(
+      `SELECT neighborhood_type, neighborhood_label, socioeconomic_level, socioeconomic_score,
+              urban_density, total_pois, environment_type, dominant_activity, audience_narrative
+       FROM geo_audience_profiles WHERE ponto_id = ? LIMIT 1`
+    ).get(Number(pontoId));
+  } catch { return null; }
+}
+
+function getPointCensus(pontoId) {
+  try {
+    return db.prepare(
+      `SELECT perfil_dominante, score_geral, perfil_alta_renda, perfil_massa_varejo,
+              perfil_jovem_universitario, perfil_terceira_idade
+       FROM census_audience_profiles WHERE ponto_id = ? LIMIT 1`
+    ).get(Number(pontoId));
+  } catch { return null; }
+}
 
 // ── Bootstrap tables ────────────────────────────────────────────────────────
 
@@ -317,121 +464,254 @@ async function generateWithFallback(prompt) {
   }
 }
 
-// ── Prompt Engineering ──────────────────────────────────────────────────────
+// ── Prompt Engineering (DOOH-aware) ─────────────────────────────────────────
 
-function buildPrompt(data, memories = [], patterns = []) {
-  let memoryContext = '';
+function buildMemoryBlock(memories, patterns) {
+  let ctx = '';
   if (memories.length) {
     const lines = memories.map(m => {
       const tag = m.feedback > 0 ? '✓ aprovado' : 'neutro';
-      return `- [${tag}] Input: "${String(m.input).slice(0, 80)}" → "${String(m.output).slice(0, 120)}"`;
+      return `- [${tag}] "${String(m.input).slice(0, 80)}" → "${String(m.output).slice(0, 120)}"`;
     });
-    memoryContext = `\nCONTEXTO DE INTERAÇÕES ANTERIORES:\n${lines.join('\n')}\n`;
+    ctx += `\nINTERAÇÕES ANTERIORES RELEVANTES:\n${lines.join('\n')}\n`;
   }
-
-  let patternContext = '';
   if (patterns.length) {
-    const lines = patterns.map(p => `- Padrão (score ${p.score}): "${String(p.response).slice(0, 150)}"`);
-    patternContext = `\nPADRÕES BEM-SUCEDIDOS:\n${lines.join('\n')}\n`;
+    const lines = patterns.map(p => `- (score ${p.score}) ${String(p.response).slice(0, 150)}`);
+    ctx += `\nPADRÕES BEM-SUCEDIDOS:\n${lines.join('\n')}\n`;
   }
+  return ctx;
+}
 
-  return `Você é um especialista em mídia OOH (Out of Home) do sistema MidiaKit Digital.
-${memoryContext}${patternContext}
-Com base nos dados abaixo, gere uma saída EXCLUSIVAMENTE em JSON válido (sem texto adicional):
+function buildPrompt(data, memories = [], patterns = []) {
+  return `${DOOH_KNOWLEDGE}
+${buildMemoryBlock(memories, patterns)}
+Com base nos dados abaixo, gere uma saída EXCLUSIVAMENTE em JSON válido (sem texto adicional, sem markdown):
 
-DADOS:
+DADOS DO PONTO/CAMPANHA:
 ${JSON.stringify(data, null, 2)}
 
-REGRAS:
+REGRAS ABSOLUTAS:
 - Seja comercial, direto e persuasivo
-- Destaque visibilidade, impacto e alcance
-- Não invente dados numéricos — use os fornecidos
-- Use linguagem profissional de mercado publicitário
-- O texto deve ser em português brasileiro
+- Use os dados numéricos REAIS fornecidos — NUNCA invente números
+- Linguagem profissional de mercado publicitário brasileiro
+- Destaque os diferenciais que tornam este ponto/campanha único
 
-FORMATO OBRIGATÓRIO (JSON válido, sem markdown):
+FORMATO (JSON puro):
 {
-  "headline": "título impactante para o ponto/campanha",
-  "descricao": "texto comercial destacando diferenciais",
-  "pontos_fortes": ["ponto forte 1", "ponto forte 2", "ponto forte 3"]
+  "headline": "título impactante e comercial",
+  "descricao": "texto comercial de 2-3 frases destacando diferenciais",
+  "pontos_fortes": ["argumento 1", "argumento 2", "argumento 3"]
 }`;
 }
 
 function buildAnalysisPrompt(input, memories = [], patterns = []) {
-  let memoryContext = '';
-  if (memories.length) {
-    const lines = memories.map(m => {
-      const tag = m.feedback > 0 ? '✓' : '○';
-      return `- [${tag}] "${String(m.input).slice(0, 60)}" → "${String(m.output).slice(0, 100)}"`;
-    });
-    memoryContext = `\nHistórico relevante:\n${lines.join('\n')}\n`;
-  }
-
-  let patternContext = '';
-  if (patterns.length) {
-    patternContext = `\nPadrões conhecidos:\n${patterns.map(p => `- (score ${p.score}) ${String(p.response).slice(0, 120)}`).join('\n')}\n`;
-  }
-
-  return `Você é uma IA especialista no sistema MidiaKit Digital — plataforma de mídia OOH.
-${memoryContext}${patternContext}
-Tarefa:
+  return `${DOOH_KNOWLEDGE}
+${buildMemoryBlock(memories, patterns)}
+TAREFA:
 ${input}
 
-Responda de forma prática, direta e estratégica. Em português brasileiro.`;
+Responda de forma prática, direta e estratégica. Em português brasileiro.
+Use seu conhecimento profundo de DOOH para fundamentar a análise.`;
+}
+
+/**
+ * Build a detailed prompt for point-level AI insight.
+ * Uses all enrichment data (geo, census, entorno) from the database.
+ */
+function buildPointInsightPrompt(point, entorno, geoProfile, census) {
+  const fmt = n => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
+  const cpm = Number(point.fluxo) > 0 ? (Number(point.preco) / (Number(point.fluxo) / 1000)) : 0;
+
+  let entornoBlock = '';
+  if (entorno?.length) {
+    entornoBlock = `\nENTORNO (POIs próximos):\n${entorno.map(e =>
+      `- ${e.segmento_analisado}: ${e.total_estabelecimentos_relacionados} estabelecimentos (score ${Number(e.score_relevancia || 0).toFixed(1)})`
+    ).join('\n')}`;
+  }
+
+  let geoBlock = '';
+  if (geoProfile) {
+    geoBlock = `\nPERFIL DE BAIRRO: ${geoProfile.neighborhood_label || geoProfile.neighborhood_type}
+- Nível socioeconômico: ${geoProfile.socioeconomic_level} (score ${Number(geoProfile.socioeconomic_score || 0).toFixed(0)})
+- Densidade: ${geoProfile.urban_density || 'n/a'}
+- Atividade dominante: ${geoProfile.dominant_activity || 'n/a'}
+- POIs no raio: ${geoProfile.total_pois || 0}`;
+  }
+
+  let censusBlock = '';
+  if (census) {
+    censusBlock = `\nDEMOGRAFIA (Censo IBGE):
+- Perfil dominante: ${census.perfil_dominante}
+- Score geral: ${Number(census.score_geral || 0).toFixed(2)}
+- Alta Renda: ${(Number(census.perfil_alta_renda || 0) * 100).toFixed(0)}%
+- Massa/Varejo: ${(Number(census.perfil_massa_varejo || 0) * 100).toFixed(0)}%
+- Jovem Universitário: ${(Number(census.perfil_jovem_universitario || 0) * 100).toFixed(0)}%
+- Terceira Idade: ${(Number(census.perfil_terceira_idade || 0) * 100).toFixed(0)}%`;
+  }
+
+  return `${DOOH_KNOWLEDGE}
+
+ANALISE ESTE PONTO DE MÍDIA DOOH E GERE UMA ARGUMENTAÇÃO COMERCIAL INTELIGENTE:
+
+PONTO: ${point.nome}
+- Cidade: ${point.cidade}
+- Formato: ${point.tipo}
+- Preço: R$ ${fmt(point.preco)}/mês
+- Fluxo: ${fmt(point.fluxo)} impactos/mês
+- CPM: R$ ${cpm.toFixed(2)}
+- Público: ${point.publico || 'Geral'}
+- Inserções: ${fmt(point.insercoes || 0)}/mês
+- Score base: ${Number(point.score_base || 0).toFixed(1)}
+${entornoBlock}${geoBlock}${censusBlock}
+
+Gere EXCLUSIVAMENTE JSON válido:
+{
+  "headline": "frase comercial de impacto para este ponto (máx 15 palavras)",
+  "narrativa": "texto comercial de 3-4 frases para apresentar este ponto a um anunciante, usando dados reais",
+  "argumentos": ["argumento comercial 1", "argumento comercial 2", "argumento comercial 3", "argumento comercial 4"],
+  "publico_ideal": ["segmento de anunciante ideal 1", "segmento 2", "segmento 3"],
+  "destaque": "a principal vantagem competitiva deste ponto em 1 frase"
+}`;
+}
+
+/**
+ * Build prompt for full campaign analysis.
+ */
+function buildCampaignAnalysisPrompt(campaignData, cityStats) {
+  const fmt = n => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
+
+  let pontosSummary = '';
+  if (campaignData.pontos?.length) {
+    pontosSummary = campaignData.pontos.slice(0, 15).map(p =>
+      `  - ${p.nome} (${p.tipo}) — Fluxo ${fmt(p.fluxo)}, R$ ${fmt(p.preco)}, Público ${p.publico || 'Geral'}`
+    ).join('\n');
+  }
+
+  let cityBlock = '';
+  if (cityStats) {
+    cityBlock = `\nINVENTÁRIO DA CIDADE (${cityStats.cidade}):
+- Total pontos disponíveis: ${cityStats.total_pontos}
+- Fluxo total cidade: ${fmt(cityStats.total_fluxo)}
+- CPM médio cidade: R$ ${cityStats.cpm_medio.toFixed(2)}
+- Formatos: ${Object.entries(cityStats.formatos).map(([k, v]) => `${k}(${v})`).join(', ')}
+- Bairros: ${Object.entries(cityStats.bairros).map(([k, v]) => `${k}(${v})`).join(', ')}
+- Perfis: ${Object.entries(cityStats.perfis_demograficos).map(([k, v]) => `${k}(${v})`).join(', ')}`;
+  }
+
+  return `${DOOH_KNOWLEDGE}
+
+ANALISE ESTA CAMPANHA DOOH E GERE RECOMENDAÇÕES ESTRATÉGICAS:
+
+CAMPANHA:
+- Cidade: ${campaignData.cidade || 'n/a'}
+- Segmento: ${campaignData.segmento || 'n/a'}
+- Objetivo: ${campaignData.objetivo || 'n/a'}
+- Orçamento: R$ ${fmt(campaignData.budget || 0)}
+- Período: ${campaignData.periodoSemanas || 4} semanas
+- Público-alvo: ${campaignData.publico || 'n/a'}
+
+PONTOS SELECIONADOS (${campaignData.pontos?.length || 0}):
+${pontosSummary || '  Nenhum ponto selecionado'}
+
+TOTAIS:
+- Investimento: R$ ${fmt(campaignData.investimento || 0)}
+- Fluxo total: ${fmt(campaignData.fluxoTotal || 0)} impactos/mês
+- CPM: R$ ${Number(campaignData.cpm || 0).toFixed(2)}
+- Formatos: ${campaignData.formatos?.join(', ') || 'n/a'}
+- Cobertura: ${campaignData.coberturaPct || 0}%
+${cityBlock}
+
+Gere EXCLUSIVAMENTE JSON válido:
+{
+  "avaliacao": "nota geral da campanha (Excelente/Muito Boa/Boa/Regular/Pode Melhorar)",
+  "resumo_executivo": "resumo de 2-3 frases sobre a campanha para o anunciante",
+  "pontos_fortes": ["força 1", "força 2", "força 3"],
+  "oportunidades_melhoria": ["sugestão concreta 1", "sugestão concreta 2"],
+  "argumentacao_comercial": ["argumento de venda 1", "argumento de venda 2", "argumento de venda 3", "argumento de venda 4"],
+  "estrategia_recomendada": "parágrafo com a estratégia ideal para este anunciante/objetivo"
+}`;
+}
+
+/**
+ * Build prompt for smart recommendation (which points to select).
+ */
+function buildRecommendationPrompt(params, enrichedPoints, cityStats) {
+  const fmt = n => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
+  const top = enrichedPoints.slice(0, 20);
+
+  const pointsTable = top.map((p, i) => {
+    const cpm = Number(p.fluxo) > 0 ? (Number(p.preco) / (Number(p.fluxo) / 1000)) : 999;
+    return `  ${i + 1}. [ID:${p.id}] ${p.nome} — ${p.tipo} — Fluxo ${fmt(p.fluxo)} — R$${fmt(p.preco)} — CPM R$${cpm.toFixed(1)} — ${p.neighborhood_type || 'n/a'} — ${p.perfil_dominante || 'n/a'} — Score ${Number(p.score_base || 0).toFixed(1)}`;
+  }).join('\n');
+
+  return `${DOOH_KNOWLEDGE}
+
+TAREFA: Selecionar os melhores pontos DOOH para esta campanha.
+
+BRIEFING DO CLIENTE:
+- Cidade: ${params.cidade}
+- Segmento do anunciante: ${params.segmento || 'Geral'}
+- Objetivo: ${params.objetivo || 'Lembrança contínua'}
+- Orçamento: R$ ${fmt(params.budget || 0)}
+- Máximo de pontos: ${params.maxPontos || 10}
+- Público-alvo: ${params.publico || 'A/B'}
+
+INVENTÁRIO DISPONÍVEL (top 20 por score):
+${pointsTable}
+
+ESTATÍSTICAS DA CIDADE:
+- Total pontos: ${cityStats?.total_pontos || 0}
+- CPM médio: R$ ${cityStats?.cpm_medio?.toFixed(2) || 'n/a'}
+- Score médio: ${cityStats?.score_medio?.toFixed(1) || 'n/a'}
+
+Gere EXCLUSIVAMENTE JSON válido:
+{
+  "pontos_recomendados": [IDs dos pontos selecionados, ex: [1, 5, 12]],
+  "estrategia": "frase resumindo a lógica da seleção",
+  "justificativa_por_ponto": {
+    "ID": "por que este ponto foi escolhido (1 frase)"
+  },
+  "investimento_estimado": número em reais,
+  "fluxo_estimado": número de impactos mensais,
+  "porque_funciona": ["razão 1", "razão 2", "razão 3"]
+}`;
 }
 
 // ── JSON parser helper ──────────────────────────────────────────────────────
 
 function extractJSON(text) {
-  // Try direct parse
   try { return JSON.parse(text); } catch { /* continue */ }
-
-  // Try extracting JSON from markdown code blocks
   const blockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
   if (blockMatch) {
     try { return JSON.parse(blockMatch[1].trim()); } catch { /* continue */ }
   }
-
-  // Try finding JSON object in text
   const objMatch = text.match(/\{[\s\S]*\}/);
   if (objMatch) {
     try { return JSON.parse(objMatch[0]); } catch { /* continue */ }
   }
-
   return null;
 }
 
-// ── Public API ──────────────────────────────────────────────────────────────
+// ── Public API: Original endpoints ──────────────────────────────────────────
 
-/**
- * Generate structured OOH content for a point/campaign.
- * Uses cache + memory + fallback chain.
- */
 async function generateStructuredOutput(data, userId = null) {
   const inputStr = JSON.stringify(data);
   const inputHash = hashInput(inputStr);
 
-  // 1. Check cache
   const cached = getCached(inputHash);
   if (cached) {
     console.log('[ai] cache HIT');
     return { ...extractJSON(cached.response), _source: 'cache', _model: cached.model };
   }
 
-  // 2. Retrieve memory context
   const memories = getRelevantMemories(inputStr);
   const patterns = getTopPatterns(inputStr);
-
-  // 3. Build prompt
   const prompt = buildPrompt(data, memories, patterns);
 
-  // 4. Generate with fallback
   const result = await generateWithFallback(prompt);
 
-  // 5. Parse JSON
   const parsed = extractJSON(result.text);
   if (!parsed) {
-    console.warn('[ai] failed to parse JSON from response, returning raw');
     return {
       headline: '',
       descricao: result.text.slice(0, 500),
@@ -441,25 +721,17 @@ async function generateStructuredOutput(data, userId = null) {
     };
   }
 
-  // 6. Cache result
   setCache(inputHash, prompt, JSON.stringify(parsed), result.model, result.latency);
-
-  // 7. Save to memory
   saveMemory(inputStr, JSON.stringify(parsed), userId);
 
   return { ...parsed, _source: 'generated', _model: result.model };
 }
 
-/**
- * Free-form analysis endpoint.
- */
 async function analyzeInput(input, userId = null) {
   const inputHash = hashInput(input);
 
-  // Cache check
   const cached = getCached(inputHash);
   if (cached) {
-    console.log('[ai] analyze cache HIT');
     return { response: cached.response, _source: 'cache', _model: cached.model };
   }
 
@@ -475,9 +747,178 @@ async function analyzeInput(input, userId = null) {
   return { response: result.text, _source: 'generated', _model: result.model };
 }
 
+// ── DOOH Intelligence: Point Insight ────────────────────────────────────────
+
 /**
- * Get memory stats.
+ * Generate AI-powered commercial insight for a single DOOH point.
+ * Pulls all enrichment data (geo, census, entorno) and builds a rich prompt.
  */
+async function generatePointInsight(pontoId, userId = null) {
+  const point = getPointById(pontoId);
+  if (!point) throw new Error('PONTO_NOT_FOUND');
+
+  const cacheKey = `point_insight_${pontoId}`;
+  const inputHash = hashInput(cacheKey);
+
+  const cached = getCached(inputHash);
+  if (cached) {
+    console.log(`[ai] point insight cache HIT: ${pontoId}`);
+    return { ...extractJSON(cached.response), _source: 'cache', _model: cached.model, ponto_id: pontoId };
+  }
+
+  const entorno = getPointEntorno(pontoId);
+  const geoProfile = getPointGeoProfile(pontoId);
+  const census = getPointCensus(pontoId);
+
+  const memories = getRelevantMemories(point.nome + ' ' + point.cidade + ' ' + point.tipo);
+  const patternsCtx = getTopPatterns(point.tipo + ' ' + (point.neighborhood_type || ''));
+
+  const prompt = buildPointInsightPrompt(point, entorno, geoProfile, census);
+
+  const result = await generateWithFallback(prompt);
+  const parsed = extractJSON(result.text);
+
+  if (!parsed) {
+    return {
+      headline: point.nome,
+      narrativa: result.text.slice(0, 500),
+      argumentos: [],
+      publico_ideal: [],
+      destaque: '',
+      _source: 'raw',
+      _model: result.model,
+      ponto_id: pontoId,
+    };
+  }
+
+  setCache(inputHash, prompt, JSON.stringify(parsed), result.model, result.latency);
+  saveMemory(`insight:${point.nome}`, JSON.stringify(parsed), userId, 'point_insight');
+
+  return { ...parsed, _source: 'generated', _model: result.model, ponto_id: pontoId };
+}
+
+// ── DOOH Intelligence: Campaign Analysis ────────────────────────────────────
+
+/**
+ * AI-powered analysis of a full campaign (selected points + budget + objective).
+ */
+async function analyzeCampaign(campaignData, userId = null) {
+  const inputStr = JSON.stringify({
+    cidade: campaignData.cidade,
+    segmento: campaignData.segmento,
+    objetivo: campaignData.objetivo,
+    pontos_count: campaignData.pontos?.length || 0,
+    investimento: campaignData.investimento,
+  });
+  const inputHash = hashInput('campaign_' + inputStr);
+
+  const cached = getCached(inputHash);
+  if (cached) {
+    return { ...extractJSON(cached.response), _source: 'cache', _model: cached.model };
+  }
+
+  const cityStats = getCityStats(campaignData.cidade);
+  const prompt = buildCampaignAnalysisPrompt(campaignData, cityStats);
+
+  const result = await generateWithFallback(prompt);
+  const parsed = extractJSON(result.text);
+
+  if (!parsed) {
+    return {
+      avaliacao: 'N/A',
+      resumo_executivo: result.text.slice(0, 500),
+      pontos_fortes: [],
+      oportunidades_melhoria: [],
+      argumentacao_comercial: [],
+      estrategia_recomendada: '',
+      _source: 'raw',
+      _model: result.model,
+    };
+  }
+
+  setCache(inputHash, prompt, JSON.stringify(parsed), result.model, result.latency);
+  saveMemory(inputStr, JSON.stringify(parsed), userId, 'campaign_analysis');
+
+  return { ...parsed, _source: 'generated', _model: result.model };
+}
+
+// ── DOOH Intelligence: Smart Recommendation ─────────────────────────────────
+
+/**
+ * AI-powered point selection recommendation.
+ * Uses enriched data + LLM to suggest the best points for a briefing.
+ */
+async function smartRecommendation(params, userId = null) {
+  const { cidade, segmento, objetivo, budget, maxPontos, publico } = params;
+  if (!cidade) throw new Error('CIDADE_REQUIRED');
+
+  const inputStr = JSON.stringify({ cidade, segmento, objetivo, budget, maxPontos, publico });
+  const inputHash = hashInput('recommend_' + inputStr);
+
+  const cached = getCached(inputHash);
+  if (cached) {
+    return { ...extractJSON(cached.response), _source: 'cache', _model: cached.model };
+  }
+
+  const enriched = getEnrichedPoints(cidade);
+  if (!enriched.length) {
+    return { pontos_recomendados: [], estrategia: 'Nenhum ponto disponível nesta cidade.', _source: 'empty' };
+  }
+
+  const cityStats = getCityStats(cidade);
+  const prompt = buildRecommendationPrompt(params, enriched, cityStats);
+
+  const result = await generateWithFallback(prompt);
+  const parsed = extractJSON(result.text);
+
+  if (!parsed || !parsed.pontos_recomendados) {
+    // Fallback: return top-N by score
+    const topN = enriched.slice(0, maxPontos || 10);
+    return {
+      pontos_recomendados: topN.map(p => p.id),
+      estrategia: 'Seleção automática baseada em score composto (fallback).',
+      pontos: topN.map(p => ({ id: p.id, nome: p.nome, tipo: p.tipo, preco: p.preco, fluxo: p.fluxo, score_base: p.score_base })),
+      _source: 'fallback',
+      _model: result.model,
+    };
+  }
+
+  // Enrich the AI response with full point data
+  const selectedIds = new Set(parsed.pontos_recomendados.map(Number));
+  const selectedPoints = enriched.filter(p => selectedIds.has(Number(p.id)));
+  const totalInvestimento = selectedPoints.reduce((s, p) => s + (Number(p.preco) || 0), 0);
+  const totalFluxo = selectedPoints.reduce((s, p) => s + (Number(p.fluxo) || 0), 0);
+
+  const response = {
+    ...parsed,
+    pontos: selectedPoints.map(p => ({
+      id: p.id,
+      nome: p.nome,
+      cidade: p.cidade,
+      tipo: p.tipo,
+      preco: p.preco,
+      fluxo: p.fluxo,
+      publico: p.publico,
+      score_base: p.score_base,
+      neighborhood_type: p.neighborhood_type,
+      perfil_dominante: p.perfil_dominante,
+    })),
+    resumo: {
+      total_pontos: selectedPoints.length,
+      investimento: totalInvestimento,
+      fluxo_total: totalFluxo,
+      cpm: totalFluxo > 0 ? totalInvestimento / (totalFluxo / 1000) : 0,
+    },
+  };
+
+  setCache(inputHash, prompt, JSON.stringify(response), result.model, result.latency);
+  saveMemory(inputStr, JSON.stringify(response), userId, 'recommendation');
+
+  return { ...response, _source: 'generated', _model: result.model };
+}
+
+// ── Stats & health ──────────────────────────────────────────────────────────
+
 function getMemoryStats() {
   try {
     const totalMemories = db.prepare(`SELECT COUNT(*) as c FROM ai_memory`).get();
@@ -512,8 +953,6 @@ function getMemoryStats() {
   }
 }
 
-// ── Health check ────────────────────────────────────────────────────────────
-
 async function healthCheck() {
   const status = { ollama: false, models: [], replicate: !!REPLICATE_API_TOKEN };
 
@@ -535,6 +974,9 @@ module.exports = {
   generateWithReplicate,
   generateStructuredOutput,
   analyzeInput,
+  generatePointInsight,
+  analyzeCampaign,
+  smartRecommendation,
   updateFeedback,
   getMemoryStats,
   healthCheck,
