@@ -3,13 +3,13 @@ import { ChevronDown, ChevronUp, Clock3, MapPin, Sparkles, Star, Target, Trendin
 import { computeScreenScore, SCREEN_SCORE_WEIGHTS } from '../lib/strategy';
 
 /* ─── Constants ─── */
-const MIN_SCORE = 35;           // pontos abaixo disso NÃO aparecem
+const MIN_SCORE = 25;           // pontos abaixo disso NÃO aparecem
 const MAX_RECOMMENDATIONS = 10; // curadoria premium — máximo visível
 
 /* ─── Qualitative labels (cliente NUNCA vê números brutos) ─── */
 function getQualityLabel(score) {
-  if (score >= 70) return { text: 'Alta afinidade com o público', icon: Star, color: 'text-emerald-400', lightColor: 'text-emerald-700' };
-  if (score >= 55) return { text: 'Boa oportunidade de impacto', icon: Zap, color: 'text-sky-400', lightColor: 'text-sky-700' };
+  if (score >= 65) return { text: 'Alta afinidade com o público', icon: Star, color: 'text-emerald-400', lightColor: 'text-emerald-700' };
+  if (score >= 45) return { text: 'Boa oportunidade de impacto', icon: Zap, color: 'text-sky-400', lightColor: 'text-sky-700' };
   return { text: 'Local estratégico para este público', icon: Target, color: 'text-amber-400', lightColor: 'text-amber-700' };
 }
 
@@ -25,7 +25,7 @@ function getHighlights(breakdown) {
     cobertura: 'Ótimo posicionamento de preço',
   };
   return Object.entries(breakdown)
-    .filter(([, v]) => v >= 55)
+    .filter(([, v]) => v >= 45)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 3)
     .map(([key]) => DIM_POSITIVE[key] || key);
@@ -97,7 +97,7 @@ function RecommendationCard({ scored, isDark, onAdd, expanded, onToggle }) {
           {/* Dimension bars — only show dimensions ≥ 50 (hide weak ones) */}
           <div className="pt-3 space-y-1.5">
             {Object.entries(breakdown)
-              .filter(([, v]) => v >= 50)
+              .filter(([, v]) => v >= 35)
               .sort(([, a], [, b]) => b - a)
               .map(([key, val]) => {
                 const pct = Math.max(0, Math.min(100, val));

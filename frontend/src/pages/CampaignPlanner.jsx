@@ -824,9 +824,9 @@ export default function CampaignPlanner() {
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 <span className={`text-2xl font-bold ${
-                                  pt.compatibilidade >= 80 ? 'text-emerald-500' :
-                                  pt.compatibilidade >= 60 ? 'text-brand-orange' :
-                                  pt.compatibilidade >= 40 ? 'text-amber-500' :
+                                  pt.compatibilidade >= 70 ? 'text-emerald-500' :
+                                  pt.compatibilidade >= 50 ? 'text-brand-orange' :
+                                  pt.compatibilidade >= 35 ? 'text-amber-500' :
                                   isDark ? 'text-white/40' : 'text-neutral-400'
                                 }`}>
                                   {pt.compatibilidade}

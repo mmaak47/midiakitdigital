@@ -1160,10 +1160,10 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
   const objectiveBoost = selected.filter((p) => scorePointByObjective(p, objective) > 45).length;
 
   const scoreRaw =
-    Math.min(2.2, formats / 3) +
-    Math.min(2.4, totals.fluxoTotal / 700000) +
-    Math.min(2.0, coverage.coveragePct / 25) +
-    Math.min(1.8, coverage.presencePct / 28) +
+    Math.min(2.2, formats / 2.5) +
+    Math.min(2.4, totals.fluxoTotal / 400000) +
+    Math.min(2.0, coverage.coveragePct / 20) +
+    Math.min(1.8, coverage.presencePct / 22) +
     Math.min(1.6, publicoMatches / Math.max(1, selected.length) * 1.6) +
     Math.min(1.4, objectiveBoost / Math.max(1, selected.length) * 1.4);
 
@@ -1171,11 +1171,11 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
 
   let explanation = `Score ${score.toFixed(1)}: campanha com boa base de frequência e cobertura.`;
   if (score >= 8.5) {
-    explanation = `Score ${score.toFixed(1)}: campanha forte em impacto e presença premium, com perfil comercial robusto.`;
+    explanation = `Score ${score.toFixed(1)}: campanha de alto impacto com presença premium e perfil comercial robusto. Recomendação forte.`;
   } else if (score >= 7) {
-    explanation = `Score ${score.toFixed(1)}: plano consistente, com oportunidade de ampliar cobertura para domínio regional.`;
+    explanation = `Score ${score.toFixed(1)}: plano consistente e bem distribuído, com oportunidade de ampliar cobertura para domínio regional.`;
   } else if (score >= 5) {
-    explanation = `Score ${score.toFixed(1)}: campanha funcional, mas ainda com espaço para reforçar formatos e capilaridade.`;
+    explanation = `Score ${score.toFixed(1)}: campanha funcional com boa estrutura de formatos. Há espaço para reforçar capilaridade.`;
   }
 
   return { score, explanation };
@@ -1684,40 +1684,73 @@ export function rankPointsWithScore({
     const availRaw = scoreAvailabilityFit(p, availabilityPreference);
     const censusRaw = scoreCensusProfileAffinity(p, { publico: publicoNormalizado, audienceTags, censusProfilesByPoint });
 
-    return { point: p, objRaw, pubRaw, effRaw, entRaw, geoRaw, segRaw, fmtRaw, availRaw, censusRaw };
+    // Track data availability for enrichment-dependent dimensions
+    const _hasEntorno = !!(entornoByPoint && (entornoByPoint[p.id] || entornoByPoint[String(p.id)]));
+    const _hasGeo = !!(geoProfilesByPoint && (geoProfilesByPoint[p.id] || geoProfilesByPoint[String(p.id)]));
+    const _hasCensus = !!(censusProfilesByPoint && (censusProfilesByPoint[p.id] || censusProfilesByPoint[String(p.id)]));
+
+    return { point: p, objRaw, pubRaw, effRaw, entRaw, geoRaw, segRaw, fmtRaw, availRaw, censusRaw, _hasEntorno, _hasGeo, _hasCensus };
   });
 
-  // Find max of each dimension for normalization
-  const maxObj = Math.max(1, ...rawScores.map((r) => r.objRaw));
-  const maxPub = Math.max(1, ...rawScores.map((r) => r.pubRaw));
-  const maxEff = Math.max(1, ...rawScores.map((r) => r.effRaw));
-  const maxEnt = Math.max(1, ...rawScores.map((r) => r.entRaw));
-  const maxGeo = Math.max(1, ...rawScores.map((r) => r.geoRaw));
-  const maxSeg = Math.max(1, ...rawScores.map((r) => r.segRaw));
-  const maxFmt = Math.max(1, ...rawScores.map((r) => r.fmtRaw));
-  const maxAvail = Math.max(1, ...rawScores.map((r) => r.availRaw));
-  const maxCensus = Math.max(1, ...rawScores.map((r) => r.censusRaw));
+  // Soft-max reference per dimension (P75-anchored to prevent outlier compression)
+  function softRef(values) {
+    const pos = values.filter(v => v > 0).sort((a, b) => a - b);
+    if (!pos.length) return 1;
+    const p75 = pos[Math.min(pos.length - 1, Math.floor(pos.length * 0.75))];
+    const max = pos[pos.length - 1];
+    return Math.max(1, p75 * 0.55 + max * 0.45);
+  }
 
-  const totalWeight = Object.values(weights).reduce((s, w) => s + w, 0) || 100;
+  const refObj = softRef(rawScores.map(r => r.objRaw));
+  const refPub = softRef(rawScores.map(r => r.pubRaw));
+  const refEff = softRef(rawScores.map(r => r.effRaw));
+  const refEnt = softRef(rawScores.map(r => r.entRaw));
+  const refGeo = softRef(rawScores.map(r => r.geoRaw));
+  const refSeg = softRef(rawScores.map(r => r.segRaw));
+  const refFmt = softRef(rawScores.map(r => r.fmtRaw));
+  const refAvail = softRef(rawScores.map(r => r.availRaw));
+  const refCensus = softRef(rawScores.map(r => r.censusRaw));
 
   return rawScores.map((r) => {
-    // Normalize each dimension to 0-100, clamped
+    // Normalize each dimension to 0-100 using soft-max (P75-anchored)
     const dims = {
-      objetivo: Math.max(0, Math.min(100, (r.objRaw / maxObj) * 100)),
-      publico: Math.max(0, Math.min(100, (r.pubRaw / maxPub) * 100)),
-      eficiencia: Math.max(0, Math.min(100, (r.effRaw / maxEff) * 100)),
-      entorno: Math.max(0, Math.min(100, (r.entRaw / maxEnt) * 100)),
-      geoaudience: Math.max(0, Math.min(100, (r.geoRaw / maxGeo) * 100)),
-      segmento: Math.max(0, Math.min(100, (r.segRaw / maxSeg) * 100)),
-      formato: Math.max(0, Math.min(100, (r.fmtRaw / maxFmt) * 100)),
-      disponibilidade: Math.max(0, Math.min(100, (r.availRaw / maxAvail) * 100)),
-      censusProfile: Math.max(0, Math.min(100, (r.censusRaw / maxCensus) * 100))
+      objetivo: Math.max(0, Math.min(100, (r.objRaw / refObj) * 100)),
+      publico: Math.max(0, Math.min(100, (r.pubRaw / refPub) * 100)),
+      eficiencia: Math.max(0, Math.min(100, (r.effRaw / refEff) * 100)),
+      entorno: Math.max(0, Math.min(100, (r.entRaw / refEnt) * 100)),
+      geoaudience: Math.max(0, Math.min(100, (r.geoRaw / refGeo) * 100)),
+      segmento: Math.max(0, Math.min(100, (r.segRaw / refSeg) * 100)),
+      formato: Math.max(0, Math.min(100, (r.fmtRaw / refFmt) * 100)),
+      disponibilidade: Math.max(0, Math.min(100, (r.availRaw / refAvail) * 100)),
+      censusProfile: Math.max(0, Math.min(100, (r.censusRaw / refCensus) * 100))
     };
+
+    // Redistribute weights for enrichment dimensions with no data available
+    const adjustedWeights = { ...weights };
+    let redistributed = 0;
+    if (!r._hasEntorno && r.entRaw === 0 && adjustedWeights.entorno) {
+      redistributed += adjustedWeights.entorno;
+      adjustedWeights.entorno = 0;
+    }
+    if (!r._hasGeo && r.geoRaw === 0 && adjustedWeights.geoaudience) {
+      redistributed += adjustedWeights.geoaudience;
+      adjustedWeights.geoaudience = 0;
+    }
+    if (!r._hasCensus && r.censusRaw === 0 && adjustedWeights.censusProfile) {
+      redistributed += adjustedWeights.censusProfile;
+      adjustedWeights.censusProfile = 0;
+    }
+    if (redistributed > 0) {
+      const activeKeys = Object.keys(adjustedWeights).filter(k => adjustedWeights[k] > 0);
+      const bonus = redistributed / activeKeys.length;
+      for (const k of activeKeys) adjustedWeights[k] += bonus;
+    }
+    const adjustedTotalWeight = Object.values(adjustedWeights).reduce((s, w) => s + w, 0) || 100;
 
     // Weighted average → 0-100 final score
     const compatibilidade = Math.round(
       Object.entries(dims).reduce((sum, [key, val]) => {
-        return sum + (val * ((weights[key] || 0) / totalWeight));
+        return sum + (val * ((adjustedWeights[key] || 0) / adjustedTotalWeight));
       }, 0)
     );
 
@@ -1836,7 +1869,7 @@ export function rankPointsWithScore({
       }
 
       // Score comparison
-      if (compatibilidade >= 80) {
+      if (compatibilidade >= 65) {
         pieceComparativo += pieceComparativo ? ` · score ${compatibilidade}/100` : `Score ${compatibilidade}/100 entre ${totalCityPoints} pontos avaliados`;
       }
     }
@@ -1929,8 +1962,8 @@ export function computeScreenScore(point, {
   const insercoes = toNumber(point.insercoes);
   const tipo = String(point.tipo || '').toLowerCase();
 
-  // ── Dimension 1: Traffic volume (0-1)
-  const dimFluxo = clamp01(fluxo / Math.max(maxFluxo, 1));
+  // ── Dimension 1: Traffic volume (0-1) — sqrt compression prevents outlier dominance
+  const dimFluxo = clamp01(Math.sqrt(fluxo / Math.max(maxFluxo, 1)));
 
   // ── Dimension 2: Cost-efficiency (0-1)
   const cpm = fluxo > 0 ? preco / (fluxo / 1000) : 999;
@@ -1940,14 +1973,14 @@ export function computeScreenScore(point, {
   const dimEficiencia = cpmNorm * 0.65 + insNorm * 0.35;
 
   // ── Dimension 3: Entorno / POI affinity (0-1)
-  let dimEntorno = 0;
+  let dimEntorno = 0.25; // baseline when no enrichment data
   if (entornoMetrics) {
     const affinity = Number(entornoMetrics.affinity_score) || Number(entornoMetrics.score_relevancia) || 0;
     dimEntorno = clamp01(affinity / 100);
   }
 
   // ── Dimension 4: GeoAudience neighbourhood quality (0-1)
-  let dimGeo = 0;
+  let dimGeo = 0.2; // baseline when no enrichment data
   if (geoProfile && geoProfile.neighborhood_type !== 'indefinido') {
     const conf = clamp01((geoProfile.confidence || 0) / 100);
     const socio = clamp01((geoProfile.socioeconomic_score || 0) / 100);
@@ -1958,7 +1991,7 @@ export function computeScreenScore(point, {
   }
 
   // ── Dimension 5: Census demographic (0-1)
-  let dimCensus = 0;
+  let dimCensus = 0.2; // baseline when no enrichment data
   if (censusProfile && censusProfile.perfis) {
     const perfis = censusProfile.perfis;
     const maxPerfil = Math.max(
@@ -2008,7 +2041,7 @@ export function computeScreenScore(point, {
     cobertura: Math.round(dimCobertura * 100)
   };
 
-  const grade = score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : 'D';
+  const grade = score >= 70 ? 'A' : score >= 50 ? 'B' : score >= 35 ? 'C' : 'D';
 
   return { score, breakdown, grade };
 }
