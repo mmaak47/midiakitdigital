@@ -480,12 +480,10 @@ REGRAS ABSOLUTAS:
 - Linguagem profissional de mercado publicitário brasileiro
 - Destaque os diferenciais que tornam este ponto/campanha único
 
-FORMATO (JSON puro):
-{
-  "headline": "título impactante e comercial",
-  "descricao": "texto comercial de 2-3 frases destacando diferenciais",
-  "pontos_fortes": ["argumento 1", "argumento 2", "argumento 3"]
-}`;
+IMPORTANTE: Gere conteúdo REAL e ESPECÍFICO. NÃO copie os exemplos, crie textos originais baseados nos dados.
+
+Gere JSON puro (sem markdown):
+{"headline":"escreva um título impactante sobre este ponto/campanha específico","descricao":"escreva 2-3 frases comerciais usando os dados reais acima","pontos_fortes":["escreva argumento real 1","escreva argumento real 2","escreva argumento real 3"]}`;
 }
 
 function buildAnalysisPrompt(input, memories = [], patterns = []) {
@@ -522,7 +520,10 @@ function buildPointInsightPrompt(point, entorno, geoProfile, census) {
 PONTO: ${point.nome} (${point.tipo}) em ${point.cidade}
 Preço R$${fmt(point.preco)}/mês, Fluxo ${fmt(point.fluxo)}/mês, CPM R$${cpm.toFixed(2)}, Score ${Number(point.score_base || 0).toFixed(1)}.${extra}
 
-Gere JSON: {"headline":"frase comercial impactante","narrativa":"texto 2-3 frases para anunciante","argumentos":["arg1","arg2","arg3"],"publico_ideal":["segmento1","segmento2"],"destaque":"principal vantagem"}`;
+IMPORTANTE: Gere conteúdo REAL e ESPECÍFICO para este ponto. NÃO copie os exemplos.
+
+Gere JSON puro (sem markdown):
+{"headline":"escreva frase comercial impactante sobre este ponto","narrativa":"escreva 2-3 frases para convencer anunciante","argumentos":["escreva argumento real 1","escreva argumento real 2","escreva argumento real 3"],"publico_ideal":["escreva segmento ideal 1","escreva segmento ideal 2"],"destaque":"escreva a principal vantagem deste ponto"}`;
 }
 
 /**
@@ -552,7 +553,10 @@ Orçamento R$${fmt(campaignData.budget || 0)}, ${campaignData.periodoSemanas || 
 Pontos(${campaignData.pontos?.length || 0}): ${pontosSummary || 'nenhum'}
 Investimento R$${fmt(campaignData.investimento || 0)}, Fluxo ${fmt(campaignData.fluxoTotal || 0)}/mês, CPM R$${Number(campaignData.cpm || 0).toFixed(2)}, Cobertura ${campaignData.coberturaPct || 0}%.${cityLine}
 
-Gere JSON: {"avaliacao":"Excelente/Boa/Regular","resumo_executivo":"2 frases","pontos_fortes":["f1","f2"],"oportunidades_melhoria":["s1","s2"],"argumentacao_comercial":["a1","a2","a3"],"estrategia_recomendada":"estratégia ideal"}`;
+IMPORTANTE: Gere conteúdo REAL e ESPECÍFICO para esta campanha. NÃO copie os exemplos, crie textos originais.
+
+Gere JSON puro (sem markdown):
+{"avaliacao":"escreva Excelente ou Boa ou Regular","resumo_executivo":"escreva 2-3 frases reais sobre esta campanha específica","pontos_fortes":["escreva ponto forte real 1","escreva ponto forte real 2"],"oportunidades_melhoria":["escreva sugestão real 1","escreva sugestão real 2"],"argumentacao_comercial":["escreva argumento comercial real 1","escreva argumento real 2","escreva argumento real 3"],"estrategia_recomendada":"escreva a estratégia recomendada para esta campanha"}`;
 }
 
 /**
@@ -574,7 +578,10 @@ Selecione os melhores pontos DOOH para: ${params.cidade}, segmento ${params.segm
 Pontos disponíveis:
 ${pointsTable}
 
-Gere JSON: {"pontos_recomendados":[IDs],"estrategia":"lógica da seleção","investimento_estimado":0,"fluxo_estimado":0,"porque_funciona":["r1","r2","r3"]}`;
+IMPORTANTE: Selecione IDs reais da lista acima. NÃO copie os exemplos.
+
+Gere JSON puro (sem markdown):
+{"pontos_recomendados":[liste os IDs numéricos selecionados],"estrategia":"escreva a lógica real da seleção","investimento_estimado":0,"fluxo_estimado":0,"porque_funciona":["escreva razão real 1","escreva razão real 2","escreva razão real 3"]}`;
 }
 
 // ── JSON parser helper ──────────────────────────────────────────────────────
