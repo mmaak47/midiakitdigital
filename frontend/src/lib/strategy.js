@@ -1154,11 +1154,9 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
   const desiredPublicos = normalizeArrayInput(desiredPublico).map((v) => String(v).toUpperCase());
 
   // ── Pilar 1: Qualidade dos Pontos (peso 30%) ──────────────────────────
-  // Weighted average of individual point scores, adjusted by investment
   const pointScores = selected.map((p) => {
     const screenScore = p._screenScore?.score ?? null;
     const compatScore = p.compatibilidade ?? null;
-    // Use the best available individual score (0-100)
     const raw = screenScore ?? compatScore ?? scorePointByObjective(p, objective);
     const investment = Math.max(1, toNumber(p.preco));
     return { raw: Math.max(0, Math.min(100, raw)), investment };
@@ -1167,29 +1165,32 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
   const weightedAvg = totalInvestment > 0
     ? pointScores.reduce((s, p) => s + (p.raw * p.investment), 0) / totalInvestment
     : pointScores.reduce((s, p) => s + p.raw, 0) / pointScores.length;
-  // Log curve: avoids punishing, lifts mid-range scores
-  const dimQualidade = Math.min(10, Math.log10(1 + weightedAvg * 0.9) * 4.35);
+  // Linear scale: 0-100 → 0-10, with mild power curve for differentiation
+  const dimQualidade = Math.min(10, Math.pow(weightedAvg / 100, 0.85) * 10);
 
   // ── Pilar 2: Alcance (peso 25%) ───────────────────────────────────────
   const reachPct = rf.effectiveReachPct || 0;
-  // Log normalization: 1% reach → ~3.5, 10% → ~6.8, 30% → ~8.1, 60%+ → ~9.5
-  const dimAlcance = Math.min(10, Math.log10(1 + reachPct * 2.5) * 5.8);
+  // Linear thresholds: <5% = poor, 5-15% = ok, 15-40% = good, 40%+ = excellent
+  let dimAlcance;
+  if (reachPct >= 50) dimAlcance = 9.0 + Math.min(1.0, (reachPct - 50) / 50);
+  else if (reachPct >= 25) dimAlcance = 7.0 + (reachPct - 25) / 12.5;
+  else if (reachPct >= 10) dimAlcance = 4.5 + (reachPct - 10) / 6;
+  else if (reachPct >= 3) dimAlcance = 2.0 + (reachPct - 3) / 2.8;
+  else dimAlcance = reachPct * 0.67;
 
   // ── Pilar 3: Frequência (peso 20%) ────────────────────────────────────
   const freq = rf.avgFrequency || 0;
-  // Sweet spot: 2-6 = great. Gentle penalty outside, never brutal.
   let dimFrequencia;
   if (freq >= 2 && freq <= 6) {
-    dimFrequencia = 8.5 + Math.min(1.5, (freq - 2) * 0.375); // 8.5 to 10
+    dimFrequencia = 7.5 + Math.min(2.0, (freq - 2) * 0.5); // 7.5 to 9.5
   } else if (freq >= 1.5) {
-    dimFrequencia = 6.5 + (freq - 1.5) * 4; // 6.5 → 8.5
+    dimFrequencia = 5.0 + (freq - 1.5) * 5; // 5.0 → 7.5
   } else if (freq > 0) {
-    dimFrequencia = Math.max(3.5, freq * 4.33); // floor 3.5
+    dimFrequencia = Math.max(1.5, freq * 3.33); // floor 1.5
   } else {
-    dimFrequencia = 3.0;
+    dimFrequencia = 0;
   }
-  // Soft penalty for very high frequency (>8), never below 6
-  if (freq > 8) dimFrequencia = Math.max(6, dimFrequencia - (freq - 8) * 0.3);
+  if (freq > 8) dimFrequencia = Math.max(5.0, dimFrequencia - (freq - 8) * 0.5);
 
   // ── Pilar 4: Eficiência de Custo (peso 15%) ──────────────────────────
   const cityPrices = (cityInventory.length ? cityInventory : selected)
@@ -1205,10 +1206,9 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
     : 1;
   const benchmarkCPM = cityMedianFluxo > 0 ? cityMedianPrice / (cityMedianFluxo / 1000) : 50;
   const campaignCPM = totals.cpmEstimado || 999;
-  // Ratio < 1 = cheaper than market (great), > 1 = more expensive
   const cpmRatio = benchmarkCPM > 0 ? campaignCPM / benchmarkCPM : 1;
-  // Sigmoid-ish: ratio 0.5 → ~9.2, ratio 1.0 → ~7.5, ratio 2.0 → ~5
-  const dimEficiencia = Math.max(3, Math.min(10, 7.5 + (1 - cpmRatio) * 3.4));
+  // Linear: ratio 0.5 → 9, ratio 1.0 → 6, ratio 1.5 → 3, ratio 2.0 → 1
+  const dimEficiencia = Math.max(0.5, Math.min(10, 6 + (1 - cpmRatio) * 6));
 
   // ── Pilar 5: Cobertura Estratégica (peso 10%) ────────────────────────
   const formats = new Set(selected.map((p) => p.tipo).filter(Boolean)).size;
@@ -1219,13 +1219,13 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
     return desiredPublicos.some((t) => pp.includes(t) || t.includes(pp));
   }).length;
   const pubMatchRate = publicoMatches / Math.max(1, selected.length);
-  // Format diversity: 1→5, 2→7, 3+→8.5+
-  const fmtScore = Math.min(10, 3 + formats * 2.2);
-  // Geographic diversity boost
-  const geoScore = Math.min(10, 5 + cities * 2);
-  // Coverage % (log for small campaigns)
-  const covScore = Math.min(10, Math.log10(1 + (coverage.coveragePct || 0) * 3) * 6);
-  const dimCobertura = fmtScore * 0.35 + geoScore * 0.25 + covScore * 0.2 + pubMatchRate * 10 * 0.2;
+  // More granular format scoring: 1→3, 2→5.5, 3→7.5, 4+→9
+  const fmtScore = Math.min(10, formats * 2.5 + 0.5);
+  const geoScore = Math.min(10, 3 + cities * 2.5);
+  const covPct = coverage.coveragePct || 0;
+  // Linear coverage: 5%→1.5, 15%→4.5, 30%→7, 50%+→9
+  const covScore = Math.min(10, covPct * 0.18);
+  const dimCobertura = fmtScore * 0.30 + geoScore * 0.20 + covScore * 0.25 + pubMatchRate * 10 * 0.25;
 
   // ── Weighted composite ────────────────────────────────────────────────
   const rawScore =
@@ -1235,20 +1235,16 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
     dimEficiencia * 0.15 +
     dimCobertura * 0.10;
 
-  // ── Boost de equilíbrio: se nenhum pilar é fraco, campanha é sólida ──
+  // ── Balance boost: smaller, only when truly balanced ──
   const allDims = [dimQualidade, dimAlcance, dimFrequencia, dimEficiencia, dimCobertura];
   const minDim = Math.min(...allDims);
-  const balanceBoost = minDim >= 5.5 ? Math.min(1.0, (minDim - 5.5) * 0.22) : 0;
+  const maxDim = Math.max(...allDims);
+  const spread = maxDim - minDim;
+  // Only boost if all dimensions are within a narrow band and min is decent
+  const balanceBoost = (minDim >= 5.0 && spread < 3.0) ? Math.min(0.5, (minDim - 5.0) * 0.1) : 0;
 
-  // ── Safety floor: nunca score < 3 se dados são razoáveis ─────────────
-  const hasGoodPoints = weightedAvg >= 50;
-  const hasReasonableFreq = freq >= 1.5;
-  const hasReasonableReach = reachPct >= 3;
-  const safetyFloor = (hasGoodPoints && hasReasonableFreq && hasReasonableReach) ? 5.0
-    : (hasGoodPoints || hasReasonableReach) ? 3.5
-    : 3.0;
-
-  const score = Math.min(9.5, Math.max(safetyFloor, Number((rawScore + balanceBoost).toFixed(1))));
+  // ── No safety floor — let bad campaigns score low ─────────────────────
+  const score = Math.min(9.8, Math.max(0.5, Number((rawScore + balanceBoost).toFixed(1))));
 
   const breakdown = {
     qualidade: Number(dimQualidade.toFixed(1)),
@@ -1259,16 +1255,23 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
     boost: Number(balanceBoost.toFixed(1))
   };
 
-  // ── Explicação comercial (nunca negativa) ─────────────────────────────
+  // ── Explanation ─────────────────────────────────────────────────────────
+  const weakest = Object.entries(breakdown)
+    .filter(([k]) => k !== 'boost')
+    .sort((a, b) => a[1] - b[1])[0];
+  const weakLabel = { qualidade: 'qualidade dos pontos', alcance: 'alcance', frequencia: 'frequência', eficiencia: 'eficiência de custo', cobertura: 'cobertura estratégica' };
+
   let explanation;
-  if (score >= 8) {
-    explanation = `Campanha muito forte, com excelente equilíbrio entre alcance, frequência e qualidade dos pontos. Recomendação de alta confiança.`;
-  } else if (score >= 6) {
-    explanation = `Campanha sólida, com boa cobertura e eficiência. Há oportunidades pontuais de otimização para alcançar domínio regional.`;
-  } else if (score >= 4) {
-    explanation = `Campanha com base consistente e bom potencial de retorno. Adicionar pontos ou diversificar formatos pode elevar o impacto.`;
+  if (score >= 8.5) {
+    explanation = `Campanha excepcional com excelente equilíbrio entre alcance, frequência e qualidade. Recomendação de alta confiança.`;
+  } else if (score >= 7) {
+    explanation = `Campanha forte. ${weakest[1] < 6 ? `Oportunidade de melhoria em ${weakLabel[weakest[0]] || weakest[0]}.` : 'Todos os pilares em bom nível.'}`;
+  } else if (score >= 5) {
+    explanation = `Campanha com base sólida. Melhore ${weakLabel[weakest[0]] || weakest[0]} para elevar o impacto geral.`;
+  } else if (score >= 3) {
+    explanation = `Campanha em desenvolvimento. Diversifique pontos e formatos para melhorar ${weakLabel[weakest[0]] || weakest[0]}.`;
   } else {
-    explanation = `Campanha em fase inicial. Com ajustes no mix de formatos e cobertura, o potencial de impacto cresce significativamente.`;
+    explanation = `Campanha em fase inicial. Adicione mais pontos com bom fluxo e diversifique formatos.`;
   }
 
   return { score, breakdown, explanation };

@@ -13,7 +13,7 @@ import Navbar from '../components/Navbar';
 import CampaignScore from '../components/CampaignScore';
 import PointCard from '../components/PointCard';
 import PointModal from '../components/PointModal';
-import { fetchPontos, fetchGeoAudienceProfiles, fetchCensusProfiles } from '../lib/api';
+import { fetchPontos, fetchGeoAudienceProfiles, fetchCensusProfiles, fetchAICampaignAnalysis } from '../lib/api';
 import {
   SEGMENTOS,
   OBJETIVOS,
@@ -308,6 +308,10 @@ export default function CampaignPlanner() {
   // results
   const [result, setResult] = useState(null);
   const [computing, setComputing] = useState(false);
+
+  // AI analysis
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const [selectedPoint, setSelectedPoint] = useState(null);
 
   useEffect(() => {
@@ -421,6 +425,28 @@ export default function CampaignPlanner() {
         setResult({ plan, scoreInfo, strategic, ranked, objetivo });
         setComputing(false);
         setStep(4);
+
+        // Fire async AI analysis (non-blocking)
+        setAiAnalysis(null);
+        setAiLoading(true);
+        fetchAICampaignAnalysis({
+          cidade: cidade || '',
+          objetivo,
+          segmento,
+          empresa,
+          pontos_selecionados: plan.pontos.length,
+          formatos: Array.from(new Set(plan.pontos.map((p) => p.tipo).filter(Boolean))),
+          fluxo_total: plan.totals?.fluxoTotal || 0,
+          investimento: plan.totals?.valorTotal || 0,
+          cpm: plan.totals?.cpmEstimado || 0,
+          alcance_pct: plan.reachFrequency?.effectiveReachPct || 0,
+          frequencia: plan.reachFrequency?.avgFrequency || 0,
+          score: scoreInfo?.score || 0,
+          breakdown: scoreInfo?.breakdown || {},
+          publico: publicoAlvo,
+        }).then((data) => {
+          if (data) setAiAnalysis(data);
+        }).catch(() => {}).finally(() => setAiLoading(false));
       }, 100);
     });
   }, [allPontos, cidade, publicoAlvo, audienceTags, objetivos, segmento, budget, period, empresa, geoProfiles, censusProfiles]);
@@ -436,6 +462,7 @@ export default function CampaignPlanner() {
   const handleBack = useCallback(() => {
     if (step === 4) {
       setResult(null);
+      setAiAnalysis(null);
     }
     setStep((s) => Math.max(0, s - 1));
   }, [step]);
@@ -1140,6 +1167,65 @@ export default function CampaignPlanner() {
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* AI Analysis Section */}
+            <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
+              <div className="flex items-center gap-2 mb-3">
+                <Cpu size={16} className="text-brand-orange" />
+                <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Análise IA</h3>
+                {aiLoading && <Loader2 size={14} className="animate-spin text-brand-orange ml-1" />}
+              </div>
+              {aiLoading && (
+                <p className={`text-sm ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>Gerando análise inteligente da campanha...</p>
+              )}
+              {aiAnalysis && !aiLoading && (
+                <div className="space-y-3">
+                  {aiAnalysis.resumo_executivo && (
+                    <div className={`rounded-xl p-4 ${isDark ? 'bg-brand-orange/10 border border-brand-orange/20' : 'bg-orange-50 border border-orange-200'}`}>
+                      <p className={`text-xs font-semibold uppercase tracking-wider mb-1.5 ${isDark ? 'text-brand-orange/80' : 'text-orange-700'}`}>Resumo Executivo</p>
+                      <p className={`text-sm leading-relaxed ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>{aiAnalysis.resumo_executivo}</p>
+                    </div>
+                  )}
+                  {aiAnalysis.pontos_fortes?.length > 0 && (
+                    <div>
+                      <p className={`text-xs font-semibold uppercase tracking-wider mb-1.5 ${isDark ? 'text-emerald-400/80' : 'text-emerald-700'}`}>Pontos Fortes</p>
+                      <ul className="space-y-1">
+                        {aiAnalysis.pontos_fortes.map((pf, i) => (
+                          <li key={i} className={`text-sm flex gap-2 ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
+                            <span className="text-emerald-500 font-bold flex-shrink-0">✓</span>
+                            <span>{pf}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {aiAnalysis.oportunidades_melhoria?.length > 0 && (
+                    <div>
+                      <p className={`text-xs font-semibold uppercase tracking-wider mb-1.5 ${isDark ? 'text-amber-400/80' : 'text-amber-700'}`}>Oportunidades de Melhoria</p>
+                      <ul className="space-y-1">
+                        {aiAnalysis.oportunidades_melhoria.map((op, i) => (
+                          <li key={i} className={`text-sm flex gap-2 ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
+                            <span className="text-amber-500 font-bold flex-shrink-0">→</span>
+                            <span>{op}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {aiAnalysis.estrategia_recomendada && (
+                    <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
+                      <span className="font-semibold text-brand-orange">Estratégia: </span>{aiAnalysis.estrategia_recomendada}
+                    </p>
+                  )}
+                  {aiAnalysis._model && (
+                    <p className={`text-[10px] mt-2 ${isDark ? 'text-white/20' : 'text-neutral-300'}`}>Modelo: {aiAnalysis._model}</p>
+                  )}
+                </div>
+              )}
+              {!aiAnalysis && !aiLoading && (
+                <p className={`text-sm ${isDark ? 'text-white/30' : 'text-neutral-400'}`}>Análise IA indisponível no momento.</p>
               )}
             </div>
           </div>

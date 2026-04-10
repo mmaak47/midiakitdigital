@@ -24,6 +24,7 @@ function isAdminOrSensitivePath(pathname) {
 function ensureRequestPolicy(pathname, method) {
   const normalizedMethod = String(method || 'GET').toUpperCase();
   if (pathname === '/auth/login') return;
+  if (pathname.startsWith('/ai/')) return;
 
   const token = getAdminToken();
   const requiresToken = isAdminOrSensitivePath(pathname) || MUTATION_METHODS.has(normalizedMethod);
@@ -1020,5 +1021,31 @@ export async function uploadUserPhoto(userId, file) {
   fd.append('photo', file);
   const res = await apiRequest(`/admin/users/${userId}/photo`, { method: 'POST', body: fd });
   if (!res.ok) throw new Error('Erro ao enviar foto');
+  return res.json();
+}
+
+// ============== AI / DOOH INTELLIGENCE ==============
+
+export async function fetchAICampaignAnalysis(campaignData) {
+  const res = await apiRequest('/ai/campaign', {
+    method: 'POST',
+    body: JSON.stringify(campaignData)
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function fetchAIRecommendation(params) {
+  const res = await apiRequest('/ai/recommend', {
+    method: 'POST',
+    body: JSON.stringify(params)
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function fetchAIPointInsight(pontoId) {
+  const res = await apiRequest(`/ai/point/${pontoId}`);
+  if (!res.ok) return null;
   return res.json();
 }
