@@ -3382,7 +3382,7 @@ function getVendedoresAtivos() {
 // Endpoint público (autenticado) para listar vendedores
 app.get('/api/gestao/vendedores', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
   try {
-    const rows = db.prepare("SELECT id, username, first_name, last_name, role FROM admin_users WHERE is_vendedor = 1 ORDER BY first_name, last_name").all();
+    const rows = db.prepare("SELECT id, username, first_name, last_name, role, photo_url FROM admin_users WHERE is_vendedor = 1 ORDER BY first_name, last_name").all();
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });

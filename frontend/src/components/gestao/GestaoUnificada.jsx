@@ -2,7 +2,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Save, Loader2, ChevronDown, ChevronUp, X,
-  CheckSquare, Square, FileText, Target, Repeat, Eye, EyeOff, MapPin
+  CheckSquare, Square, FileText, Target, Repeat, Eye, EyeOff, MapPin,
+  Users, Pencil, Send, CheckCircle2, Package, Palette, Radio, CircleDot
 } from 'lucide-react';
 import {
   fetchGestaoVendas, createGestaoVenda, updateGestaoVenda,
@@ -16,11 +17,11 @@ const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Ag
 
 // Etapas pós-venda — same as vendas page (WhatsApp-tracked)
 const ETAPAS_VENDA = [
-  { key: 'contrato_enviado',   label: 'Contrato Enviado',    emoji: '📤' },
-  { key: 'contrato_assinado',  label: 'Contrato Assinado',   emoji: '✅' },
-  { key: 'cobranca_material',  label: 'Cobrança de Material', emoji: '📦' },
-  { key: 'material_recebido',  label: 'Material Recebido',    emoji: '🎨' },
-  { key: 'veiculando',         label: 'Veiculando',           emoji: '📡' },
+  { key: 'contrato_enviado',   label: 'Contrato Enviado', icon: Send },
+  { key: 'contrato_assinado',  label: 'Contrato Assinado', icon: CheckCircle2 },
+  { key: 'cobranca_material',  label: 'Cobrança de Material', icon: Package },
+  { key: 'material_recebido',  label: 'Material Recebido', icon: Palette },
+  { key: 'veiculando',         label: 'Veiculando', icon: Radio },
 ];
 
 // For manual vendas (no venda_id): map etapa keys to local boolean columns
@@ -66,6 +67,12 @@ const emptyVenda = {
   previsao_veiculacao: '', data_emissao_nf: '', vencimento_boletos: '',
   contato: '', email: '', obs: '',
 };
+
+function normalizePhotoUrl(photoUrl) {
+  if (!photoUrl) return '';
+  if (/^https?:\/\//i.test(photoUrl)) return photoUrl;
+  return photoUrl.startsWith('/') ? photoUrl : `/${photoUrl}`;
+}
 
 /* ─── Progress Card ──────────────────────────────────── */
 function ProgressCard({ title, subtitle, icon, accentBorder, meta, real, pct, isDark, cardBg, text, textMuted }) {
@@ -314,7 +321,7 @@ export default function GestaoUnificada({ isDark, ano }) {
         <span className={`text-sm font-bold ${text}`}>Mês:</span>
         {MESES.map((m, i) => (
           <button key={m} onClick={() => setMes(i + 1)}
-            className={`px-3 py-1.5 text-sm font-bold rounded-full transition-all ${mes === i + 1 ? 'bg-blue-600 text-white shadow' : `${cardBg} ${text} ${hoverBg} border ${border}`}`}
+            className={`px-3 py-1.5 text-sm font-bold rounded-full transition-all ${mes === i + 1 ? 'bg-brand-orange text-white border border-brand-orange shadow-lg shadow-brand-orange/30' : `${cardBg} ${text} ${hoverBg} border ${border}`}`}
           >
             {m.slice(0, 3)}
           </button>
@@ -326,9 +333,10 @@ export default function GestaoUnificada({ isDark, ano }) {
         <h2 className="text-xl font-bold">{MESES[mes - 1]} {ano}</h2>
         {!editingMeta && (
           <button onClick={startEditMeta}
-            className="px-5 py-2.5 text-sm font-bold rounded-xl bg-brand-orange text-white hover:bg-brand-orange/90 transition-colors shadow-lg"
+            className="px-5 py-2.5 text-sm font-bold rounded-xl bg-brand-orange text-white hover:bg-brand-orange/90 transition-colors shadow-lg inline-flex items-center gap-2"
           >
-            {globalMeta.parcela > 0 || globalMeta.recorrencia > 0 ? '✏️ Alterar Meta' : '🎯 Definir Meta'}
+            {globalMeta.parcela > 0 || globalMeta.recorrencia > 0 ? <Pencil size={14} /> : <Target size={14} />}
+            {globalMeta.parcela > 0 || globalMeta.recorrencia > 0 ? 'Alterar Meta' : 'Definir Meta'}
           </button>
         )}
       </div>
@@ -363,7 +371,8 @@ export default function GestaoUnificada({ isDark, ano }) {
           <div className="flex gap-3">
             <button onClick={handleSaveMeta} disabled={savingMeta}
               className="px-6 py-2.5 text-base font-bold rounded-xl bg-green-600 text-white hover:bg-green-500 disabled:opacity-50 flex items-center gap-2 shadow-md">
-              {savingMeta && <Loader2 size={18} className="animate-spin" />} ✅ Salvar
+              {savingMeta ? <Loader2 size={18} className="animate-spin" /> : <Save size={16} />}
+              Salvar
             </button>
             <button onClick={() => setEditingMeta(false)}
               className={`px-6 py-2.5 text-base font-bold rounded-xl border ${border} ${text} hover:opacity-70`}>
@@ -402,7 +411,7 @@ export default function GestaoUnificada({ isDark, ano }) {
       {/* ─── VENDEDORES ─── */}
       {!loading && (
         <div className="space-y-3">
-          <p className={`text-lg font-bold ${text}`}>👥 Vendedores — {MESES[mes - 1]}</p>
+          <p className={`text-lg font-bold ${text} inline-flex items-center gap-2`}><Users size={18} /> Vendedores — {MESES[mes - 1]}</p>
 
           {vendedorUsernames.length === 0 && (
             <p className={`text-center py-8 ${textMuted}`}>Nenhum vendedor cadastrado.</p>
@@ -414,6 +423,8 @@ export default function GestaoUnificada({ isDark, ano }) {
             const totalContrato = items.reduce((s, v) => s + Number(v.total_contrato || 0), 0);
             const isExpanded = expandedVendedor === vendedor;
             const displayName = vendedorDisplayName[vendedor] || vendedor;
+            const vendedorData = vendedores.find(v => v.username === vendedor);
+            const photoUrl = normalizePhotoUrl(vendedorData?.photo_url);
 
             return (
               <div key={vendedor} className={`rounded-xl border ${border} overflow-hidden`}>
@@ -422,9 +433,18 @@ export default function GestaoUnificada({ isDark, ano }) {
                   className={`w-full flex items-center justify-between px-5 py-4 ${cardBg} ${hoverBg} transition-colors text-left`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold flex-shrink-0 ${isDark ? 'bg-blue-900 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
-                      {displayName.charAt(0).toUpperCase()}
-                    </div>
+                    {photoUrl ? (
+                      <img
+                        src={photoUrl}
+                        alt={displayName}
+                        className="w-10 h-10 rounded-full object-cover border border-white/20 flex-shrink-0"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold flex-shrink-0 ${isDark ? 'bg-blue-900 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
+                        {displayName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <p className={`font-bold text-base ${text}`}>{displayName}</p>
                       <p className={`text-sm ${textMuted}`}>{items.length} venda{items.length !== 1 ? 's' : ''} no mês</p>
@@ -477,15 +497,20 @@ export default function GestaoUnificada({ isDark, ano }) {
                                 <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
                                   <div className="flex-1 min-w-0">
                                     <p className={`font-bold text-base ${text} truncate`}>{v.cliente}</p>
-                                    {v.pontos_contratados && (
-                                      <div className="flex flex-wrap gap-1 mt-1">
-                                        {v.pontos_contratados.split(',').map(s => s.trim()).filter(Boolean).map(nome => (
-                                          <span key={nome} className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${isDark ? 'bg-orange-900/40 text-orange-300 border border-orange-700/50' : 'bg-orange-100 text-orange-700 border border-orange-200'}`}>
-                                            <MapPin size={10} className="shrink-0" />{nome}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    )}
+                                  </div>
+                                  <div className={`flex flex-wrap items-start justify-end gap-4 rounded-xl px-3 py-2 border ${isDark ? 'bg-black/25 border-white/10' : 'bg-brand-orange/5 border-brand-orange/20'}`}>
+                                    <div>
+                                      <p className={`text-[11px] uppercase tracking-wide ${textMuted}`}>Valor Mensal</p>
+                                      <p className="font-bold text-green-500 text-base sm:text-lg leading-tight">{fmtCurrency(v.valor_mensal)}</p>
+                                    </div>
+                                    <div>
+                                      <p className={`text-[11px] uppercase tracking-wide ${textMuted}`}>Total Contrato</p>
+                                      <p className="font-bold text-purple-500 text-base sm:text-lg leading-tight">{fmtCurrency(v.total_contrato)}</p>
+                                    </div>
+                                    <div>
+                                      <p className={`text-[11px] uppercase tracking-wide ${textMuted}`}>Parcelas</p>
+                                      <p className={`font-bold text-base sm:text-lg leading-tight ${text}`}>{v.qtde_parcelas || 1}x</p>
+                                    </div>
                                   </div>
                                   <div className="flex items-center gap-2 flex-shrink-0">
                                     {v.data_venda && <span className={`text-sm ${textMuted}`}>{v.data_venda}</span>}
@@ -502,25 +527,24 @@ export default function GestaoUnificada({ isDark, ano }) {
                                   </div>
                                 </div>
 
-                                {/* Main values */}
-                                <div className="flex flex-wrap gap-4 mb-2">
-                                  <div>
-                                    <p className={`text-xs ${textMuted}`}>Valor Mensal</p>
-                                    <p className="font-bold text-green-500 text-lg">{fmtCurrency(v.valor_mensal)}</p>
+                                {v.pontos_contratados && (
+                                  <div className={`mb-3 rounded-xl border p-3 ${isDark ? 'bg-black/25 border-white/10' : 'bg-blue-50/70 border-blue-200'}`}>
+                                    <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textMuted}`}>Pontos Contratados</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      {v.pontos_contratados.split(',').map(s => s.trim()).filter(Boolean).map(nome => (
+                                        <div key={nome} className={`inline-flex items-center gap-2 text-sm font-medium px-2.5 py-1.5 rounded-lg ${isDark ? 'bg-white/5 text-blue-200 border border-white/10' : 'bg-white text-blue-700 border border-blue-200'}`}>
+                                          <MapPin size={14} className="shrink-0" />
+                                          <span className="truncate">{nome}</span>
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
-                                  <div>
-                                    <p className={`text-xs ${textMuted}`}>Total Contrato</p>
-                                    <p className="font-bold text-purple-500 text-lg">{fmtCurrency(v.total_contrato)}</p>
-                                  </div>
-                                  <div>
-                                    <p className={`text-xs ${textMuted}`}>Parcelas</p>
-                                    <p className={`font-bold text-lg ${text}`}>{v.qtde_parcelas || 1}x</p>
-                                  </div>
-                                </div>
+                                )}
 
                                 {/* Etapas pós-venda (same as vendas page) */}
                                 <div className="flex flex-wrap gap-1.5 mb-2">
                                   {ETAPAS_VENDA.map(et => {
+                                    const EtapaIcon = et.icon || CircleDot;
                                     const done = isEtapaDone(v, et.key);
                                     return (
                                       <button key={et.key} onClick={() => handleToggleStatus(v.id, et.key, done)}
@@ -531,7 +555,7 @@ export default function GestaoUnificada({ isDark, ano }) {
                                         }`}
                                         title={done ? `${et.label}: Concluído` : `${et.label}: Pendente`}
                                       >
-                                        <span>{et.emoji}</span>
+                                        <EtapaIcon size={12} />
                                         {done ? <CheckSquare size={12} /> : <Square size={12} />}
                                         {et.label}
                                       </button>
@@ -644,7 +668,7 @@ function VendaForm({
       className={`p-5 rounded-xl border border-brand-orange/40 shadow-xl ${cardBg} space-y-4`}
     >
       <div className="flex items-center justify-between">
-        <h4 className="font-bold text-lg">{editingId ? '✏️ Editar Venda' : '➕ Nova Venda'}</h4>
+        <h4 className="font-bold text-lg inline-flex items-center gap-2">{editingId ? <Pencil size={16} /> : <Plus size={16} />} {editingId ? 'Editar Venda' : 'Nova Venda'}</h4>
         <button onClick={onCancel}><X size={18} className={textMuted} /></button>
       </div>
 
