@@ -1287,7 +1287,7 @@ export default function CampaignPlanner() {
           Gostou do que viu? Fale conosco no WhatsApp!
         </a>
 
-        {/* Action buttons */}
+        {/* Action buttons
         <div className="flex flex-col sm:flex-row gap-3">
           <a
             href={`https://wa.me/554398450480?text=${encodeURIComponent(`Olá! Finalizei meu planejamento de campanha no Mídia Kit Digital da Intermidia. Empresa: ${empresa}${cidade ? ` | Cidade: ${cidade}` : ''}. Gostaria de receber uma proposta!`)}`}
@@ -1301,7 +1301,7 @@ export default function CampaignPlanner() {
         </div>
       </motion.div>
     );
-  };
+  }; */}
 
   return (
     <div

@@ -29,6 +29,7 @@ deploy.py
 secrets.py
 ecosystem.config.js
 .tmp_*.py
+_*.py
 
 # Deployment helper scripts that contain or load credentials
 _check_vps.py

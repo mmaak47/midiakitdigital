@@ -355,7 +355,7 @@ async function generateLocal(prompt, model = OLLAMA_MODEL) {
         options: {
           temperature: 0.7,
           top_p: 0.9,
-          num_predict: 1024,
+          num_predict: 2048,
           num_ctx: 4096,
         },
       }),
@@ -564,10 +564,12 @@ DESTAQUE: a vantagem competitiva única do ${point.nome}`;
  * Parse text-marker format from LLM into structured object.
  */
 function parsePointInsightText(text) {
+  const MARKERS = ['HEADLINE', 'NARRATIVA', 'ARGUMENTO1', 'ARGUMENTO2', 'ARGUMENTO3', 'PUBLICO1', 'PUBLICO2', 'DESTAQUE'];
   const get = (key) => {
-    const re = new RegExp(`${key}:\\s*(.+)`, 'i');
+    const allKeys = MARKERS.join('|');
+    const re = new RegExp(`${key}:\\s*([\\s\\S]*?)(?=(?:${allKeys}):|$)`, 'i');
     const m = text.match(re);
-    return m ? m[1].trim() : '';
+    return m ? m[1].replace(/\n+/g, ' ').trim() : '';
   };
   const headline = get('HEADLINE');
   const narrativa = get('NARRATIVA');
@@ -582,10 +584,12 @@ function parsePointInsightText(text) {
  * Parse text-marker format for /generate endpoint.
  */
 function parseGenerateText(text) {
+  const MARKERS = ['HEADLINE', 'DESCRICAO', 'DESCRIÇÃO', 'FORTE1', 'FORTE2', 'FORTE3'];
   const get = (key) => {
-    const re = new RegExp(`${key}:\\s*(.+)`, 'i');
+    const allKeys = MARKERS.join('|');
+    const re = new RegExp(`${key}:\\s*([\\s\\S]*?)(?=(?:${allKeys}):|$)`, 'i');
     const m = text.match(re);
-    return m ? m[1].trim() : '';
+    return m ? m[1].replace(/\n+/g, ' ').trim() : '';
   };
   const headline = get('HEADLINE');
   const descricao = get('DESCRICAO') || get('DESCRIÇÃO');
@@ -684,10 +688,14 @@ ESTRATEGIA: recomende ação específica para ${objetivo} em ${segmento} em ${ci
  * Parse text-marker format for campaign analysis.
  */
 function parseCampaignAnalysisText(text) {
+  // Markers the model should output — order matters for between-marker extraction
+  const MARKERS = ['AVALIACAO', 'AVALIAÇÃO', 'RESUMO', 'FORTE1', 'FORTE2', 'OPORTUNIDADE1', 'OPORTUNIDADE2', 'ARGUMENTO1', 'ARGUMENTO2', 'ARGUMENTO3', 'ESTRATEGIA', 'ESTRATÉGIA'];
   const get = (key) => {
-    const re = new RegExp(`${key}:\\s*(.+)`, 'i');
+    // Try to capture text between this marker and the next marker (or end of string)
+    const allKeys = MARKERS.join('|');
+    const re = new RegExp(`${key}:\\s*([\\s\\S]*?)(?=(?:${allKeys}):|$)`, 'i');
     const m = text.match(re);
-    return m ? m[1].trim() : '';
+    return m ? m[1].replace(/\n+/g, ' ').trim() : '';
   };
   const avaliacao = get('AVALIACAO') || get('AVALIAÇÃO');
   const resumo = get('RESUMO');
@@ -806,7 +814,7 @@ async function generateStructuredOutput(data, userId = null) {
   if (!parsed) {
     return {
       headline: '',
-      descricao: result.text.slice(0, 500),
+      descricao: result.text.slice(0, 2000),
       pontos_fortes: [],
       _source: 'raw',
       _model: result.model,
@@ -874,7 +882,7 @@ async function generatePointInsight(pontoId, userId = null) {
   if (!parsed) {
     return {
       headline: point.nome,
-      narrativa: result.text.slice(0, 500),
+      narrativa: result.text.slice(0, 2000),
       argumentos: [],
       publico_ideal: [],
       destaque: '',
@@ -924,7 +932,7 @@ async function analyzeCampaign(campaignData, userId = null) {
   if (!parsed) {
     return {
       avaliacao: 'N/A',
-      resumo_executivo: result.text.slice(0, 500),
+      resumo_executivo: result.text.slice(0, 2000),
       pontos_fortes: [],
       oportunidades_melhoria: [],
       argumentacao_comercial: [],
