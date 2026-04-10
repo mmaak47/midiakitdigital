@@ -120,13 +120,13 @@ CREATE OR REPLACE FUNCTION fn_pontos_no_raio(
   p_raio_m INTEGER DEFAULT 800
 )
 RETURNS TABLE (
-  id INTEGER,
+  id BIGINT,
   nome TEXT,
   cidade TEXT,
   tipo TEXT,
   lat DOUBLE PRECISION,
   lng DOUBLE PRECISION,
-  fluxo INTEGER,
+  fluxo BIGINT,
   preco DOUBLE PRECISION,
   publico TEXT,
   distancia_m DOUBLE PRECISION
@@ -229,7 +229,7 @@ $$ LANGUAGE plpgsql STABLE;
 
 CREATE OR REPLACE FUNCTION fn_opportunity_index(p_raio_m INTEGER DEFAULT 600)
 RETURNS TABLE (
-  ponto_id INTEGER,
+  ponto_id BIGINT,
   nome TEXT,
   cidade TEXT,
   demanda DOUBLE PRECISION,
