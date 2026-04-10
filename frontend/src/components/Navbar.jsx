@@ -3,21 +3,25 @@ import { motion } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
-export default function Navbar({ transparent = false, showNav = true, showCta = false, commercial = false, isDark = true, onToggleTheme }) {
+export default function Navbar({ transparent = false, showNav = true, showCta = false, commercial = false, plannerMode = false, isDark = true, onToggleTheme }) {
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const logoSrc = isDark ? '/logo.png' : '/logo-light.png';
+  const WA_HREF = `https://wa.me/554398450480?text=${encodeURIComponent('Olá! Vim pelo Mídia Kit Digital da Intermidia e gostaria de receber uma proposta.')}`;
+
   const links = commercial
     ? [
         { to: '/planejar', label: 'Planejar Campanha' },
         { to: '/comercial/explorar', label: 'Explorar Pontos' },
         { to: '/comercial/admin', label: 'Admin' }
       ]
-    : [
-        { to: '/', label: 'Home' },
-        { to: '/planejar', label: 'Planejar Campanha' },
-        { to: '/comercial', label: 'Comercial' }
-      ];
+    : plannerMode
+      ? [] // no internal links for public campaign planner
+      : [
+          { to: '/', label: 'Home' },
+          { to: '/planejar', label: 'Planejar Campanha' },
+          { to: '/comercial', label: 'Comercial' }
+        ];
 
   return (
     <motion.nav
@@ -44,7 +48,7 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
         </Link>
 
         {/* Desktop Nav */}
-        {showNav ? (
+        {showNav && !plannerMode ? (
           <div className="hidden md:flex items-center gap-5">
             {links.map((link) => (
               <NavLink key={link.to} to={link.to} label={link.label} current={location.pathname} commercial={commercial} isDark={isDark} />
@@ -60,6 +64,28 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
                 <i className={isDark ? 'ri-sun-line' : 'ri-moon-line'} style={{ fontSize: 16 }} />
               </button>
             ) : null}
+          </div>
+        ) : showNav && plannerMode ? (
+          <div className="hidden md:flex items-center gap-3">
+            {onToggleTheme ? (
+              <button
+                type="button"
+                onClick={onToggleTheme}
+                className={`h-9 w-9 flex items-center justify-center rounded-lg border transition ${isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100'}`}
+                aria-label={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
+              >
+                <i className={isDark ? 'ri-sun-line' : 'ri-moon-line'} style={{ fontSize: 16 }} />
+              </button>
+            ) : null}
+            <a
+              href={WA_HREF}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-semibold text-white transition-all bg-[#25D366] hover:bg-[#22c55e] shadow-sm"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 flex-shrink-0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              Falar com a equipe
+            </a>
           </div>
         ) : <div />}
 
@@ -93,9 +119,21 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
           animate={{ opacity: 1, y: 0 }}
           className={`md:hidden backdrop-blur-xl border-t px-6 py-4 space-y-3 ${commercial && !isDark ? 'bg-[#f1f2f4]/98 border-neutral-300' : 'bg-brand-gray-900/95 border-white/10'}`}
         >
-          {showNav && links.map((link) => (
+          {showNav && !plannerMode && links.map((link) => (
             <MobileNavLink key={link.to} to={link.to} label={link.label} onClick={() => setOpen(false)} commercial={commercial} isDark={isDark} />
           ))}
+          {showNav && plannerMode && (
+            <a
+              href={WA_HREF}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+              className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg text-sm font-semibold text-white bg-[#25D366] hover:bg-[#22c55e]"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 flex-shrink-0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              Falar com a equipe
+            </a>
+          )}
           {showCta && (
             <Link
               to="/planejar"
@@ -106,7 +144,7 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
               <i className="ri-magic-line" style={{ fontSize: 15 }} />
             </Link>
           )}
-          {commercial && onToggleTheme ? (
+          {(commercial || plannerMode) && onToggleTheme ? (
             <button
               type="button"
               onClick={() => {

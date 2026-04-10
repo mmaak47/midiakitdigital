@@ -1,4 +1,4 @@
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion, useInView } from 'framer-motion';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Play } from 'lucide-react';
@@ -1328,7 +1328,6 @@ export default function Landing() {
               <span className={`text-sm font-medium ${t.footerText}`}>Publicidade Out-of-Home</span>
             </div>
             <div className={`flex items-center gap-6 text-sm ${t.footerText}`}>
-              <Link to="/explorar" className={`transition-colors ${t.footerLink}`}>Pontos</Link>
               <button onClick={() => setSelectedPracas([])} className={`transition-colors ${t.footerLink}`}>Todas as praças</button>
               <button onClick={() => navigate('/planejar')} className={`transition-colors ${t.footerLink}`}>Planejar Campanha</button>
             </div>

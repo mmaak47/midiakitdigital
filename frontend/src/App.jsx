@@ -25,7 +25,7 @@ export default function App() {
             <Route path="/comercial/admin" element={<Admin />} />
             <Route path="/comercial/gestao" element={<RequireCommercialAuth><GestaoComercial /></RequireCommercialAuth>} />
             <Route path="/comercial/explorar" element={<RequireCommercialAuth><Explorer /></RequireCommercialAuth>} />
-            <Route path="/explorar" element={<Navigate to="/comercial/explorar" replace />} />
+            <Route path="/explorar" element={<Navigate to="/" replace />} />
             <Route path="/admin" element={<Navigate to="/comercial/admin" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
