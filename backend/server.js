@@ -2139,6 +2139,85 @@ app.put('/api/admin/settings', requireRoles(['admin']), (req, res) => {
   }
 });
 
+// Endpoint de teste: dispara manualmente o lembrete do financeiro
+app.post('/api/admin/test-financeiro-reminder', requireRoles(['admin']), async (req, res) => {
+  try {
+    const settings = getEvolutionSettings();
+    const financeiroNumber = settings.evolution_financeiro_number;
+
+    if (!financeiroNumber) {
+      return res.status(400).json({ error: 'Número do financeiro não configurado' });
+    }
+    if (!settings.evolution_api_url || !settings.evolution_instance || !settings.evolution_api_key) {
+      return res.status(400).json({ error: 'Evolution API não configurada' });
+    }
+
+    // Busca vendas sem contrato assinado
+    const vendas = db.prepare(`
+      SELECT v.id, v.razao_social, v.cnpj, v.vendedor_nome, v.valor_mensal,
+             v.created_at, v.pontos_nomes
+      FROM vendas v
+      WHERE v.status = 'ativa'
+        AND v.id NOT IN (
+          SELECT ve.venda_id FROM venda_etapas ve
+          WHERE ve.etapa_key = 'contrato_assinado'
+            AND ve.removido = 0
+        )
+      ORDER BY v.created_at ASC
+    `).all();
+
+    if (vendas.length === 0) {
+      return res.json({ message: 'Nenhuma venda pendente de assinatura para enviar', vendaCount: 0 });
+    }
+
+    // Monta a mensagem
+    const lines = [];
+    lines.push('📋 *LEMBRETE SEMANAL — CONTRATOS PENDENTES DE ASSINATURA*');
+    lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━');
+    lines.push('');
+    lines.push(`Existem *${vendas.length}* venda(s) ativa(s) sem a confirmação de contrato assinado:`);
+    lines.push('');
+
+    vendas.forEach((v, i) => {
+      const pontos = (() => {
+        try { return JSON.parse(v.pontos_nomes || '[]'); } catch { return []; }
+      })();
+      const pontosStr = pontos.length > 0 ? pontos.join(', ') : '—';
+
+      lines.push(`*${i + 1}. ${v.razao_social || 'Sem nome'}*`);
+      if (v.cnpj) lines.push(`   CNPJ: ${v.cnpj}`);
+      if (v.vendedor_nome) lines.push(`   Vendedor: ${v.vendedor_nome}`);
+      if (v.valor_mensal) lines.push(`   Valor mensal: R$ ${v.valor_mensal}`);
+      lines.push(`   Pontos: ${pontosStr}`);
+      if (v.created_at) lines.push(`   Criada em: ${v.created_at.slice(0, 10)}`);
+      lines.push('');
+    });
+
+    lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━');
+    lines.push('Por favor, verifique e cobre a assinatura dos contratos listados acima.');
+
+    const message = lines.join('\n');
+
+    // Envia via Evolution API
+    await sendEvolutionText({
+      apiUrl: settings.evolution_api_url,
+      instance: settings.evolution_instance,
+      apiKey: settings.evolution_api_key,
+      number: financeiroNumber,
+      text: message
+    });
+
+    res.json({
+      message: 'Lembrete enviado com sucesso',
+      vendaCount: vendas.length,
+      financeiroNumber
+    });
+  } catch (err) {
+    console.error('[test-reminder] Erro:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ============== PROPOSTAS ENDPOINTS ==============
 
 // GET todas as propostas (com filtro por role)

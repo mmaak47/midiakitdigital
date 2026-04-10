@@ -173,6 +173,8 @@ export default function Admin() {
   const [evoFinanceiroNumber, setEvoFinanceiroNumber] = useState('');
   const [evoSaving, setEvoSaving] = useState(false);
   const [evoSaveMsg, setEvoSaveMsg] = useState('');
+  const [evoTestLoading, setEvoTestLoading] = useState(false);
+  const [evoTestMsg, setEvoTestMsg] = useState('');
 
   // Usuário logado
   const [currentUser, setCurrentUser] = useState(null);
@@ -675,6 +677,29 @@ export default function Admin() {
       setEvoSaveMsg(`Erro: ${err.message}`);
     } finally {
       setEvoSaving(false);
+    }
+  };
+
+  const handleTestFinanceiroReminder = async () => {
+    setEvoTestLoading(true);
+    setEvoTestMsg('');
+    try {
+      const resp = await fetch('/api/admin/test-financeiro-reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!resp.ok) {
+        const err = await resp.json();
+        setEvoTestMsg(`Erro: ${err.error || 'Falha ao enviar teste'}`);
+        return;
+      }
+      const data = await resp.json();
+      setEvoTestMsg(`✓ Lembrete enviado com ${data.vendaCount} venda(s) pendente(s)`);
+      setTimeout(() => setEvoTestMsg(''), 4000);
+    } catch (err) {
+      setEvoTestMsg(`Erro: ${err.message}`);
+    } finally {
+      setEvoTestLoading(false);
     }
   };
 
@@ -1679,6 +1704,24 @@ export default function Admin() {
                   {evoSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                   {evoSaving ? 'Salvando...' : 'Salvar configuração'}
                 </button>
+                <button
+                  type="button"
+                  onClick={handleTestFinanceiroReminder}
+                  disabled={evoTestLoading || !evoFinanceiroNumber}
+                  className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 transition-colors ${isDark ? 'border-blue-500/40 bg-blue-500/15 text-blue-400 hover:bg-blue-500/25' : 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
+                >
+                  {evoTestLoading ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                  {evoTestLoading ? 'Enviando...' : 'Testar lembrete'}
+                </button>
+                {evoTestMsg && (
+                  <p className={`text-xs mt-2 px-3 py-2 rounded-lg ${
+                    evoTestMsg.startsWith('✓')
+                      ? `text-green-300 bg-green-500/10 border border-green-500/20`
+                      : `text-red-300 bg-red-500/10 border border-red-500/20`
+                  }`}>
+                    {evoTestMsg}
+                  </p>
+                )}
               </form>
             </section>
           </div>
