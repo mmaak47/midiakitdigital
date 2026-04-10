@@ -17,69 +17,52 @@ const db = require('../database');
 // ── Config ──────────────────────────────────────────────────────────────────
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3';
-const OLLAMA_FALLBACK_MODEL = process.env.OLLAMA_FALLBACK_MODEL || 'mistral';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2:1.5b';
+const OLLAMA_FALLBACK_MODEL = process.env.OLLAMA_FALLBACK_MODEL || 'llama3';
 const OLLAMA_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS) || 90000;
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN || '';
 const CACHE_TTL_HOURS = Number(process.env.AI_CACHE_TTL_HOURS) || 72;
 
 // ── DOOH Knowledge Base ─────────────────────────────────────────────────────
 
-const DOOH_KNOWLEDGE = `
-## CONHECIMENTO PROFUNDO: MÍDIA DOOH (Digital Out-of-Home)
+// Compact knowledge for fast models (qwen2:1.5b)
+const DOOH_KNOWLEDGE_COMPACT = `Você é especialista em mídia DOOH (Digital Out-of-Home) no Brasil, sistema MidiaKit da Rede Intermidia.
+Formatos: Painel LED (CPM R$5-15), Elevador (CPM R$2-8, público cativo), Tela Indoor (CPM R$3-12, PDV), Backlight (CPM R$8-20), Frontlight (CPM R$10-25).
+Métricas: Fluxo=impactos/mês, CPM=Preço/(Fluxo/1000), Frequência ideal=2-6x/semana.
+Regras: NUNCA inventar números, usar dados reais fornecidos, linguagem comercial profissional brasileira.`;
 
-Você é um especialista sênior em mídia DOOH no mercado brasileiro, operando o sistema MidiaKit Digital da Rede Intermidia.
+// Full knowledge for larger models (llama3, mistral)
+const DOOH_KNOWLEDGE = `## CONHECIMENTO: MÍDIA DOOH (Digital Out-of-Home)
 
-### FORMATOS E CARACTERÍSTICAS:
-- **Painel LED**: Grande formato digital em vias de alto tráfego. Fluxo veicular + pedestre. Spots de 15s em loop de 3min. Visibilidade diurna e noturna excepcional. CPM médio: R$5-15.
-- **Elevador**: Telas em elevadores residenciais e comerciais. Alta frequência (moradores veem 4-8x/dia). Público cativo, classe A/B. Ideal para awareness e prestígio. CPM de R$2-8 (muito eficiente).
-- **Tela Indoor**: Ambientes internos (supermercados, academias, consultórios). Proximidade ao PDV. Público qualificado no momento de decisão. CPM: R$3-12.
-- **Backlight**: Painéis iluminados por trás, grande formato. Excelente visibilidade noturna em vias arteriais. Impacto premium. CPM: R$8-20.
-- **Frontlight**: Painéis iluminados frontalmente. Destaque em rodovias e grandes avenidas. Alto alcance veicular. CPM: R$10-25.
+Você é especialista sênior em mídia DOOH no mercado brasileiro, sistema MidiaKit Digital da Rede Intermidia.
 
-### MÉTRICAS ESSENCIAIS:
-- **Fluxo**: Impactos mensais estimados (pessoas ou veículos que passam pelo ponto)
-- **Inserções**: Quantas vezes o spot é exibido por mês
-- **CPM**: Custo por Mil impactos = (Preço / Fluxo) * 1000 — quanto menor, mais eficiente
-- **SOV (Share of Voice)**: Proporção da presença do anunciante em uma região vs concorrentes
-- **GRP (Gross Rating Points)**: Alcance × Frequência — métrica padrão de mídia
-- **Cobertura**: % dos pontos disponíveis na cidade que fazem parte do plano
-- **Frequência ideal**: 2-6 contatos/semana para recall ótimo (nem pouco nem saturação)
+### FORMATOS:
+- Painel LED: Grande formato, alto tráfego, spots 15s, visibilidade 24h. CPM R$5-15.
+- Elevador: Telas residenciais/comerciais, frequência 4-8x/dia, público cativo A/B. CPM R$2-8.
+- Tela Indoor: Supermercados/academias, perto do PDV, momento de decisão. CPM R$3-12.
+- Backlight: Iluminação traseira, grande formato, vias arteriais. CPM R$8-20.
+- Frontlight: Iluminação frontal, rodovias, alto alcance veicular. CPM R$10-25.
 
-### CLASSIFICAÇÃO DE AUDIÊNCIA (9 tipos de bairro):
-- Centro Corporativo: Executivos, decisores B2B, horário comercial intenso
-- Zona Comercial: Shoppers, consumidores ativos, oportunidade de conversão
-- Residencial Premium: Classe A/B, moradores com alto poder aquisitivo
-- Residencial Médio: Famílias, consumo recorrente, massa crítica
-- Zona Universitária: Jovens 18-29, tendências, tech-savvy
-- Zona de Lazer: Público em momento de lazer, receptivo a entretenimento
-- Zona Popular Densa: Alto volume, varejo de massa, frequência elevada
-- Polo de Saúde: Profissionais e pacientes, decisão importante
-- Polo Educacional: Famílias com filhos, educação e serviços
+### MÉTRICAS:
+- Fluxo: impactos mensais | CPM = (Preço/Fluxo)*1000 | Frequência ideal: 2-6x/semana
+- Cobertura: % dos pontos da cidade no plano | GRP = Alcance × Frequência
 
-### PERFIS DEMOGRÁFICOS (Censo IBGE):
-- Alta Renda: Renda >R$5k, superior completo >40%, serviços premium
-- Massa/Varejo: Renda R$1.5-5k, alta densidade, comércio popular
-- Jovem Universitário: 18-29 anos >35%, cultura e tecnologia
-- Terceira Idade: 60+ >25%, saúde e bem-estar
+### AUDIÊNCIA POR BAIRRO:
+Centro Corporativo, Zona Comercial, Residencial Premium, Residencial Médio, Zona Universitária, Zona de Lazer, Zona Popular Densa, Polo de Saúde, Polo Educacional.
 
-### ESTRATÉGIAS POR OBJETIVO:
-- **Presença Premium**: Alta classe, formatos elevador/LED, bairros nobres, frequência moderada
-- **Cobertura Regional**: Múltiplos formatos, dispersão geográfica, maximizar alcance
-- **Proximidade da Decisão**: Indoor/PDV, pontos perto do estabelecimento do cliente
-- **Lembrança Contínua**: Alta frequência, elevadores e telas indoor, recorrência mensal
-
-### REGRAS DE ARGUMENTAÇÃO COMERCIAL:
-1. NUNCA inventar dados — usar sempre os números reais fornecidos
-2. CPM baixo = eficiência → destacar quando CPM < R$10
-3. Fluxo alto = alcance → destaque quando > 500k
-4. Diversidade de formatos = complementaridade → sempre positivo
-5. Entorno relevante (POIs) = contexto de marca → usar dados de score de entorno
-6. "Público cativo" para elevadores (moradores recorrentes)
-7. "Momento de decisão" para indoor/PDV
-8. "Visibilidade 24h" para LED
-9. Frequência ideal 2-6 contatos = "sweet spot de recall"
+### REGRAS:
+1. NUNCA inventar dados — usar números reais fornecidos
+2. CPM baixo = eficiência, Fluxo alto = alcance
+3. "Público cativo" para elevadores, "Momento de decisão" para indoor, "Visibilidade 24h" para LED
+4. Linguagem profissional de mercado publicitário brasileiro
 `;
+
+// Select knowledge base based on model size
+function getKnowledge() {
+  return OLLAMA_MODEL.includes('1.5b') || OLLAMA_MODEL.includes('0.5b') || OLLAMA_MODEL.includes('tiny')
+    ? DOOH_KNOWLEDGE_COMPACT
+    : DOOH_KNOWLEDGE;
+}
 
 // ── Data helpers: pull real data from PostgreSQL ────────────────────────────
 
@@ -372,8 +355,8 @@ async function generateLocal(prompt, model = OLLAMA_MODEL) {
         options: {
           temperature: 0.7,
           top_p: 0.9,
-          num_predict: 800,
-          num_ctx: 4096,
+          num_predict: 512,
+          num_ctx: 2048,
         },
       }),
     });
@@ -484,7 +467,7 @@ function buildMemoryBlock(memories, patterns) {
 }
 
 function buildPrompt(data, memories = [], patterns = []) {
-  return `${DOOH_KNOWLEDGE}
+  return `${getKnowledge()}
 ${buildMemoryBlock(memories, patterns)}
 Com base nos dados abaixo, gere uma saída EXCLUSIVAMENTE em JSON válido (sem texto adicional, sem markdown):
 
@@ -506,7 +489,7 @@ FORMATO (JSON puro):
 }
 
 function buildAnalysisPrompt(input, memories = [], patterns = []) {
-  return `${DOOH_KNOWLEDGE}
+  return `${getKnowledge()}
 ${buildMemoryBlock(memories, patterns)}
 TAREFA:
 ${input}
@@ -523,56 +506,23 @@ function buildPointInsightPrompt(point, entorno, geoProfile, census) {
   const fmt = n => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
   const cpm = Number(point.fluxo) > 0 ? (Number(point.preco) / (Number(point.fluxo) / 1000)) : 0;
 
-  let entornoBlock = '';
-  if (entorno?.length) {
-    entornoBlock = `\nENTORNO (POIs próximos):\n${entorno.map(e =>
-      `- ${e.segmento_analisado}: ${e.total_estabelecimentos_relacionados} estabelecimentos (score ${Number(e.score_relevancia || 0).toFixed(1)})`
-    ).join('\n')}`;
-  }
-
-  let geoBlock = '';
+  let extra = '';
   if (geoProfile) {
-    geoBlock = `\nPERFIL DE BAIRRO: ${geoProfile.neighborhood_label || geoProfile.neighborhood_type}
-- Nível socioeconômico: ${geoProfile.socioeconomic_level} (score ${Number(geoProfile.socioeconomic_score || 0).toFixed(0)})
-- Densidade: ${geoProfile.urban_density || 'n/a'}
-- Atividade dominante: ${geoProfile.dominant_activity || 'n/a'}
-- POIs no raio: ${geoProfile.total_pois || 0}`;
+    extra += ` Bairro: ${geoProfile.neighborhood_label || geoProfile.neighborhood_type}, nível ${geoProfile.socioeconomic_level || 'n/a'}.`;
   }
-
-  let censusBlock = '';
   if (census) {
-    censusBlock = `\nDEMOGRAFIA (Censo IBGE):
-- Perfil dominante: ${census.perfil_dominante}
-- Score geral: ${Number(census.score_geral || 0).toFixed(2)}
-- Alta Renda: ${(Number(census.perfil_alta_renda || 0) * 100).toFixed(0)}%
-- Massa/Varejo: ${(Number(census.perfil_massa_varejo || 0) * 100).toFixed(0)}%
-- Jovem Universitário: ${(Number(census.perfil_jovem_universitario || 0) * 100).toFixed(0)}%
-- Terceira Idade: ${(Number(census.perfil_terceira_idade || 0) * 100).toFixed(0)}%`;
+    extra += ` Perfil: ${census.perfil_dominante || 'n/a'}.`;
+  }
+  if (entorno?.length) {
+    extra += ` Entorno: ${entorno.slice(0, 3).map(e => `${e.segmento_analisado}(${e.total_estabelecimentos_relacionados})`).join(', ')}.`;
   }
 
-  return `${DOOH_KNOWLEDGE}
+  return `${getKnowledge()}
 
-ANALISE ESTE PONTO DE MÍDIA DOOH E GERE UMA ARGUMENTAÇÃO COMERCIAL INTELIGENTE:
+PONTO: ${point.nome} (${point.tipo}) em ${point.cidade}
+Preço R$${fmt(point.preco)}/mês, Fluxo ${fmt(point.fluxo)}/mês, CPM R$${cpm.toFixed(2)}, Score ${Number(point.score_base || 0).toFixed(1)}.${extra}
 
-PONTO: ${point.nome}
-- Cidade: ${point.cidade}
-- Formato: ${point.tipo}
-- Preço: R$ ${fmt(point.preco)}/mês
-- Fluxo: ${fmt(point.fluxo)} impactos/mês
-- CPM: R$ ${cpm.toFixed(2)}
-- Público: ${point.publico || 'Geral'}
-- Inserções: ${fmt(point.insercoes || 0)}/mês
-- Score base: ${Number(point.score_base || 0).toFixed(1)}
-${entornoBlock}${geoBlock}${censusBlock}
-
-Gere EXCLUSIVAMENTE JSON válido:
-{
-  "headline": "frase comercial de impacto para este ponto (máx 15 palavras)",
-  "narrativa": "texto comercial de 3-4 frases para apresentar este ponto a um anunciante, usando dados reais",
-  "argumentos": ["argumento comercial 1", "argumento comercial 2", "argumento comercial 3", "argumento comercial 4"],
-  "publico_ideal": ["segmento de anunciante ideal 1", "segmento 2", "segmento 3"],
-  "destaque": "a principal vantagem competitiva deste ponto em 1 frase"
-}`;
+Gere JSON: {"headline":"frase comercial impactante","narrativa":"texto 2-3 frases para anunciante","argumentos":["arg1","arg2","arg3"],"publico_ideal":["segmento1","segmento2"],"destaque":"principal vantagem"}`;
 }
 
 /**
@@ -583,54 +533,26 @@ function buildCampaignAnalysisPrompt(campaignData, cityStats) {
 
   let pontosSummary = '';
   if (campaignData.pontos?.length) {
-    pontosSummary = campaignData.pontos.slice(0, 15).map(p =>
-      `  - ${p.nome} (${p.tipo}) — Fluxo ${fmt(p.fluxo)}, R$ ${fmt(p.preco)}, Público ${p.publico || 'Geral'}`
-    ).join('\n');
+    pontosSummary = campaignData.pontos.slice(0, 10).map(p =>
+      `${p.nome}(${p.tipo},Fluxo${fmt(p.fluxo)},R$${fmt(p.preco)})`
+    ).join('; ');
   }
 
-  let cityBlock = '';
+  let cityLine = '';
   if (cityStats) {
-    cityBlock = `\nINVENTÁRIO DA CIDADE (${cityStats.cidade}):
-- Total pontos disponíveis: ${cityStats.total_pontos}
-- Fluxo total cidade: ${fmt(cityStats.total_fluxo)}
-- CPM médio cidade: R$ ${cityStats.cpm_medio.toFixed(2)}
-- Formatos: ${Object.entries(cityStats.formatos).map(([k, v]) => `${k}(${v})`).join(', ')}
-- Bairros: ${Object.entries(cityStats.bairros).map(([k, v]) => `${k}(${v})`).join(', ')}
-- Perfis: ${Object.entries(cityStats.perfis_demograficos).map(([k, v]) => `${k}(${v})`).join(', ')}`;
+    cityLine = ` Cidade: ${cityStats.total_pontos} pontos, CPM médio R$${cityStats.cpm_medio.toFixed(2)}.`;
   }
 
-  return `${DOOH_KNOWLEDGE}
+  return `${getKnowledge()}
 
 ANALISE ESTA CAMPANHA DOOH E GERE RECOMENDAÇÕES ESTRATÉGICAS:
 
-CAMPANHA:
-- Cidade: ${campaignData.cidade || 'n/a'}
-- Segmento: ${campaignData.segmento || 'n/a'}
-- Objetivo: ${campaignData.objetivo || 'n/a'}
-- Orçamento: R$ ${fmt(campaignData.budget || 0)}
-- Período: ${campaignData.periodoSemanas || 4} semanas
-- Público-alvo: ${campaignData.publico || 'n/a'}
+Campanha: ${campaignData.cidade || 'n/a'}, segmento ${campaignData.segmento || 'n/a'}, objetivo ${campaignData.objetivo || 'n/a'}.
+Orçamento R$${fmt(campaignData.budget || 0)}, ${campaignData.periodoSemanas || 4} semanas.
+Pontos(${campaignData.pontos?.length || 0}): ${pontosSummary || 'nenhum'}
+Investimento R$${fmt(campaignData.investimento || 0)}, Fluxo ${fmt(campaignData.fluxoTotal || 0)}/mês, CPM R$${Number(campaignData.cpm || 0).toFixed(2)}, Cobertura ${campaignData.coberturaPct || 0}%.${cityLine}
 
-PONTOS SELECIONADOS (${campaignData.pontos?.length || 0}):
-${pontosSummary || '  Nenhum ponto selecionado'}
-
-TOTAIS:
-- Investimento: R$ ${fmt(campaignData.investimento || 0)}
-- Fluxo total: ${fmt(campaignData.fluxoTotal || 0)} impactos/mês
-- CPM: R$ ${Number(campaignData.cpm || 0).toFixed(2)}
-- Formatos: ${campaignData.formatos?.join(', ') || 'n/a'}
-- Cobertura: ${campaignData.coberturaPct || 0}%
-${cityBlock}
-
-Gere EXCLUSIVAMENTE JSON válido:
-{
-  "avaliacao": "nota geral da campanha (Excelente/Muito Boa/Boa/Regular/Pode Melhorar)",
-  "resumo_executivo": "resumo de 2-3 frases sobre a campanha para o anunciante",
-  "pontos_fortes": ["força 1", "força 2", "força 3"],
-  "oportunidades_melhoria": ["sugestão concreta 1", "sugestão concreta 2"],
-  "argumentacao_comercial": ["argumento de venda 1", "argumento de venda 2", "argumento de venda 3", "argumento de venda 4"],
-  "estrategia_recomendada": "parágrafo com a estratégia ideal para este anunciante/objetivo"
-}`;
+Gere JSON: {"avaliacao":"Excelente/Boa/Regular","resumo_executivo":"2 frases","pontos_fortes":["f1","f2"],"oportunidades_melhoria":["s1","s2"],"argumentacao_comercial":["a1","a2","a3"],"estrategia_recomendada":"estratégia ideal"}`;
 }
 
 /**
@@ -638,44 +560,21 @@ Gere EXCLUSIVAMENTE JSON válido:
  */
 function buildRecommendationPrompt(params, enrichedPoints, cityStats) {
   const fmt = n => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
-  const top = enrichedPoints.slice(0, 20);
+  const top = enrichedPoints.slice(0, 12);
 
   const pointsTable = top.map((p, i) => {
     const cpm = Number(p.fluxo) > 0 ? (Number(p.preco) / (Number(p.fluxo) / 1000)) : 999;
-    return `  ${i + 1}. [ID:${p.id}] ${p.nome} — ${p.tipo} — Fluxo ${fmt(p.fluxo)} — R$${fmt(p.preco)} — CPM R$${cpm.toFixed(1)} — ${p.neighborhood_type || 'n/a'} — ${p.perfil_dominante || 'n/a'} — Score ${Number(p.score_base || 0).toFixed(1)}`;
+    return `${i + 1}.[ID:${p.id}]${p.nome}(${p.tipo})Fluxo${fmt(p.fluxo)},R$${fmt(p.preco)},CPM${cpm.toFixed(1)},${p.perfil_dominante || 'n/a'},Score${Number(p.score_base || 0).toFixed(1)}`;
   }).join('\n');
 
-  return `${DOOH_KNOWLEDGE}
+  return `${getKnowledge()}
 
-TAREFA: Selecionar os melhores pontos DOOH para esta campanha.
+Selecione os melhores pontos DOOH para: ${params.cidade}, segmento ${params.segmento || 'Geral'}, objetivo ${params.objetivo || 'awareness'}, orçamento R$${fmt(params.budget || 0)}, máx ${params.maxPontos || 10} pontos, público ${params.publico || 'A/B'}.
 
-BRIEFING DO CLIENTE:
-- Cidade: ${params.cidade}
-- Segmento do anunciante: ${params.segmento || 'Geral'}
-- Objetivo: ${params.objetivo || 'Lembrança contínua'}
-- Orçamento: R$ ${fmt(params.budget || 0)}
-- Máximo de pontos: ${params.maxPontos || 10}
-- Público-alvo: ${params.publico || 'A/B'}
-
-INVENTÁRIO DISPONÍVEL (top 20 por score):
+Pontos disponíveis:
 ${pointsTable}
 
-ESTATÍSTICAS DA CIDADE:
-- Total pontos: ${cityStats?.total_pontos || 0}
-- CPM médio: R$ ${cityStats?.cpm_medio?.toFixed(2) || 'n/a'}
-- Score médio: ${cityStats?.score_medio?.toFixed(1) || 'n/a'}
-
-Gere EXCLUSIVAMENTE JSON válido:
-{
-  "pontos_recomendados": [IDs dos pontos selecionados, ex: [1, 5, 12]],
-  "estrategia": "frase resumindo a lógica da seleção",
-  "justificativa_por_ponto": {
-    "ID": "por que este ponto foi escolhido (1 frase)"
-  },
-  "investimento_estimado": número em reais,
-  "fluxo_estimado": número de impactos mensais,
-  "porque_funciona": ["razão 1", "razão 2", "razão 3"]
-}`;
+Gere JSON: {"pontos_recomendados":[IDs],"estrategia":"lógica da seleção","investimento_estimado":0,"fluxo_estimado":0,"porque_funciona":["r1","r2","r3"]}`;
 }
 
 // ── JSON parser helper ──────────────────────────────────────────────────────
