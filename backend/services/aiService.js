@@ -972,10 +972,8 @@ async function analyzeCampaign(campaignData, userId = null) {
   const prompt = buildCampaignAnalysisPrompt(campaignData, cityStats);
 
   const result = await generateWithFallback(prompt);
-  console.log('[ai] campaign raw output (first 400):', result.text.slice(0, 400));
   // Try text markers first (more reliable for small models), then JSON
   const parsed = parseCampaignAnalysisText(result.text) || extractJSON(result.text);
-  console.log('[ai] campaign parsed?', !!parsed, parsed ? 'keys:' + Object.keys(parsed).join(',') : 'null');
 
   if (!parsed) {
     return {
