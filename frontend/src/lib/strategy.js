@@ -1143,42 +1143,135 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
   if (selected.length === 0) {
     return {
       score: 0,
-      explanation: 'Score 0,0: selecione pontos para iniciar a avaliação da campanha.'
+      breakdown: null,
+      explanation: 'Selecione pontos para iniciar a avaliação da campanha.'
     };
   }
 
   const totals = campaignTotals(selected);
   const coverage = calculateCoverageLevel(selected, cityInventory);
-  const desiredPublicos = normalizeArrayInput(desiredPublico).map((value) => String(value).toUpperCase());
+  const rf = estimateReachFrequency({ selected, cityInventory });
+  const desiredPublicos = normalizeArrayInput(desiredPublico).map((v) => String(v).toUpperCase());
 
+  // ── Pilar 1: Qualidade dos Pontos (peso 30%) ──────────────────────────
+  // Weighted average of individual point scores, adjusted by investment
+  const pointScores = selected.map((p) => {
+    const screenScore = p._screenScore?.score ?? null;
+    const compatScore = p.compatibilidade ?? null;
+    // Use the best available individual score (0-100)
+    const raw = screenScore ?? compatScore ?? scorePointByObjective(p, objective);
+    const investment = Math.max(1, toNumber(p.preco));
+    return { raw: Math.max(0, Math.min(100, raw)), investment };
+  });
+  const totalInvestment = pointScores.reduce((s, p) => s + p.investment, 0);
+  const weightedAvg = totalInvestment > 0
+    ? pointScores.reduce((s, p) => s + (p.raw * p.investment), 0) / totalInvestment
+    : pointScores.reduce((s, p) => s + p.raw, 0) / pointScores.length;
+  // Log curve: avoids punishing, lifts mid-range scores
+  const dimQualidade = Math.min(10, Math.log10(1 + weightedAvg * 0.9) * 4.35);
+
+  // ── Pilar 2: Alcance (peso 25%) ───────────────────────────────────────
+  const reachPct = rf.effectiveReachPct || 0;
+  // Log normalization: 1% reach → ~3.5, 10% → ~6.8, 30% → ~8.1, 60%+ → ~9.5
+  const dimAlcance = Math.min(10, Math.log10(1 + reachPct * 2.5) * 5.8);
+
+  // ── Pilar 3: Frequência (peso 20%) ────────────────────────────────────
+  const freq = rf.avgFrequency || 0;
+  // Sweet spot: 2-6 = great. Gentle penalty outside, never brutal.
+  let dimFrequencia;
+  if (freq >= 2 && freq <= 6) {
+    dimFrequencia = 8.5 + Math.min(1.5, (freq - 2) * 0.375); // 8.5 to 10
+  } else if (freq >= 1.5) {
+    dimFrequencia = 6.5 + (freq - 1.5) * 4; // 6.5 → 8.5
+  } else if (freq > 0) {
+    dimFrequencia = Math.max(3.5, freq * 4.33); // floor 3.5
+  } else {
+    dimFrequencia = 3.0;
+  }
+  // Soft penalty for very high frequency (>8), never below 6
+  if (freq > 8) dimFrequencia = Math.max(6, dimFrequencia - (freq - 8) * 0.3);
+
+  // ── Pilar 4: Eficiência de Custo (peso 15%) ──────────────────────────
+  const cityPrices = (cityInventory.length ? cityInventory : selected)
+    .map((p) => toNumber(p.preco))
+    .filter((v) => v > 0)
+    .sort((a, b) => a - b);
+  const cityMedianPrice = cityPrices.length ? cityPrices[Math.floor(cityPrices.length / 2)] : 1;
+  const cityFluxos = (cityInventory.length ? cityInventory : selected)
+    .map((p) => toNumber(p.fluxo))
+    .filter((v) => v > 0);
+  const cityMedianFluxo = cityFluxos.length
+    ? cityFluxos.sort((a, b) => a - b)[Math.floor(cityFluxos.length / 2)]
+    : 1;
+  const benchmarkCPM = cityMedianFluxo > 0 ? cityMedianPrice / (cityMedianFluxo / 1000) : 50;
+  const campaignCPM = totals.cpmEstimado || 999;
+  // Ratio < 1 = cheaper than market (great), > 1 = more expensive
+  const cpmRatio = benchmarkCPM > 0 ? campaignCPM / benchmarkCPM : 1;
+  // Sigmoid-ish: ratio 0.5 → ~9.2, ratio 1.0 → ~7.5, ratio 2.0 → ~5
+  const dimEficiencia = Math.max(3, Math.min(10, 7.5 + (1 - cpmRatio) * 3.4));
+
+  // ── Pilar 5: Cobertura Estratégica (peso 10%) ────────────────────────
   const formats = new Set(selected.map((p) => p.tipo).filter(Boolean)).size;
+  const cities = new Set(selected.map((p) => p.cidade).filter(Boolean)).size;
   const publicoMatches = selected.filter((p) => {
     if (!desiredPublicos.length) return true;
-    const pointPublico = String(p.publico || '').toUpperCase();
-    return desiredPublicos.some((target) => pointPublico.includes(target) || target.includes(pointPublico));
+    const pp = String(p.publico || '').toUpperCase();
+    return desiredPublicos.some((t) => pp.includes(t) || t.includes(pp));
   }).length;
-  const objectiveBoost = selected.filter((p) => scorePointByObjective(p, objective) > 45).length;
+  const pubMatchRate = publicoMatches / Math.max(1, selected.length);
+  // Format diversity: 1→5, 2→7, 3+→8.5+
+  const fmtScore = Math.min(10, 3 + formats * 2.2);
+  // Geographic diversity boost
+  const geoScore = Math.min(10, 5 + cities * 2);
+  // Coverage % (log for small campaigns)
+  const covScore = Math.min(10, Math.log10(1 + (coverage.coveragePct || 0) * 3) * 6);
+  const dimCobertura = fmtScore * 0.35 + geoScore * 0.25 + covScore * 0.2 + pubMatchRate * 10 * 0.2;
 
-  const scoreRaw =
-    Math.min(2.2, formats / 2.5) +
-    Math.min(2.4, totals.fluxoTotal / 400000) +
-    Math.min(2.0, coverage.coveragePct / 20) +
-    Math.min(1.8, coverage.presencePct / 22) +
-    Math.min(1.6, publicoMatches / Math.max(1, selected.length) * 1.6) +
-    Math.min(1.4, objectiveBoost / Math.max(1, selected.length) * 1.4);
+  // ── Weighted composite ────────────────────────────────────────────────
+  const rawScore =
+    dimQualidade * 0.30 +
+    dimAlcance * 0.25 +
+    dimFrequencia * 0.20 +
+    dimEficiencia * 0.15 +
+    dimCobertura * 0.10;
 
-  const score = Math.min(10, Number(scoreRaw.toFixed(1)));
+  // ── Boost de equilíbrio: se nenhum pilar é fraco, campanha é sólida ──
+  const allDims = [dimQualidade, dimAlcance, dimFrequencia, dimEficiencia, dimCobertura];
+  const minDim = Math.min(...allDims);
+  const balanceBoost = minDim >= 5.5 ? Math.min(1.0, (minDim - 5.5) * 0.22) : 0;
 
-  let explanation = `Score ${score.toFixed(1)}: campanha com boa base de frequência e cobertura.`;
-  if (score >= 8.5) {
-    explanation = `Score ${score.toFixed(1)}: campanha de alto impacto com presença premium e perfil comercial robusto. Recomendação forte.`;
-  } else if (score >= 7) {
-    explanation = `Score ${score.toFixed(1)}: plano consistente e bem distribuído, com oportunidade de ampliar cobertura para domínio regional.`;
-  } else if (score >= 5) {
-    explanation = `Score ${score.toFixed(1)}: campanha funcional com boa estrutura de formatos. Há espaço para reforçar capilaridade.`;
+  // ── Safety floor: nunca score < 3 se dados são razoáveis ─────────────
+  const hasGoodPoints = weightedAvg >= 50;
+  const hasReasonableFreq = freq >= 1.5;
+  const hasReasonableReach = reachPct >= 3;
+  const safetyFloor = (hasGoodPoints && hasReasonableFreq && hasReasonableReach) ? 5.0
+    : (hasGoodPoints || hasReasonableReach) ? 3.5
+    : 3.0;
+
+  const score = Math.min(9.5, Math.max(safetyFloor, Number((rawScore + balanceBoost).toFixed(1))));
+
+  const breakdown = {
+    qualidade: Number(dimQualidade.toFixed(1)),
+    alcance: Number(dimAlcance.toFixed(1)),
+    frequencia: Number(dimFrequencia.toFixed(1)),
+    eficiencia: Number(dimEficiencia.toFixed(1)),
+    cobertura: Number(dimCobertura.toFixed(1)),
+    boost: Number(balanceBoost.toFixed(1))
+  };
+
+  // ── Explicação comercial (nunca negativa) ─────────────────────────────
+  let explanation;
+  if (score >= 8) {
+    explanation = `Campanha muito forte, com excelente equilíbrio entre alcance, frequência e qualidade dos pontos. Recomendação de alta confiança.`;
+  } else if (score >= 6) {
+    explanation = `Campanha sólida, com boa cobertura e eficiência. Há oportunidades pontuais de otimização para alcançar domínio regional.`;
+  } else if (score >= 4) {
+    explanation = `Campanha com base consistente e bom potencial de retorno. Adicionar pontos ou diversificar formatos pode elevar o impacto.`;
+  } else {
+    explanation = `Campanha em fase inicial. Com ajustes no mix de formatos e cobertura, o potencial de impacto cresce significativamente.`;
   }
 
-  return { score, explanation };
+  return { score, breakdown, explanation };
 }
 
 export function generateCommercialArguments({ selected = [], city, publico, objetivo, segmento }) {
