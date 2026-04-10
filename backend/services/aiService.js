@@ -19,7 +19,7 @@ const db = require('../database');
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3';
 const OLLAMA_FALLBACK_MODEL = process.env.OLLAMA_FALLBACK_MODEL || 'mistral';
-const OLLAMA_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS) || 30000;
+const OLLAMA_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS) || 90000;
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN || '';
 const CACHE_TTL_HOURS = Number(process.env.AI_CACHE_TTL_HOURS) || 72;
 
@@ -372,7 +372,8 @@ async function generateLocal(prompt, model = OLLAMA_MODEL) {
         options: {
           temperature: 0.7,
           top_p: 0.9,
-          num_predict: 1024,
+          num_predict: 800,
+          num_ctx: 4096,
         },
       }),
     });
@@ -413,7 +414,7 @@ async function generateWithReplicate(prompt) {
         'Prefer': 'wait',
       },
       body: JSON.stringify({
-        model: 'meta/meta-llama-3-8b-instruct',
+        version: 'meta/meta-llama-3-8b-instruct',
         input: {
           prompt,
           max_tokens: 1024,
