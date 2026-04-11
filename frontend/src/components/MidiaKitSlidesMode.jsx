@@ -129,20 +129,20 @@ function Lobby({
   }, [selectedPointIds, togglePoint]);
 
   return (
-    <div className="h-full flex flex-col px-6 py-5 md:px-10 md:py-7">
+    <div className="h-full flex flex-col px-4 py-4 md:px-10 md:py-7">
       {/* Cabeçalho */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <img src="/logo.png" alt="Intermidia" className="h-8 mb-2" />
-          <h1 className="text-2xl font-extrabold">Preparar Apresentação</h1>
-          <p className="mt-1 text-sm text-brand-gray-400">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <img src="/logo.png" alt="Intermidia" className="h-7 mb-1.5" />
+          <h1 className="text-xl md:text-2xl font-extrabold leading-tight">Preparar Apresentação</h1>
+          <p className="mt-0.5 text-sm text-brand-gray-400 hidden sm:block">
             Escolha as praças e formatos, selecione os pontos e inicie.
           </p>
         </div>
         <div className="text-right shrink-0">
           <div className="text-3xl font-black text-brand-orange">{selectedPointIds.size}</div>
-          <div className="text-xs uppercase tracking-wide text-brand-gray-400">
-            ponto{selectedPointIds.size !== 1 ? 's' : ''} selecionado{selectedPointIds.size !== 1 ? 's' : ''}
+          <div className="text-[11px] uppercase tracking-wide text-brand-gray-400">
+            ponto{selectedPointIds.size !== 1 ? 's' : ''}<br className="sm:hidden" /> selecionado{selectedPointIds.size !== 1 ? 's' : ''}
           </div>
         </div>
       </div>
@@ -183,11 +183,12 @@ function Lobby({
       </div>
 
       {/* Lista agrupada por formato */}
-      <div className="mt-4 flex-1 min-h-0 overflow-y-auto space-y-5 pr-1">
+      <div className="mt-4 flex-1 min-h-0 overflow-y-auto space-y-5 pr-1 pb-20 md:pb-2">
         {filteredPoints.length === 0 ? (
-          <p className="text-center py-16 text-brand-gray-500">
-            Nenhum ponto para os filtros selecionados.
-          </p>
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-brand-gray-500">
+            <i className="ri-map-pin-off-line text-4xl opacity-40" />
+            <p className="text-sm text-center">Nenhum ponto para os filtros selecionados.</p>
+          </div>
         ) : (
           groups.map(({ tipo, points }) => {
             const groupIds = points.map((p) => p.id || p._id);
@@ -204,7 +205,7 @@ function Lobby({
                   <button
                     type="button"
                     onClick={() => toggleGroup(points)}
-                    className="text-[11px] text-brand-gray-400 hover:text-white transition-colors"
+                    className="text-[11px] text-brand-gray-400 hover:text-white transition-colors py-1 px-2"
                   >
                     {allGroupSelected ? 'Desmarcar grupo' : 'Selecionar grupo'}
                   </button>
@@ -235,16 +236,21 @@ function Lobby({
         )}
       </div>
 
-      {/* Botão iniciar */}
-      <div className="mt-4 flex justify-end">
+      {/* Botão iniciar — sticky na base em mobile, inline em desktop */}
+      <div className="fixed md:static bottom-0 left-0 right-0 z-20 md:z-auto px-4 pb-safe pt-3 md:p-0 md:mt-4 md:flex md:justify-end bg-black/85 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none border-t border-white/10 md:border-none">
         <button
           type="button"
           onClick={onStart}
           disabled={selectedPointIds.size === 0}
-          className="inline-flex items-center gap-2 rounded-2xl bg-brand-orange px-8 py-3 text-sm font-bold text-white shadow-lg hover:bg-brand-orange/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          className="w-full md:w-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-brand-orange px-8 py-3.5 md:py-3 text-sm font-bold text-white shadow-lg hover:bg-brand-orange/90 active:bg-brand-orange-hover disabled:opacity-40 disabled:cursor-not-allowed transition-all"
         >
           <Play size={16} fill="currentColor" />
           Iniciar Apresentação
+          {selectedPointIds.size > 0 && (
+            <span className="ml-1 rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-semibold">
+              {selectedPointIds.size}
+            </span>
+          )}
         </button>
       </div>
     </div>
@@ -270,12 +276,12 @@ function DividerSlide({ tipo, count, totaisTipo, points }) {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(254,92,43,0.2),transparent_62%)]" />
       <div className="relative z-10 flex flex-col items-center">
         <div className="text-[11px] uppercase tracking-[0.22em] text-brand-orange">Formato</div>
-        <h2 className="mt-3 text-5xl md:text-7xl font-black tracking-tight leading-none">{tipo}</h2>
+        <h2 className="slide-divider-heading mt-3 text-5xl md:text-7xl font-black tracking-tight leading-none">{tipo}</h2>
         <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-brand-orange/35 bg-brand-orange/15 px-6 py-2.5 text-xl font-bold text-brand-orange">
           {fmtInt(count)} {count === 1 ? 'ponto' : 'pontos'} selecionados
         </div>
         {totaisTipo && (
-          <div className="mt-5 grid grid-cols-3 gap-8 text-center">
+          <div className="slide-divider-stats mt-5 grid grid-cols-3 gap-8 text-center">
             <div>
               <div className="text-2xl font-bold">{fmtInt(totaisTipo.telas)}</div>
               <div className="text-[11px] uppercase tracking-wide text-brand-gray-400 mt-1">Pontos de Impacto</div>
@@ -291,7 +297,7 @@ function DividerSlide({ tipo, count, totaisTipo, points }) {
           </div>
         )}
 
-        <div className="mt-6 w-full max-w-4xl rounded-2xl border border-white/15 bg-black/40 overflow-hidden">
+        <div className="slide-divider-map mt-6 w-full max-w-4xl rounded-2xl border border-white/15 bg-black/40 overflow-hidden">
           {pointsWithCoords.length ? (
             <div className="h-[32vh] min-h-[220px]">
               <SmartMap pontos={pointsWithCoords} isDark />
@@ -357,7 +363,7 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
 
       {img ? (
         <div
-          className={`absolute inset-y-4 z-[12] rounded-2xl border border-white/20 bg-black/30 backdrop-blur-sm p-3 shadow-[0_14px_42px_rgba(0,0,0,0.38)] transition-all hover:bg-black/40 hover:border-white/35 ${
+          className={`slide-img-panel absolute inset-y-4 z-[12] rounded-2xl border border-white/20 bg-black/30 backdrop-blur-sm p-3 shadow-[0_14px_42px_rgba(0,0,0,0.38)] transition-all hover:bg-black/40 hover:border-white/35 ${
             infoOnLeft ? 'left-[31%] right-3' : 'left-3 right-[31%]'
           }`}
         >
@@ -422,7 +428,7 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
       ) : null}
 
       <div
-        className={`absolute bottom-3 z-20 h-[180px] w-[280px] rounded-xl border border-white/20 bg-black/75 overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.45)] ${
+        className={`slide-mini-map absolute bottom-3 z-20 h-[180px] w-[280px] rounded-xl border border-white/20 bg-black/75 overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.45)] ${
           infoOnLeft ? 'right-3' : 'left-3'
         }`}
       >
@@ -436,20 +442,20 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
       </div>
 
       <div
-        className={`absolute inset-y-0 z-10 w-[360px] max-w-[48%] p-3 md:p-4 ${
+        className={`slide-info-panel absolute inset-y-0 z-10 w-[360px] max-w-[48%] p-3 md:p-4 ${
           infoOnLeft ? 'left-0' : 'right-0'
         }`}
       >
-        <div className="h-full rounded-2xl border border-white/15 bg-black/65 backdrop-blur-md p-5 flex flex-col">
-          <img src="/logo.png" alt="Intermidia" className="h-7 self-start mb-3 opacity-65" />
+        <div className="slide-info-panel-inner h-full rounded-2xl border border-white/15 bg-black/65 backdrop-blur-md p-5 flex flex-col">
+          <img src="/logo.png" alt="Intermidia" className="slide-info-logo h-7 self-start mb-3 opacity-65" />
           <div className="text-[11px] uppercase tracking-wide text-brand-orange">
             Informações do ponto
           </div>
-          <h3 className="mt-1.5 text-2xl font-extrabold leading-tight">{point.nome}</h3>
+          <h3 className="slide-point-title mt-1.5 text-2xl font-extrabold leading-tight">{point.nome}</h3>
           <p className="mt-1 text-[15px] text-brand-gray-300">
             {point.tipo || 'Sem tipo'} &bull; {point.cidade || 'Sem cidade'}
           </p>
-          <div className="mt-3.5 space-y-2 text-[18px] leading-[1.35] text-brand-gray-200">
+          <div className="slide-point-details mt-3.5 space-y-2 text-[18px] leading-[1.35] text-brand-gray-200">
             {point.endereco ? (
               <div>
                 <span className="text-brand-gray-500">Endereço: </span>
@@ -477,7 +483,7 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
               <strong className="text-white">{fmtMoney(Number(point.preco) || 0)}</strong> / mês
             </div>
           </div>
-          <div className="mt-auto pt-3 border-t border-white/10 text-[12px] text-brand-gray-400 space-y-0.5">
+          <div className="slide-info-footer mt-auto pt-3 border-t border-white/10 text-[12px] text-brand-gray-400 space-y-0.5">
             <div>
               <span className="text-brand-gray-500">Praça(s): </span>
               {selectionLabel}
@@ -547,6 +553,8 @@ export default function MidiaKitSlidesMode({
   const [index, setIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef(null);
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
 
   const cidades = useMemo(
     () =>
@@ -655,6 +663,26 @@ export default function MidiaKitSlidesMode({
     }
   }, []);
 
+  const handleTouchStart = useCallback((e) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchEnd = useCallback((e) => {
+    if (touchStartX.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+    touchStartX.current = null;
+    touchStartY.current = null;
+    // Only handle clear horizontal swipes (not scrolling)
+    if (Math.abs(deltaX) < 40 || Math.abs(deltaX) < Math.abs(deltaY)) return;
+    if (deltaX < 0) {
+      setIndex((i) => Math.min(slides.length - 1, i + 1));
+    } else {
+      setIndex((i) => Math.max(0, i - 1));
+    }
+  }, [slides.length]);
+
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handler);
@@ -757,10 +785,15 @@ export default function MidiaKitSlidesMode({
                 </button>
               </div>
             </div>
-            <div className="flex-1 min-h-0 rounded-3xl border border-white/15 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-3 md:p-4 overflow-hidden relative">
+            <div
+              className="flex-1 min-h-0 rounded-3xl border border-white/15 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-3 md:p-4 overflow-hidden relative"
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+            >
               {!active ? (
-                <div className="h-full flex items-center justify-center text-brand-gray-400">
-                  Nenhum ponto selecionado.
+                <div className="h-full flex flex-col items-center justify-center gap-3 text-brand-gray-400">
+                  <i className="ri-slideshow-line text-4xl opacity-40" />
+                  <span className="text-sm">Nenhum ponto selecionado.</span>
                 </div>
               ) : (
                 <AnimatePresence mode="wait">
@@ -783,28 +816,39 @@ export default function MidiaKitSlidesMode({
                 </AnimatePresence>
               )}
             </div>
-            <div className="mt-3 flex items-center justify-center gap-3 rounded-full border border-white/20 bg-black/40 px-4 py-2 self-center">
-              <button
-                type="button"
-                onClick={() => setIndex((i) => Math.max(0, i - 1))}
-                disabled={index === 0}
-                className="rounded-full p-1 text-white/70 hover:text-white disabled:opacity-30"
-                aria-label="Slide anterior"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <span className="text-xs uppercase tracking-[0.14em] text-white/70 min-w-[60px] text-center">
-                {slides.length ? `${index + 1} / ${slides.length}` : '—'}
-              </span>
-              <button
-                type="button"
-                onClick={() => setIndex((i) => Math.min(slides.length - 1, i + 1))}
-                disabled={index >= slides.length - 1}
-                className="rounded-full p-1 text-white/70 hover:text-white disabled:opacity-30"
-                aria-label="Próximo slide"
-              >
-                <ChevronRight size={18} />
-              </button>
+
+            {/* Navigation bar */}
+            <div className="mt-3 flex flex-col items-center gap-2 self-center w-full max-w-xs">
+              <div className="flex items-center justify-between w-full gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIndex((i) => Math.max(0, i - 1))}
+                  disabled={index === 0}
+                  className="h-11 w-11 flex items-center justify-center rounded-full border border-white/20 bg-black/40 text-white/70 hover:text-white active:bg-white/10 disabled:opacity-30 transition"
+                  aria-label="Slide anterior"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <span className="text-xs uppercase tracking-[0.14em] text-white/70 min-w-[64px] text-center select-none">
+                  {slides.length ? `${index + 1} / ${slides.length}` : '—'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIndex((i) => Math.min(slides.length - 1, i + 1))}
+                  disabled={index >= slides.length - 1}
+                  className="h-11 w-11 flex items-center justify-center rounded-full border border-white/20 bg-black/40 text-white/70 hover:text-white active:bg-white/10 disabled:opacity-30 transition"
+                  aria-label="Próximo slide"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+              {/* Progress bar */}
+              <div className="w-full h-1 rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-brand-orange transition-all duration-300 ease-out"
+                  style={{ width: slides.length > 0 ? `${((index + 1) / slides.length) * 100}%` : '0%' }}
+                />
+              </div>
             </div>
           </div>
         )}

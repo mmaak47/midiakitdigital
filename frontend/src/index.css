@@ -404,3 +404,118 @@ select option:checked {
   line-height: 1.08;
 }
 
+/* ===== Mobile & Touch Global Optimizations ===== */
+
+/* Remove tap highlight flash on all touchable elements */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent double-tap zoom delay — keeps 300ms tap delay off buttons/links */
+button, a, [role="button"], label, select, input {
+  touch-action: manipulation;
+}
+
+/* Momentum scrolling for scrollable containers */
+.overflow-y-auto,
+.overflow-y-scroll,
+.overflow-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Safe-area padding utilities (iPhone notch / home bar) */
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 8px);
+}
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ===== Slide Mode: Mobile Layout Overrides ===== */
+/* Class names added to MidiaKitSlidesMode components */
+
+@media (max-width: 767px) {
+
+  /* ── PointSlide: Info panel becomes full-width bottom sheet ── */
+  .slide-info-panel {
+    position: absolute !important;
+    left: 0.5rem !important;
+    right: 0.5rem !important;
+    bottom: 0.375rem !important;
+    top: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    padding: 0.375rem !important;
+  }
+
+  /* Inner panel: compact, scrollable */
+  .slide-info-panel-inner {
+    padding: 0.875rem !important;
+    max-height: 42vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Point title: smaller on mobile */
+  .slide-point-title {
+    font-size: 1.125rem !important;
+    line-height: 1.2 !important;
+    margin-top: 0.5rem !important;
+  }
+
+  /* Point details text: tighter */
+  .slide-point-details {
+    font-size: 0.8125rem !important;
+    line-height: 1.5 !important;
+    margin-top: 0.75rem !important;
+    row-gap: 0.25rem !important;
+  }
+
+  /* Point detail rows: reduce spacing */
+  .slide-point-details > div {
+    margin-bottom: 0.125rem !important;
+  }
+
+  /* Logo inside panel: hide to save space */
+  .slide-info-logo {
+    display: none !important;
+  }
+
+  /* Footer of info panel: compact */
+  .slide-info-footer {
+    padding-top: 0.5rem !important;
+    margin-top: 0.5rem !important;
+    font-size: 0.6875rem !important;
+  }
+
+  /* ── PointSlide: Image panel takes upper ~55% ── */
+  .slide-img-panel {
+    top: 0.5rem !important;
+    left: 0.5rem !important;
+    right: 0.5rem !important;
+    bottom: 45% !important;
+  }
+
+  /* ── PointSlide: Hide mini map on mobile ── */
+  .slide-mini-map {
+    display: none !important;
+  }
+
+  /* ── DividerSlide: stats to single column ── */
+  .slide-divider-stats {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 1rem !important;
+  }
+
+  /* ── DividerSlide: hide map ── */
+  .slide-divider-map {
+    display: none !important;
+  }
+
+  /* ── DividerSlide: scale down heading ── */
+  .slide-divider-heading {
+    font-size: 2.25rem !important;
+    line-height: 1.1 !important;
+  }
+}
+
