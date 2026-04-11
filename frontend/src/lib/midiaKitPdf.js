@@ -43,7 +43,7 @@ function getActivePdfLayoutConfig() {
   return activePdfLayoutConfig;
 }
 
-function formatInt(value) {
+export function formatInt(value) {
   return new Intl.NumberFormat('pt-BR').format(Number(value) || 0);
 }
 
@@ -53,7 +53,7 @@ function getElevadorCategoria(point) {
   return 'Comercial';
 }
 
-function getPointTypeLabel(point) {
+export function getPointTypeLabel(point) {
   const tipo = String(point?.tipo || '').trim();
   if (tipo === 'Elevador') {
     return `Elevador - ${getElevadorCategoria(point)}`;
@@ -65,7 +65,7 @@ function getBaseTypeLabel(typeLabel) {
   return String(typeLabel || '').split(' - ')[0].trim();
 }
 
-function formatMoney(value) {
+export function formatMoney(value) {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -95,7 +95,7 @@ function formatCostPerImpact(value) {
   return `R$ ${numeric.toFixed(2).replace('.', ',')}`;
 }
 
-function slugify(value) {
+export function slugify(value) {
   return (value || 'praca')
     .toLowerCase()
     .normalize('NFD')
@@ -104,7 +104,7 @@ function slugify(value) {
     .replace(/^-+|-+$/g, '');
 }
 
-function escapeHtml(value) {
+export function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -174,7 +174,7 @@ function formatPointAddress(address) {
   return main;
 }
 
-function pickImageUrl(ponto) {
+export function pickImageUrl(ponto) {
   const preferred = String(ponto?.pdf_image_source || 'imagem2').trim().toLowerCase();
   if (preferred === 'imagem' && (ponto?.imagem || ponto?.imagem2)) {
     return ponto?.imagem || ponto?.imagem2 || '';
@@ -193,11 +193,11 @@ function pickImageUrl(ponto) {
   return ponto?.imagem2 || ponto?.imagem || '';
 }
 
-function pickProposalImageUrl(ponto) {
+export function pickProposalImageUrl(ponto) {
   return ponto?.proposalSimulationPreview || ponto?.simulacao_preview || pickImageUrl(ponto);
 }
 
-function isVehicleFlowPoint(point) {
+export function isVehicleFlowPoint(point) {
   const explicit = String(point?.tipo_fluxo || '').toLowerCase().trim();
   if (explicit === 'veiculos') return true;
   if (explicit === 'pessoas') {
@@ -210,7 +210,7 @@ function isVehicleFlowPoint(point) {
   return tipo.includes('painel') && tipo.includes('led');
 }
 
-function buildResumo(pontos) {
+export function buildResumo(pontos) {
   const totals = pontos.reduce((acc, p) => {
     acc.telas += Number(p.telas) || 0;
     acc.fluxo += Number(p.fluxo) || 0;
@@ -236,7 +236,7 @@ function getAudienceQualityScore(point) {
   return 1;
 }
 
-function normalizeLines(input, limit = 6) {
+export function normalizeLines(input, limit = 6) {
   const values = Array.isArray(input)
     ? input
     : String(input || '')
@@ -282,7 +282,7 @@ async function compressImageBlob(blob) {
   });
 }
 
-async function imageToDataUrl(url) {
+export async function imageToDataUrl(url) {
   if (!url) return null;
   if (imageCache.has(url)) return imageCache.get(url);
 
@@ -1717,7 +1717,7 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
   `, BRAND_DARK);
 }
 
-async function loadPdfAssets(cidade = '') {
+export async function loadPdfAssets(cidade = '') {
   const citySlug = slugify(cidade || '');
   const cacheKey = citySlug || '__default__';
   if (pdfAssetsPromiseByCity.has(cacheKey)) {

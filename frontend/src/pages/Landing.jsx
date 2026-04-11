@@ -377,6 +377,8 @@ export default function Landing() {
   const [pdfStatus, setPdfStatus] = useState(null);
   const [pdfTipIndex, setPdfTipIndex] = useState(0);
   const [pdfToast, setPdfToast] = useState(null);
+  const [pdfFormat, setPdfFormat] = useState('desktop'); // 'desktop' | 'mobile'
+  const [showPdfFormatPicker, setShowPdfFormatPicker] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
   const [showSlidesMode, setShowSlidesMode] = useState(false);
   const [lightbox, setLightbox] = useState({ ponto: null, imageIndex: 0 });
@@ -593,12 +595,19 @@ export default function Landing() {
     return `/explorar${query ? `?${query}` : ''}`;
   }, [selectedPracas, selectedTipos]);
 
-  const handleExportPdf = async () => {
+  const handleExportPdf = async (formatOverride) => {
     if (!pontos.length || pdfStatus === 'generating') return;
+    const format = formatOverride || pdfFormat;
+    setShowPdfFormatPicker(false);
     setPdfStatus('generating');
     try {
-      const { generateMidiaKitPdf } = await import('../lib/midiaKitPdf');
-      await generateMidiaKitPdf({ praca: selectedPracaLabel, pracas: selectedPracas, pontos });
+      if (format === 'mobile') {
+        const { generateMidiaKitMobilePdf } = await import('../lib/midiaKitMobilePdf');
+        await generateMidiaKitMobilePdf({ praca: selectedPracaLabel, pracas: selectedPracas, pontos });
+      } else {
+        const { generateMidiaKitPdf } = await import('../lib/midiaKitPdf');
+        await generateMidiaKitPdf({ praca: selectedPracaLabel, pracas: selectedPracas, pontos });
+      }
       setPdfStatus('ready');
       setPdfToast({ type: 'success', message: 'PDF gerado com sucesso ✓' });
       setTimeout(() => setPdfStatus(null), 120);
@@ -898,18 +907,120 @@ export default function Landing() {
 
               {/* PDF + Map — right side */}
               <div className="flex items-center gap-2 ml-auto">
-              <button
-                onClick={handleExportPdf}
-                disabled={pdfStatus === 'generating' || pontos.length === 0}
-                className="h-[44px] px-5 font-semibold rounded-[10px] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-sm"
-                style={{
-                  background: 'transparent',
-                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.15)' : '#DDD0CA'}`,
-                  color: isDark ? '#fff' : '#7A6155',
-                }}
-              >
-                {pdfStatus === 'generating' ? 'Gerando PDF...' : 'Gerar PDF da praça'}
-              </button>
+
+              {/* ── PDF format picker ── */}
+              <div className="relative">
+                {/* Main split button */}
+                <div className="flex h-[44px] rounded-[10px] overflow-hidden"
+                  style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.15)' : '#DDD0CA'}` }}>
+                  {/* Left: generate with current format */}
+                  <button
+                    onClick={() => handleExportPdf()}
+                    disabled={pdfStatus === 'generating' || pontos.length === 0}
+                    className="px-4 font-semibold text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    style={{ background: 'transparent', color: isDark ? '#fff' : '#7A6155' }}
+                  >
+                    {pdfStatus === 'generating'
+                      ? 'Gerando PDF...'
+                      : pdfFormat === 'mobile' ? 'Gerar PDF mobile' : 'Gerar PDF da praça'}
+                  </button>
+                  {/* Right: open format picker */}
+                  <button
+                    onClick={() => setShowPdfFormatPicker((v) => !v)}
+                    disabled={pdfStatus === 'generating' || pontos.length === 0}
+                    className="px-2.5 transition-all duration-200 disabled:opacity-50"
+                    style={{
+                      background: 'transparent',
+                      borderLeft: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#DDD0CA'}`,
+                      color: isDark ? 'rgba(255,255,255,0.6)' : '#9C877B',
+                    }}
+                    aria-label="Escolher formato do PDF"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Dropdown panel */}
+                {showPdfFormatPicker && (
+                  <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowPdfFormatPicker(false)} />
+                  <div
+                    className="absolute right-0 mt-2 z-50 rounded-2xl shadow-2xl overflow-hidden"
+                    style={{
+                      width: 280,
+                      background: isDark ? '#1A1A1A' : '#FFFFFF',
+                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#E5E7EB'}`,
+                    }}
+                  >
+                    <div className="px-4 pt-4 pb-2">
+                      <p className="text-xs font-semibold uppercase tracking-widest"
+                        style={{ color: isDark ? 'rgba(255,255,255,0.4)' : '#9CA3AF' }}>
+                        Formato do PDF
+                      </p>
+                    </div>
+                    {[
+                      {
+                        value: 'desktop',
+                        label: 'Versão padrão',
+                        sub: 'Layout horizontal para desktop e apresentações',
+                        icon: (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+                          </svg>
+                        ),
+                      },
+                      {
+                        value: 'mobile',
+                        label: 'Versão mobile',
+                        sub: 'Layout vertical otimizado para leitura no celular',
+                        icon: (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="18" r="1" fill="currentColor"/>
+                          </svg>
+                        ),
+                      },
+                    ].map(({ value, label, sub, icon }) => {
+                      const isSelected = pdfFormat === value;
+                      return (
+                        <button
+                          key={value}
+                          onClick={() => { setPdfFormat(value); setShowPdfFormatPicker(false); handleExportPdf(value); }}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+                          style={{
+                            background: isSelected
+                              ? isDark ? 'rgba(232,89,26,0.12)' : 'rgba(232,89,26,0.07)'
+                              : 'transparent',
+                            color: isSelected ? '#E8591A' : isDark ? '#FFFFFF' : '#1F2937',
+                          }}
+                        >
+                          <span style={{ color: isSelected ? '#E8591A' : isDark ? 'rgba(255,255,255,0.5)' : '#6B7280', flexShrink: 0 }}>
+                            {icon}
+                          </span>
+                          <span>
+                            <span className="block text-sm font-semibold">{label}</span>
+                            <span className="block text-xs mt-0.5" style={{ color: isDark ? 'rgba(255,255,255,0.45)' : '#6B7280' }}>{sub}</span>
+                          </span>
+                          {isSelected && (
+                            <span className="ml-auto flex-shrink-0">
+                              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                <path d="M2.5 7l3.5 3.5 5.5-6" stroke="#E8591A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                    <div className="px-4 pb-4 pt-1">
+                      <p className="text-xs" style={{ color: isDark ? 'rgba(255,255,255,0.3)' : '#9CA3AF' }}>
+                        A versão mobile usa proporção 9:16, ideal para compartilhar pelo celular.
+                      </p>
+                    </div>
+                  </div>
+                  </>
+                )}
+              </div>
               <button
                 onClick={() => setShowMapModal(true)}
                 className="landing-orange-btn group h-[44px] px-6 text-white font-bold rounded-[10px] hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap text-sm"

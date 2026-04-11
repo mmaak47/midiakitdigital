@@ -43,6 +43,7 @@ import VendasListTab from '../components/admin/VendasListTab';
 import AuditoriaLoopTab from '../components/admin/AuditoriaLoopTab';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
 import { generateTechnicalInfoPdf } from '../lib/technicalInfoPdf';
+import { generateTechnicalInfoMobilePdf } from '../lib/technicalInfoMobilePdf';
 
 const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const DEFAULT_TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
@@ -189,6 +190,8 @@ export default function Admin() {
   const [technicalPdfSearch, setTechnicalPdfSearch] = useState('');
   const [technicalPdfBusy, setTechnicalPdfBusy] = useState(false);
   const [technicalPdfStatus, setTechnicalPdfStatus] = useState('');
+  const [technicalPdfFormat, setTechnicalPdfFormat] = useState('desktop'); // 'desktop' | 'mobile'
+  const [showTechnicalPdfFormatPicker, setShowTechnicalPdfFormatPicker] = useState(false);
 
   const [entornoForm, setEntornoForm] = useState({
     segmento: 'clinica',
@@ -834,18 +837,25 @@ export default function Admin() {
     setTechnicalPdfSelectedIds([]);
   };
 
-  const handleGenerateTechnicalPdf = async () => {
+  const handleGenerateTechnicalPdf = async (formatOverride) => {
     if (!technicalPdfSelectedPoints.length) {
       alert('Selecione ao menos um ponto para gerar o PDF tecnico.');
       return;
     }
-
+    const format = formatOverride || technicalPdfFormat;
+    setShowTechnicalPdfFormatPicker(false);
     setTechnicalPdfBusy(true);
     setTechnicalPdfStatus('Iniciando geracao...');
     try {
-      await generateTechnicalInfoPdf(technicalPdfSelectedPoints, {
-        onStatusChange: (status) => setTechnicalPdfStatus(status)
-      });
+      if (format === 'mobile') {
+        await generateTechnicalInfoMobilePdf(technicalPdfSelectedPoints, {
+          onStatusChange: (status) => setTechnicalPdfStatus(status)
+        });
+      } else {
+        await generateTechnicalInfoPdf(technicalPdfSelectedPoints, {
+          onStatusChange: (status) => setTechnicalPdfStatus(status)
+        });
+      }
     } catch (error) {
       alert(error?.message || 'Falha ao gerar PDF tecnico.');
     } finally {
@@ -1437,15 +1447,64 @@ export default function Admin() {
                   <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>PDF tecnico por pontos</h3>
                   <p className={`text-xs mt-1 ${th.sectionDesc}`}>Escolha os pontos e exporte o arquivo "Informacoes Tecnicas Intermidia" com foto, nome, resolucao e especificacoes de entrega.</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleGenerateTechnicalPdf}
-                  disabled={technicalPdfBusy || !technicalPdfSelectedPoints.length}
-                  className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${isDark ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange hover:bg-brand-orange/25' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
-                >
-                  {technicalPdfBusy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-                  {technicalPdfBusy ? 'Processando PDF...' : 'Gerar PDF tecnico'}
-                </button>
+                {/* Split button: generate + format picker */}
+                <div className="relative flex-shrink-0">
+                  <div className={`flex rounded-xl overflow-hidden border ${technicalPdfBusy || !technicalPdfSelectedPoints.length ? 'opacity-50 pointer-events-none' : ''} ${isDark ? 'border-brand-orange/40' : 'border-orange-300'}`}>
+                    {/* Main button */}
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateTechnicalPdf()}
+                      disabled={technicalPdfBusy || !technicalPdfSelectedPoints.length}
+                      className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold ${isDark ? 'bg-brand-orange/15 text-brand-orange hover:bg-brand-orange/25' : 'bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+                    >
+                      {technicalPdfBusy ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                      {technicalPdfBusy
+                        ? 'Processando PDF...'
+                        : technicalPdfFormat === 'mobile' ? 'Gerar PDF mobile' : 'Gerar PDF tecnico'}
+                    </button>
+                    {/* Format toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setShowTechnicalPdfFormatPicker((v) => !v)}
+                      disabled={technicalPdfBusy || !technicalPdfSelectedPoints.length}
+                      className={`px-2.5 text-sm ${isDark ? 'border-l border-brand-orange/25 bg-brand-orange/15 text-brand-orange hover:bg-brand-orange/25' : 'border-l border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+                      aria-label="Escolher formato"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+                        <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Dropdown */}
+                  {showTechnicalPdfFormatPicker && (
+                    <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowTechnicalPdfFormatPicker(false)} />
+                    <div className={`absolute right-0 mt-1.5 w-64 z-50 rounded-xl shadow-xl overflow-hidden border ${isDark ? 'bg-[#1A1A1A] border-white/10' : 'bg-white border-neutral-200'}`}>
+                      {[
+                        { value: 'desktop', label: 'Versão padrão', sub: 'Layout 16:9 — desktop' },
+                        { value: 'mobile', label: 'Versão mobile', sub: 'Layout 9:16 — celular' },
+                      ].map(({ value, label, sub }) => {
+                        const sel = technicalPdfFormat === value;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => { setTechnicalPdfFormat(value); handleGenerateTechnicalPdf(value); }}
+                            className={`w-full flex items-center gap-2 px-4 py-2.5 text-left text-sm transition-colors ${sel ? (isDark ? 'bg-brand-orange/10 text-brand-orange' : 'bg-orange-50 text-orange-700') : (isDark ? 'text-white hover:bg-white/5' : 'text-neutral-700 hover:bg-neutral-50')}`}
+                          >
+                            <span className="flex-1">
+                              <span className="block font-semibold">{label}</span>
+                              <span className={`block text-xs mt-0.5 ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>{sub}</span>
+                            </span>
+                            {sel && <Download size={13} className={isDark ? 'text-brand-orange' : 'text-orange-500'} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_220px_auto_auto]">

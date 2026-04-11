@@ -31,6 +31,7 @@ import {
 } from '../lib/strategy';
 import { buildProposalImagePromptsByFormat, buildProposalPricing } from '../lib/proposal';
 import { generateProposalPdf } from '../lib/midiaKitPdf';
+import { generateProposalMobilePdf } from '../lib/midiaKitMobilePdf';
 import {
   defaultDisplaySettings,
   defaultMediaParams,
@@ -145,6 +146,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [activePreviewPointId, setActivePreviewPointId] = useState(null);
   const [showPreviewLightbox, setShowPreviewLightbox] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfFormat, setPdfFormat] = useState('desktop'); // 'desktop' | 'mobile'
+  const [showPdfFormatPicker, setShowPdfFormatPicker] = useState(false);
   const [pdfSections, setPdfSections] = useState({ methodology: true, score: true, coverage: true, impact: true, mapPrint: false });
   const [connectMapPoints, setConnectMapPoints] = useState(true);
   const [mapBusy, setMapBusy] = useState(false);
@@ -521,13 +524,33 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     }
   };
 
-  const handleExportProposalPdf = async () => {
+  const handleExportProposalPdf = async (formatOverride) => {
+    const format = formatOverride || pdfFormat;
+    setShowPdfFormatPicker(false);
     try {
       setPdfBusy(true);
       const strategicTopics = String(form.strategicTopics || '')
         .split(/\n+/)
         .map((line) => line.replace(/^[-•\d.)\s]+/, '').trim())
         .filter(Boolean);
+
+      if (format === 'mobile') {
+        await generateProposalMobilePdf({
+          clientName: form.clientName,
+          city: activeCities,
+          publico: form.publicos,
+          points: proposalPoints,
+          totals,
+          pricingSummary,
+          segmento: form.segmento,
+          strategicText: argumentos,
+          strategicTopics,
+          strategicSubtitle: form.proposalSubtitle,
+          simulationSummary,
+          showImpactSection: pdfSections.impact,
+        });
+        return;
+      }
 
       const pointMapImages = await Promise.all(
         proposalPoints.map(async (point) => {
@@ -1372,10 +1395,66 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       <p className={`text-xs rounded-lg border px-3 py-2 ${isDark ? 'text-red-300 border-red-500/20 bg-red-500/10' : 'text-red-600 border-red-300 bg-red-50'}`}>{simulationError}</p>
                     )}
 
-                    <button onClick={handleExportProposalPdf} disabled={pdfBusy} className="w-full orange-solid-btn h-12 rounded-xl bg-brand-orange text-white font-bold text-base hover:bg-brand-orange-hover inline-flex items-center justify-center gap-2 shadow-[0_10px_24px_rgba(254,92,43,0.28)] disabled:opacity-50">
-                      <Download size={18} />
-                      {pdfBusy ? 'Gerando PDF...' : 'Exportar PDF da proposta'}
-                    </button>
+                    {/* PDF export — split button with format picker */}
+                    <div className="relative">
+                      <div className={`flex h-12 rounded-xl overflow-hidden shadow-[0_10px_24px_rgba(254,92,43,0.28)] ${pdfBusy ? 'opacity-50 pointer-events-none' : ''}`}>
+                        {/* Main generate button */}
+                        <button
+                          onClick={() => handleExportProposalPdf()}
+                          disabled={pdfBusy}
+                          className="flex-1 orange-solid-btn bg-brand-orange hover:bg-brand-orange-hover text-white font-bold text-base inline-flex items-center justify-center gap-2 transition-colors"
+                        >
+                          <Download size={18} />
+                          {pdfBusy
+                            ? 'Gerando PDF...'
+                            : pdfFormat === 'mobile' ? 'Exportar PDF mobile' : 'Exportar PDF da proposta'}
+                        </button>
+                        {/* Format picker toggle */}
+                        <button
+                          onClick={() => setShowPdfFormatPicker((v) => !v)}
+                          disabled={pdfBusy}
+                          className="px-3 bg-brand-orange hover:bg-brand-orange-hover text-white transition-colors"
+                          style={{ borderLeft: '1px solid rgba(255,255,255,0.20)' }}
+                          aria-label="Escolher formato do PDF"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </button>
+                      </div>
+
+                      {/* Dropdown */}
+                      {showPdfFormatPicker && (
+                        <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowPdfFormatPicker(false)} />
+                        <div
+                          className="absolute left-0 right-0 mt-2 z-50 rounded-2xl shadow-2xl overflow-hidden"
+                          style={{ background: isDark ? '#1A1A1A' : '#FFFFFF', border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#E5E7EB'}` }}
+                        >
+                          <div className="px-4 pt-3 pb-1">
+                            <p className={`text-xs font-semibold uppercase tracking-widest ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>Formato do PDF</p>
+                          </div>
+                          {[
+                            { value: 'desktop', label: 'Versão padrão', sub: 'Layout horizontal — desktop e apresentações' },
+                            { value: 'mobile', label: 'Versão mobile', sub: 'Layout vertical 9:16 — leitura no celular' },
+                          ].map(({ value, label, sub }) => {
+                            const sel = pdfFormat === value;
+                            return (
+                              <button
+                                key={value}
+                                onClick={() => { setPdfFormat(value); setShowPdfFormatPicker(false); handleExportProposalPdf(value); }}
+                                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${sel ? (isDark ? 'bg-brand-orange/10' : 'bg-orange-50') : ''}`}
+                              >
+                                <span className={`text-sm font-semibold ${sel ? 'text-brand-orange' : isDark ? 'text-white' : 'text-neutral-800'}`}>{label}</span>
+                                <span className={`text-xs ml-1 ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>{sub}</span>
+                                {sel && <Check size={14} className="ml-auto text-brand-orange flex-shrink-0" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        </>
+                      )}
+                    </div>
 
                     <div className="grid sm:grid-cols-2 gap-3">
                       <button onClick={() => setShowPresentation(true)} className={`h-11 rounded-xl border font-medium inline-flex items-center justify-center gap-2 transition-colors ${isDark ? 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.08]' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
