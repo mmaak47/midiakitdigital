@@ -538,6 +538,248 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
   );
 }
 
+// ─── Hook: detecção de mobile ───
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const handler = (e) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isMobile;
+}
+
+// ─── Slide de transição: versão MOBILE ───
+function MobileDividerSlide({ tipo, count, totaisTipo }) {
+  return (
+    <motion.div
+      key={`mob-div-${tipo}`}
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 1.04 }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      className="h-full flex flex-col items-center justify-center text-center px-6 relative overflow-hidden"
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(254,92,43,0.16),transparent_62%)]" />
+      <div className="relative z-10 w-full flex flex-col items-center">
+        {/* Label */}
+        <div className="text-[11px] uppercase tracking-[0.24em] text-brand-orange mb-4">Formato</div>
+
+        {/* Format name — dominante */}
+        <h2 className="text-[2.5rem] font-black tracking-tight leading-none mb-5">{tipo}</h2>
+
+        {/* Count badge */}
+        <div className="inline-flex items-center gap-2 rounded-full border border-brand-orange/35 bg-brand-orange/15 px-6 py-2.5 text-xl font-bold text-brand-orange mb-8">
+          {fmtInt(count)} {count === 1 ? 'ponto' : 'pontos'}
+        </div>
+
+        {/* 2 metric cards — não 3, evitar poluição */}
+        {totaisTipo && (
+          <div className="grid grid-cols-2 gap-3 w-full max-w-[288px]">
+            <div className="rounded-2xl bg-white/[0.06] border border-white/10 p-4 text-center">
+              <div className="text-xl font-bold leading-tight">{fmtInt(totaisTipo.fluxo)}</div>
+              <div className="text-[11px] uppercase tracking-wide text-brand-gray-400 mt-2">Fluxo / mês</div>
+            </div>
+            <div className="rounded-2xl bg-white/[0.06] border border-white/10 p-4 text-center">
+              <div className="text-lg font-bold leading-tight">{fmtMoney(totaisTipo.valor)}</div>
+              <div className="text-[11px] uppercase tracking-wide text-brand-gray-400 mt-2">Investimento</div>
+            </div>
+          </div>
+        )}
+
+        {/* Swipe hint */}
+        <p className="mt-8 text-[12px] text-brand-gray-500 flex items-center gap-1.5">
+          <i className="ri-gesture-line" style={{ fontSize: 14 }} />
+          Deslize para ver os pontos
+        </p>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Slide por ponto: versão MOBILE ───
+function MobilePointSlide({ slide, selectionLabel, typesLabel }) {
+  const { point } = slide;
+  const images = getPointDisplayImages(point);
+  const [imageIndex, setImageIndex] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const img = images[imageIndex] || getPrimaryPointMediaKitImage(point);
+  const focusX = Number.isFinite(Number(point?.imagem_foco_x)) ? Number(point.imagem_foco_x) : 50;
+  const focusY = Number.isFinite(Number(point?.imagem_foco_y)) ? Number(point.imagem_foco_y) : 50;
+  const hasMultipleImages = images.length > 1;
+  const imgTouchStartX = useRef(null);
+
+  useEffect(() => {
+    setImageIndex(0);
+    setExpanded(false);
+  }, [point?.id, point?._id]);
+
+  // Swipe entre fotos dentro da área de imagem
+  const handleImgTouchStart = useCallback((e) => {
+    imgTouchStartX.current = e.touches[0].clientX;
+  }, []);
+  const handleImgTouchEnd = useCallback((e) => {
+    if (imgTouchStartX.current === null || !hasMultipleImages) return;
+    const delta = e.changedTouches[0].clientX - imgTouchStartX.current;
+    imgTouchStartX.current = null;
+    if (Math.abs(delta) < 36) return;
+    setImageIndex((i) => delta < 0 ? (i + 1) % images.length : (i - 1 + images.length) % images.length);
+  }, [hasMultipleImages, images.length]);
+
+  return (
+    <motion.div
+      key={slide.key}
+      initial={{ opacity: 0, x: 32 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -32 }}
+      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+      className="h-full flex flex-col overflow-hidden rounded-2xl border border-white/10"
+    >
+      {/* ── Imagem: 52% do espaço ── */}
+      <div
+        className="relative flex-none bg-black/60 overflow-hidden"
+        style={{ height: '52%' }}
+        onTouchStart={handleImgTouchStart}
+        onTouchEnd={handleImgTouchEnd}
+      >
+        {img ? (
+          <img
+            src={img}
+            alt={point.nome}
+            className="w-full h-full object-cover"
+            style={{ objectPosition: `${focusX}% ${focusY}%` }}
+            loading="lazy"
+            width="800"
+            height="600"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-white/[0.03]">
+            <i className="ri-image-line text-5xl text-brand-gray-700" />
+          </div>
+        )}
+
+        {/* Gradiente na base da imagem para transição suave */}
+        <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[#0d0d0d] to-transparent pointer-events-none" />
+
+        {/* Badge do formato */}
+        <div className="absolute top-3 left-3">
+          <span className="rounded-full bg-black/65 backdrop-blur-sm px-3 py-1 text-[11px] font-semibold text-white border border-white/20">
+            {point.tipo || 'Ponto'}
+          </span>
+        </div>
+
+        {/* Dots de múltiplas fotos */}
+        {hasMultipleImages && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+            {images.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setImageIndex(i)}
+                className={`rounded-full transition-all duration-200 ${
+                  i === imageIndex ? 'w-5 h-[6px] bg-brand-orange' : 'w-[6px] h-[6px] bg-white/50'
+                }`}
+                aria-label={`Foto ${i + 1}`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Info: 48% restante ── */}
+      <div className="flex-1 min-h-0 flex flex-col bg-[#0d0d0d] overflow-hidden">
+
+        {/* Nome e cidade */}
+        <div className="px-4 pt-4 pb-3 flex-shrink-0">
+          <h3 className="text-[1.1rem] font-extrabold leading-snug text-white">
+            {point.nome}
+          </h3>
+          <p className="mt-1 text-[13px] text-brand-gray-400 flex items-center gap-1.5">
+            <i className="ri-map-pin-2-line text-brand-orange flex-shrink-0" style={{ fontSize: 13 }} />
+            {point.cidade || 'Sem cidade'}
+          </p>
+        </div>
+
+        {/* ── 3 métricas principais em cards ── */}
+        <div className="px-4 flex-shrink-0">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-xl bg-white/[0.05] border border-white/10 px-2 py-3 text-center">
+              <div className="text-[1rem] font-black text-brand-orange leading-none">
+                {fmtInt(Number(point.fluxo) || 0)}
+              </div>
+              <div className="text-[10px] text-brand-gray-500 mt-1.5 uppercase tracking-wide leading-tight">
+                Fluxo<br />/ mês
+              </div>
+            </div>
+            <div className="rounded-xl bg-white/[0.05] border border-white/10 px-2 py-3 text-center">
+              <div className="text-[1rem] font-black text-white leading-none">
+                {fmtInt(Number(point.telas) || 0)}
+              </div>
+              <div className="text-[10px] text-brand-gray-500 mt-1.5 uppercase tracking-wide leading-tight">
+                Pontos<br />Impacto
+              </div>
+            </div>
+            <div className="rounded-xl bg-white/[0.05] border border-white/10 px-2 py-3 text-center">
+              <div className="text-[0.875rem] font-black text-white leading-none">
+                {fmtMoney(Number(point.preco) || 0)}
+              </div>
+              <div className="text-[10px] text-brand-gray-500 mt-1.5 uppercase tracking-wide leading-tight">
+                Invest.<br />/ mês
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Detalhes expansíveis ── */}
+        <div className="mt-auto flex flex-col flex-shrink-0">
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="flex items-center justify-between px-4 py-3 text-[13px] text-brand-gray-400 border-t border-white/[0.07] active:bg-white/[0.03] transition"
+          >
+            <span>{expanded ? 'Ocultar detalhes' : 'Ver mais detalhes'}</span>
+            <i className={`ri-arrow-${expanded ? 'up' : 'down'}-s-line`} style={{ fontSize: 16 }} />
+          </button>
+
+          <AnimatePresence>
+            {expanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.22 }}
+                className="overflow-hidden"
+              >
+                <div className="px-4 pb-4 space-y-2.5">
+                  {point.endereco ? (
+                    <div className="flex items-start gap-2.5 text-[13px] text-brand-gray-300">
+                      <i className="ri-map-pin-line text-brand-orange flex-shrink-0 mt-0.5" style={{ fontSize: 14 }} />
+                      <span>{point.endereco}</span>
+                    </div>
+                  ) : null}
+                  {point.publico ? (
+                    <div className="flex items-start gap-2.5 text-[13px] text-brand-gray-300">
+                      <i className="ri-user-smile-line text-brand-orange flex-shrink-0 mt-0.5" style={{ fontSize: 14 }} />
+                      <span>Público: {point.publico}</span>
+                    </div>
+                  ) : null}
+                  {Number(point.insercoes) > 0 ? (
+                    <div className="flex items-start gap-2.5 text-[13px] text-brand-gray-300">
+                      <i className="ri-repeat-2-line text-brand-orange flex-shrink-0 mt-0.5" style={{ fontSize: 14 }} />
+                      <span>{fmtInt(Number(point.insercoes))} inserções/mês</span>
+                    </div>
+                  ) : null}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── Componente principal ───
 export default function MidiaKitSlidesMode({
   open = false,
@@ -548,6 +790,7 @@ export default function MidiaKitSlidesMode({
   selectedTipos = [],
   setSelectedTipos,
 }) {
+  const isMobile = useIsMobile();
   const [phase, setPhase] = useState('lobby');
   const [selectedPointIds, setSelectedPointIds] = useState(new Set());
   const [index, setIndex] = useState(0);
@@ -750,11 +993,15 @@ export default function MidiaKitSlidesMode({
           </>
         ) : (
           <div className="h-full flex flex-col px-4 py-3 md:px-6 md:py-4">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <div className="flex-1 rounded-xl border border-white/15 bg-black/35 px-3 py-2 md:px-4 md:py-2.5">
+
+            {/* ── CABEÇALHO: desktop = rico | mobile = mínimo ── */}
+
+            {/* Desktop header (informações completas) */}
+            <div className="hidden md:flex items-center justify-between gap-3 mb-3">
+              <div className="flex-1 rounded-xl border border-white/15 bg-black/35 px-4 py-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-brand-orange">Apresentação ativa</div>
-                <div className="text-sm md:text-base font-extrabold tracking-tight text-white">{topViewingText}</div>
-                <div className="mt-1 grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-0.5 text-[11px] text-brand-gray-300">
+                <div className="text-base font-extrabold tracking-tight text-white">{topViewingText}</div>
+                <div className="mt-1 grid grid-cols-4 gap-x-3 gap-y-0.5 text-[11px] text-brand-gray-300">
                   <span>Pontos: <strong className="text-white">{fmtInt(totals.quantidade)}</strong></span>
                   <span>Pontos de Impacto: <strong className="text-white">{fmtInt(totals.telasTotal)}</strong></span>
                   <span>Fluxo: <strong className="text-white">{fmtInt(totals.fluxoTotal)}</strong></span>
@@ -762,31 +1009,48 @@ export default function MidiaKitSlidesMode({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPhase('lobby')}
-                  className="rounded-xl border border-white/20 bg-black/35 px-3 py-1.5 text-xs text-white/70 hover:text-white"
-                >
+                <button type="button" onClick={() => setPhase('lobby')} className="rounded-xl border border-white/20 bg-black/35 px-3 py-1.5 text-xs text-white/70 hover:text-white">
                   ← Seleção
                 </button>
-                <button
-                  type="button"
-                  onClick={toggleFullscreen}
-                  className="rounded-xl border border-white/20 bg-black/35 p-2 text-white/70 hover:text-white"
-                  title={isFullscreen ? 'Sair do fullscreen' : 'Tela cheia'}
-                >
+                <button type="button" onClick={toggleFullscreen} className="rounded-xl border border-white/20 bg-black/35 p-2 text-white/70 hover:text-white" title={isFullscreen ? 'Sair do fullscreen' : 'Tela cheia'}>
                   {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                 </button>
-                <button
-                  onClick={onClose}
-                  className="rounded-xl border border-white/20 bg-black/35 p-2 text-white/75 hover:text-white"
-                >
+                <button onClick={onClose} className="rounded-xl border border-white/20 bg-black/35 p-2 text-white/75 hover:text-white">
                   <X size={16} />
                 </button>
               </div>
             </div>
+
+            {/* Mobile header (mínimo: só o essencial) */}
+            <div className="md:hidden flex items-center gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => setPhase('lobby')}
+                className="h-10 w-10 flex-shrink-0 flex items-center justify-center rounded-xl border border-white/20 bg-black/40 text-white/70 active:bg-white/10 transition"
+                aria-label="Voltar à seleção"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] text-brand-orange uppercase tracking-wide">
+                  {active?.type === 'divider' ? 'Formato' : 'Ponto'}
+                </div>
+                <div className="text-sm font-bold text-white truncate leading-tight">
+                  {active?.type === 'divider' ? active.tipo : (active?.point?.nome ?? '—')}
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="h-10 w-10 flex-shrink-0 flex items-center justify-center rounded-xl border border-white/20 bg-black/40 text-white/75 active:bg-white/10 transition"
+                aria-label="Fechar apresentação"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* ── ÁREA DO SLIDE ── */}
             <div
-              className="flex-1 min-h-0 rounded-3xl border border-white/15 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-3 md:p-4 overflow-hidden relative"
+              className="flex-1 min-h-0 rounded-2xl md:rounded-3xl border border-white/15 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-2 md:p-4 overflow-hidden relative"
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
             >
@@ -798,12 +1062,28 @@ export default function MidiaKitSlidesMode({
               ) : (
                 <AnimatePresence mode="wait">
                   {active.type === 'divider' ? (
-                    <DividerSlide
+                    isMobile ? (
+                      <MobileDividerSlide
+                        key={active.key}
+                        tipo={active.tipo}
+                        count={active.count}
+                        totaisTipo={active.totaisTipo}
+                      />
+                    ) : (
+                      <DividerSlide
+                        key={active.key}
+                        tipo={active.tipo}
+                        count={active.count}
+                        totaisTipo={active.totaisTipo}
+                        points={active.points}
+                      />
+                    )
+                  ) : isMobile ? (
+                    <MobilePointSlide
                       key={active.key}
-                      tipo={active.tipo}
-                      count={active.count}
-                      totaisTipo={active.totaisTipo}
-                      points={active.points}
+                      slide={active}
+                      selectionLabel={selectionLabel}
+                      typesLabel={typesLabel}
                     />
                   ) : (
                     <PointSlide
@@ -817,8 +1097,8 @@ export default function MidiaKitSlidesMode({
               )}
             </div>
 
-            {/* Navigation bar */}
-            <div className="mt-3 flex flex-col items-center gap-2 self-center w-full max-w-xs">
+            {/* ── BARRA DE NAVEGAÇÃO ── */}
+            <div className="mt-2.5 flex flex-col items-center gap-1.5 self-center w-full max-w-xs">
               <div className="flex items-center justify-between w-full gap-2">
                 <button
                   type="button"
@@ -829,7 +1109,7 @@ export default function MidiaKitSlidesMode({
                 >
                   <ChevronLeft size={20} />
                 </button>
-                <span className="text-xs uppercase tracking-[0.14em] text-white/70 min-w-[64px] text-center select-none">
+                <span className="text-xs uppercase tracking-[0.14em] text-white/60 min-w-[64px] text-center select-none">
                   {slides.length ? `${index + 1} / ${slides.length}` : '—'}
                 </span>
                 <button
@@ -842,7 +1122,7 @@ export default function MidiaKitSlidesMode({
                   <ChevronRight size={20} />
                 </button>
               </div>
-              {/* Progress bar */}
+              {/* Barra de progresso */}
               <div className="w-full h-1 rounded-full bg-white/10">
                 <div
                   className="h-full rounded-full bg-brand-orange transition-all duration-300 ease-out"
