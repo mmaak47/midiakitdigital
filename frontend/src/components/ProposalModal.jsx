@@ -148,6 +148,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfFormat, setPdfFormat] = useState('desktop'); // 'desktop' | 'mobile'
   const [showPdfFormatPicker, setShowPdfFormatPicker] = useState(false);
+  const pdfFormatPickerRef = useRef(null);
   const [pdfSections, setPdfSections] = useState({ methodology: true, score: true, coverage: true, impact: true, mapPrint: false });
   const [connectMapPoints, setConnectMapPoints] = useState(true);
   const [mapBusy, setMapBusy] = useState(false);
@@ -173,6 +174,17 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   useEffect(() => {
     saveDraft({ form, discountConfig, analysisMode, pdfSections });
   }, [form, discountConfig, analysisMode, pdfSections]);
+
+  useEffect(() => {
+    if (!showPdfFormatPicker) return undefined;
+    const handler = (e) => {
+      if (pdfFormatPickerRef.current && !pdfFormatPickerRef.current.contains(e.target)) {
+        setShowPdfFormatPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showPdfFormatPicker]);
 
   const availableCities = useMemo(() => {
     return Array.from(new Set(sourcePoints.map((point) => point.cidade).filter(Boolean)))
@@ -1396,7 +1408,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     )}
 
                     {/* PDF export — split button with format picker */}
-                    <div className="relative">
+                    <div className="relative" ref={pdfFormatPickerRef}>
                       <div className={`flex h-12 rounded-xl overflow-hidden shadow-[0_10px_24px_rgba(254,92,43,0.28)] ${pdfBusy ? 'opacity-50 pointer-events-none' : ''}`}>
                         {/* Main generate button */}
                         <button
@@ -1425,8 +1437,6 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
                       {/* Dropdown */}
                       {showPdfFormatPicker && (
-                        <>
-                        <div className="fixed inset-0 z-40" onClick={() => setShowPdfFormatPicker(false)} />
                         <div
                           className="absolute left-0 right-0 mt-2 z-50 rounded-2xl shadow-2xl overflow-hidden"
                           style={{ background: isDark ? '#1A1A1A' : '#FFFFFF', border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#E5E7EB'}` }}
@@ -1452,7 +1462,6 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                             );
                           })}
                         </div>
-                        </>
                       )}
                     </div>
 

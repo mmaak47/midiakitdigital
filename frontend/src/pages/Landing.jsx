@@ -379,6 +379,7 @@ export default function Landing() {
   const [pdfToast, setPdfToast] = useState(null);
   const [pdfFormat, setPdfFormat] = useState('desktop'); // 'desktop' | 'mobile'
   const [showPdfFormatPicker, setShowPdfFormatPicker] = useState(false);
+  const pdfFormatPickerRef = useRef(null);
   const [showMapModal, setShowMapModal] = useState(false);
   const [showSlidesMode, setShowSlidesMode] = useState(false);
   const [lightbox, setLightbox] = useState({ ponto: null, imageIndex: 0 });
@@ -454,6 +455,17 @@ export default function Landing() {
     const fromManualCommercial = sessionStorage.getItem('comercial_manual_login') === '1';
     setShowCommercialShortcut(hasToken && fromManualCommercial);
   }, []);
+
+  useEffect(() => {
+    if (!showPdfFormatPicker) return undefined;
+    const handler = (e) => {
+      if (pdfFormatPickerRef.current && !pdfFormatPickerRef.current.contains(e.target)) {
+        setShowPdfFormatPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showPdfFormatPicker]);
 
   useEffect(() => {
     if (pdfStatus !== 'generating') return undefined;
@@ -909,7 +921,7 @@ export default function Landing() {
               <div className="flex items-center gap-2 ml-auto">
 
               {/* ── PDF format picker ── */}
-              <div className="relative">
+              <div className="relative" ref={pdfFormatPickerRef}>
                 {/* Main split button */}
                 <div className="flex h-[44px] rounded-[10px] overflow-hidden"
                   style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.15)' : '#DDD0CA'}` }}>
@@ -944,8 +956,6 @@ export default function Landing() {
 
                 {/* Dropdown panel */}
                 {showPdfFormatPicker && (
-                  <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowPdfFormatPicker(false)} />
                   <div
                     className="absolute right-0 mt-2 z-50 rounded-2xl shadow-2xl overflow-hidden"
                     style={{
@@ -1012,13 +1022,7 @@ export default function Landing() {
                         </button>
                       );
                     })}
-                    <div className="px-4 pb-4 pt-1">
-                      <p className="text-xs" style={{ color: isDark ? 'rgba(255,255,255,0.3)' : '#9CA3AF' }}>
-                        A versão mobile usa proporção 9:16, ideal para compartilhar pelo celular.
-                      </p>
-                    </div>
                   </div>
-                  </>
                 )}
               </div>
               <button

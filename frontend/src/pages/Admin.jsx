@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -192,6 +192,7 @@ export default function Admin() {
   const [technicalPdfStatus, setTechnicalPdfStatus] = useState('');
   const [technicalPdfFormat, setTechnicalPdfFormat] = useState('desktop'); // 'desktop' | 'mobile'
   const [showTechnicalPdfFormatPicker, setShowTechnicalPdfFormatPicker] = useState(false);
+  const technicalPdfFormatPickerRef = useRef(null);
 
   const [entornoForm, setEntornoForm] = useState({
     segmento: 'clinica',
@@ -864,6 +865,17 @@ export default function Admin() {
     }
   };
 
+  useEffect(() => {
+    if (!showTechnicalPdfFormatPicker) return undefined;
+    const handler = (e) => {
+      if (technicalPdfFormatPickerRef.current && !technicalPdfFormatPickerRef.current.contains(e.target)) {
+        setShowTechnicalPdfFormatPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showTechnicalPdfFormatPicker]);
+
   const artWidth = parseInt(form.arte_largura, 10) || 0;
   const artHeight = parseInt(form.arte_altura, 10) || 0;
   const artRatioText = formatRatio(artWidth, artHeight);
@@ -1448,7 +1460,7 @@ export default function Admin() {
                   <p className={`text-xs mt-1 ${th.sectionDesc}`}>Escolha os pontos e exporte o arquivo "Informacoes Tecnicas Intermidia" com foto, nome, resolucao e especificacoes de entrega.</p>
                 </div>
                 {/* Split button: generate + format picker */}
-                <div className="relative flex-shrink-0">
+                <div className="relative flex-shrink-0" ref={technicalPdfFormatPickerRef}>
                   <div className={`flex rounded-xl overflow-hidden border ${technicalPdfBusy || !technicalPdfSelectedPoints.length ? 'opacity-50 pointer-events-none' : ''} ${isDark ? 'border-brand-orange/40' : 'border-orange-300'}`}>
                     {/* Main button */}
                     <button
@@ -1478,8 +1490,6 @@ export default function Admin() {
 
                   {/* Dropdown */}
                   {showTechnicalPdfFormatPicker && (
-                    <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowTechnicalPdfFormatPicker(false)} />
                     <div className={`absolute right-0 mt-1.5 w-64 z-50 rounded-xl shadow-xl overflow-hidden border ${isDark ? 'bg-[#1A1A1A] border-white/10' : 'bg-white border-neutral-200'}`}>
                       {[
                         { value: 'desktop', label: 'Versão padrão', sub: 'Layout 16:9 — desktop' },
@@ -1502,7 +1512,6 @@ export default function Admin() {
                         );
                       })}
                     </div>
-                    </>
                   )}
                 </div>
               </div>
