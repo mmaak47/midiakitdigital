@@ -327,6 +327,7 @@ export default function CampaignPlanner() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     localStorage.setItem('intermidia_theme', isDark ? 'dark' : 'light');
+    window.dispatchEvent(new Event('theme-change'));
   }, [isDark]);
 
   // load pontos and geoaudience profiles on mount

@@ -1585,4 +1585,15 @@ module.exports = {
   getMemoryStats,
   healthCheck,
   hashInput,
+  // Data access (for inventoryChat)
+  getEnrichedPoints,
+  getCityStats,
+  getPointById,
+  getClusters,
+  getPointEntorno,
+  getPointGeoProfile,
+  getPointCensus,
+  enrichPointWithContext,
+  buildPointContextString,
+  DOOH_KNOWLEDGE_COMPACT,
 };

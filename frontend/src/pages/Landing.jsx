@@ -780,7 +780,7 @@ export default function Landing() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
-              onClick={() => setIsDark(!isDark)}
+              onClick={() => { setIsDark(!isDark); localStorage.setItem('intermidia_theme', isDark ? 'light' : 'dark'); window.dispatchEvent(new Event('theme-change')); }}
               className={`h-9 w-9 flex items-center justify-center rounded-[10px] border transition-all duration-200 ${t.toggleBtn}`}
               aria-label={isDark ? 'Ativar modo claro' : 'Ativar modo escuro'}
               title={isDark ? 'Modo claro' : 'Modo escuro'}

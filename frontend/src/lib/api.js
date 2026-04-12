@@ -25,6 +25,7 @@ function ensureRequestPolicy(pathname, method) {
   const normalizedMethod = String(method || 'GET').toUpperCase();
   if (pathname === '/auth/login') return;
   if (pathname.startsWith('/ai/')) return;
+  if (pathname === '/inventory-chat') return;
 
   const token = getAdminToken();
   const requiresToken = isAdminOrSensitivePath(pathname) || MUTATION_METHODS.has(normalizedMethod);
@@ -1075,5 +1076,13 @@ export async function fetchAICampaignPointInsights(params) {
     body: JSON.stringify(params),
   });
   if (!res.ok) return null;
+  return res.json();
+}
+
+export async function fetchInventoryChat(message, history = []) {
+  const res = await apiRequest('/inventory-chat', {
+    method: 'POST',
+    body: JSON.stringify({ message, history }),
+  });
   return res.json();
 }

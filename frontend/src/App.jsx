@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { FavoritesProvider } from './context/FavoritesContext';
 import Landing from './pages/Landing';
+import InventarioChatBot from './components/InventarioChatBot';
 
 const Explorer = lazy(() => import('./pages/Explorer'));
 const Admin = lazy(() => import('./pages/Admin'));
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+        <InventarioChatBot />
       </BrowserRouter>
     </FavoritesProvider>
   );

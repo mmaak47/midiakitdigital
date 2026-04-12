@@ -34,6 +34,7 @@ export default function GestaoComercial() {
     const cls = isDark ? 'dark' : 'light';
     document.documentElement.classList.toggle('dark', isDark);
     localStorage.setItem('intermidia_theme', cls);
+    window.dispatchEvent(new Event('theme-change'));
   }, [isDark]);
 
   if (!currentUser) return null;

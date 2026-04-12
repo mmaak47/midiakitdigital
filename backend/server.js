@@ -25,6 +25,7 @@ const arteRouter          = require('./routes/arte');
 const comercialChatRouter = require('./routes/comercialChat');
 const geoRouter           = require('./routes/geo');
 const aiRouter            = require('./routes/ai');
+const inventoryChatRouter = require('./routes/inventoryChat');
 const {
   createAuthToken,
   parseAuthToken,
@@ -391,7 +392,7 @@ function authenticateSensitiveApi(req, res, next) {
   }
 
   // AI campaign analysis + recommendation — public for /planejar
-  const publicPostPaths = ['/ai/campaign', '/ai/recommend'];
+  const publicPostPaths = ['/ai/campaign', '/ai/recommend', '/inventory-chat'];
   if (method === 'POST' && publicPostPaths.includes(routePath)) {
     return next();
   }
@@ -462,6 +463,7 @@ app.use('/api/arte', arteRouter);
 app.use('/api/comercial/chat', requireRoles(['admin', 'gerente_comercial', 'vendedor']), comercialChatRouter);
 app.use('/api/geo', geoRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api', inventoryChatRouter);
 
 function parseOptionalCity(value) {
   if (Array.isArray(value)) {
