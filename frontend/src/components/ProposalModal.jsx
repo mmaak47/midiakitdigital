@@ -26,7 +26,7 @@ import {
   X,
   Zap
 } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { useFavorites } from '../context/FavoritesContext';
 import {
   campaignTotals,
@@ -708,6 +708,141 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2000);
     });
+  };
+
+  const qrCanvasRef = useRef(null);
+
+  const handleDownloadQRCard = async () => {
+    if (!shareModal?.url) return;
+    const W = 800, H = 1000;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    // Background
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, W, H);
+
+    // Subtle border
+    ctx.strokeStyle = '#E5E5E5';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(1, 1, W - 2, H - 2);
+
+    // Orange accent bar at top
+    ctx.fillStyle = '#E8591A';
+    ctx.fillRect(0, 0, W, 6);
+
+    // Load logo
+    try {
+      const logo = await new Promise((res, rej) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => res(img);
+        img.onerror = rej;
+        img.src = '/logo-light.png';
+      });
+      const logoH = 44;
+      const logoW = (logo.naturalWidth / logo.naturalHeight) * logoH;
+      ctx.drawImage(logo, (W - logoW) / 2, 50, logoW, logoH);
+    } catch { /* skip logo if fails */ }
+
+    // Badge "PROPOSTA COMERCIAL"
+    ctx.fillStyle = '#E8591A';
+    const badgeText = 'PROPOSTA COMERCIAL';
+    ctx.font = 'bold 11px "Poppins", system-ui, sans-serif';
+    const badgeW = ctx.measureText(badgeText).width + 24;
+    const badgeX = (W - badgeW) / 2;
+    const badgeY = 115;
+    const badgeH = 24;
+    const r = badgeH / 2;
+    ctx.beginPath();
+    ctx.moveTo(badgeX + r, badgeY);
+    ctx.lineTo(badgeX + badgeW - r, badgeY);
+    ctx.arcTo(badgeX + badgeW, badgeY, badgeX + badgeW, badgeY + r, r);
+    ctx.arcTo(badgeX + badgeW, badgeY + badgeH, badgeX + badgeW - r, badgeY + badgeH, r);
+    ctx.lineTo(badgeX + r, badgeY + badgeH);
+    ctx.arcTo(badgeX, badgeY + badgeH, badgeX, badgeY + r, r);
+    ctx.arcTo(badgeX, badgeY, badgeX + r, badgeY, r);
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badgeText, W / 2, badgeY + badgeH / 2);
+
+    // Client name
+    const clientName = form.clientName || 'Proposta de Mídia';
+    ctx.fillStyle = '#111111';
+    ctx.font = 'bold 28px "Poppins", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(clientName, W / 2, 160);
+
+    // "Escaneie para visualizar"
+    ctx.fillStyle = '#888888';
+    ctx.font = '14px "Poppins", system-ui, sans-serif';
+    ctx.fillText('Escaneie o QR code para visualizar a proposta', W / 2, 205);
+
+    // QR code from hidden canvas
+    const qrEl = qrCanvasRef.current;
+    if (qrEl) {
+      const qrCanvas = qrEl.querySelector('canvas');
+      if (qrCanvas) {
+        const qrSize = 280;
+        const qrX = (W - qrSize) / 2;
+        const qrY = 250;
+        // White background for QR
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(qrX - 16, qrY - 16, qrSize + 32, qrSize + 32);
+        // Border around QR
+        ctx.strokeStyle = '#F0F0F0';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(qrX - 16, qrY - 16, qrSize + 32, qrSize + 32);
+        ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+      }
+    }
+
+    // URL below QR
+    ctx.fillStyle = '#AAAAAA';
+    ctx.font = '11px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const displayUrl = shareModal.url.length > 60 ? shareModal.url.slice(0, 60) + '…' : shareModal.url;
+    ctx.fillText(displayUrl, W / 2, 560);
+
+    // Divider
+    ctx.strokeStyle = '#F0F0F0';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(100, 600);
+    ctx.lineTo(W - 100, 600);
+    ctx.stroke();
+
+    // Slogan
+    ctx.fillStyle = '#333333';
+    ctx.font = 'italic 18px "Poppins", Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('"O mundo acontece lá fora."', W / 2, 630);
+
+    // Expiry
+    if (shareModal.expires_at) {
+      const exp = new Date(shareModal.expires_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+      ctx.fillStyle = '#BBBBBB';
+      ctx.font = '12px "Poppins", system-ui, sans-serif';
+      ctx.fillText(`Válido até ${exp}`, W / 2, 670);
+    }
+
+    // Footer
+    ctx.fillStyle = '#CCCCCC';
+    ctx.font = '10px "Poppins", system-ui, sans-serif';
+    ctx.fillText('Intermídia OOH + DOOH — Desde 2007', W / 2, H - 30);
+
+    // Download
+    const link = document.createElement('a');
+    link.download = `proposta-${(form.clientName || 'qrcode').replace(/\s+/g, '-').toLowerCase()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
   };
 
   const handleExportSelectionMap = async () => {
@@ -1703,6 +1838,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                 <QRCodeSVG value={shareModal.url} size={160} bgColor="#ffffff" fgColor="#111111" />
               </div>
             </div>
+            {/* Hidden canvas QR for image generation */}
+            <div ref={qrCanvasRef} style={{ position: 'absolute', left: -9999, top: -9999 }}>
+              <QRCodeCanvas value={shareModal.url} size={280} bgColor="#ffffff" fgColor="#111111" />
+            </div>
 
             {/* URL + copy */}
             <div className={`flex items-center gap-2 rounded-xl border px-3 py-2 mb-3 ${isDark ? 'border-white/10 bg-white/[0.04]' : 'border-neutral-200 bg-neutral-50'}`}>
@@ -1719,6 +1858,15 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
             <p className={`text-center text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
               Link válido por 7 dias · O cliente pode aprovar diretamente
             </p>
+
+            <button
+              onClick={handleDownloadQRCard}
+              className="w-full mt-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors flex items-center justify-center gap-2"
+              style={{ background: '#E8591A' }}
+            >
+              <Download size={15} />
+              Baixar cartão QR
+            </button>
           </div>
         </div>
       )}
