@@ -7,15 +7,67 @@
  * o mesmo layout das versões frontend (technicalInfoPdf.js / technicalInfoMobilePdf.js).
  *
  * Diferenças em relação ao frontend:
- *  - window.location.origin → BASE_URL (http://localhost:PORT)
- *  - Compressão de imagem via Canvas → omitida (Puppeteer já carrega imagens por HTTP)
+ *  - Imagens lidas do disco e embutidas como base64 (elimina HTTP requests do Puppeteer)
+ *  - window.location.origin → BASE_URL (http://localhost:PORT) apenas para o logo
  *  - document.createElement → strings HTML puras
  *  - fetch /api/pdf/render → chama renderHtmlToPdfCompressed diretamente
  */
 
+const fs   = require('fs');
+const path = require('path');
 const { renderHtmlToPdfCompressed } = require('../pdfService');
 
-const BASE_URL = `http://localhost:${process.env.PORT || 3002}`;
+const BASE_URL    = `http://localhost:${process.env.PORT || 3002}`;
+const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONVERSÃO DE IMAGEM PARA DATA URI (evita timeout do Puppeteer em HTTP)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _imgCache = new Map(); // cache simples por caminho absoluto
+
+function imageToDataUri(urlOrPath) {
+  if (!urlOrPath) return '';
+  const raw = String(urlOrPath).trim();
+  if (!raw) return '';
+  if (raw.startsWith('data:')) return raw; // já é base64
+
+  // Determina o caminho no disco
+  let filePath;
+  if (raw.startsWith('/uploads/')) {
+    filePath = path.join(UPLOADS_DIR, raw.slice('/uploads/'.length));
+  } else if (raw.startsWith('http://') || raw.startsWith('https://')) {
+    // URL absoluta aponta para o próprio servidor: extrai o path
+    try {
+      const u = new URL(raw);
+      if (u.pathname.startsWith('/uploads/')) {
+        filePath = path.join(UPLOADS_DIR, u.pathname.slice('/uploads/'.length));
+      }
+    } catch { /* ignora */ }
+  } else if (!raw.startsWith('/')) {
+    // caminho relativo como "uploads/foto.jpg"
+    filePath = path.join(UPLOADS_DIR, raw.replace(/^uploads\//, ''));
+  }
+
+  if (!filePath) return raw; // logo e outros assets: usa URL HTTP
+
+  if (_imgCache.has(filePath)) return _imgCache.get(filePath);
+
+  try {
+    const buf = fs.readFileSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const mime = ext === '.png' ? 'image/png'
+      : ext === '.gif' ? 'image/gif'
+      : ext === '.webp' ? 'image/webp'
+      : 'image/jpeg';
+    const dataUri = `data:${mime};base64,${buf.toString('base64')}`;
+    _imgCache.set(filePath, dataUri);
+    return dataUri;
+  } catch {
+    // Arquivo não encontrado: fallback para URL HTTP
+    return resolveAssetUrl(raw);
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS COMPARTILHADOS
@@ -45,7 +97,9 @@ function resolveAssetUrl(url) {
 }
 
 function pickPointImage(point) {
-  return resolveAssetUrl(point?.imagem2 || point?.imagem || '');
+  // Prefere imagem2 (foto de PDF), depois imagem principal
+  // Converte diretamente para data URI para evitar HTTP requests no Puppeteer
+  return imageToDataUri(point?.imagem2 || point?.imagem || '');
 }
 
 function parseDuracaoText(str) {
@@ -497,10 +551,15 @@ async function generatePdfsFromPointNames(db, nomes) {
     .map(name => rows.find(r => r.nome.trim().toLowerCase() === name.trim().toLowerCase()))
     .filter(Boolean);
 
-  const [desktop, mobile] = await Promise.all([
-    generateDesktopPdfBuffer(ordered),
-    generateMobilePdfBuffer(ordered),
-  ]);
+  let desktop, mobile;
+  try {
+    [desktop, mobile] = await Promise.all([
+      generateDesktopPdfBuffer(ordered),
+      generateMobilePdfBuffer(ordered),
+    ]);
+  } finally {
+    _imgCache.clear(); // libera base64 das fotos da memória após geração
+  }
 
   return { desktop, mobile };
 }
