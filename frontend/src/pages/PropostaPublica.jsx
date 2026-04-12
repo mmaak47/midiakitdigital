@@ -1,43 +1,15 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { useParams } from 'react-router-dom';
-import { MapContainer, TileLayer, CircleMarker, Circle, Tooltip, useMap } from 'react-leaflet';
-import { fetchPropostaPublica, aprovarPropostaPublica } from '../lib/api';
+import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet';
+import { fetchPropostaPublica, aprovarPropostaPublica, fetchCensusProfiles } from '../lib/api';
 import { buildAudienceQualification, getSegmentDisplayName } from '../lib/strategy';
+import { computeCityBoundingBoxes } from '../lib/geo';
 import { getPrimaryPointScreenImage } from '../lib/pointImages';
 import 'leaflet/dist/leaflet.css';
 
+const SmartMap = lazy(() => import('../components/SmartMap'));
+
 const ORANGE = '#E8591A';
-
-// ── Census profile colours (matches SmartMap) ────────────────────────────────
-const CENSUS_PROFILE_COLORS = {
-  alta_renda: '#f59e0b',
-  massa_varejo: '#3b82f6',
-  jovem_universitario: '#8b5cf6',
-  terceira_idade: '#10b981',
-  misto: '#a3a3a3',
-  indefinido: '#525252',
-};
-const CENSUS_PROFILE_LABELS = {
-  alta_renda: 'Público A/B',
-  massa_varejo: 'Massa / Varejo',
-  jovem_universitario: 'Jovem / Universitário',
-  terceira_idade: 'Terceira Idade',
-  misto: 'Perfil Misto',
-  indefinido: 'Sem perfil',
-};
-const PUBLICO_TO_PROFILE = {
-  A: 'alta_renda', 'A/B': 'alta_renda', 'A/B+': 'alta_renda',
-  B: 'massa_varejo', 'B/C': 'massa_varejo', 'A/B/C': 'massa_varejo',
-  C: 'massa_varejo', D: 'massa_varejo',
-};
-
-function getProfileKey(publico) {
-  if (!publico) return 'indefinido';
-  return PUBLICO_TO_PROFILE[publico] || 'misto';
-}
-function getProfileColor(publico) {
-  return CENSUS_PROFILE_COLORS[getProfileKey(publico)] || CENSUS_PROFILE_COLORS.indefinido;
-}
 
 // ── Formatters ───────────────────────────────────────────────────────────────
 function formatCurrency(value) {
@@ -51,7 +23,7 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 function formatCoord(v) {
-  return Number(v || 0).toFixed(5);
+  return Number(v || 0).toFixed(6);
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -67,31 +39,24 @@ function getPointImage(point) {
 function getPointType(point) {
   const tipo = point?.tipo || point?.type || '';
   if (!tipo) return '';
+  return tipo;
+}
+
+function getPointTypeShort(point) {
+  const tipo = getPointType(point);
+  if (!tipo) return '';
   const parts = tipo.split(' - ');
   return parts[0].trim();
 }
 
-// ── Map: FitBounds ───────────────────────────────────────────────────────────
-function FitBounds({ points }) {
-  const map = useMap();
-  useEffect(() => {
-    if (!points.length) return;
-    const bounds = points.map(p => [p.lat, p.lng]);
-    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
-  }, [map, points]);
-  return null;
-}
-
-// ── PointMiniMap ─────────────────────────────────────────────────────────────
-function PointMiniMap({ lat, lng, publico }) {
+// ── PointMiniMap (react-leaflet) ─────────────────────────────────────────────
+function PointMiniMap({ lat, lng }) {
   const validLat = Number.isFinite(Number(lat)) ? Number(lat) : null;
   const validLng = Number.isFinite(Number(lng)) ? Number(lng) : null;
   if (!validLat || !validLng) return null;
 
-  const profileColor = getProfileColor(publico);
-
   return (
-    <div className="rounded-xl overflow-hidden border border-gray-100" style={{ height: 200 }}>
+    <div className="rounded-xl overflow-hidden border border-gray-200" style={{ height: 180 }}>
       <MapContainer
         center={[validLat, validLng]}
         zoom={15}
@@ -108,14 +73,167 @@ function PointMiniMap({ lat, lng, publico }) {
         <Circle
           center={[validLat, validLng]}
           radius={800}
-          pathOptions={{ color: profileColor, fillColor: profileColor, fillOpacity: 0.12, weight: 1.2 }}
+          pathOptions={{ color: ORANGE, fillColor: ORANGE, fillOpacity: 0.10, weight: 1 }}
         />
         <CircleMarker
           center={[validLat, validLng]}
           radius={7}
-          pathOptions={{ color: '#fff', fillColor: ORANGE, fillOpacity: 1, weight: 2 }}
+          pathOptions={{ color: '#fff', fillColor: ORANGE, fillOpacity: 1, weight: 2.5 }}
         />
       </MapContainer>
+    </div>
+  );
+}
+
+// ── SVG icons for detail rows ────────────────────────────────────────────────
+const IconLocation = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+);
+const IconCoord = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+);
+
+// ── Point Card (mídia kit style — split layout) ─────────────────────────────
+function PointCard({ point, index, total }) {
+  const img = getPointImage(point);
+  const audience = buildAudienceQualification(point);
+  const tipo = getPointType(point);
+  const tipoShort = getPointTypeShort(point);
+  const hasCoords = point.lat && point.lng;
+  const entornoCount = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
+
+  const metrics = [
+    point.publico && { label: 'Público', value: point.publico },
+    point.fluxo > 0 && { label: 'Pessoas / mês', value: formatNumber(point.fluxo) },
+    point.telas > 0 && { label: 'Telas', value: String(point.telas) },
+    point.insercoes > 0 && { label: 'Inserções', value: formatNumber(point.insercoes) },
+    point.tempo && { label: 'Tempo', value: point.tempo },
+    point.loop && { label: 'Loop', value: typeof point.loop === 'number' ? `Mín. ${point.loop} min` : point.loop },
+  ].filter(Boolean);
+
+  return (
+    <div className="rounded-[28px] border border-gray-200/80 bg-white shadow-[0_8px_32px_rgba(0,0,0,0.06)] overflow-hidden">
+      <div className="grid md:grid-cols-[1fr_42%]" style={{ minHeight: img ? 420 : 'auto' }}>
+        {/* ── Left: Info panel ─────────────────────────────── */}
+        <div className="relative flex flex-col p-6 sm:p-8">
+          {/* Orange accent bar */}
+          <div className="absolute top-0 left-0 right-0 md:right-auto md:w-full h-1.5 md:h-auto md:w-1.5 md:top-0 md:bottom-0 md:left-0 md:right-auto" style={{ background: ORANGE }} />
+
+          {/* Logo + counter */}
+          <div className="flex items-start justify-between mb-4 md:pl-3">
+            <img src="/logo-light.png" alt="Intermídia" className="h-6 opacity-60" />
+            <span className="inline-flex items-center h-6 px-3 rounded-full text-[11px] font-bold" style={{ background: 'rgba(232,89,26,0.08)', border: '1px solid rgba(232,89,26,0.2)', color: ORANGE }}>
+              {index + 1}/{total}
+            </span>
+          </div>
+
+          {/* Type badge */}
+          {tipo && (
+            <div className="mb-2 md:pl-3">
+              <span className="inline-flex items-center h-7 px-3 rounded-lg text-[11px] font-bold text-white uppercase tracking-wide" style={{ background: ORANGE }}>
+                {tipo}
+              </span>
+            </div>
+          )}
+
+          {/* Point name */}
+          <h3 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight leading-tight mb-3 md:pl-3">
+            {point.nome}
+          </h3>
+
+          {/* Address row */}
+          {(point.cidade || point.endereco) && (
+            <div className="flex items-center gap-2.5 mb-1.5 md:pl-3">
+              <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#FFF7ED', border: '1px solid rgba(232,89,26,0.2)', color: ORANGE }}>
+                <IconLocation />
+              </span>
+              <p className="text-sm text-gray-600">{[point.cidade, point.endereco].filter(Boolean).join(' · ')}</p>
+            </div>
+          )}
+
+          {/* Coordinates row */}
+          {hasCoords && (
+            <div className="flex items-center gap-2.5 mb-4 md:pl-3">
+              <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#FFF7ED', border: '1px solid rgba(232,89,26,0.2)', color: ORANGE }}>
+                <IconCoord />
+              </span>
+              <p className="text-sm text-gray-500 font-mono">{formatCoord(point.lat)}, {formatCoord(point.lng)}</p>
+            </div>
+          )}
+
+          {/* Metrics grid */}
+          {metrics.length > 0 && (
+            <div className="grid grid-cols-2 gap-2 mb-4 md:pl-3">
+              {metrics.map(m => (
+                <div key={m.label} className="rounded-lg p-2.5" style={{ background: '#F7F6F3', border: '1px solid #E8E8E8' }}>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">{m.label}</p>
+                  <p className="text-base font-bold text-gray-900">{m.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Audience card */}
+          {audience.badge && (
+            <div className="rounded-xl bg-gray-50 border border-gray-100 p-3.5 mb-4 md:ml-3">
+              <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                <span className="inline-flex items-center h-5 px-2 rounded text-[10px] font-bold uppercase" style={{ background: 'rgba(232,89,26,0.1)', border: '1px solid rgba(232,89,26,0.2)', color: ORANGE }}>{audience.badge}</span>
+                {entornoCount > 0 && (
+                  <span className="text-[10px] text-gray-400 font-medium">{formatNumber(entornoCount)} locais no entorno</span>
+                )}
+              </div>
+              <p className="text-sm font-semibold text-gray-800">{audience.headline}</p>
+              <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{audience.summary}</p>
+            </div>
+          )}
+
+          {/* Bottom bar: veiculacao + horario + valor */}
+          <div className="mt-auto pt-3 border-t border-gray-200 md:ml-3">
+            <div className="flex items-end justify-between gap-3 flex-wrap">
+              <div className="flex gap-6">
+                {point.veiculacao && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Veiculação</p>
+                    <p className="text-sm font-semibold text-gray-700">{point.veiculacao}</p>
+                  </div>
+                )}
+                {point.horario && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Horário</p>
+                    <p className="text-sm font-semibold text-gray-700">{point.horario}</p>
+                  </div>
+                )}
+              </div>
+              {(point.precoFinal || point.preco) > 0 && (
+                <div className="text-right pl-3 border-l border-gray-200">
+                  <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: ORANGE }}>Valor Mensal</p>
+                  <p className="text-2xl font-extrabold" style={{ color: ORANGE }}>{formatCurrency(point.precoFinal || point.preco)}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Right: Image + mini map ─────────────────────── */}
+        <div className="flex flex-col">
+          {img && (
+            <div className="relative flex-1 min-h-[280px] bg-gray-900 overflow-hidden">
+              <img
+                src={img}
+                alt={point.nome}
+                className="w-full h-full object-cover"
+                style={{ objectPosition: point.foto_focal_point || 'center center' }}
+                onError={e => { e.target.style.display = 'none'; }}
+              />
+            </div>
+          )}
+          {hasCoords && (
+            <div className="p-3">
+              <PointMiniMap lat={point.lat} lng={point.lng} />
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -128,6 +246,7 @@ export default function PropostaPublica() {
   const [approveModal, setApproveModal] = useState(false);
   const [approveName, setApproveName] = useState('');
   const [approved, setApproved] = useState(false);
+  const [censusProfiles, setCensusProfiles] = useState(null);
 
   useEffect(() => {
     if (!token) return;
@@ -138,6 +257,19 @@ export default function PropostaPublica() {
       })
       .catch(err => setState({ loading: false, error: err.message, data: null }));
   }, [token]);
+
+  // Fetch census profiles for SmartMap overlay
+  useEffect(() => {
+    fetchCensusProfiles()
+      .then(result => {
+        const map = {};
+        for (const p of (result.profiles || [])) {
+          if (p?.ponto_id) map[p.ponto_id] = p;
+        }
+        setCensusProfiles(map);
+      })
+      .catch(() => {}); // silent — census overlay is optional
+  }, []);
 
   const handleAprovar = useCallback(async () => {
     const nome = approveName.trim();
@@ -165,12 +297,7 @@ export default function PropostaPublica() {
     return cities.join(', ') || '';
   }, [points]);
 
-  // Determine which audience profiles are present for legend
-  const activeProfiles = useMemo(() => {
-    const keys = new Set();
-    points.forEach(p => keys.add(getProfileKey(p.publico)));
-    return Object.entries(CENSUS_PROFILE_LABELS).filter(([k]) => keys.has(k));
-  }, [points]);
+  const cityBounds = useMemo(() => computeCityBoundingBoxes(validPoints), [validPoints]);
 
   if (loading) {
     return (
@@ -205,7 +332,7 @@ export default function PropostaPublica() {
   ].filter(c => c.value && c.value !== '—' && c.value !== '0');
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA]" style={{ fontFamily: 'Poppins, system-ui, sans-serif' }}>
+    <div className="min-h-screen bg-[#ECEFF3]" style={{ fontFamily: 'Poppins, system-ui, sans-serif' }}>
       {/* Header */}
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-gray-100 px-5 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
@@ -239,18 +366,18 @@ export default function PropostaPublica() {
           </h1>
           <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
             {cityLabel && (
-              <span className="inline-flex items-center h-7 px-3 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">{cityLabel}</span>
+              <span className="inline-flex items-center h-7 px-3 rounded-full bg-white/80 border border-gray-200 text-gray-600 text-xs font-medium">{cityLabel}</span>
             )}
             {segmentLabel && (
               <span className="inline-flex items-center h-7 px-3 rounded-full text-xs font-bold text-white" style={{ background: ORANGE }}>{segmentLabel}</span>
             )}
-            <span className="inline-flex items-center h-7 px-3 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">{points.length} ponto{points.length !== 1 ? 's' : ''}</span>
+            <span className="inline-flex items-center h-7 px-3 rounded-full bg-white/80 border border-gray-200 text-gray-600 text-xs font-medium">{points.length} ponto{points.length !== 1 ? 's' : ''}</span>
           </div>
         </div>
 
         {/* Strategic text */}
         {(data?.strategicTopics || data?.strategicText?.length > 0) && (
-          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5 sm:p-6">
+          <div className="rounded-2xl bg-white border border-gray-200/60 shadow-sm p-5 sm:p-6">
             <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] mb-3" style={{ color: ORANGE }}>Direcionamento Estratégico</h2>
             {data?.strategicTopics && (
               <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">{data.strategicTopics}</p>
@@ -271,7 +398,7 @@ export default function PropostaPublica() {
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {summaryCards.map(({ label, value }) => (
-            <div key={label} className="rounded-2xl bg-white border border-gray-100 shadow-sm p-4 text-center" style={{ borderTop: `3px solid ${ORANGE}` }}>
+            <div key={label} className="rounded-2xl bg-white border border-gray-200/60 shadow-sm p-4 text-center" style={{ borderTop: `3px solid ${ORANGE}` }}>
               <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-1">{label}</p>
               <p className="text-lg sm:text-xl font-extrabold text-gray-900">{value}</p>
             </div>
@@ -279,7 +406,7 @@ export default function PropostaPublica() {
         </div>
 
         {/* ── Plano de Investimento & Impacto ────────────────────────────── */}
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+        <div className="rounded-2xl bg-white border border-gray-200/60 shadow-sm overflow-hidden">
           <div className="px-5 pt-5 pb-3 flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <div className="w-1 h-5 rounded-full" style={{ background: ORANGE }} />
@@ -312,7 +439,7 @@ export default function PropostaPublica() {
                       <tr key={p.id || i} className="border-b border-gray-50 hover:bg-gray-50/50">
                         <td className="px-5 py-2.5 font-semibold text-gray-800 max-w-[200px] truncate">{p.nome}</td>
                         <td className="px-3 py-2.5 text-gray-500">{p.cidade}</td>
-                        <td className="px-3 py-2.5 text-gray-500">{getPointType(p)}</td>
+                        <td className="px-3 py-2.5 text-gray-500">{getPointTypeShort(p)}</td>
                         <td className="px-3 py-2.5 text-right text-gray-600 font-medium">{formatCurrency(precoOriginal)}</td>
                         <td className="px-5 py-2.5 text-right font-bold" style={{ color: hasDiscount ? ORANGE : '#111' }}>{formatCurrency(precoFinal)}</td>
                       </tr>
@@ -322,9 +449,8 @@ export default function PropostaPublica() {
               </table>
             </div>
 
-            {/* Sidebar — metrics + financial */}
+            {/* Sidebar */}
             <div className="border-t lg:border-t-0 lg:border-l border-gray-100 p-5 space-y-4">
-              {/* Impact estimates */}
               <div className="rounded-xl border border-gray-100 p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="w-2 h-2 rounded-full" style={{ background: ORANGE }} />
@@ -350,7 +476,6 @@ export default function PropostaPublica() {
                 )}
               </div>
 
-              {/* Financial summary */}
               <div className="rounded-xl p-4" style={{ background: 'rgba(232,89,26,0.04)', border: '1px solid rgba(232,89,26,0.12)' }}>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="inline-flex items-center h-5 px-2 rounded text-[9px] font-bold uppercase tracking-wide text-white" style={{ background: ORANGE }}>Resumo Financeiro</span>
@@ -372,176 +497,40 @@ export default function PropostaPublica() {
                   <p className="text-2xl font-extrabold" style={{ color: ORANGE }}>{formatCurrency(finalTotal)}</p>
                 </div>
                 <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
-                  Negociação válida exclusivamente para o plano e quantidade de pontos apresentados. Para outras condições de compra, os valores deverão ser consultados.
+                  Negociação válida exclusivamente para o plano e quantidade de pontos apresentados. Para outras condições, os valores deverão ser consultados.
                 </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── Map Overview with Audience Circles ─────────────────────────── */}
+        {/* ── SmartMap Overview ───────────────────────────────────────────── */}
         {validPoints.length > 0 && (
-          <div className="relative rounded-2xl overflow-hidden border border-gray-100 shadow-sm" style={{ height: 440 }}>
-            <MapContainer center={[0, 0]} zoom={10} style={{ height: '100%', width: '100%' }} zoomControl={true} scrollWheelZoom={false}>
-              <TileLayer
-                url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-                subdomains={['a', 'b', 'c', 'd']}
-                attribution='&copy; OpenStreetMap &copy; CARTO'
-              />
-              <FitBounds points={validPoints} />
-              {/* Audience radius circles */}
-              {validPoints.map(p => (
-                <Circle
-                  key={`circle-${p.id}`}
-                  center={[p.lat, p.lng]}
-                  radius={800}
-                  pathOptions={{
-                    color: getProfileColor(p.publico),
-                    fillColor: getProfileColor(p.publico),
-                    fillOpacity: 0.15,
-                    weight: 1.2,
-                  }}
-                />
-              ))}
-              {/* Point markers */}
-              {validPoints.map(p => (
-                <CircleMarker
-                  key={p.id}
-                  center={[p.lat, p.lng]}
-                  radius={7}
-                  pathOptions={{ color: '#fff', fillColor: ORANGE, fillOpacity: 1, weight: 2 }}
-                >
-                  <Tooltip direction="top" offset={[0, -10]} permanent={false}>
-                    <strong>{p.nome}</strong><br />{getPointType(p)} · {p.cidade}
-                  </Tooltip>
-                </CircleMarker>
-              ))}
-            </MapContainer>
-
-            {/* Legend */}
-            {activeProfiles.length > 0 && (
-              <div className="absolute bottom-3 right-3 z-[1000] bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 shadow-md px-3 py-2.5">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">Perfil Censitário (800 m)</p>
-                {activeProfiles.map(([key, label]) => (
-                  <div key={key} className="flex items-center gap-2 py-0.5">
-                    <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: CENSUS_PROFILE_COLORS[key] }} />
-                    <span className="text-[11px] text-gray-600">{label}</span>
-                  </div>
-                ))}
+          <div className="rounded-2xl overflow-hidden border border-gray-200/60 shadow-sm" style={{ height: 480 }}>
+            <Suspense fallback={
+              <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                <div className="w-8 h-8 border-3 border-orange-500 border-t-transparent rounded-full animate-spin" />
               </div>
-            )}
+            }>
+              <SmartMap
+                pontos={validPoints}
+                isDark={false}
+                cityBounds={cityBounds}
+                censusProfiles={censusProfiles}
+              />
+            </Suspense>
           </div>
         )}
 
-        {/* ── Points list ────────────────────────────────────────────────── */}
+        {/* ── Points list (mídia kit style cards) ────────────────────────── */}
         <div>
-          <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-4">
-            {points.length} ponto{points.length !== 1 ? 's' : ''} selecionado{points.length !== 1 ? 's' : ''}
+          <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500 mb-5">
+            Pontos de Mídia
           </h2>
-          <div className="space-y-5">
-            {points.map((p, i) => {
-              const img = getPointImage(p);
-              const audience = buildAudienceQualification(p);
-              const tipo = getPointType(p);
-              const entornoCount = Number(p?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
-              const hasCoords = p.lat && p.lng;
-
-              return (
-                <div key={p.id || i} className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-                  {/* Image with blur background */}
-                  {img && (
-                    <div className="relative bg-gray-100" style={{ aspectRatio: '16/10', minHeight: 300, maxHeight: 420 }}>
-                      {/* Blurred background */}
-                      <img
-                        src={img}
-                        alt=""
-                        aria-hidden="true"
-                        className="absolute inset-0 w-full h-full object-cover"
-                        style={{ filter: 'blur(24px) brightness(0.7)', transform: 'scale(1.1)' }}
-                      />
-                      {/* Main image */}
-                      <img
-                        src={img}
-                        alt={p.nome}
-                        className="relative w-full h-full object-contain z-[1]"
-                        onError={e => { e.target.closest('[style*="aspect-ratio"]').style.display = 'none'; }}
-                      />
-                      <div className="absolute top-3 right-3 z-[2] inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-white" style={{ background: 'rgba(0,0,0,0.55)' }}>
-                        {i + 1}/{points.length}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="p-5 space-y-4">
-                    {/* Name + meta */}
-                    <div>
-                      <div className="flex items-start gap-3 flex-wrap">
-                        <h3 className="text-xl font-extrabold text-gray-900 tracking-tight leading-tight">{p.nome}</h3>
-                        {tipo && (
-                          <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[10px] font-bold text-white uppercase tracking-wide" style={{ background: ORANGE }}>{tipo}</span>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-400 mt-1">
-                        {[p.cidade, p.endereco].filter(Boolean).join(' · ')}
-                      </p>
-                      {/* Coordinates */}
-                      {hasCoords && (
-                        <p className="text-xs text-gray-300 mt-0.5 font-mono">
-                          {formatCoord(p.lat)}, {formatCoord(p.lng)}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Metrics */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                      {p.fluxo > 0 && (
-                        <div className="rounded-xl bg-gray-50 border border-gray-100 p-3">
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Fluxo/mês</p>
-                          <p className="text-base font-bold text-gray-900 mt-0.5">{formatNumber(p.fluxo)}</p>
-                        </div>
-                      )}
-                      {p.telas > 0 && (
-                        <div className="rounded-xl bg-gray-50 border border-gray-100 p-3">
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Pontos Impacto</p>
-                          <p className="text-base font-bold text-gray-900 mt-0.5">{p.telas}</p>
-                        </div>
-                      )}
-                      {p.insercoes > 0 && (
-                        <div className="rounded-xl bg-gray-50 border border-gray-100 p-3">
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Inserções</p>
-                          <p className="text-base font-bold text-gray-900 mt-0.5">{formatNumber(p.insercoes)}</p>
-                        </div>
-                      )}
-                      {(p.precoFinal || p.preco) > 0 && (
-                        <div className="rounded-xl border p-3" style={{ background: 'rgba(232,89,26,0.06)', borderColor: 'rgba(232,89,26,0.18)' }}>
-                          <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: ORANGE }}>Valor/mês</p>
-                          <p className="text-base font-bold mt-0.5" style={{ color: ORANGE }}>{formatCurrency(p.precoFinal || p.preco)}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Mini map */}
-                    {hasCoords && (
-                      <PointMiniMap lat={p.lat} lng={p.lng} publico={p.publico} />
-                    )}
-
-                    {/* Audience qualification */}
-                    {audience.badge && (
-                      <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[10px] font-bold uppercase" style={{ background: 'rgba(232,89,26,0.12)', border: '1px solid rgba(232,89,26,0.24)', color: ORANGE }}>{audience.badge}</span>
-                          {entornoCount > 0 && (
-                            <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-gray-200/60 text-[10px] font-semibold text-gray-500">{formatNumber(entornoCount)} locais no entorno</span>
-                          )}
-                        </div>
-                        <p className="text-sm font-bold text-gray-800 mt-2">{audience.headline}</p>
-                        <p className="text-xs text-gray-500 mt-1 leading-relaxed">{audience.summary}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="space-y-6">
+            {points.map((p, i) => (
+              <PointCard key={p.id || i} point={p} index={i} total={points.length} />
+            ))}
           </div>
         </div>
 
