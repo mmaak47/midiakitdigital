@@ -2,12 +2,14 @@
  * InventarioChatBot.jsx
  * AI-powered DOOH/OOH inventory chatbot — global floating FAB.
  * Uses Replicate 70B LLM with real database context injection.
+ * Brand: Intermídia orange (#FE5C2B) — dark-first design.
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { MessageCircle, X, Send, Loader2, RotateCcw, Bot, Radio } from 'lucide-react';
+import { MessageCircle, X, Send, Loader2, RotateCcw, Radio } from 'lucide-react';
 import useTheme from '../hooks/useTheme';
+import { fetchInventoryChat } from '../lib/api';
 
 // ── Quick suggestions ─────────────────────────────────────────────────────────
 const SUGESTOES = [
@@ -25,7 +27,6 @@ const SUGESTOES = [
 function renderMarkdown(text) {
   const lines = text.split('\n');
   return lines.map((line, i) => {
-    // Bold: **text** or *text*
     const parts = line.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
     const formatted = parts.map((part, j) => {
       if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
@@ -52,9 +53,9 @@ function Mensagem({ msg, isDark }) {
 
   const bubbleBase = 'max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm';
   const bubbleBot = isDark
-    ? `${bubbleBase} bg-gray-800 text-gray-100 border border-gray-700 rounded-tl-sm`
+    ? `${bubbleBase} bg-brand-gray-900 text-gray-100 border border-white/10 rounded-tl-sm`
     : `${bubbleBase} bg-white text-gray-800 border border-gray-200 rounded-tl-sm`;
-  const bubbleUser = `${bubbleBase} bg-blue-600 text-white rounded-tr-sm ml-auto`;
+  const bubbleUser = `${bubbleBase} bg-brand-orange text-white rounded-tr-sm ml-auto`;
   const bubbleError = isDark
     ? `${bubbleBase} bg-red-900/40 text-red-300 border border-red-700/30 rounded-tl-sm`
     : `${bubbleBase} bg-red-50 text-red-700 border border-red-200 rounded-tl-sm`;
@@ -63,7 +64,7 @@ function Mensagem({ msg, isDark }) {
     <div className={`flex items-end gap-2 ${isBot ? '' : 'flex-row-reverse'}`}>
       {isBot && (
         <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs
-          ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
+          ${isDark ? 'bg-brand-orange/20 text-brand-orange' : 'bg-orange-100 text-brand-orange'}`}>
           <Radio size={14} />
         </div>
       )}
@@ -71,8 +72,8 @@ function Mensagem({ msg, isDark }) {
         {isBot ? renderMarkdown(msg.text) : msg.text}
         {msg.timestamp && (
           <div className={`text-[10px] mt-1 ${isBot
-            ? isDark ? 'text-gray-600' : 'text-gray-400'
-            : 'text-blue-200'}`}>
+            ? isDark ? 'text-brand-gray-500' : 'text-gray-400'
+            : 'text-white/60'}`}>
             {msg.timestamp}
           </div>
         )}
@@ -88,8 +89,8 @@ function SugestaoChip({ texto, isDark, onClick }) {
       onClick={() => onClick(texto)}
       className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap
         ${isDark
-          ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 hover:border-blue-500/50 hover:text-blue-300'
-          : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600'
+          ? 'bg-brand-gray-900 border-white/10 text-brand-gray-400 hover:bg-brand-gray-800 hover:border-brand-orange/40 hover:text-brand-orange'
+          : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-orange-50 hover:border-brand-orange/40 hover:text-brand-orange'
         }`}
     >
       {texto}
@@ -146,23 +147,12 @@ export default function InventarioChatBot() {
     setCarregando(true);
 
     try {
-      // Build history from all messages (skip the initial welcome)
       const allMsgs = [...mensagens, msgUsuario];
       const history = allMsgs
-        .filter((_, i) => i > 0) // skip welcome message
+        .filter((_, i) => i > 0)
         .map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', text: m.text }));
 
-      const token = typeof window !== 'undefined' ? sessionStorage.getItem('admin_token') : null;
-      const res = await fetch('/api/inventory-chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ message: texto, history }),
-      });
-
-      const data = await res.json();
+      const data = await fetchInventoryChat(texto, history);
       const msgBot = {
         role: 'bot',
         text: data.response || 'Não consegui processar sua pergunta.',
@@ -197,18 +187,18 @@ export default function InventarioChatBot() {
     }]);
   }
 
-  // ── Styles ──────────────────────────────────────────────────────────────────
-  const panelBg   = isDark ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200';
-  const headerBg  = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200';
-  const msgArea   = isDark ? 'bg-gray-950' : 'bg-gray-100/50';
-  const inputBg   = isDark ? 'bg-gray-800 border-gray-700 text-white placeholder:text-gray-500' : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400';
-  const inputWrap = isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200';
+  // ── Styles (brand colors) ─────────────────────────────────────────────────
+  const panelBg   = isDark ? 'bg-brand-black border-white/10' : 'bg-gray-50 border-gray-200';
+  const headerBg  = isDark ? 'bg-brand-gray-900 border-white/10' : 'bg-white border-gray-200';
+  const msgArea   = isDark ? 'bg-brand-dark' : 'bg-gray-100/50';
+  const inputBg   = isDark ? 'bg-brand-gray-900 border-white/10 text-white placeholder:text-brand-gray-500' : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400';
+  const inputWrap = isDark ? 'bg-brand-gray-900 border-white/10' : 'bg-white border-gray-200';
 
   return (
     <>
-      {/* ── Chat panel ──────────────────────────────────────────────────── */}
+      {/* ── Chat panel — positioned to the left of WhatsApp FAB ─────── */}
       <div
-        className={`fixed bottom-20 right-4 z-50 w-[360px] max-w-[calc(100vw-2rem)]
+        className={`fixed bottom-24 right-6 z-[9980] w-[360px] max-w-[calc(100vw-2rem)]
           flex flex-col rounded-2xl border shadow-2xl overflow-hidden
           transition-all duration-300 ease-in-out
           ${panelBg}
@@ -220,8 +210,8 @@ export default function InventarioChatBot() {
         <div className={`flex items-center justify-between px-4 py-3 border-b ${headerBg} flex-shrink-0`}>
           <div className="flex items-center gap-2.5">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center
-              ${isDark ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
-              <Radio size={16} className={isDark ? 'text-blue-400' : 'text-blue-600'} />
+              ${isDark ? 'bg-brand-orange/20' : 'bg-orange-100'}`}>
+              <Radio size={16} className="text-brand-orange" />
             </div>
             <div>
               <p className={`text-sm font-semibold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -236,13 +226,13 @@ export default function InventarioChatBot() {
             <button
               onClick={limparConversa}
               title="Reiniciar conversa"
-              className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+              className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-brand-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
             >
               <RotateCcw size={14} />
             </button>
             <button
               onClick={() => setAberto(false)}
-              className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+              className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-brand-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
             >
               <X size={16} />
             </button>
@@ -255,21 +245,21 @@ export default function InventarioChatBot() {
             <Mensagem key={i} msg={msg} isDark={isDark} />
           ))}
 
-          {/* Typing indicator (enhanced for LLM latency) */}
+          {/* Typing indicator */}
           {carregando && (
             <div className="flex items-end gap-2">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center
-                ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
+                ${isDark ? 'bg-brand-orange/20 text-brand-orange' : 'bg-orange-100 text-brand-orange'}`}>
                 <Radio size={14} />
               </div>
               <div className={`px-4 py-2.5 rounded-2xl rounded-tl-sm border
-                ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                ${isDark ? 'bg-brand-gray-900 border-white/10' : 'bg-white border-gray-200'}`}>
                 <div className="flex gap-1 items-center h-4">
-                  <span className={`w-1.5 h-1.5 rounded-full animate-bounce ${isDark ? 'bg-gray-400' : 'bg-gray-500'}`} style={{ animationDelay: '0ms' }} />
-                  <span className={`w-1.5 h-1.5 rounded-full animate-bounce ${isDark ? 'bg-gray-400' : 'bg-gray-500'}`} style={{ animationDelay: '150ms' }} />
-                  <span className={`w-1.5 h-1.5 rounded-full animate-bounce ${isDark ? 'bg-gray-400' : 'bg-gray-500'}`} style={{ animationDelay: '300ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full animate-bounce bg-brand-orange/60" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full animate-bounce bg-brand-orange/60" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full animate-bounce bg-brand-orange/60" style={{ animationDelay: '300ms' }} />
                 </div>
-                <p className={`text-[10px] mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                <p className={`text-[10px] mt-1 ${isDark ? 'text-brand-gray-500' : 'text-gray-400'}`}>
                   Consultando inventário...
                 </p>
               </div>
@@ -279,7 +269,7 @@ export default function InventarioChatBot() {
         </div>
 
         {/* Suggestions */}
-        <div className={`flex-shrink-0 px-3 py-2 border-t overflow-x-auto ${isDark ? 'border-gray-800' : 'border-gray-200'}`}
+        <div className={`flex-shrink-0 px-3 py-2 border-t overflow-x-auto ${isDark ? 'border-white/5' : 'border-gray-200'}`}
           style={{ scrollbarWidth: 'none' }}>
           <div className="flex gap-2 w-max">
             {SUGESTOES.map(s => (
@@ -300,13 +290,13 @@ export default function InventarioChatBot() {
               placeholder="Pergunte sobre o inventário..."
               disabled={carregando}
               className={`flex-1 rounded-xl border px-3 py-2 text-sm focus:outline-none
-                focus:ring-2 focus:ring-blue-500/30 transition-all ${inputBg}`}
+                focus:ring-2 focus:ring-brand-orange/30 transition-all ${inputBg}`}
             />
             <button
               onClick={() => enviarMensagem()}
               disabled={!input.trim() || carregando}
-              className="flex-shrink-0 w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center
-                hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow"
+              className="flex-shrink-0 w-9 h-9 rounded-xl bg-brand-orange text-white flex items-center justify-center
+                hover:bg-brand-orange-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow"
             >
               {carregando
                 ? <Loader2 size={16} className="animate-spin" />
@@ -317,15 +307,16 @@ export default function InventarioChatBot() {
         </div>
       </div>
 
-      {/* ── Floating FAB ────────────────────────────────────────────────── */}
+      {/* ── Floating FAB — left of WhatsApp button ──────────────────── */}
       <button
         onClick={() => setAberto(o => !o)}
-        className={`fixed bottom-4 right-4 z-50 w-14 h-14 rounded-full shadow-lg
+        className={`fixed bottom-6 right-[5.5rem] z-[9989] w-14 h-14 rounded-full shadow-lg
           flex items-center justify-center transition-all duration-300 group
           ${aberto
-            ? isDark ? 'bg-gray-700 text-white' : 'bg-gray-600 text-white'
-            : 'bg-blue-600 hover:bg-blue-700 text-white'
+            ? isDark ? 'bg-brand-gray-800 text-white' : 'bg-gray-600 text-white'
+            : 'bg-brand-orange hover:bg-brand-orange-hover text-white'
           }`}
+        style={{ filter: aberto ? 'none' : 'drop-shadow(0 4px 20px rgba(254,92,43,0.45))' }}
         title="Especialista DOOH"
       >
         <span className={`transition-transform duration-300 ${aberto ? 'rotate-0' : 'group-hover:scale-110'}`}>
