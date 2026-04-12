@@ -35,6 +35,7 @@ const {
 } = require('./auth');
 const { createBackupScheduler } = require('./backupService');
 const { startScheduledMessages } = require('./services/scheduledMessagesService');
+const { generatePdfsFromPointNames } = require('./services/technicalPdfService');
 const { renderHtmlToPdfCompressed: renderHtmlToPdf } = require('./pdfService');
 const {
   slugifyCity,
@@ -3164,6 +3165,88 @@ app.post(
             ? 'Venda registrada. Configure a Evolution API nas Configurações para ativar o disparo automático.'
             : `Venda registrada. Falha no WhatsApp: ${whatsappError || 'erro desconhecido'}`
       });
+
+      // ─── Disparo assíncrono: PDF técnico para o WhatsApp do cliente ───────
+      // Roda em background para não atrasar a resposta ao vendedor.
+      setImmediate(async () => {
+        const evoClient = getEvolutionSettings();
+        if (!evoClient.evolution_api_url || !evoClient.evolution_instance || !evoClient.evolution_api_key) {
+          return; // Evolution API não configurada
+        }
+
+        const clientPhone = responsavel_whatsapp ? String(responsavel_whatsapp).trim() : null;
+        if (!clientPhone) {
+          console.warn(`[vendas/pdf] Venda ${vendaId}: responsavel_whatsapp não informado — PDF não enviado.`);
+          return;
+        }
+
+        let pontosArr = [];
+        try {
+          pontosArr = Array.isArray(pontos_nomes) ? pontos_nomes : JSON.parse(pontos_nomes || '[]');
+        } catch {
+          console.warn(`[vendas/pdf] Venda ${vendaId}: falha ao parsear pontos_nomes.`);
+          return;
+        }
+
+        if (pontosArr.length === 0) {
+          console.warn(`[vendas/pdf] Venda ${vendaId}: sem pontos — PDF não gerado.`);
+          return;
+        }
+
+        const nomeResponsavel = responsavel_nome ? String(responsavel_nome).trim() : 'cliente';
+        const nomeVendedor    = vendedor_nome || req.authUser?.username || 'nosso time';
+
+        const caption = `Oi, ${nomeResponsavel}! Tudo bem? 😄\n\nPassando pra te dar os parabéns pela escolha dos pontos — excelente decisão!\n\nEu sou o assistente de criação que trabalha junto com o ${nomeVendedor} e vou te ajudar com tudo que envolver criativos.\n\nTe enviei a proposta técnica com os detalhes 📄\n\nSe quiser trocar ideias ou precisar de ajuda com as artes, estou por aqui!`;
+
+        console.log(`[vendas/pdf] Gerando PDFs técnicos para venda ${vendaId} (${pontosArr.length} ponto(s))...`);
+
+        try {
+          const { desktop, mobile } = await generatePdfsFromPointNames(db, pontosArr);
+
+          // Envia PDF desktop
+          try {
+            const tmpDesktop = require('path').join(require('os').tmpdir(), `venda_${vendaId}_tecnico.pdf`);
+            require('fs').writeFileSync(tmpDesktop, desktop);
+            await sendEvolutionDocument({
+              apiUrl:   evoClient.evolution_api_url,
+              instance: evoClient.evolution_instance,
+              apiKey:   evoClient.evolution_api_key,
+              number:   clientPhone,
+              caption,
+              filePath: tmpDesktop,
+              fileName: 'Informações Técnicas.pdf'
+            });
+            require('fs').unlinkSync(tmpDesktop);
+            console.log(`[vendas/pdf] PDF desktop enviado para ${clientPhone} (venda ${vendaId}).`);
+          } catch (sendErr) {
+            console.error(`[vendas/pdf] Falha ao enviar PDF desktop (venda ${vendaId}):`, sendErr.message);
+          }
+
+          // Envia PDF mobile
+          try {
+            const tmpMobile = require('path').join(require('os').tmpdir(), `venda_${vendaId}_tecnico_mobile.pdf`);
+            require('fs').writeFileSync(tmpMobile, mobile);
+            await sendEvolutionDocument({
+              apiUrl:   evoClient.evolution_api_url,
+              instance: evoClient.evolution_instance,
+              apiKey:   evoClient.evolution_api_key,
+              number:   clientPhone,
+              caption:  '📱 Versão mobile da proposta técnica:',
+              filePath: tmpMobile,
+              fileName: 'Informações Técnicas Mobile.pdf'
+            });
+            require('fs').unlinkSync(tmpMobile);
+            console.log(`[vendas/pdf] PDF mobile enviado para ${clientPhone} (venda ${vendaId}).`);
+          } catch (sendErr) {
+            console.error(`[vendas/pdf] Falha ao enviar PDF mobile (venda ${vendaId}):`, sendErr.message);
+          }
+
+        } catch (genErr) {
+          console.error(`[vendas/pdf] Falha ao gerar PDFs técnicos (venda ${vendaId}):`, genErr.message);
+        }
+      });
+      // ─────────────────────────────────────────────────────────────────────
+
     } catch (err) {
       console.error('[vendas] erro:', err.message);
       res.status(500).json({ error: err.message });
