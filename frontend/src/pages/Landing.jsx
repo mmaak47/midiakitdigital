@@ -1494,7 +1494,7 @@ export default function Landing() {
         transition={{ delay: 1.4, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         whileHover={{ scale: 1.06, y: -2 }}
         whileTap={{ scale: 0.94 }}
-        className="group fixed bottom-6 right-6 z-[9990] flex items-center gap-0 rounded-full"
+        className="group fixed bottom-6 left-6 z-[9990] flex items-center gap-0 rounded-full flex-row-reverse"
         style={{
           filter: 'drop-shadow(0 4px 24px rgba(37,211,102,0.55))',
         }}
@@ -1504,14 +1504,14 @@ export default function Landing() {
           className="max-w-0 overflow-hidden whitespace-nowrap text-white text-sm font-semibold group-hover:max-w-[180px] transition-all duration-300 ease-out"
           style={{
             background: '#1da851',
-            borderRadius: '999px 0 0 999px',
+            borderRadius: '0 999px 999px 0',
             paddingTop: '0.6rem',
             paddingBottom: '0.6rem',
             paddingLeft: 0,
             paddingRight: 0,
           }}
         >
-          <span className="pl-5 pr-1 group-hover:pl-5 group-hover:pr-3 block transition-all duration-300">
+          <span className="pr-5 pl-1 group-hover:pr-5 group-hover:pl-3 block transition-all duration-300">
             Falar com comercial
           </span>
         </span>

@@ -310,7 +310,7 @@ export default function InventarioChatBot() {
       {/* ── Floating FAB — left of WhatsApp button ──────────────────── */}
       <button
         onClick={() => setAberto(o => !o)}
-        className={`fixed bottom-6 right-[5.5rem] z-[9989] w-14 h-14 rounded-full shadow-lg
+        className={`fixed bottom-6 right-6 z-[9989] w-14 h-14 rounded-full shadow-lg
           flex items-center justify-center transition-all duration-300 group
           ${aberto
             ? isDark ? 'bg-brand-gray-800 text-white' : 'bg-gray-600 text-white'

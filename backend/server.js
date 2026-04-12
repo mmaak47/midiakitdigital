@@ -25,7 +25,6 @@ const arteRouter          = require('./routes/arte');
 const comercialChatRouter = require('./routes/comercialChat');
 const geoRouter           = require('./routes/geo');
 const aiRouter            = require('./routes/ai');
-const inventoryChatRouter = require('./routes/inventoryChat');
 const {
   createAuthToken,
   parseAuthToken,
@@ -463,7 +462,33 @@ app.use('/api/arte', arteRouter);
 app.use('/api/comercial/chat', requireRoles(['admin', 'gerente_comercial', 'vendedor']), comercialChatRouter);
 app.use('/api/geo', geoRouter);
 app.use('/api/ai', aiRouter);
-app.use('/api', inventoryChatRouter);
+
+// ── Inventory chatbot (inline, same pattern as other /api routes) ──
+const { processInventoryChat } = require('./services/inventoryChatService');
+const _inventoryChatHandler = async (req, res) => {
+  try {
+    const { message, history } = req.body || {};
+    if (!message || typeof message !== 'string' || message.trim().length < 2) {
+      return res.status(400).json({ error: 'message string is required (min 2 chars)' });
+    }
+    const safeHistory = Array.isArray(history)
+      ? history.filter(h => h && typeof h.role === 'string' && typeof h.text === 'string').slice(-20)
+      : [];
+    const userId = req.authUser?.id || null;
+    const result = await processInventoryChat(message.trim(), safeHistory, userId);
+    res.json(result);
+  } catch (err) {
+    console.error('[inventory-chat]', err.message);
+    res.status(503).json({
+      response: 'Desculpe, estou com dificuldade para processar sua pergunta. Tente novamente em alguns instantes.',
+      intent: 'error',
+      entities: {},
+      _model: 'fallback',
+    });
+  }
+};
+app.post('/api/inventory-chat', _inventoryChatHandler);
+app.post('/inventory-chat', _inventoryChatHandler);
 
 function parseOptionalCity(value) {
   if (Array.isArray(value)) {
