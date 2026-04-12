@@ -195,4 +195,62 @@ router.get('/health', async (req, res) => {
   }
 });
 
+// ── POST /api/ai/proposta-texto — Geração de texto comercial para proposta ────
+router.post('/proposta-texto', async (req, res) => {
+  const { segmento, objetivo, clientName, cidade, points = [], totals = {} } = req.body || {};
+  if (!points.length) return res.status(400).json({ error: 'points é obrigatório.' });
+
+  // Fallback algorítmico (usado se IA falhar)
+  function buildFallback() {
+    const cidades = [...new Set(points.map(p => p.cidade).filter(Boolean))].join(', ') || cidade || 'sua cidade';
+    const tiposUniq = [...new Set(points.map(p => p.tipo).filter(Boolean))].join(', ');
+    const fluxoTotal = totals.fluxoTotal || points.reduce((s, p) => s + (p.fluxo || 0), 0);
+    const cpm = totals.cpmEstimado ? `R$ ${Number(totals.cpmEstimado).toFixed(2)}` : null;
+    return {
+      justificativa: `A campanha foi planejada para ${clientName || 'o cliente'} com foco em ${segmento || 'seu segmento'} em ${cidades}. Com ${points.length} ponto${points.length > 1 ? 's' : ''} estrategicamente selecionados (${tiposUniq}), a proposta garante presença consistente nos principais fluxos urbanos da região.`,
+      argumentoAudiencia: `Os pontos selecionados concentram alto fluxo qualificado — ${fluxoTotal.toLocaleString('pt-BR')} impactos mensais estimados${cpm ? ` a um CPM de ${cpm}` : ''} —, com localização alinhada ao perfil de público relevante para ${segmento || 'o segmento'}.`,
+      porQueEstesPoints: points.map(p => `${p.nome} (${p.tipo || ''}, ${p.cidade || ''}) — ${(p.fluxo || 0).toLocaleString('pt-BR')} impactos/mês`),
+      _source: 'fallback'
+    };
+  }
+
+  try {
+    const pontosDesc = points.map((p, i) =>
+      `${i + 1}. ${p.nome} | ${p.tipo} | ${p.cidade} | Fluxo: ${(p.fluxo || 0).toLocaleString('pt-BR')}/mês | Preço: R$${p.preco || 0} | Telas: ${p.telas || 1}${p.entornoScore ? ` | Score entorno: ${p.entornoScore}` : ''}`
+    ).join('\n');
+
+    const prompt = `${ai.DOOH_KNOWLEDGE_COMPACT}
+
+Você deve gerar textos comerciais para uma PROPOSTA DE MÍDIA DOOH. Responda APENAS com JSON válido, sem texto extra.
+
+DADOS DA PROPOSTA:
+- Cliente: ${clientName || 'não informado'}
+- Segmento: ${segmento || 'não informado'}
+- Objetivo: ${objetivo || 'não informado'}
+- Cidade(s): ${cidade || [...new Set(points.map(p => p.cidade).filter(Boolean))].join(', ')}
+- Investimento total: R$ ${totals.valorTotal || 0}
+- Fluxo total: ${(totals.fluxoTotal || 0).toLocaleString('pt-BR')} impactos/mês
+- CPM estimado: R$ ${totals.cpmEstimado || 0}
+- Pontos selecionados:
+${pontosDesc}
+
+Gere o JSON a seguir com textos profissionais em português brasileiro:
+{
+  "justificativa": "<2-3 frases sobre a estratégia geral da campanha, por que estes pontos e este mix fazem sentido para o cliente>",
+  "argumentoAudiencia": "<2 frases sobre a audiência e contexto dos pontos: perfil, momento de impacto, relevância para o segmento>",
+  "porQueEstesPoints": ["<frase curta de argumento para cada ponto, na mesma ordem da lista acima>"]
+}`;
+
+    const raw = await ai.generateReplicateFirst(prompt, { temperature: 0.7, maxTokens: 800 });
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('JSON não encontrado na resposta');
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!parsed.justificativa || !parsed.argumentoAudiencia) throw new Error('Campos obrigatórios ausentes');
+    res.json({ ...parsed, _source: 'llm' });
+  } catch (err) {
+    console.warn('[ai/proposta-texto] fallback acionado:', err.message);
+    res.json(buildFallback());
+  }
+});
+
 module.exports = router;

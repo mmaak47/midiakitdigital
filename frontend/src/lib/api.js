@@ -125,6 +125,57 @@ export async function logout() {
   await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
 }
 
+// ── Proposta Pública (FEAT-1) ────────────────────────────────────────────────
+export async function criarPropostaPublica(proposalData, expiresDays = 7) {
+  const res = await apiRequest('/proposta-publica', {
+    method: 'POST',
+    body: JSON.stringify({ proposta_data: proposalData, expires_days: expiresDays })
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao criar link público');
+  }
+  return res.json();
+}
+
+export async function fetchPropostaPublica(token) {
+  const res = await fetch(`/api/p/${token}`, { credentials: 'include' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Proposta não encontrada');
+  }
+  return res.json();
+}
+
+export async function aprovarPropostaPublica(token, nome) {
+  const res = await fetch(`/api/p/${token}/aprovar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ nome })
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Erro ao aprovar proposta');
+  }
+  return res.json();
+}
+
+// ── Geração de Texto por IA (FEAT-11) ───────────────────────────────────────
+export async function gerarTextoProposta({ segmento, objetivo, clientName, cidade, points, totals }) {
+  const res = await fetch('/api/ai/proposta-texto', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ segmento, objetivo, clientName, cidade, points, totals })
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Erro ao gerar texto');
+  }
+  return res.json();
+}
+
 export async function fetchAdminPontos() {
   const res = await apiRequest('/admin/pontos');
   if (!res.ok) {

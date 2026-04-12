@@ -6,11 +6,14 @@ import {
   MapPinned,
   Monitor,
   Presentation,
+  QrCode,
   Sparkles,
   Target,
   TrendingUp,
-  Users
+  Users,
+  X
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useMemo, useState } from 'react';
 import { Circle, CircleMarker, MapContainer, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -21,10 +24,17 @@ import { getPrimaryPointScreenImage } from '../lib/pointImages';
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 const formatNumber = (value) => new Intl.NumberFormat('pt-BR').format(value || 0);
 
-export default function PresentationMode({ points = [], totals, segmento, clientName = '', pricingSummary, onClose }) {
+export default function PresentationMode({
+  points = [], totals, segmento, clientName = '', pricingSummary, onClose,
+  clientMode = false,
+  proposalToken = null,
+  autoAdvance = false,
+  autoAdvanceSeconds = 20,
+}) {
   const [index, setIndex] = useState(0);
   const [editMode, setEditMode] = useState(false);
   const [edits, setEdits] = useState({});
+  const [showQR, setShowQR] = useState(false);
   const current = points[index];
 
   useEffect(() => {
@@ -37,6 +47,14 @@ export default function PresentationMode({ points = [], totals, segmento, client
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [points.length, onClose]);
+
+  useEffect(() => {
+    if (!autoAdvance) return;
+    const id = setInterval(() => {
+      setIndex((i) => (i < points.length - 1 ? i + 1 : i));
+    }, autoAdvanceSeconds * 1000);
+    return () => clearInterval(id);
+  }, [autoAdvance, autoAdvanceSeconds, points.length]);
 
   const currentView = useMemo(() => {
     if (!current) return null;
@@ -106,9 +124,21 @@ export default function PresentationMode({ points = [], totals, segmento, client
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={() => setEditMode((currentValue) => !currentValue)} className={`rounded-xl border px-3 py-2 text-sm transition-colors ${editMode ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : 'border-white/15 text-white/80 hover:bg-white/10 hover:text-white'}`}>
-              {editMode ? 'Finalizar edição' : 'Editar textos'}
-            </button>
+            {proposalToken && (
+              <button
+                onClick={() => setShowQR(true)}
+                className="rounded-xl border border-white/15 px-3 py-2 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white inline-flex items-center gap-1.5"
+                title="QR code para o cliente"
+              >
+                <QrCode size={15} />
+                QR
+              </button>
+            )}
+            {!clientMode && (
+              <button onClick={() => setEditMode((currentValue) => !currentValue)} className={`rounded-xl border px-3 py-2 text-sm transition-colors ${editMode ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange' : 'border-white/15 text-white/80 hover:bg-white/10 hover:text-white'}`}>
+                {editMode ? 'Finalizar edição' : 'Editar textos'}
+              </button>
+            )}
             <button onClick={onClose} className="rounded-xl border border-white/15 px-3 py-2 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white">
               Fechar
             </button>
@@ -125,6 +155,15 @@ export default function PresentationMode({ points = [], totals, segmento, client
               transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
               className="relative overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-4 md:p-5"
             >
+              {autoAdvance && (
+                <motion.div
+                  key={`auto-progress-${index}`}
+                  className="absolute top-0 left-0 h-[3px] bg-gradient-to-r from-brand-orange to-[#ff8c64] z-10"
+                  initial={{ width: '0%' }}
+                  animate={{ width: '100%' }}
+                  transition={{ duration: autoAdvanceSeconds, ease: 'linear' }}
+                />
+              )}
               <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top,rgba(254,92,43,0.15),transparent_56%)]" />
 
               <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
@@ -254,7 +293,7 @@ export default function PresentationMode({ points = [], totals, segmento, client
 
               <div className="mt-4 grid gap-3">
                 <MiniStat label="Valor Negociado" value={formatCurrency(pricingSummary?.finalTotal ?? totals.valorTotal ?? 0)} />
-                {pricingSummary?.hasDiscount && pricingSummary.originalTotal !== pricingSummary.finalTotal ? (
+                {!clientMode && pricingSummary?.hasDiscount && pricingSummary.originalTotal !== pricingSummary.finalTotal ? (
                   <MiniStat label="Valor Tabela" value={formatCurrency(pricingSummary.originalTotal || 0)} />
                 ) : null}
                 <MiniStat label="Fluxo total" value={formatNumber(totals.fluxoTotal || 0)} />
@@ -307,6 +346,29 @@ export default function PresentationMode({ points = [], totals, segmento, client
           </aside>
         </div>
       </div>
+
+      {/* QR code overlay */}
+      {showQR && proposalToken && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[70]" onClick={() => setShowQR(false)}>
+          <div className="bg-[#141414] border border-white/10 rounded-3xl p-6 text-center shadow-2xl max-w-xs w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-semibold text-white">Ver proposta no celular</p>
+              <button onClick={() => setShowQR(false)} className="text-white/50 hover:text-white transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="bg-white p-3 rounded-2xl inline-block mb-4">
+              <QRCodeSVG
+                value={`${window.location.origin}/p/${proposalToken}`}
+                size={200}
+                bgColor="#ffffff"
+                fgColor="#111111"
+              />
+            </div>
+            <p className="text-xs text-brand-gray-500">Escaneie para ver a proposta no celular</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

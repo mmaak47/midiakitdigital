@@ -8,6 +8,7 @@ const Explorer = lazy(() => import('./pages/Explorer'));
 const Admin = lazy(() => import('./pages/Admin'));
 const CampaignPlanner = lazy(() => import('./pages/CampaignPlanner'));
 const GestaoComercial = lazy(() => import('./pages/GestaoComercial'));
+const PropostaPublica = lazy(() => import('./pages/PropostaPublica'));
 
 function hasAuthHintCookie() {
   if (typeof document === 'undefined') return false;
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="/comercial/admin" element={<Admin />} />
             <Route path="/comercial/gestao" element={<RequireCommercialAuth><GestaoComercial /></RequireCommercialAuth>} />
             <Route path="/comercial/explorar" element={<RequireCommercialAuth><Explorer /></RequireCommercialAuth>} />
+            <Route path="/p/:token" element={<PropostaPublica />} />
             <Route path="/explorar" element={<Navigate to="/" replace />} />
             <Route path="/admin" element={<Navigate to="/comercial/admin" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />

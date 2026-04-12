@@ -475,10 +475,13 @@ function authenticateSensitiveApi(req, res, next) {
   }
 
   // AI campaign analysis + recommendation — public for /planejar
-  const publicPostPaths = ['/ai/campaign', '/ai/recommend', '/ai/plan-decision', '/inventory-chat'];
+  const publicPostPaths = ['/ai/campaign', '/ai/recommend', '/ai/plan-decision', '/inventory-chat', '/ai/proposta-texto'];
   if (method === 'POST' && publicPostPaths.includes(routePath)) {
     return next();
   }
+
+  // Proposta pública — leitura e aprovação pelo cliente (sem login)
+  if (routePath.startsWith('/p/')) return next();
 
   return resolveAuthenticatedUser(req, res, next);
 }
@@ -1167,6 +1170,21 @@ function classifyRisk(pctOcupado) {
   if (pctOcupado >= 75)  return { level: 'medium',   msg: 'Atenção comercial',  color: 'yellow' };
   return                         { level: 'low',      msg: 'Saudável',           color: 'green' };
 }
+
+// ── Tabela de propostas públicas (link para o cliente) ──
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS proposta_tokens (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    token         TEXT UNIQUE NOT NULL,
+    proposta_data TEXT NOT NULL,
+    expires_at    TEXT NOT NULL,
+    created_by    INTEGER,
+    created_at    TEXT DEFAULT (datetime('now')),
+    viewed_at     TEXT,
+    approved_at   TEXT,
+    approved_name TEXT
+  )`).run();
+} catch (e) { /* já existe */ }
 
 // ── Tabela de exclusões manuais do loop audit ──
 try {
@@ -4046,6 +4064,92 @@ app.post('/api/gestao/import', requireRoles(['admin']), (req, res) => {
     }
 
     res.json({ ok: true, importedVendas, importedMetas, importedRenovacoes });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ── Propostas Públicas ────────────────────────────────────────────────────────
+// POST /api/proposta-publica — vendedor cria link público da proposta (auth)
+app.post('/api/proposta-publica', resolveAuthenticatedUser, express.json({ limit: '2mb' }), (req, res) => {
+  try {
+    const { proposta_data, expires_days = 7 } = req.body || {};
+    if (!proposta_data || typeof proposta_data !== 'object') {
+      return res.status(400).json({ error: 'proposta_data é obrigatório.' });
+    }
+    const days = Math.min(Math.max(Number(expires_days) || 7, 1), 30);
+    const token = randomUUID().replace(/-/g, '');
+    const expiresAt = new Date(Date.now() + days * 86400000).toISOString();
+
+    // Remove campos internos sensíveis antes de salvar
+    const { custo_operacional, lucro_minimo_percentual, ...safeData } = proposta_data;
+    if (safeData.points) {
+      safeData.points = safeData.points.map(({ custo_operacional: _co, ...p }) => p);
+    }
+
+    db.prepare(`INSERT INTO proposta_tokens (token, proposta_data, expires_at, created_by)
+                VALUES (?, ?, ?, ?)`).run(token, JSON.stringify(safeData), expiresAt, req.authUser.id);
+
+    const origin = String(process.env.FRONTEND_ORIGINS || '').split(',')[0].trim()
+      || `${req.protocol}://${req.get('host')}`;
+    res.json({ token, url: `${origin}/p/${token}`, expires_at: expiresAt });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// GET /api/p/:token — cliente acessa proposta pública
+app.get('/api/p/:token', (req, res) => {
+  try {
+    const token = String(req.params.token || '').replace(/[^a-f0-9]/g, '');
+    if (!token) return res.status(400).json({ error: 'Token inválido.' });
+    const row = db.prepare('SELECT * FROM proposta_tokens WHERE token = ?').get(token);
+    if (!row) return res.status(404).json({ error: 'Proposta não encontrada ou expirada.' });
+    if (new Date(row.expires_at) < new Date()) {
+      return res.status(410).json({ error: 'Este link expirou.' });
+    }
+    if (!row.viewed_at) {
+      db.prepare("UPDATE proposta_tokens SET viewed_at = datetime('now') WHERE token = ?").run(token);
+    }
+    res.json({
+      ...JSON.parse(row.proposta_data),
+      expires_at: row.expires_at,
+      approved_at: row.approved_at,
+      approved_name: row.approved_name
+    });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// POST /api/p/:token/aprovar — cliente aprova a proposta
+app.post('/api/p/:token/aprovar', express.json(), (req, res) => {
+  try {
+    const token = String(req.params.token || '').replace(/[^a-f0-9]/g, '');
+    const nome = String(req.body?.nome || '').trim().slice(0, 120);
+    if (!token) return res.status(400).json({ error: 'Token inválido.' });
+    if (!nome) return res.status(400).json({ error: 'Nome é obrigatório.' });
+    const row = db.prepare('SELECT * FROM proposta_tokens WHERE token = ?').get(token);
+    if (!row) return res.status(404).json({ error: 'Proposta não encontrada.' });
+    if (new Date(row.expires_at) < new Date()) return res.status(410).json({ error: 'Link expirado.' });
+    if (row.approved_at) return res.json({ ok: true, already: true });
+
+    db.prepare("UPDATE proposta_tokens SET approved_at = datetime('now'), approved_name = ? WHERE token = ?").run(nome, token);
+
+    // Notificação WhatsApp para o vendedor
+    try {
+      const settings = getEvolutionSettings();
+      if (settings.evolution_api_url && settings.evolution_api_key && settings.evolution_dest_number) {
+        const vendedor = db.prepare('SELECT first_name, last_name FROM admin_users WHERE id = ?').get(row.created_by);
+        const vendedorNome = vendedor ? `${vendedor.first_name} ${vendedor.last_name}`.trim() : 'vendedor';
+        const data = JSON.parse(row.proposta_data || '{}');
+        const clienteNome = data.clientName || 'Cliente';
+        const msg = `✅ *${nome}* aprovou a proposta de *${clienteNome}*!\n\nVendedor: ${vendedorNome}\nLink: /p/${token}`;
+        sendEvolutionText({ apiUrl: settings.evolution_api_url, instance: settings.evolution_instance, apiKey: settings.evolution_api_key, number: settings.evolution_dest_number, text: msg }).catch(() => {});
+      }
+    } catch (_) { /* notificação não bloqueia resposta */ }
+
+    res.json({ ok: true });
   } catch (err) {
     internalError(res, err);
   }

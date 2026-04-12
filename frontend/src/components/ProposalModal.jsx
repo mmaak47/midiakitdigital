@@ -10,17 +10,23 @@ import {
   Download,
   FileText,
   Image as ImageIcon,
+  Link2,
+  Loader2,
   Map,
   MapPinned,
   Presentation,
+  QrCode,
   Radio,
   Route,
   Settings2,
+  Share2,
+  Sparkles,
   Trophy,
   Upload,
   X,
   Zap
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useFavorites } from '../context/FavoritesContext';
 import {
   campaignTotals,
@@ -39,7 +45,7 @@ import {
   normalizeDisplaySettings,
   parseSimulationConfig
 } from '../lib/simulation';
-import { fetchClientAddressAnalysis, fetchEntornoJobStatus, fetchEntornoScores } from '../lib/api';
+import { criarPropostaPublica, fetchClientAddressAnalysis, fetchEntornoJobStatus, fetchEntornoScores, gerarTextoProposta } from '../lib/api';
 import { buildSelectionMapDataUrl, downloadSelectionMapPng } from '../lib/mapSnapshot';
 import CustomSelect from './CustomSelect';
 import ArteAIPanel from './ArteAIPanel';
@@ -111,6 +117,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [wizardStep, setWizardStep] = useState(1);
   const [showPresentation, setShowPresentation] = useState(false);
   const [showQuickPresentation, setShowQuickPresentation] = useState(false);
+  const [clientModePresentation, setClientModePresentation] = useState(false);
 
   const draft = useMemo(() => loadDraft(), []);
 
@@ -149,6 +156,12 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [pdfFormat, setPdfFormat] = useState('desktop'); // 'desktop' | 'mobile'
   const [showPdfFormatPicker, setShowPdfFormatPicker] = useState(false);
   const pdfFormatPickerRef = useRef(null);
+  // FEAT-11: IA text generation
+  const [aiTextBusy, setAiTextBusy] = useState(false);
+  // FEAT-1: Share / public link
+  const [shareModal, setShareModal] = useState(null); // null | { url, token, expires_at }
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const [pdfSections, setPdfSections] = useState({ methodology: true, score: true, coverage: true, impact: true, mapPrint: false });
   const [connectMapPoints, setConnectMapPoints] = useState(true);
   const [mapBusy, setMapBusy] = useState(false);
@@ -637,6 +650,66 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     }
   };
 
+  // FEAT-11: Gerar texto da proposta com IA
+  const handleGerarTextoIA = async () => {
+    if (!proposalPoints.length) return;
+    setAiTextBusy(true);
+    try {
+      const pointsPayload = proposalPoints.map(p => ({
+        nome: p.nome, tipo: p.tipo, cidade: p.cidade, endereco: p.endereco,
+        fluxo: p.fluxo, telas: p.telas, preco: p.precoFinal || p.preco,
+        entornoScore: p.entornoMetrics?.coverage_pct || null,
+        audienceTags: (p.audience_tags || []).slice(0, 5).map(t => t.label || t.key)
+      }));
+      const result = await gerarTextoProposta({
+        segmento: form.segmento, objetivo: form.objetivo,
+        clientName: form.clientName,
+        cidade: form.selectedCities[0] || proposalPoints[0]?.cidade || '',
+        points: pointsPayload,
+        totals: { fluxoTotal: totals.fluxoTotal, valorTotal: totals.valorTotal, cpmEstimado: totals.cpmEstimado }
+      });
+      const lines = [
+        result.justificativa,
+        result.argumentoAudiencia,
+        ...(result.porQueEstesPoints || [])
+      ].filter(Boolean);
+      setForm(s => ({ ...s, strategicTopics: lines.join('\n') }));
+    } catch (err) {
+      console.error('[ProposalModal] AI text error:', err.message);
+    } finally {
+      setAiTextBusy(false);
+    }
+  };
+
+  // FEAT-1: Criar link público da proposta
+  const handleCompartilhar = async () => {
+    setShareBusy(true);
+    try {
+      const proposalData = {
+        clientName: form.clientName, clientAddress: form.clientAddress,
+        segmento: form.segmento, objetivo: form.objetivo,
+        strategicTopics: form.strategicTopics,
+        strategicText: argumentos,
+        points: proposalPoints.map(({ custo_operacional: _co, ...p }) => p),
+        totals, pricingSummary
+      };
+      const result = await criarPropostaPublica(proposalData, 7);
+      setShareModal(result);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const handleCopyShareLink = () => {
+    if (!shareModal?.url) return;
+    navigator.clipboard.writeText(shareModal.url).then(() => {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    });
+  };
+
   const handleExportSelectionMap = async () => {
     try {
       setMapBusy(true);
@@ -932,7 +1005,18 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
                   {/* CARD 3 — Estratégia da campanha */}
                   <Card isDark={isDark} title="Estratégia da campanha">
-                    <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Esses tópicos aparecem na narrativa estratégica do PDF.</p>
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Esses tópicos aparecem na narrativa estratégica do PDF.</p>
+                      <button
+                        type="button"
+                        onClick={handleGerarTextoIA}
+                        disabled={aiTextBusy || !proposalPoints.length}
+                        className={`shrink-0 inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 ${isDark ? 'bg-brand-orange/15 text-brand-orange hover:bg-brand-orange/25 border border-brand-orange/25' : 'bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-200'}`}
+                      >
+                        {aiTextBusy ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                        {aiTextBusy ? 'Gerando...' : 'Gerar com IA'}
+                      </button>
+                    </div>
                     <textarea
                       value={form.strategicTopics}
                       onChange={(e) => setForm((s) => ({ ...s, strategicTopics: e.target.value }))}
@@ -1494,6 +1578,17 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       )}
                     </div>
 
+                    {/* Modo cliente toggle */}
+                    <label className={`inline-flex items-center gap-2 text-sm cursor-pointer select-none ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
+                      <div
+                        onClick={() => setClientModePresentation(v => !v)}
+                        className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 cursor-pointer ${clientModePresentation ? 'bg-brand-orange' : isDark ? 'bg-white/15' : 'bg-neutral-300'}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${clientModePresentation ? 'translate-x-4' : ''}`} />
+                      </div>
+                      Modo cliente <span className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>(oculta dados internos)</span>
+                    </label>
+
                     <div className="grid sm:grid-cols-2 gap-3">
                       <button onClick={() => setShowPresentation(true)} className={`h-11 rounded-xl border font-medium inline-flex items-center justify-center gap-2 transition-colors ${isDark ? 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.08]' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
                         <Presentation size={16} />
@@ -1504,6 +1599,16 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                         Apresentação rápida
                       </button>
                     </div>
+
+                    {/* Compartilhar — link público */}
+                    <button
+                      onClick={handleCompartilhar}
+                      disabled={shareBusy || !proposalPoints.length}
+                      className={`w-full h-11 rounded-xl border font-medium inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${isDark ? 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.08]' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
+                    >
+                      {shareBusy ? <Loader2 size={16} className="animate-spin" /> : <Share2 size={16} />}
+                      {shareBusy ? 'Gerando link...' : 'Compartilhar proposta'}
+                    </button>
                   </div>
                 </motion.div>
               )}
@@ -1562,11 +1667,60 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       </motion.div>
 
       {showPresentation && (
-        <PresentationMode points={proposalPoints} totals={totals} segmento={form.segmento} clientName={form.clientName} pricingSummary={pricingSummary} onClose={() => setShowPresentation(false)} />
+        <PresentationMode
+          points={proposalPoints}
+          totals={totals}
+          segmento={form.segmento}
+          clientName={form.clientName}
+          pricingSummary={pricingSummary}
+          onClose={() => setShowPresentation(false)}
+          clientMode={clientModePresentation}
+          proposalToken={shareModal?.token ?? null}
+        />
       )}
 
       {showQuickPresentation && (
         <QuickPresentationMode points={proposalPoints} totals={totals} segmento={form.segmento} clientName={form.clientName} pricingSummary={pricingSummary} onClose={() => setShowQuickPresentation(false)} />
+      )}
+
+      {/* Share modal — link público + QR code */}
+      {shareModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4" onClick={() => setShareModal(null)}>
+          <div
+            className={`rounded-3xl shadow-2xl w-full max-w-sm p-6 ${isDark ? 'bg-[#141414] border border-white/10' : 'bg-white border border-neutral-200'}`}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Compartilhar proposta</h3>
+              <button onClick={() => setShareModal(null)} className={`w-8 h-8 rounded-full inline-flex items-center justify-center transition-colors ${isDark ? 'text-white/50 hover:bg-white/10 hover:text-white' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700'}`}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* QR code */}
+            <div className="flex justify-center mb-5">
+              <div className={`p-3 rounded-2xl ${isDark ? 'bg-white' : 'bg-neutral-50 border border-neutral-200'}`}>
+                <QRCodeSVG value={shareModal.url} size={160} bgColor="#ffffff" fgColor="#111111" />
+              </div>
+            </div>
+
+            {/* URL + copy */}
+            <div className={`flex items-center gap-2 rounded-xl border px-3 py-2 mb-3 ${isDark ? 'border-white/10 bg-white/[0.04]' : 'border-neutral-200 bg-neutral-50'}`}>
+              <span className={`flex-1 text-xs truncate font-mono ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{shareModal.url}</span>
+              <button
+                onClick={handleCopyShareLink}
+                className={`shrink-0 inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg transition-colors ${shareCopied ? 'text-green-500' : isDark ? 'text-brand-orange hover:bg-brand-orange/10' : 'text-orange-600 hover:bg-orange-50'}`}
+              >
+                {shareCopied ? <Check size={12} /> : <Link2 size={12} />}
+                {shareCopied ? 'Copiado!' : 'Copiar'}
+              </button>
+            </div>
+
+            <p className={`text-center text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
+              Link válido por 7 dias · O cliente pode aprovar diretamente
+            </p>
+          </div>
+        </div>
       )}
 
       {showPreviewLightbox && activePreviewPoint && (
