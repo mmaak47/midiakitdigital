@@ -672,6 +672,23 @@ function buildCampaignAnalysisPrompt(campaignData, cityStats) {
 
   const strengthsBlock = strengths.length ? `\nDESTAQUES POSITIVOS: ${strengths.join('. ')}.` : '';
 
+  // AI decision context (when AI selected the points)
+  let aiDecisionBlock = '';
+  if (campaignData._aiStrategy) {
+    aiDecisionBlock = `\nDECISÃO DA IA: ${campaignData._aiStrategy}`;
+    if (campaignData._pointRoles) {
+      const roles = campaignData._pointRoles;
+      const premiums = Object.entries(roles).filter(([, r]) => r === 'premium').map(([id]) => id);
+      const supports = Object.entries(roles).filter(([, r]) => r === 'support').map(([id]) => id);
+      const coverages = Object.entries(roles).filter(([, r]) => r === 'coverage').map(([id]) => id);
+      const parts = [];
+      if (premiums.length) parts.push(`Premium: ${premiums.length} ponto(s)`);
+      if (supports.length) parts.push(`Suporte: ${supports.length} ponto(s)`);
+      if (coverages.length) parts.push(`Cobertura: ${coverages.length} ponto(s)`);
+      if (parts.length) aiDecisionBlock += `\nRoles dos pontos: ${parts.join(', ')}`;
+    }
+  }
+
   return `Você é um consultor de mídia DOOH escrevendo uma análise COMERCIAL para apresentar ao cliente ${empresa}.
 Tom: POSITIVO, PROFISSIONAL, VENDEDOR. Destaque o valor e os benefícios da campanha. NÃO critique.
 
@@ -680,7 +697,7 @@ ${empresa} em ${cidade}, segmento ${segmento}
 Objetivo: ${objetivo}, Público: ${publico || 'geral'}
 ${pontosSel} pontos, formatos: ${formatos.length ? formatos.join(', ') : 'variados'}
 Investimento: R$${fmt(investimento)}/mês → ${fmt(fluxoTotal)} impactos/mês
-CPM: R$${fmtDec(cpm)}, Alcance: ${fmtDec(alcancePct, 1)}%, Frequência: ${fmtDec(frequencia, 1)}x${strengthsBlock}
+CPM: R$${fmtDec(cpm)}, Alcance: ${fmtDec(alcancePct, 1)}%, Frequência: ${fmtDec(frequencia, 1)}x${strengthsBlock}${aiDecisionBlock}
 ${pontosSummary ? `Pontos: ${pontosSummary}` : ''}
 
 Responda EXATAMENTE neste formato (cada tag DEVE iniciar uma nova linha):
@@ -1324,8 +1341,9 @@ async function analyzeCampaign(campaignData, userId = null) {
     cpm: campaignData.cpm,
     score: campaignData.score,
     alcance_pct: campaignData.alcance_pct,
+    ai_strategy: campaignData._aiStrategy || '',
   });
-  const inputHash = hashInput('campaign_v3_' + inputStr);
+  const inputHash = hashInput('campaign_v4_' + inputStr);
 
   const cached = getCached(inputHash);
   if (cached) {
@@ -1518,6 +1536,238 @@ Responda SOMENTE com JSON:
   }
 }
 
+// ── Prompt versioning ─────────────────────────────────────────────────────────
+const PROMPT_VERSION = { decision: 'decision_v1', narrative: 'narrative_v1' };
+
+// ── AI Plan Decision — IA como cérebro do planejador ──────────────────────────
+
+/**
+ * Build the decision prompt: structured briefing + enriched points for LLM.
+ */
+function buildDecisionPrompt(campaign, enrichedPoints) {
+  const fmt = n => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
+  const maxPts = Math.min(30, enrichedPoints.length);
+  const pts = enrichedPoints.slice(0, maxPts);
+
+  const pointsTable = pts.map((p, i) => {
+    const cpm = Number(p.fluxo) > 0 ? (Number(p.preco) / (Number(p.fluxo) / 1000)) : 999;
+    const ctx = enrichPointWithContext(p.id);
+    const ctxStr = buildPointContextString(p, ctx);
+    return `${i + 1}.[ID:${p.id}]${p.nome}(${p.tipo})F:${fmt(p.fluxo)},R$${fmt(p.preco)},CPM:${cpm.toFixed(1)},${p.perfil_dominante || 'n/a'},Score:${Number(p.score_base || 0).toFixed(1)}${ctxStr ? '|' + ctxStr : ''}`;
+  }).join('\n');
+
+  const minPts = Math.max(3, Math.min(pts.length, Math.ceil((campaign.budget || 5000) / 3000)));
+  const maxSelect = Math.min(14, pts.length);
+
+  return `${DOOH_KNOWLEDGE}
+
+BRIEFING DA CAMPANHA:
+- Empresa: ${campaign.company || 'Não informada'}
+- Objetivo: ${campaign.objective || 'awareness'}
+- Orçamento mensal: R$${fmt(campaign.budget || 0)}
+- Duração: ${campaign.duration_weeks || 4} semanas
+- Região: ${campaign.region || 'Não especificada'}
+- Público-alvo: ${campaign.target_audience || 'A/B'}
+- Segmento: ${campaign.segment || 'Geral'}
+
+PONTOS DISPONÍVEIS (${pts.length} pontos, dados reais do inventário):
+${pointsTable}
+
+TAREFA: Selecione os melhores pontos para esta campanha. Considere:
+1. Equilíbrio entre alcance (fluxo alto) e eficiência (CPM baixo)
+2. Diversidade de formatos (LED + Elevador + Indoor = melhor cobertura)
+3. Cobertura geográfica (não concentrar tudo num bairro)
+4. Adequação do perfil de audiência ao público-alvo
+5. Respeitar o orçamento: investimento total <= R$${fmt(campaign.budget || 0)}
+
+REGRAS:
+- Selecione entre ${minPts} e ${maxSelect} pontos
+- Use APENAS IDs da lista acima. NÃO invente IDs.
+- Justifique cada ponto com dados reais (fluxo, CPM, perfil, entorno)
+- Atribua role: "premium" (âncora da campanha, alto fluxo), "support" (complemento estratégico), "coverage" (expansão de cobertura)
+
+Responda APENAS com JSON puro (sem markdown, sem texto antes ou depois):
+{"strategy_summary":"explicação da estratégia em 2-3 frases","selected_points":[{"id":N,"reason":"justificativa com dados reais","role":"premium|support|coverage"}],"budget_used":N,"budget_remaining":N}`;
+}
+
+/**
+ * Validate the AI plan decision output.
+ * Returns { valid: true, cleaned } or { valid: false, reason }.
+ */
+function validateAIPlanDecision(parsed, availableIds, budget) {
+  if (!parsed || typeof parsed !== 'object') {
+    return { valid: false, reason: 'not_object' };
+  }
+  if (!Array.isArray(parsed.selected_points) || !parsed.selected_points.length) {
+    return { valid: false, reason: 'no_selected_points' };
+  }
+
+  const validRoles = new Set(['premium', 'support', 'coverage']);
+  const seenIds = new Set();
+  const cleaned = [];
+
+  for (const sp of parsed.selected_points) {
+    const id = Number(sp.id);
+    if (!id || !availableIds.has(id)) continue; // skip invalid IDs
+    if (seenIds.has(id)) continue; // skip duplicates
+    seenIds.add(id);
+    cleaned.push({
+      id,
+      reason: String(sp.reason || '').slice(0, 300),
+      role: validRoles.has(sp.role) ? sp.role : 'support',
+    });
+  }
+
+  if (cleaned.length < 2) {
+    return { valid: false, reason: 'too_few_points' };
+  }
+  if (cleaned.length > 14) {
+    cleaned.length = 14; // cap at 14
+  }
+
+  // Budget check: compute actual cost from DB points
+  const budgetUsed = Number(parsed.budget_used) || 0;
+  if (budgetUsed > budget * 1.15) {
+    return { valid: false, reason: 'budget_exceeded' };
+  }
+
+  return {
+    valid: true,
+    cleaned: {
+      strategy_summary: String(parsed.strategy_summary || '').slice(0, 500),
+      selected_points: cleaned,
+      budget_used: budgetUsed,
+      budget_remaining: Number(parsed.budget_remaining) || Math.max(0, budget - budgetUsed),
+    },
+  };
+}
+
+/**
+ * AI Plan Decision — IA decides which points to select for a campaign.
+ * Uses Replicate 70B (primary) with algorithmic fallback.
+ */
+async function aiPlanDecision(params, userId = null) {
+  const { cidade, segmento, objetivo, budget, duration, publico, empresa, maxPontos } = params;
+  if (!cidade) throw new Error('CIDADE_REQUIRED');
+
+  const startTime = Date.now();
+  const campaign = {
+    objective: objetivo || 'awareness',
+    budget: Number(budget) || 5000,
+    duration_weeks: Number(duration) || 4,
+    region: cidade,
+    target_audience: publico || 'A/B',
+    segment: segmento || 'Geral',
+    company: empresa || '',
+  };
+
+  const inputStr = JSON.stringify({ ...campaign, v: PROMPT_VERSION.decision });
+  const inputHash = hashInput('plan_decision_v1_' + inputStr);
+
+  // Check cache
+  const cached = getCached(inputHash);
+  if (cached) {
+    const cachedParsed = extractJSON(cached.response);
+    if (cachedParsed?.selected_points) {
+      console.log(JSON.stringify({
+        event: 'ai_plan_decision', mode: 'cache', input_hash: inputHash,
+        points_selected: cachedParsed.selected_points.length,
+        timestamp: new Date().toISOString(),
+      }));
+      return { ...cachedParsed, mode: 'ai_decision', _source: 'cache', _model: cached.model };
+    }
+  }
+
+  // Get enriched points
+  const enriched = getEnrichedPoints(cidade);
+  if (!enriched.length) {
+    return { mode: 'rule_based', selected_points: [], strategy_summary: 'Nenhum ponto disponível.', _source: 'empty' };
+  }
+
+  const availableIds = new Set(enriched.map(p => Number(p.id)));
+  const prompt = buildDecisionPrompt(campaign, enriched);
+
+  // Call LLM (Replicate-first chain)
+  let result;
+  try {
+    result = await generateReplicateFirst(prompt);
+  } catch (err) {
+    console.error('[ai-plan-decision] LLM chain failed:', err.message);
+    console.log(JSON.stringify({
+      event: 'ai_plan_decision', mode: 'rule_based', input_hash: inputHash,
+      error: err.message, latency_ms: Date.now() - startTime,
+      timestamp: new Date().toISOString(),
+    }));
+    return { mode: 'rule_based', selected_points: [], _source: 'llm_failed', _error: err.message };
+  }
+
+  // Parse and validate
+  const parsed = extractJSON(result.text);
+  const validation = validateAIPlanDecision(parsed, availableIds, campaign.budget);
+
+  if (!validation.valid) {
+    console.log(JSON.stringify({
+      event: 'ai_plan_decision', mode: 'rule_based', input_hash: inputHash,
+      error: `validation_failed:${validation.reason}`, latency_ms: Date.now() - startTime,
+      model: result.model, timestamp: new Date().toISOString(),
+    }));
+    return { mode: 'rule_based', selected_points: [], _source: `invalid_${validation.reason}`, _model: result.model };
+  }
+
+  // Enrich response with full point data
+  const selectedIds = new Set(validation.cleaned.selected_points.map(sp => sp.id));
+  const selectedPoints = enriched.filter(p => selectedIds.has(Number(p.id)));
+  const actualBudget = selectedPoints.reduce((s, p) => s + (Number(p.preco) || 0), 0);
+  const actualFluxo = selectedPoints.reduce((s, p) => s + (Number(p.fluxo) || 0), 0);
+
+  // Build point roles map
+  const pointRoles = {};
+  const pointReasons = {};
+  for (const sp of validation.cleaned.selected_points) {
+    pointRoles[sp.id] = sp.role;
+    pointReasons[sp.id] = sp.reason;
+  }
+
+  const response = {
+    mode: 'ai_decision',
+    strategy_summary: validation.cleaned.strategy_summary,
+    selected_points: validation.cleaned.selected_points,
+    point_roles: pointRoles,
+    point_reasons: pointReasons,
+    budget_used: actualBudget,
+    budget_remaining: Math.max(0, campaign.budget - actualBudget),
+    pontos: selectedPoints.map(p => ({
+      id: p.id, nome: p.nome, cidade: p.cidade, tipo: p.tipo,
+      preco: p.preco, fluxo: p.fluxo, publico: p.publico,
+      score_base: p.score_base, neighborhood_type: p.neighborhood_type,
+      perfil_dominante: p.perfil_dominante, endereco: p.endereco,
+      lat: p.lat, lng: p.lng, insercoes: p.insercoes, telas: p.telas,
+    })),
+    resumo: {
+      total_pontos: selectedPoints.length,
+      investimento: actualBudget,
+      fluxo_total: actualFluxo,
+      cpm: actualFluxo > 0 ? actualBudget / (actualFluxo / 1000) : 0,
+    },
+  };
+
+  const latencyMs = Date.now() - startTime;
+
+  // Cache & memory
+  setCache(inputHash, prompt, JSON.stringify(response), result.model, latencyMs);
+  saveMemory(inputStr, JSON.stringify(response), userId, 'plan_decision');
+
+  // Structured log
+  console.log(JSON.stringify({
+    event: 'ai_plan_decision', mode: 'ai_decision', input_hash: inputHash,
+    points_selected: selectedPoints.length, budget_used: actualBudget,
+    latency_ms: latencyMs, model: result.model,
+    timestamp: new Date().toISOString(),
+  }));
+
+  return { ...response, _source: 'generated', _model: result.model, _latency_ms: latencyMs };
+}
+
 // ── Stats & health ──────────────────────────────────────────────────────────
 
 function getMemoryStats() {
@@ -1585,6 +1835,7 @@ module.exports = {
   getMemoryStats,
   healthCheck,
   hashInput,
+  aiPlanDecision,
   // Data access (for inventoryChat)
   getEnrichedPoints,
   getCityStats,

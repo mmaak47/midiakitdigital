@@ -1055,6 +1055,14 @@ export async function fetchAIRecommendation(params) {
   return res.json();
 }
 
+export async function fetchAIPlanDecision(params) {
+  const res = await apiRequest('/ai/plan-decision', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+  return res.json();
+}
+
 export async function fetchAIPointInsight(pontoId) {
   const res = await apiRequest(`/ai/point/${pontoId}`);
   if (!res.ok) return null;

@@ -134,6 +134,29 @@ router.post('/optimize-score', async (req, res) => {
   }
 });
 
+// ── POST /api/ai/plan-decision — AI-first campaign point selection ────────────
+router.post('/plan-decision', async (req, res) => {
+  try {
+    const params = req.body;
+    if (!params?.cidade) {
+      return res.status(400).json({ error: 'cidade is required' });
+    }
+
+    const userId = req.authUser?.id || null;
+    const result = await ai.aiPlanDecision(params, userId);
+    res.json(result);
+  } catch (err) {
+    console.error('[ai/plan-decision]', err.message);
+    res.status(503).json({
+      mode: 'rule_based',
+      selected_points: [],
+      error: 'AI plan decision failed',
+      detail: err.message,
+      _source: 'error',
+    });
+  }
+});
+
 // ── POST /api/ai/feedback — Update memory feedback ─────────────────────────
 router.post('/feedback', (req, res) => {
   try {

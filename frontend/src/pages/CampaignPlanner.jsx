@@ -14,7 +14,7 @@ import Navbar from '../components/Navbar';
 import CampaignScore from '../components/CampaignScore';
 import PointCard from '../components/PointCard';
 import PointModal from '../components/PointModal';
-import { fetchPontos, fetchGeoAudienceProfiles, fetchCensusProfiles, fetchAICampaignAnalysis, fetchAIRecommendation, fetchAIScoreOptimization, fetchAICampaignPointInsights } from '../lib/api';
+import { fetchPontos, fetchGeoAudienceProfiles, fetchCensusProfiles, fetchAICampaignAnalysis, fetchAIPlanDecision, fetchAICampaignPointInsights } from '../lib/api';
 import {
   SEGMENTOS,
   OBJETIVOS,
@@ -369,73 +369,83 @@ export default function CampaignPlanner() {
   }, [step, empresa, segmento, objetivos, publicoAlvo, audienceTags, cidade, budget]);
 
   const AI_PHASES = [
-    { Icon: Search, label: 'Analisando o perfil de ' + (empresa || 'sua empresa') + '...' },
-    { Icon: MapPin, label: 'Mapeando pontos estratégicos em ' + (cidade || 'sua cidade') + '...' },
-    { Icon: Brain, label: 'Calculando alcance e frequência ideal...' },
-    { Icon: Wallet, label: 'Otimizando investimento e CPM...' },
-    { Icon: Bot, label: 'Consultando IA para validar seleção de pontos...' },
-    { Icon: RefreshCw, label: 'Gerando análise inteligente da campanha...' },
-    { Icon: Sparkles, label: 'Montando recomendação personalizada...' },
+    { Icon: Brain, label: 'IA analisando briefing da campanha...' },
+    { Icon: Search, label: 'Avaliando pontos do inventário de ' + (cidade || 'sua cidade') + '...' },
+    { Icon: MapPin, label: 'Identificando posicionamento estratégico...' },
+    { Icon: Wallet, label: 'Otimizando alocação de orçamento...' },
+    { Icon: Bot, label: 'IA selecionando pontos ideais...' },
+    { Icon: RefreshCw, label: 'Validando decisão e calculando score...' },
+    { Icon: Sparkles, label: 'Montando plano personalizado...' },
   ];
 
-  // Merge AI recommendation with algorithmic result
-  function mergeAIWithAlgo(algoResult, aiRecommend, allPts, campaignParams) {
-    if (!aiRecommend?.pontos_recomendados?.length) {
-      return { ...algoResult, aiInfluence: 'none' };
-    }
+  /**
+   * Build a result object from AI-decided points, computing score/strategic/ranked
+   * using the same infrastructure as the algorithmic path.
+   */
+  function buildResultFromAIDecision(aiDecision, allPts, cityPontos, objetivo) {
+    // Map AI-selected points to full point objects from inventory
+    const aiIds = new Set(aiDecision.selected_points.map(sp => Number(sp.id)));
+    const selectedPontos = allPts.filter(p => aiIds.has(Number(p.id)));
+    if (!selectedPontos.length) return null;
 
-    const algoIds = new Set(algoResult.plan.pontos.map(p => p.id));
-    const aiIds = new Set(aiRecommend.pontos_recomendados.map(Number));
+    const totals = campaignTotals(selectedPontos);
+    const reachFrequency = estimateReachFrequency({ selected: selectedPontos, cityInventory: cityPontos });
 
-    // Check overlap
-    const aiOnlyIds = [...aiIds].filter(id => !algoIds.has(id));
-    if (aiOnlyIds.length === 0) {
-      return { ...algoResult, aiInfluence: 'confirmed' };
-    }
-
-    // Merge: algo points + AI-only points, then re-optimize within budget
-    const aiOnlyPoints = allPts.filter(p => aiOnlyIds.includes(Number(p.id)));
-    const mergedCandidates = [...algoResult.plan.pontos, ...aiOnlyPoints].map(p => ({
-      ...p,
-      _baseScore: p._screenScore?.score ?? p.compatibilidade ?? 50,
-      _preco: Math.max(0, Number(p.preco) || 0),
-    }));
-
-    const optimized = optimizeBudgetAllocation({
-      candidates: mergedCandidates,
-      budget: campaignParams.budget || 0,
-      objective: campaignParams.objetivo,
-      minPoints: Math.min(4, mergedCandidates.length),
+    const scoreInfo = calculateCampaignScore({
+      selected: selectedPontos,
+      objective: objetivo,
+      desiredPublico: publicoAlvo,
+      cityInventory: cityPontos,
     });
 
-    const trimmed = optimized.selected.map(({ _baseScore, _preco, _entornoScore, ...p }) => p);
-    if (trimmed.length === 0) {
-      return { ...algoResult, aiInfluence: 'considered' };
-    }
-
-    const mergedScore = calculateCampaignScore({
-      selected: trimmed,
-      objective: campaignParams.objetivo,
-      desiredPublico: campaignParams.publicoAlvo,
-      cityInventory: campaignParams.cityPontos,
+    const strategic = generateStrategicJustification({
+      selected: selectedPontos,
+      totals, reachFrequency,
+      optimizer: { budgetUsagePct: totals.valorTotal / Math.max(1, budget || 1) * 100, spendByFormat: {} },
+      empresa, segmento, objetivo, cidade,
+      budget: budget || 0,
+      periodWeeks: period,
+      publicoAlvo,
+      cityInventory: cityPontos,
+      geoProfilesByPoint: geoProfiles,
+      censusProfilesByPoint: censusProfiles,
     });
 
-    if (mergedScore.score > algoResult.scoreInfo.score) {
-      const mergedTotals = campaignTotals(trimmed);
-      const mergedRF = estimateReachFrequency({ selected: trimmed, cityInventory: campaignParams.cityPontos });
-      return {
-        ...algoResult,
-        plan: { ...algoResult.plan, pontos: trimmed, totals: mergedTotals, reachFrequency: mergedRF },
-        scoreInfo: mergedScore,
-        aiInfluence: 'improved',
-      };
+    const ranked = rankPointsWithScore({
+      pontos: allPts,
+      cidade: cidade || undefined,
+      publico: publicoAlvo.length ? publicoAlvo : undefined,
+      audienceTags: audienceTags.map((key) => ({ key, weight: 1 })),
+      objetivo, segmento,
+      budget: budget || 0,
+      geoProfilesByPoint: geoProfiles,
+      censusProfilesByPoint: censusProfiles,
+    });
+
+    // Build point roles and reasons maps
+    const _pointRoles = {};
+    const _pointReasons = {};
+    for (const sp of aiDecision.selected_points) {
+      _pointRoles[Number(sp.id)] = sp.role;
+      _pointReasons[Number(sp.id)] = sp.reason;
     }
 
-    return { ...algoResult, aiInfluence: 'considered' };
+    return {
+      plan: { pontos: selectedPontos, totals, reachFrequency, optimizer: { budgetUsagePct: totals.valorTotal / Math.max(1, budget || 1) * 100, spendByFormat: {} } },
+      scoreInfo,
+      strategic,
+      ranked,
+      objetivo,
+      _mode: 'ai_decision',
+      _aiStrategy: aiDecision.strategy_summary || null,
+      _pointRoles,
+      _pointReasons,
+      aiInfluence: 'ai_decided',
+    };
   }
 
   const runRecommendation = useCallback(() => {
-    // 1. Show the AI thinking screen immediately
+    // 1. Show the AI thinking screen
     setAiPhase('thinking');
     setAiPhaseIndex(0);
     setComputing(true);
@@ -443,37 +453,39 @@ export default function CampaignPlanner() {
 
     // 2. Advance phases on a timer (visual progression)
     const phaseTimers = [];
-    const phaseDelay = 2500; // ms between phases
+    const phaseDelay = 2500;
     for (let i = 1; i < 7; i++) {
       phaseTimers.push(setTimeout(() => setAiPhaseIndex(i), phaseDelay * i));
     }
 
-    // 3. Fire AI recommendation in parallel (before algo finishes)
-    const aiRecommendPromise = Promise.race([
-      fetchAIRecommendation({
+    const objetivo = objetivos[0] || '';
+    const cityPontos = allPontos.filter((p) => !cidade || p.cidade === cidade);
+
+    // 3. Fire AI plan decision (PRIMARY) — 12s timeout
+    const aiDecisionPromise = Promise.race([
+      fetchAIPlanDecision({
         cidade: cidade || '',
         segmento,
-        objetivo: objetivos[0] || '',
+        objetivo,
         budget: budget || 0,
-        maxPontos: 10,
+        duration: period || 4,
         publico: publicoAlvo.length ? publicoAlvo.join(',') : 'A/B',
+        empresa: empresa || '',
+        maxPontos: 14,
       }).catch(() => null),
-      new Promise(resolve => setTimeout(() => resolve(null), 15000))
+      new Promise(resolve => setTimeout(() => resolve(null), 12000)),
     ]);
 
-    // 4. Run algorithmic computation (instant, but we delay to show phases)
+    // 4. Algorithmic fallback (ALWAYS runs in parallel as safety net)
     const algoPromise = new Promise((resolve) => {
       requestAnimationFrame(() => {
         setTimeout(() => {
-          const objetivo = objetivos[0] || '';
-          const cityPontos = allPontos.filter((p) => !cidade || p.cidade === cidade);
           const plan = suggestIdealPlan({
             pontos: allPontos,
             cidade: cidade || undefined,
             publico: publicoAlvo.length ? publicoAlvo : undefined,
             audienceTags: audienceTags.map((key) => ({ key, weight: 1 })),
-            objetivo,
-            segmento,
+            objetivo, segmento,
             periodWeeks: period,
             investimentoMensal: budget || 0,
             geoProfilesByPoint: geoProfiles,
@@ -509,111 +521,71 @@ export default function CampaignPlanner() {
             geoProfilesByPoint: geoProfiles,
             censusProfilesByPoint: censusProfiles,
           });
-          resolve({ plan, scoreInfo, strategic, ranked, objetivo });
+          resolve({ plan, scoreInfo, strategic, ranked, objetivo, _mode: 'rule_based', aiInfluence: 'none' });
         }, 200);
       });
     });
 
-    // 5. Fire AI narrative analysis in parallel (after algo completes)
-    const aiPromise = algoPromise.then((algoResult) => {
-      const { plan, scoreInfo } = algoResult;
-      return fetchAICampaignAnalysis({
-        cidade: cidade || '',
-        objetivo: objetivos[0] || '',
-        segmento,
-        empresa,
-        pontos_selecionados: plan.pontos.length,
-        formatos: Array.from(new Set(plan.pontos.map((p) => p.tipo).filter(Boolean))),
-        fluxo_total: plan.totals?.fluxoTotal || 0,
-        investimento: plan.totals?.valorTotal || 0,
-        cpm: plan.totals?.cpmEstimado || 0,
-        alcance_pct: plan.reachFrequency?.effectiveReachPct || 0,
-        frequencia: plan.reachFrequency?.avgFrequency || 0,
-        score: scoreInfo?.score || 0,
-        breakdown: scoreInfo?.breakdown || {},
-        publico: publicoAlvo,
-        pontos: plan.pontos.slice(0, 5).map(p => ({
-          nome: p.nome, tipo: p.tipo, fluxo: p.fluxo, preco: p.preco, cidade: p.cidade,
-        })),
-      }).catch(() => null);
-    });
-
-    // 6. Wait for algo + AI recommend + minimum display time, then merge and reveal results
+    // 5. Wait for both + minimum display time
     const minDisplayPromise = new Promise((resolve) => setTimeout(resolve, 7 * phaseDelay + 1500));
 
-    Promise.all([algoPromise, aiRecommendPromise, aiPromise, minDisplayPromise]).then(async ([algoResult, aiRecommend, aiData]) => {
+    Promise.all([aiDecisionPromise, algoPromise, minDisplayPromise]).then(([aiDecision, algoResult]) => {
       phaseTimers.forEach(clearTimeout);
 
-      const cityPontos = allPontos.filter((p) => !cidade || p.cidade === cidade);
-      let merged = mergeAIWithAlgo(algoResult, aiRecommend, allPontos, {
-        objetivo: objetivos[0] || '',
-        publicoAlvo,
-        cityPontos,
-        budget: budget || 0,
-      });
+      let finalResult;
 
-      // Phase 4: If score is still low, try AI-driven point swap optimization
-      if (merged.scoreInfo?.score < 5.0 && merged.scoreInfo?.breakdown) {
-        const bk = merged.scoreInfo.breakdown;
-        const pillars = Object.entries(bk).filter(([k]) => k !== 'boost').map(([k, v]) => ({ key: k, val: Number(v) }));
-        const weakest = pillars.reduce((a, b) => a.val < b.val ? a : b, pillars[0]);
-
-        try {
-          const optimizeResult = await Promise.race([
-            fetchAIScoreOptimization({
-              cidade: cidade || '',
-              selectedPointIds: merged.plan.pontos.map(p => p.id),
-              weakestPillar: weakest.key,
-              scoreBreakdown: bk,
-              budget: budget || 0,
-              objetivo: objetivos[0] || '',
-              segmento,
-            }),
-            new Promise(resolve => setTimeout(() => resolve(null), 12000)),
-          ]);
-
-          if (optimizeResult?.swaps?.length) {
-            let improved = [...merged.plan.pontos];
-            for (const swap of optimizeResult.swaps) {
-              const removeId = Number(swap.remove_id);
-              const addId = Number(swap.add_id);
-              const addPoint = allPontos.find(p => Number(p.id) === addId);
-              if (addPoint && improved.some(p => Number(p.id) === removeId)) {
-                improved = improved.map(p => Number(p.id) === removeId ? addPoint : p);
-              }
-            }
-            const improvedScore = calculateCampaignScore({
-              selected: improved,
-              objective: objetivos[0] || '',
-              desiredPublico: publicoAlvo,
-              cityInventory: cityPontos,
-            });
-            if (improvedScore.score > merged.scoreInfo.score) {
-              merged = {
-                ...merged,
-                plan: { ...merged.plan, pontos: improved, totals: campaignTotals(improved) },
-                scoreInfo: improvedScore,
-                aiInfluence: 'optimized',
-              };
-            }
-          }
-        } catch (_) { /* silently fall back */ }
+      // AI-first: use AI decision if valid, else fall back to algorithmic
+      if (aiDecision?.mode === 'ai_decision' && aiDecision?.selected_points?.length) {
+        const aiResult = buildResultFromAIDecision(aiDecision, allPontos, cityPontos, objetivo);
+        if (aiResult && aiResult.plan.pontos.length >= 2) {
+          finalResult = aiResult;
+        }
       }
 
-      setResult(merged);
-      if (aiData) setAiAnalysis(aiData);
-      setAiLoading(false);
+      // Fallback: algorithmic result
+      if (!finalResult) {
+        finalResult = { ...algoResult, _mode: 'rule_based', _aiStrategy: null, _pointRoles: {}, _pointReasons: {}, aiInfluence: 'none' };
+      }
+
+      // 6. Fire AI narrative analysis (uses the final plan, regardless of mode)
+      const narrativePromise = fetchAICampaignAnalysis({
+        cidade: cidade || '',
+        objetivo,
+        segmento,
+        empresa,
+        pontos_selecionados: finalResult.plan.pontos.length,
+        formatos: Array.from(new Set(finalResult.plan.pontos.map((p) => p.tipo).filter(Boolean))),
+        fluxo_total: finalResult.plan.totals?.fluxoTotal || 0,
+        investimento: finalResult.plan.totals?.valorTotal || 0,
+        cpm: finalResult.plan.totals?.cpmEstimado || 0,
+        alcance_pct: finalResult.plan.reachFrequency?.effectiveReachPct || 0,
+        frequencia: finalResult.plan.reachFrequency?.avgFrequency || 0,
+        score: finalResult.scoreInfo?.score || 0,
+        breakdown: finalResult.scoreInfo?.breakdown || {},
+        publico: publicoAlvo,
+        pontos: finalResult.plan.pontos.slice(0, 5).map(p => ({
+          nome: p.nome, tipo: p.tipo, fluxo: p.fluxo, preco: p.preco, cidade: p.cidade,
+        })),
+        _aiStrategy: finalResult._aiStrategy || undefined,
+        _pointRoles: finalResult._pointRoles || undefined,
+      }).catch(() => null);
+
+      setResult(finalResult);
       setComputing(false);
       setAiPhase('done');
 
-      // Fire point-level AI insights in background (non-blocking)
-      if (merged.plan?.pontos?.length) {
+      narrativePromise.then(aiData => {
+        if (aiData) setAiAnalysis(aiData);
+        setAiLoading(false);
+      });
+
+      // 7. Fire point-level AI insights in background (non-blocking)
+      if (finalResult.plan?.pontos?.length) {
         fetchAICampaignPointInsights({
-          pontos: merged.plan.pontos.slice(0, 10).map(p => ({
+          pontos: finalResult.plan.pontos.slice(0, 10).map(p => ({
             id: p.id, nome: p.nome, tipo: p.tipo, fluxo: p.fluxo, preco: p.preco, cidade: p.cidade, publico: p.publico,
           })),
-          objetivo: objetivos[0] || '',
-          segmento,
+          objetivo, segmento,
           cidade: cidade || '',
           empresa,
         }).then(data => {
@@ -1018,17 +990,13 @@ export default function CampaignPlanner() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand-orange/10 text-brand-orange border border-brand-orange/20">
-                  <Cpu size={10} /> Plano gerado por IA
-                </span>
-                {(result?.aiInfluence === 'improved' || result?.aiInfluence === 'optimized') && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-green-500/10 text-green-500 border border-green-500/20">
-                    <Sparkles size={10} /> IA otimizou o plano
+                {result?._mode === 'ai_decision' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    <Brain size={10} /> Plano gerado por IA
                   </span>
-                )}
-                {result?.aiInfluence === 'confirmed' && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-500 border border-blue-500/20">
-                    <Check size={10} /> IA validou a seleção
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand-orange/10 text-brand-orange border border-brand-orange/20">
+                    <Cpu size={10} /> Plano algorítmico
                   </span>
                 )}
               </div>
@@ -1043,6 +1011,17 @@ export default function CampaignPlanner() {
             <CampaignScore scoreInfo={scoreInfo} isDark={isDark} />
           </div>
         </div>
+
+        {/* AI Strategy summary */}
+        {result?._aiStrategy && (
+          <div className={`rounded-2xl border p-4 flex items-start gap-3 ${isDark ? 'bg-blue-500/[0.06] border-blue-500/15' : 'bg-blue-50 border-blue-200'}`}>
+            <Brain size={16} className={`flex-shrink-0 mt-0.5 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+            <p className={`text-sm leading-relaxed ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>
+              <span className={`font-semibold ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>Estratégia IA: </span>
+              {result._aiStrategy}
+            </p>
+          </div>
+        )}
 
         {/* Stats grid — expanded */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -1125,6 +1104,17 @@ export default function CampaignPlanner() {
                                 {isInPlan && (
                                   <span className="flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-orange/20 text-brand-orange">
                                     No plano
+                                  </span>
+                                )}
+                                {isInPlan && result?._pointRoles?.[pt.id] && (
+                                  <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    result._pointRoles[pt.id] === 'premium'
+                                      ? 'bg-amber-500/20 text-amber-500'
+                                      : result._pointRoles[pt.id] === 'support'
+                                        ? 'bg-blue-500/20 text-blue-400'
+                                        : 'bg-emerald-500/20 text-emerald-400'
+                                  }`}>
+                                    {result._pointRoles[pt.id] === 'premium' ? '★ Premium' : result._pointRoles[pt.id] === 'support' ? '◆ Suporte' : '◉ Cobertura'}
                                   </span>
                                 )}
                               </div>
@@ -1323,20 +1313,46 @@ export default function CampaignPlanner() {
             {plan.pontos.length > 0 && (
               <div>
                 <h3 className={`text-sm font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>
-                  Pontos do plano otimizado ({plan.pontos.length})
+                  Pontos do plano {result?._mode === 'ai_decision' ? 'selecionados pela IA' : 'otimizado'} ({plan.pontos.length})
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {plan.pontos.map((ponto, i) => (
-                    <div key={ponto.id} className="flex flex-col">
-                      <PointCard ponto={ponto} onSelect={setSelectedPoint} index={i} isDark={isDark} />
-                      {pointInsights[String(ponto.id)] && (
-                        <div className={`mx-1 -mt-1 px-4 py-2.5 rounded-b-2xl text-xs leading-relaxed flex items-start gap-2 ${isDark ? 'bg-brand-orange/[0.06] border border-t-0 border-brand-orange/15 text-white/60' : 'bg-orange-50/80 border border-t-0 border-orange-100 text-neutral-600'}`}>
-                          <MessageCircle size={13} className="text-brand-orange flex-shrink-0 mt-0.5" />
-                          <span>{pointInsights[String(ponto.id)]}</span>
+                  {plan.pontos.map((ponto, i) => {
+                    const role = result?._pointRoles?.[ponto.id];
+                    const reason = result?._pointReasons?.[ponto.id];
+                    return (
+                      <div key={ponto.id} className="flex flex-col">
+                        <div className="relative">
+                          <PointCard ponto={ponto} onSelect={setSelectedPoint} index={i} isDark={isDark} />
+                          {role && (
+                            <div className="absolute top-3 right-14 z-10">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm ${
+                                role === 'premium'
+                                  ? 'bg-amber-500/90 text-white'
+                                  : role === 'support'
+                                    ? 'bg-blue-500/90 text-white'
+                                    : 'bg-emerald-500/90 text-white'
+                              }`}>
+                                {role === 'premium' ? '★' : role === 'support' ? '◆' : '◉'}
+                                {' '}{role === 'premium' ? 'Premium' : role === 'support' ? 'Suporte' : 'Cobertura'}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {reason && (
+                          <div className={`mx-1 -mt-1 px-4 py-2.5 rounded-b-2xl text-xs leading-relaxed flex items-start gap-2 ${isDark ? 'bg-blue-500/[0.06] border border-t-0 border-blue-500/15 text-white/60' : 'bg-blue-50/80 border border-t-0 border-blue-100 text-neutral-600'}`}>
+                            <Brain size={13} className={`flex-shrink-0 mt-0.5 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+                            <span>{reason}</span>
+                          </div>
+                        )}
+                        {!reason && pointInsights[String(ponto.id)] && (
+                          <div className={`mx-1 -mt-1 px-4 py-2.5 rounded-b-2xl text-xs leading-relaxed flex items-start gap-2 ${isDark ? 'bg-brand-orange/[0.06] border border-t-0 border-brand-orange/15 text-white/60' : 'bg-orange-50/80 border border-t-0 border-orange-100 text-neutral-600'}`}>
+                            <MessageCircle size={13} className="text-brand-orange flex-shrink-0 mt-0.5" />
+                            <span>{pointInsights[String(ponto.id)]}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1543,16 +1559,43 @@ export default function CampaignPlanner() {
                   Pontos no mapa ({plan.pontos.length})
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {plan.pontos.map((ponto, i) => (
-                    <div key={ponto.id} className="flex flex-col">
-                      <PointCard ponto={ponto} onSelect={setSelectedPoint} index={i} isDark={isDark} />
-                      {pointInsights[String(ponto.id)] && (
-                        <div className={`mx-1 -mt-1 px-4 py-2.5 rounded-b-2xl text-xs leading-relaxed flex items-start gap-2 ${isDark ? 'bg-brand-orange/[0.06] border border-t-0 border-brand-orange/15 text-white/60' : 'bg-orange-50/80 border border-t-0 border-orange-100 text-neutral-600'}`}>
-                          <MessageCircle size={13} className="text-brand-orange flex-shrink-0 mt-0.5" />
-                          <span>{pointInsights[String(ponto.id)]}</span>
+                  {plan.pontos.map((ponto, i) => {
+                    const role = result?._pointRoles?.[ponto.id];
+                    const reason = result?._pointReasons?.[ponto.id];
+                    return (
+                      <div key={ponto.id} className="flex flex-col">
+                        <div className="relative">
+                          <PointCard ponto={ponto} onSelect={setSelectedPoint} index={i} isDark={isDark} />
+                          {role && (
+                            <div className="absolute top-3 right-14 z-10">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm ${
+                                role === 'premium'
+                                  ? 'bg-amber-500/90 text-white'
+                                  : role === 'support'
+                                    ? 'bg-blue-500/90 text-white'
+                                    : 'bg-emerald-500/90 text-white'
+                              }`}>
+                                {role === 'premium' ? '★' : role === 'support' ? '◆' : '◉'}
+                                {' '}{role === 'premium' ? 'Premium' : role === 'support' ? 'Suporte' : 'Cobertura'}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
+                        {reason && (
+                          <div className={`mx-1 -mt-1 px-4 py-2.5 rounded-b-2xl text-xs leading-relaxed flex items-start gap-2 ${isDark ? 'bg-blue-500/[0.06] border border-t-0 border-blue-500/15 text-white/60' : 'bg-blue-50/80 border border-t-0 border-blue-100 text-neutral-600'}`}>
+                            <Brain size={13} className={`flex-shrink-0 mt-0.5 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+                            <span>{reason}</span>
+                          </div>
+                        )}
+                        {!reason && pointInsights[String(ponto.id)] && (
+                          <div className={`mx-1 -mt-1 px-4 py-2.5 rounded-b-2xl text-xs leading-relaxed flex items-start gap-2 ${isDark ? 'bg-brand-orange/[0.06] border border-t-0 border-brand-orange/15 text-white/60' : 'bg-orange-50/80 border border-t-0 border-orange-100 text-neutral-600'}`}>
+                            <MessageCircle size={13} className="text-brand-orange flex-shrink-0 mt-0.5" />
+                            <span>{pointInsights[String(ponto.id)]}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   ))}
                 </div>
               </div>
