@@ -7,13 +7,14 @@ import {
   ChevronDown, ChevronUp, Zap, Trophy, Check,
   Cross, Hospital, GraduationCap, BookOpen, HardHat, Home, ShoppingBag,
   UtensilsCrossed, Calculator, Scale, Cog, MoreHorizontal,
-  Car, Dumbbell, Scissors, PawPrint, Pill, ShoppingCart, Landmark, Plane, Laptop, Cpu
+  Car, Dumbbell, Scissors, PawPrint, Pill, ShoppingCart, Landmark, Plane, Laptop, Cpu,
+  Search, Brain, Bot, RefreshCw, MessageCircle,
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import CampaignScore from '../components/CampaignScore';
 import PointCard from '../components/PointCard';
 import PointModal from '../components/PointModal';
-import { fetchPontos, fetchGeoAudienceProfiles, fetchCensusProfiles, fetchAICampaignAnalysis, fetchAIRecommendation, fetchAIScoreOptimization } from '../lib/api';
+import { fetchPontos, fetchGeoAudienceProfiles, fetchCensusProfiles, fetchAICampaignAnalysis, fetchAIRecommendation, fetchAIScoreOptimization, fetchAICampaignPointInsights } from '../lib/api';
 import {
   SEGMENTOS,
   OBJETIVOS,
@@ -312,6 +313,7 @@ export default function CampaignPlanner() {
 
   // AI analysis
   const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [pointInsights, setPointInsights] = useState({});
   const [aiLoading, setAiLoading] = useState(false);
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [aiPhase, setAiPhase] = useState(null); // null | 'thinking' | 'done'
@@ -366,13 +368,13 @@ export default function CampaignPlanner() {
   }, [step, empresa, segmento, objetivos, publicoAlvo, audienceTags, cidade, budget]);
 
   const AI_PHASES = [
-    { icon: '🔍', label: 'Analisando o perfil de ' + (empresa || 'sua empresa') + '...' },
-    { icon: '📊', label: 'Mapeando pontos estratégicos em ' + (cidade || 'sua cidade') + '...' },
-    { icon: '🧠', label: 'Calculando alcance e frequência ideal...' },
-    { icon: '💰', label: 'Otimizando investimento e CPM...' },
-    { icon: '🤖', label: 'Consultando IA para validar seleção de pontos...' },
-    { icon: '🔄', label: 'Gerando análise inteligente da campanha...' },
-    { icon: '✨', label: 'Montando recomendação personalizada...' },
+    { Icon: Search, label: 'Analisando o perfil de ' + (empresa || 'sua empresa') + '...' },
+    { Icon: MapPin, label: 'Mapeando pontos estratégicos em ' + (cidade || 'sua cidade') + '...' },
+    { Icon: Brain, label: 'Calculando alcance e frequência ideal...' },
+    { Icon: Wallet, label: 'Otimizando investimento e CPM...' },
+    { Icon: Bot, label: 'Consultando IA para validar seleção de pontos...' },
+    { Icon: RefreshCw, label: 'Gerando análise inteligente da campanha...' },
+    { Icon: Sparkles, label: 'Montando recomendação personalizada...' },
   ];
 
   // Merge AI recommendation with algorithmic result
@@ -602,6 +604,21 @@ export default function CampaignPlanner() {
       setAiLoading(false);
       setComputing(false);
       setAiPhase('done');
+
+      // Fire point-level AI insights in background (non-blocking)
+      if (merged.plan?.pontos?.length) {
+        fetchAICampaignPointInsights({
+          pontos: merged.plan.pontos.slice(0, 10).map(p => ({
+            id: p.id, nome: p.nome, tipo: p.tipo, fluxo: p.fluxo, preco: p.preco, cidade: p.cidade, publico: p.publico,
+          })),
+          objetivo: objetivos[0] || '',
+          segmento,
+          cidade: cidade || '',
+          empresa,
+        }).then(data => {
+          if (data?.insights) setPointInsights(data.insights);
+        }).catch(() => {});
+      }
     });
   }, [allPontos, cidade, publicoAlvo, audienceTags, objetivos, segmento, budget, period, empresa, geoProfiles, censusProfiles]);
 
@@ -915,7 +932,7 @@ export default function CampaignPlanner() {
                 ) : isActive ? (
                   <Loader2 size={20} className="text-brand-orange animate-spin" />
                 ) : (
-                  <span className="text-base">{phase.icon}</span>
+                  <phase.Icon size={18} className={isDark ? 'text-white/30' : 'text-neutral-400'} />
                 )}
               </div>
               <span className={`text-sm font-medium ${
@@ -1309,7 +1326,15 @@ export default function CampaignPlanner() {
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {plan.pontos.map((ponto, i) => (
-                    <PointCard key={ponto.id} ponto={ponto} onSelect={setSelectedPoint} index={i} isDark={isDark} />
+                    <div key={ponto.id} className="flex flex-col">
+                      <PointCard ponto={ponto} onSelect={setSelectedPoint} index={i} isDark={isDark} />
+                      {pointInsights[String(ponto.id)] && (
+                        <div className={`mx-1 -mt-1 px-4 py-2.5 rounded-b-2xl text-xs leading-relaxed flex items-start gap-2 ${isDark ? 'bg-brand-orange/[0.06] border border-t-0 border-brand-orange/15 text-white/60' : 'bg-orange-50/80 border border-t-0 border-orange-100 text-neutral-600'}`}>
+                          <MessageCircle size={13} className="text-brand-orange flex-shrink-0 mt-0.5" />
+                          <span>{pointInsights[String(ponto.id)]}</span>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -1518,7 +1543,15 @@ export default function CampaignPlanner() {
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {plan.pontos.map((ponto, i) => (
-                    <PointCard key={ponto.id} ponto={ponto} onSelect={setSelectedPoint} index={i} isDark={isDark} />
+                    <div key={ponto.id} className="flex flex-col">
+                      <PointCard ponto={ponto} onSelect={setSelectedPoint} index={i} isDark={isDark} />
+                      {pointInsights[String(ponto.id)] && (
+                        <div className={`mx-1 -mt-1 px-4 py-2.5 rounded-b-2xl text-xs leading-relaxed flex items-start gap-2 ${isDark ? 'bg-brand-orange/[0.06] border border-t-0 border-brand-orange/15 text-white/60' : 'bg-orange-50/80 border border-t-0 border-orange-100 text-neutral-600'}`}>
+                          <MessageCircle size={13} className="text-brand-orange flex-shrink-0 mt-0.5" />
+                          <span>{pointInsights[String(ponto.id)]}</span>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>

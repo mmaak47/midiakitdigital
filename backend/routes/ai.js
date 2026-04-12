@@ -70,6 +70,21 @@ router.get('/point/:pontoId', async (req, res) => {
   }
 });
 
+// ── POST /api/ai/campaign-point-insights — Batch AI insights for campaign points ─
+router.post('/campaign-point-insights', async (req, res) => {
+  try {
+    const params = req.body;
+    if (!params?.pontos?.length) {
+      return res.status(400).json({ error: 'pontos array required' });
+    }
+    const result = await ai.generateCampaignPointInsights(params);
+    res.json(result);
+  } catch (err) {
+    console.error('[ai/campaign-point-insights]', err.message);
+    res.status(503).json({ error: 'Point insights failed', detail: err.message });
+  }
+});
+
 // ── POST /api/ai/campaign — AI analysis for a full campaign ─────────────────
 router.post('/campaign', async (req, res) => {
   try {

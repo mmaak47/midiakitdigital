@@ -1068,3 +1068,12 @@ export async function fetchAIScoreOptimization(params) {
   if (!res.ok) return null;
   return res.json();
 }
+
+export async function fetchAICampaignPointInsights(params) {
+  const res = await apiRequest('/ai/campaign-point-insights', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}

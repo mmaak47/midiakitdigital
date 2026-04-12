@@ -1067,6 +1067,220 @@ async function generatePointInsight(pontoId, userId = null) {
   return { ...parsed, _source: 'generated', _model: result.model, ponto_id: pontoId };
 }
 
+/**
+ * Generate short commercial AI commentary for each point in a campaign.
+ * Single LLM call for the whole batch — efficient and consistent tone.
+ */
+/**
+ * Enrich a point with real geo/census/entorno data from the database.
+ */
+function enrichPointWithContext(pontoId) {
+  const geo = getPointGeoProfile(pontoId);
+  const census = getPointCensus(pontoId);
+  const entorno = getPointEntorno(pontoId);
+  return { geo, census, entorno };
+}
+
+/**
+ * Build a concise context string from real point data for prompt injection.
+ */
+function buildPointContextString(p, ctx) {
+  const parts = [];
+  if (ctx.geo) {
+    if (ctx.geo.neighborhood_label) parts.push(`Zona: ${ctx.geo.neighborhood_label}`);
+    if (ctx.geo.socioeconomic_level) parts.push(`Nível socioeconômico: ${ctx.geo.socioeconomic_level}`);
+    if (ctx.geo.dominant_activity) parts.push(`Atividade: ${ctx.geo.dominant_activity}`);
+    if (ctx.geo.urban_density) parts.push(`Densidade: ${ctx.geo.urban_density}`);
+  }
+  if (ctx.census) {
+    const labels = { alta_renda: 'Alta renda', massa_varejo: 'Massa/Varejo', jovem_universitario: 'Jovem universitário', terceira_idade: 'Terceira idade', misto: 'Perfil Misto' };
+    if (ctx.census.perfil_dominante) parts.push(`Perfil demográfico: ${labels[ctx.census.perfil_dominante] || ctx.census.perfil_dominante}`);
+    const perfilDetails = [];
+    if (Number(ctx.census.perfil_alta_renda) > 0.25) perfilDetails.push(`${(Number(ctx.census.perfil_alta_renda) * 100).toFixed(0)}% alta renda`);
+    if (Number(ctx.census.perfil_jovem_universitario) > 0.25) perfilDetails.push(`${(Number(ctx.census.perfil_jovem_universitario) * 100).toFixed(0)}% jovem/universitário`);
+    if (Number(ctx.census.perfil_massa_varejo) > 0.25) perfilDetails.push(`${(Number(ctx.census.perfil_massa_varejo) * 100).toFixed(0)}% massa/varejo`);
+    if (perfilDetails.length) parts.push(`Composição: ${perfilDetails.join(', ')}`);
+  }
+  if (ctx.entorno?.length) {
+    const topEntorno = ctx.entorno.slice(0, 3).map(e => `${e.segmento_analisado} (${e.total_estabelecimentos_relacionados})`);
+    parts.push(`Entorno comercial: ${topEntorno.join(', ')}`);
+  }
+  return parts.join(' | ');
+}
+
+async function generateCampaignPointInsights(params) {
+  const { pontos, objetivo, segmento, cidade, empresa } = params;
+  if (!pontos?.length) return {};
+
+  const fmt = n => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
+
+  // Enrich each point with real geo/census/entorno data from DB
+  const enrichedPoints = pontos.slice(0, 10).map(p => {
+    const ctx = enrichPointWithContext(p.id);
+    return { ...p, _ctx: ctx, _ctxStr: buildPointContextString(p, ctx) };
+  });
+
+  // Check cache
+  const ids = pontos.map(p => p.id).sort().join(',');
+  const inputHash = hashInput(`batch_insights_v2_${ids}_${objetivo}_${segmento}`);
+  const cached = getCached(inputHash);
+  if (cached) {
+    const cachedResult = extractJSON(cached.response);
+    if (cachedResult) return { ...cachedResult, _source: 'cache' };
+  }
+
+  // Build point summaries with REAL contextual data
+  const pointLines = enrichedPoints.map((p, i) => {
+    const cpm = Number(p.fluxo) > 0 ? (Number(p.preco) / (Number(p.fluxo) / 1000)) : 0;
+    let line = `${i + 1}. [ID:${p.id}] ${p.nome} — ${p.tipo}, ${p.cidade}, Fluxo ${fmt(p.fluxo)}/mês, R$${fmt(p.preco)}/mês, CPM R$${cpm.toFixed(1)}`;
+    if (p._ctxStr) line += `\n   DADOS REAIS: ${p._ctxStr}`;
+    return line;
+  }).join('\n');
+
+  const prompt = `Você é um consultor de mídia DOOH escrevendo justificativas comerciais para uma proposta.
+Empresa: ${empresa || 'cliente'}, Cidade: ${cidade}, Segmento: ${segmento}, Objetivo: ${objetivo}
+
+PONTOS DA CAMPANHA (com dados reais de localização e público):
+${pointLines}
+
+Para CADA ponto, escreva uma justificativa comercial de 2-3 frases explicando POR QUE este ponto é estratégico.
+Use OBRIGATORIAMENTE os DADOS REAIS fornecidos (zona, nível socioeconômico, perfil demográfico, entorno comercial).
+Exemplo: "Localizado em zona premium de alta renda, este ponto impacta diretamente o público A/B com 45.000 impactos mensais. A presença de clínicas e escritórios no entorno reforça a afinidade com o segmento."
+
+REGRAS:
+- Cite dados REAIS: nome da zona, nível socioeconômico, perfil demográfico, entorno, fluxo, CPM.
+- NUNCA invente dados. Se não tem dado, foque no formato e fluxo.
+- Tom positivo e comercial. Cada insight deve ser ÚNICO.
+
+Responda SOMENTE com JSON puro:
+{"insights":{"ID1":"justificativa do ponto 1","ID2":"justificativa do ponto 2"}}`;
+
+  try {
+    const result = await generateReplicateFirst(prompt);
+    const parsed = extractJSON(result.text);
+
+    if (parsed?.insights && typeof parsed.insights === 'object') {
+      // Validate that insights reference real point IDs
+      const validIds = new Set(pontos.map(p => String(p.id)));
+      const validInsights = {};
+      for (const [key, val] of Object.entries(parsed.insights)) {
+        if (validIds.has(String(key)) && typeof val === 'string' && val.length > 20) {
+          validInsights[String(key)] = val;
+        }
+      }
+      if (Object.keys(validInsights).length > 0) {
+        // Fill any missing points with algorithmic
+        const algoFallback = buildAlgorithmicPointInsights(enrichedPoints, objetivo, segmento);
+        for (const p of pontos) {
+          if (!validInsights[String(p.id)] && algoFallback.insights[String(p.id)]) {
+            validInsights[String(p.id)] = algoFallback.insights[String(p.id)];
+          }
+        }
+        const response = { insights: validInsights, _source: 'generated', _model: result.model };
+        setCache(inputHash, prompt, JSON.stringify(response), result.model, result.latency);
+        return response;
+      }
+    }
+
+    // If parse failed, generate algorithmic insights with real data
+    return buildAlgorithmicPointInsights(enrichedPoints, objetivo, segmento);
+  } catch (err) {
+    console.warn('[ai] batch insights failed, using algorithmic:', err.message);
+    return buildAlgorithmicPointInsights(enrichedPoints, objetivo, segmento);
+  }
+}
+
+/**
+ * Rich algorithmic per-point insights using real geo/census/entorno data.
+ */
+function buildAlgorithmicPointInsights(pontos, objetivo, segmento) {
+  const fmt = n => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
+
+  const TIPO_VANTAGENS = {
+    'Painel LED': 'alta visibilidade 24h em via de grande circulação',
+    'Elevador': 'público cativo com frequência de até 8x ao dia',
+    'Tela Indoor': 'proximidade do ponto de venda, impactando na decisão de compra',
+    'Backlight': 'grande formato iluminado em via arterial',
+    'Frontlight': 'alto alcance veicular em rodovia de grande movimento',
+  };
+
+  const SOCIO_LABELS = {
+    'alto': 'zona de alto padrão',
+    'medio-alto': 'zona de padrão médio-alto',
+    'medio': 'zona de padrão médio',
+    'medio-baixo': 'zona residencial consolidada',
+    'baixo': 'zona de alto fluxo popular',
+  };
+
+  const PERFIL_PHRASES = {
+    alta_renda: 'público predominantemente A/B, com alto poder aquisitivo',
+    massa_varejo: 'alto volume de público consumidor, ideal para varejo e serviços',
+    jovem_universitario: 'perfil jovem e universitário, alta receptividade a marcas inovadoras',
+    terceira_idade: 'público maduro e fiel, com forte poder de decisão',
+    misto: 'perfil demográfico diversificado, ampla cobertura de audiência',
+  };
+
+  const OBJ_VERBS = {
+    'reconhecimento de marca': 'fixar a marca na rotina do público local',
+    'presenca premium': 'posicionar a marca em ambiente de alto padrão',
+    'cobertura regional': 'ampliar a presença regional da campanha',
+    'proximidade da decisao de compra': 'impactar consumidores próximos à decisão de compra',
+    'lembranca continua': 'manter frequência consistente de exposição',
+  };
+
+  const objVerb = OBJ_VERBS[objetivo] || 'alcançar os objetivos da campanha';
+
+  const insights = {};
+  for (const p of pontos) {
+    const cpm = Number(p.fluxo) > 0 ? (Number(p.preco) / (Number(p.fluxo) / 1000)) : 0;
+    const tipoLabel = TIPO_VANTAGENS[p.tipo] || `formato ${p.tipo} com exposição qualificada`;
+    const ctx = p._ctx || enrichPointWithContext(p.id);
+
+    const sentences = [];
+
+    // Sentence 1: Location + socioeconomic context
+    if (ctx.geo?.neighborhood_label && ctx.geo?.socioeconomic_level) {
+      const socioLabel = SOCIO_LABELS[ctx.geo.socioeconomic_level] || `zona ${ctx.geo.socioeconomic_level}`;
+      sentences.push(`Localizado em ${ctx.geo.neighborhood_label}, ${socioLabel} de ${p.cidade}, com ${tipoLabel}.`);
+    } else if (ctx.geo?.neighborhood_label) {
+      sentences.push(`Posicionado na região ${ctx.geo.neighborhood_label} de ${p.cidade}, com ${tipoLabel}.`);
+    } else {
+      sentences.push(`Ponto estratégico em ${p.cidade} com ${tipoLabel}, gerando ${fmt(p.fluxo)} impactos/mês.`);
+    }
+
+    // Sentence 2: Audience profile
+    if (ctx.census?.perfil_dominante) {
+      const perfilPhrase = PERFIL_PHRASES[ctx.census.perfil_dominante] || `perfil ${ctx.census.perfil_dominante}`;
+      const pctHighest = Math.max(
+        Number(ctx.census.perfil_alta_renda || 0),
+        Number(ctx.census.perfil_massa_varejo || 0),
+        Number(ctx.census.perfil_jovem_universitario || 0),
+        Number(ctx.census.perfil_terceira_idade || 0),
+      );
+      if (pctHighest > 0.35) {
+        sentences.push(`A região concentra ${perfilPhrase} (${(pctHighest * 100).toFixed(0)}%), reforçando a afinidade com o segmento.`);
+      } else {
+        sentences.push(`O entorno apresenta ${perfilPhrase}, contribuindo para ${objVerb}.`);
+      }
+    } else if (cpm <= 18) {
+      sentences.push(`Com CPM de R$${cpm.toFixed(1)}, oferece excelente custo-benefício para ${objVerb}.`);
+    } else {
+      sentences.push(`Com ${fmt(p.fluxo)} impactos mensais, garante volume de exposição consistente para ${objVerb}.`);
+    }
+
+    // Sentence 3: Entorno (if available)
+    if (ctx.entorno?.length >= 2) {
+      const topSegmentos = ctx.entorno.slice(0, 2).map(e => e.segmento_analisado);
+      const totalEstab = ctx.entorno.reduce((s, e) => s + Number(e.total_estabelecimentos_relacionados || 0), 0);
+      sentences.push(`O entorno comercial inclui ${topSegmentos.join(' e ')} (${totalEstab} estabelecimentos), potencializando o alcance.`);
+    }
+
+    insights[String(p.id)] = sentences.join(' ');
+  }
+
+  return { insights, _source: 'algorithmic', _model: 'algorithmic' };
+}
+
 // ── DOOH Intelligence: Campaign Analysis ────────────────────────────────────
 
 /**
@@ -1364,6 +1578,7 @@ module.exports = {
   analyzeInput,
   generatePointInsight,
   analyzeCampaign,
+  generateCampaignPointInsights,
   smartRecommendation,
   optimizeScore,
   updateFeedback,
