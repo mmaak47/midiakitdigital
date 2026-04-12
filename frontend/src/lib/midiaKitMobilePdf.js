@@ -30,13 +30,22 @@ import { sortFormatos } from './strategy';
 const MOBILE_W = 540;
 const MOBILE_H = 960;
 
-// ── Paleta (mantém identidade visual) ──────────────────────────────────────
+// ── Paleta Midia Kit mobile (dark — mantém identidade visual) ──────────────
 const ORANGE  = '#E8591A';
 const BLACK   = '#0A0A0A';
 const SURFACE = '#141414';
 const BORDER  = 'rgba(255,255,255,0.10)';
 const MUTED   = 'rgba(255,255,255,0.55)';
 const TEXT    = '#FFFFFF';
+
+// ── Paleta Proposta mobile (light — alta legibilidade) ─────────────────────
+const P_ORANGE  = '#E8591A';
+const P_BG      = '#FFFFFF';
+const P_SURFACE = '#F5F6F8';
+const P_SURFACE2= '#EBEDF0';
+const P_BORDER  = 'rgba(0,0,0,0.09)';
+const P_MUTED   = 'rgba(0,0,0,0.48)';
+const P_TEXT    = '#1A1A2E';
 
 // ── Helpers internos ────────────────────────────────────────────────────────
 
@@ -85,6 +94,33 @@ function metricRow(label, value) {
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid ${BORDER};">
       <span style="font-size:13px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:${MUTED};">${escapeHtml(label)}</span>
       <span style="font-size:16px;font-weight:700;color:${TEXT};">${escapeHtml(String(value))}</span>
+    </div>
+  `;
+}
+
+// Helpers específicos para o tema light da Proposta
+function pCard(content, opts = {}) {
+  const bg     = opts.bg     || P_SURFACE;
+  const border = opts.border || P_BORDER;
+  const pad    = opts.pad    || '18px 20px';
+  const radius = opts.radius || '14px';
+  return `<div style="background:${bg};border:1px solid ${border};border-radius:${radius};padding:${pad};box-sizing:border-box;">${content}</div>`;
+}
+
+function pMetricRow(label, value) {
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid ${P_BORDER};">
+      <span style="font-size:12px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${P_MUTED};">${escapeHtml(label)}</span>
+      <span style="font-size:15px;font-weight:700;color:${P_TEXT};">${escapeHtml(String(value))}</span>
+    </div>
+  `;
+}
+
+function pPageHeader(logo, badgeText) {
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <img src="${logo}" alt="" style="height:28px;width:auto;object-fit:contain;" />
+      <span style="display:inline-flex;align-items:center;padding:5px 14px;border-radius:999px;background:${P_ORANGE};font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#fff;">${escapeHtml(badgeText)}</span>
     </div>
   `;
 }
@@ -396,112 +432,215 @@ function buildMKMobileEndingPage({ assets }) {
 
 // ── PROPOSTA COMERCIAL MOBILE ───────────────────────────────────────────────
 
+// ── Proposta Mobile — tema light ────────────────────────────────────────────
+
 function buildProposalMobileCoverPage({ proposalClient, proposalCity, proposalTotals, highlights, strategicTopics, assets }) {
   const topicsList = (Array.isArray(strategicTopics) ? strategicTopics : []).slice(0, 5);
 
   return createMobilePage(`
-    <div style="position:absolute;inset:0;background:linear-gradient(160deg,#0A0A0A 0%,#111 100%);"></div>
-    <div style="position:absolute;inset:0;padding:40px 28px;display:flex;flex-direction:column;gap:22px;box-sizing:border-box;overflow:hidden;">
-      ${pageHeader(assets.logoHorizontal||assets.logo||'', 'Proposta Comercial')}
+    <div style="position:absolute;inset:0;background:${P_BG};"></div>
+    <!-- Orange accent strip top -->
+    <div style="position:absolute;top:0;left:0;right:0;height:5px;background:${P_ORANGE};"></div>
+    <div style="position:absolute;inset:0;padding:36px 26px 28px;display:flex;flex-direction:column;gap:20px;box-sizing:border-box;overflow:hidden;">
+      ${pPageHeader(assets.logoHorizontal||assets.logo||'', 'Proposta Comercial')}
 
       <div>
-        <div style="font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${ORANGE};">Preparado para</div>
-        <div style="margin-top:8px;font-size:42px;line-height:1.0;font-weight:700;letter-spacing:-0.03em;color:${TEXT};word-break:break-word;">${escapeHtml(proposalClient)}</div>
-        <div style="margin-top:6px;font-size:16px;color:${MUTED};">${escapeHtml(Array.isArray(proposalCity) ? proposalCity.join(' · ') : proposalCity)}</div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${P_ORANGE};">Preparado para</div>
+        <div style="margin-top:6px;font-size:38px;line-height:1.0;font-weight:800;letter-spacing:-0.03em;color:${P_TEXT};word-break:break-word;">${escapeHtml(proposalClient)}</div>
+        <div style="margin-top:5px;font-size:15px;color:${P_MUTED};">${escapeHtml(Array.isArray(proposalCity) ? proposalCity.join(' · ') : proposalCity)}</div>
       </div>
 
-      ${topicsList.length ? card(`
-        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};margin-bottom:12px;">Estratégia</div>
-        <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;">
-          ${topicsList.map((t)=>`<li style="display:flex;align-items:flex-start;gap:10px;font-size:14px;line-height:1.4;color:${TEXT};">
-            <span style="margin-top:5px;width:7px;height:7px;border-radius:50%;background:${ORANGE};flex-shrink:0;"></span>${escapeHtml(t)}</li>`).join('')}
+      ${topicsList.length ? pCard(`
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};margin-bottom:10px;">Estratégia</div>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:9px;">
+          ${topicsList.map((t)=>`<li style="display:flex;align-items:flex-start;gap:10px;font-size:14px;line-height:1.45;color:${P_TEXT};">
+            <span style="margin-top:5px;width:7px;height:7px;border-radius:50%;background:${P_ORANGE};flex-shrink:0;"></span>${escapeHtml(t)}</li>`).join('')}
         </ul>
       `) : ''}
 
-      <!-- Totals row -->
+      <!-- Summary cards -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:auto;">
-        <div style="padding:14px 16px;border-top:3px solid ${ORANGE};background:${SURFACE};border-radius:12px;">
-          <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};">Pontos</div>
-          <div style="margin-top:5px;font-size:32px;font-weight:700;color:${TEXT};">${formatInt(proposalTotals.pontos||0)}</div>
+        <div style="padding:14px 16px;border-top:3px solid ${P_ORANGE};background:${P_SURFACE};border-radius:12px;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};">Pontos</div>
+          <div style="margin-top:5px;font-size:32px;font-weight:700;color:${P_TEXT};">${formatInt(proposalTotals.pontos||0)}</div>
         </div>
-        <div style="padding:14px 16px;border-top:3px solid ${ORANGE};background:${SURFACE};border-radius:12px;">
-          <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};">Investimento</div>
-          <div style="margin-top:5px;font-size:22px;font-weight:700;color:${ORANGE};">${escapeHtml(formatMoney(proposalTotals.valorTotal||0))}</div>
+        <div style="padding:14px 16px;border-top:3px solid ${P_ORANGE};background:${P_SURFACE};border-radius:12px;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};">Investimento</div>
+          <div style="margin-top:5px;font-size:20px;font-weight:800;color:${P_ORANGE};">${escapeHtml(formatMoney(proposalTotals.valorTotal||0))}</div>
         </div>
       </div>
     </div>
-  `);
+  `, P_BG);
 }
 
 function buildProposalMobilePointPage({ point, index, total, image, assets }) {
   const tipo = getPointTypeLabel(point);
   const photo = image || assets.showcase || '';
-  const focalPoint = String(point?.foto_focal_point || 'center center').trim();
   const nome = (point.nome || 'PONTO SEM NOME').toUpperCase();
   const fluxoLabel = isVehicleFlowPoint(point) ? 'Veículos/mês' : 'Pessoas/mês';
 
   return createMobilePage(`
-    <!-- Photo panel -->
-    <div style="position:absolute;top:0;left:0;right:0;height:38%;background:#111;overflow:hidden;">
-      ${photo ? `<img src="${photo}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(focalPoint)};" />` : `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:${MUTED};">Sem imagem</div>`}
-      <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(10,10,10,0.72) 100%);"></div>
-      <div style="position:absolute;top:0;left:0;right:0;height:5px;background:${ORANGE};"></div>
-      <div style="position:absolute;top:18px;right:18px;padding:5px 12px;border-radius:999px;background:rgba(0,0,0,0.65);font-size:12px;font-weight:700;color:#fff;">${index}/${total}</div>
+    <!-- Photo panel: image with contain (no cropping) -->
+    <div style="position:absolute;top:0;left:0;right:0;height:38%;background:${P_SURFACE2};overflow:hidden;display:flex;align-items:center;justify-content:center;">
+      ${photo
+        ? `<img src="${photo}" alt="" style="max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;" />`
+        : `<div style="color:${P_MUTED};font-size:14px;">Sem imagem</div>`}
+      <!-- Orange accent bar -->
+      <div style="position:absolute;top:0;left:0;right:0;height:5px;background:${P_ORANGE};"></div>
+      <!-- Counter -->
+      <div style="position:absolute;top:14px;right:14px;padding:4px 12px;border-radius:999px;background:rgba(0,0,0,0.55);font-size:11px;font-weight:700;color:#fff;">${index}/${total}</div>
     </div>
 
     <!-- Info panel -->
-    <div style="position:absolute;top:38%;left:0;right:0;bottom:0;padding:18px 22px;display:flex;flex-direction:column;gap:12px;overflow:hidden;box-sizing:border-box;">
-      ${pageHeader(assets.logoHorizontal||assets.logo||'', tipo)}
+    <div style="position:absolute;top:38%;left:0;right:0;bottom:0;padding:16px 22px 18px;display:flex;flex-direction:column;gap:11px;overflow:hidden;box-sizing:border-box;background:${P_BG};">
+      ${pPageHeader(assets.logoHorizontal||assets.logo||'', tipo)}
 
       <div>
-        <div style="font-size:26px;line-height:1.05;font-weight:700;color:${TEXT};word-break:break-word;">${escapeHtml(nome)}</div>
-        ${point.endereco ? `<div style="margin-top:4px;font-size:13px;color:${MUTED};">${escapeHtml(point.endereco)}${point.cidade ? `, ${escapeHtml(point.cidade)}` : ''}</div>` : ''}
+        <div style="font-size:22px;line-height:1.05;font-weight:800;color:${P_TEXT};word-break:break-word;">${escapeHtml(nome)}</div>
+        ${point.endereco ? `<div style="margin-top:4px;font-size:12px;color:${P_MUTED};">${escapeHtml(point.endereco)}${point.cidade ? `, ${escapeHtml(point.cidade)}` : ''}</div>` : ''}
       </div>
 
-      <div style="flex:1;display:flex;flex-direction:column;gap:0;overflow:hidden;">
-        ${metricRow(fluxoLabel, formatInt(point.fluxo))}
-        ${metricRow('Pontos de Impacto', formatInt(point.telas))}
-        ${metricRow('Inserções mín.', formatInt(point.insercoes))}
-        ${point.publico ? metricRow('Público-alvo', point.publico) : ''}
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+        ${pMetricRow(fluxoLabel, formatInt(point.fluxo))}
+        ${pMetricRow('Pontos de Impacto', formatInt(point.telas))}
+        ${pMetricRow('Inserções mín.', formatInt(point.insercoes))}
+        ${point.publico ? pMetricRow('Público-alvo', point.publico) : ''}
       </div>
 
       ${point.preco ? `
-      <div style="padding:14px 16px;border-radius:12px;background:rgba(232,89,26,0.10);border:1px solid rgba(232,89,26,0.25);display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};">Investimento / mês</span>
-        <span style="font-size:22px;font-weight:800;color:${ORANGE};">${escapeHtml(formatMoney(point.preco))}</span>
+      <div style="padding:13px 16px;border-radius:12px;background:rgba(232,89,26,0.07);border:1px solid rgba(232,89,26,0.20);display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};">Investimento / mês</span>
+        <span style="font-size:22px;font-weight:800;color:${P_ORANGE};">${escapeHtml(formatMoney(point.preco))}</span>
       </div>` : ''}
     </div>
-  `);
+  `, P_BG);
 }
 
-function buildProposalMobileImpactPage({ proposalTotals, pricingSummary, proposalClient, proposalCity, assets }) {
+// Página de tabela de preços (nova)
+function buildProposalMobilePricingPages({ proposalPoints, proposalTotals, pricingSummary, assets }) {
+  // Divide pontos em grupos de até 7 por página para garantir legibilidade
+  const ITEMS_PER_PAGE = 7;
+  const pages = [];
+  const total = proposalPoints.length;
+
+  for (let start = 0; start < total; start += ITEMS_PER_PAGE) {
+    const slice = proposalPoints.slice(start, start + ITEMS_PER_PAGE);
+    const isFirst = start === 0;
+    const isLast = start + ITEMS_PER_PAGE >= total;
+
+    const rows = slice.map((point, i) => {
+      const precoTabela = Number(point?.preco_tabela || point?.preco || 0);
+      const precoNegociado = Number(point?.preco || 0);
+      const hasDiscount = precoTabela > 0 && precoNegociado > 0 && precoNegociado < precoTabela;
+      const nome = (point.nome || 'Ponto sem nome');
+      const rowBg = (start + i) % 2 === 0 ? P_BG : P_SURFACE;
+      return `
+        <div style="display:grid;grid-template-columns:1fr 110px 110px;gap:0;background:${rowBg};padding:11px 14px;border-bottom:1px solid ${P_BORDER};">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:${P_TEXT};word-break:break-word;line-height:1.3;">${escapeHtml(nome)}</div>
+            ${point.cidade ? `<div style="font-size:11px;color:${P_MUTED};margin-top:2px;">${escapeHtml(point.cidade)}</div>` : ''}
+          </div>
+          <div style="text-align:right;font-size:13px;color:${hasDiscount ? P_MUTED : P_TEXT};${hasDiscount ? 'text-decoration:line-through;' : ''}font-weight:${hasDiscount ? '400' : '600'};">
+            ${precoTabela ? escapeHtml(formatMoney(precoTabela)) : '-'}
+          </div>
+          <div style="text-align:right;font-size:13px;font-weight:700;color:${P_ORANGE};">
+            ${precoNegociado ? escapeHtml(formatMoney(precoNegociado)) : '-'}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Cabeçalho de coluna (repetido em cada página)
+    const header = `
+      <div style="display:grid;grid-template-columns:1fr 110px 110px;gap:0;padding:9px 14px;background:${P_SURFACE2};border-bottom:2px solid ${P_ORANGE};">
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${P_MUTED};">Ponto</div>
+        <div style="text-align:right;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${P_MUTED};">Tabela</div>
+        <div style="text-align:right;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${P_ORANGE};">Negociado</div>
+      </div>
+    `;
+
+    // Rodapé com totais apenas na última página
+    const footer = isLast ? `
+      <div style="margin-top:auto;padding-top:12px;">
+        <div style="height:1px;background:${P_BORDER};margin-bottom:14px;"></div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${P_MUTED};">Total negociado / mês</span>
+            <span style="font-size:22px;font-weight:800;color:${P_ORANGE};">${escapeHtml(formatMoney(proposalTotals.valorTotal||0))}</span>
+          </div>
+          ${pricingSummary?.descontoAplicado ? `
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;font-weight:600;color:${P_MUTED};">Desconto aplicado</span>
+            <span style="font-size:14px;font-weight:700;color:#16A34A;">${escapeHtml(String(pricingSummary.descontoAplicado))}</span>
+          </div>` : ''}
+        </div>
+      </div>
+    ` : '';
+
+    pages.push(createMobilePage(`
+      <div style="position:absolute;inset:0;background:${P_BG};"></div>
+      <div style="position:absolute;top:0;left:0;right:0;height:5px;background:${P_ORANGE};"></div>
+      <div style="position:absolute;inset:0;padding:24px 0 22px;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;">
+        <div style="padding:0 22px 14px;display:flex;align-items:center;justify-content:space-between;">
+          <img src="${assets.logoHorizontal||assets.logo||''}" alt="" style="height:26px;width:auto;object-fit:contain;" />
+          <span style="display:inline-flex;align-items:center;padding:4px 13px;border-radius:999px;background:${P_ORANGE};font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#fff;">Tabela de Valores</span>
+        </div>
+        <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+          ${header}
+          <div style="flex:1;overflow:hidden;">
+            ${rows}
+          </div>
+        </div>
+        <div style="padding:0 22px;">
+          ${footer}
+        </div>
+      </div>
+    `, P_BG));
+  }
+
+  return pages;
+}
+
+function buildProposalMobileImpactPage({ proposalTotals, pricingSummary, proposalClient, assets }) {
   return createMobilePage(`
-    <div style="position:absolute;inset:0;padding:40px 28px;display:flex;flex-direction:column;gap:20px;box-sizing:border-box;overflow:hidden;">
-      ${pageHeader(assets.logoHorizontal||assets.logo||'', 'Investimento')}
+    <div style="position:absolute;inset:0;background:${P_BG};"></div>
+    <div style="position:absolute;top:0;left:0;right:0;height:5px;background:${P_ORANGE};"></div>
+    <div style="position:absolute;inset:0;padding:32px 26px 28px;display:flex;flex-direction:column;gap:18px;box-sizing:border-box;overflow:hidden;">
+      ${pPageHeader(assets.logoHorizontal||assets.logo||'', 'Investimento')}
 
       <div>
-        <div style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};">Resumo financeiro</div>
-        <div style="margin-top:6px;font-size:28px;font-weight:700;color:${TEXT};">${escapeHtml(proposalClient)}</div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};">Resumo financeiro</div>
+        <div style="margin-top:5px;font-size:26px;font-weight:700;color:${P_TEXT};">${escapeHtml(proposalClient)}</div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:12px;flex:1;">
-        ${card(`
-          <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};margin-bottom:6px;">Investimento total / mês</div>
-          <div style="font-size:44px;font-weight:800;color:${ORANGE};line-height:1;">${escapeHtml(formatMoney(proposalTotals.valorTotal||0))}</div>
+        ${pCard(`
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};margin-bottom:5px;">Total negociado / mês</div>
+          <div style="font-size:42px;font-weight:800;color:${P_ORANGE};line-height:1;">${escapeHtml(formatMoney(proposalTotals.valorTotal||0))}</div>
         `)}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          ${statCard('Pontos', proposalTotals.pontos||0)}
-          ${statCard('Inserções/mês', formatInt(proposalTotals.insercoesTotal||0))}
+          <div style="padding:13px 15px;border-top:3px solid ${P_ORANGE};background:${P_SURFACE};border-radius:12px;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};">Pontos</div>
+            <div style="margin-top:5px;font-size:30px;font-weight:700;color:${P_TEXT};">${formatInt(proposalTotals.pontos||0)}</div>
+          </div>
+          <div style="padding:13px 15px;border-top:3px solid ${P_ORANGE};background:${P_SURFACE};border-radius:12px;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};">Inserções/mês</div>
+            <div style="margin-top:5px;font-size:30px;font-weight:700;color:${P_TEXT};">${formatInt(proposalTotals.insercoesTotal||0)}</div>
+          </div>
         </div>
-        ${proposalTotals.fluxoTotal ? statCard('Fluxo total estimado', formatInt(proposalTotals.fluxoTotal) + ' pessoas/mês') : ''}
-        ${proposalTotals.cpmEstimado ? card(`
-          <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};margin-bottom:6px;">CPM estimado</div>
-          <div style="font-size:28px;font-weight:700;color:${TEXT};">${escapeHtml(formatMoney(proposalTotals.cpmEstimado))}</div>
-          <div style="font-size:12px;color:${MUTED};margin-top:4px;">por 1.000 visualizações</div>
+        ${proposalTotals.fluxoTotal ? pCard(`
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};margin-bottom:5px;">Fluxo total estimado</div>
+          <div style="font-size:26px;font-weight:700;color:${P_TEXT};">${formatInt(proposalTotals.fluxoTotal)}</div>
+          <div style="font-size:12px;color:${P_MUTED};margin-top:3px;">pessoas/mês</div>
+        `) : ''}
+        ${proposalTotals.cpmEstimado ? pCard(`
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};margin-bottom:5px;">CPM estimado</div>
+          <div style="font-size:24px;font-weight:700;color:${P_TEXT};">${escapeHtml(formatMoney(proposalTotals.cpmEstimado))}</div>
+          <div style="font-size:12px;color:${P_MUTED};margin-top:3px;">por 1.000 visualizações</div>
         `) : ''}
       </div>
     </div>
-  `);
+  `, P_BG);
 }
 
 // ── EXPORTS PÚBLICOS ────────────────────────────────────────────────────────
@@ -606,6 +745,17 @@ export async function generateProposalMobilePdf({
       assets,
     }));
   });
+
+  // Pricing table pages
+  if (proposalPoints.length > 0) {
+    const pricingPages = buildProposalMobilePricingPages({
+      proposalPoints,
+      proposalTotals,
+      pricingSummary,
+      assets,
+    });
+    pages.push(...pricingPages);
+  }
 
   if (showImpactSection) {
     pages.push(buildProposalMobileImpactPage({
