@@ -5,6 +5,7 @@
  */
 'use strict';
 
+const crypto = require('crypto');
 const ai = require('./aiService');
 const db = require('../database');
 
@@ -30,6 +31,120 @@ function fmtBRL(val) {
 let _knownCities = [];
 let _citiesCacheTs = 0;
 const CITIES_TTL = 30 * 60 * 1000;
+
+// ── Session Management (chat_sessions table) ─────────────────────────────────
+function ensureChatTables() {
+  try {
+    db.prepare(`CREATE TABLE IF NOT EXISTS chat_sessions (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER,
+      conversation_state TEXT DEFAULT '{}',
+      history TEXT DEFAULT '[]',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      message_count INTEGER DEFAULT 0,
+      last_intent TEXT
+    )`).run();
+  } catch { /* already exists */ }
+  try {
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id)`).run();
+  } catch { /* */ }
+  try {
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at)`).run();
+  } catch { /* */ }
+}
+try { ensureChatTables(); } catch (e) {
+  console.error('[inventory-chat] session table bootstrap failed:', e.message);
+}
+
+function generateSessionId() {
+  return crypto.randomUUID();
+}
+
+function getOrCreateSession(sessionId, userId) {
+  if (sessionId) {
+    try {
+      const row = db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(sessionId);
+      if (row) {
+        return {
+          ...row,
+          conversation_state: JSON.parse(row.conversation_state || '{}'),
+          history: JSON.parse(row.history || '[]'),
+        };
+      }
+    } catch { /* fall through to create */ }
+  }
+  const id = sessionId || generateSessionId();
+  try {
+    db.prepare('INSERT INTO chat_sessions (id, user_id) VALUES (?, ?)').run(id, userId);
+  } catch { /* might already exist from race */ }
+  return { id, user_id: userId, conversation_state: {}, history: [], message_count: 0 };
+}
+
+function updateSession(sessionId, { history, conversation_state, last_intent }) {
+  try {
+    db.prepare(
+      `UPDATE chat_sessions SET history = ?, conversation_state = ?, updated_at = NOW(), message_count = message_count + 1, last_intent = ? WHERE id = ?`
+    ).run(JSON.stringify(history), JSON.stringify(conversation_state), last_intent, sessionId);
+  } catch (e) {
+    console.error('[inventory-chat] session update failed:', e.message);
+  }
+}
+
+// Lazy cleanup: run at most once per hour
+let _lastCleanupTs = 0;
+function cleanupStaleSessions() {
+  const now = Date.now();
+  if (now - _lastCleanupTs < 60 * 60 * 1000) return;
+  _lastCleanupTs = now;
+  try {
+    db.prepare(`DELETE FROM chat_sessions WHERE updated_at < NOW() - INTERVAL '7 days'`).run();
+    db.prepare(`DELETE FROM chat_sessions WHERE message_count = 0 AND updated_at < NOW() - INTERVAL '24 hours'`).run();
+  } catch { /* non-critical */ }
+}
+
+// ── Conversation State Accumulation ──────────────────────────────────────────
+function dedupe(arr) {
+  return [...new Set(arr)];
+}
+
+function accumulateState(existingState, newEntities, message, intent) {
+  const state = { ...existingState };
+  const n = norm(message);
+
+  if (newEntities.cidades.length) {
+    state.cidades = dedupe([...newEntities.cidades, ...(state.cidades || [])]);
+  }
+
+  if (newEntities.regioes.length) {
+    state.regioes = dedupe([...newEntities.regioes, ...(state.regioes || [])]);
+  }
+
+  if (newEntities.formatos.length) {
+    state.formatos = dedupe([...newEntities.formatos, ...(state.formatos || [])]);
+  }
+
+  if (newEntities.pontoIds.length) {
+    state.pontoIds_discussed = dedupe([
+      ...(state.pontoIds_discussed || []),
+      ...newEntities.pontoIds,
+    ]).slice(-20);
+  }
+
+  // Budget detection
+  const budgetMatch = n.match(/(?:orcamento|budget|investir|gastar|verba)\b.*?(\d[\d.,]*)/);
+  if (budgetMatch) {
+    state.budget_hint = parseFloat(budgetMatch[1].replace(/\./g, '').replace(',', '.'));
+  }
+
+  // Objective detection
+  const objMatch = n.match(/(?:quero|objetivo|campanha\s+de|foco\s+em)\s+(awareness|branding|performance|conversao|alcance|frequencia)/);
+  if (objMatch) {
+    state.objetivo = objMatch[1];
+  }
+
+  return state;
+}
 
 function getKnownCities() {
   const now = Date.now();
@@ -799,38 +914,55 @@ function buildChatContext(intent, entities) {
   }
 }
 
-// ── Build LLM prompt ──────────────────────────────────────────────────────────
-function buildChatPrompt(dbContext, history, userMessage) {
-  const systemBlock = `Você é o Especialista DOOH da Rede Intermídia, um consultor de mídia Out-of-Home digital.
+// ── Build LLM prompt (split system_prompt + prompt for Replicate) ────────────
+function buildChatPrompt(dbContext, serverHistory, userMessage, conversationState) {
+  const system_prompt = `Você é o Especialista DOOH da Rede Intermídia, um consultor de mídia Out-of-Home digital.
 
 ${ai.DOOH_KNOWLEDGE_COMPACT}
 
-REGRAS:
-1. Use APENAS dados fornecidos no CONTEXTO abaixo. NUNCA invente números, nomes de pontos ou cidades.
-2. Se não tiver dados suficientes para responder, diga claramente e sugira reformular a pergunta.
-3. Formate valores com R$ e pontos de milhar. Fluxo como "X impactos/mês".
-4. Máximo 4 parágrafos ou 1 parágrafo + lista de até 10 itens.
-5. Tom consultivo e profissional. Português brasileiro.
-6. Ao listar pontos: "Nome (Tipo) — Fluxo X impactos/mês, R$ Y/mês"
-7. Se a pergunta for uma saudação, apresente-se brevemente e sugira exemplos de perguntas.
-8. Quando o CONTEXTO tiver TODOS os pontos de uma região, liste TODOS eles — não omita nenhum.
-9. Sempre inclua endereço e tipo quando disponível para ajudar o usuário a localizar o ponto.`;
+REGRAS ABSOLUTAS:
+1. Responda EXCLUSIVAMENTE com base nos dados no bloco CONTEXTO abaixo. NUNCA invente nomes de pontos, números, endereços, preços ou fluxos.
+2. Se um ponto NÃO está listado no CONTEXTO, ele NÃO EXISTE para esta resposta.
+3. Se não tiver dados suficientes, diga CLARAMENTE: "Não encontrei essa informação no inventário disponível" e sugira reformular.
+4. Formate valores com R$ e pontos de milhar. Fluxo como "X impactos/mês".
+5. Máximo 4 parágrafos ou 1 parágrafo + lista de até 10 itens.
+6. Tom consultivo e profissional. Português brasileiro.
+7. Ao listar pontos: "Nome (Tipo) — Fluxo X impactos/mês, R$ Y/mês"
+8. Liste TODOS os pontos presentes no CONTEXTO quando relevante — não omita nenhum.
+9. Inclua endereço e bairro quando disponíveis.
+10. Se a pergunta for saudação, apresente-se brevemente e sugira exemplos.
+11. NUNCA adicione pontos que não estejam explicitamente no CONTEXTO.`;
 
-  const parts = [systemBlock];
+  const parts = [];
 
   if (dbContext) {
-    parts.push(`\nCONTEXTO (dados reais do inventário):\n${dbContext}`);
+    parts.push(`CONTEXTO (dados reais do inventário — use SOMENTE estes dados):\n${dbContext}`);
+  } else {
+    parts.push('CONTEXTO: Nenhum dado específico encontrado para esta consulta.');
   }
 
-  if (history.length) {
-    const recent = history.slice(-6);
+  if (serverHistory && serverHistory.length) {
+    const recent = serverHistory.slice(-6);
     const histBlock = recent.map(m => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.text}`).join('\n');
-    parts.push(`\nHISTÓRICO DA CONVERSA:\n${histBlock}`);
+    parts.push(`HISTÓRICO DA CONVERSA:\n${histBlock}`);
   }
 
-  parts.push(`\nUsuário: ${userMessage}\nAssistente:`);
+  if (conversationState) {
+    const cs = conversationState;
+    const stateParts = [];
+    if (cs.cidades?.length) stateParts.push(`Cidade: ${cs.cidades[0]}`);
+    if (cs.regioes?.length) stateParts.push(`Região: ${cs.regioes[0]}`);
+    if (cs.formatos?.length) stateParts.push(`Formatos: ${cs.formatos.join(', ')}`);
+    if (cs.budget_hint) stateParts.push(`Orçamento: ${fmtBRL(cs.budget_hint)}`);
+    if (cs.objetivo) stateParts.push(`Objetivo: ${cs.objetivo}`);
+    if (stateParts.length) {
+      parts.push(`ESTADO DA CONVERSA:\n${stateParts.join(' | ')}`);
+    }
+  }
 
-  return parts.join('\n');
+  parts.push(`Pergunta do usuário: ${userMessage}\nAssistente:`);
+
+  return { system_prompt, prompt: parts.join('\n\n') };
 }
 
 // ── Algorithmic fallback ──────────────────────────────────────────────────────
@@ -848,20 +980,105 @@ function buildAlgorithmicResponse(intent, entities, dbContext) {
   }
 }
 
-// ── Main entry point ──────────────────────────────────────────────────────────
-async function processInventoryChat(message, history = [], userId = null) {
-  const intent = classificarIntencao(message);
-  const entities = extractEntities(message);
-  const dbContext = buildChatContext(intent, entities);
+// ── Response validation (anti-hallucination) ─────────────────────────────────
+let _allPointNamesCache = null;
+let _allPointNamesCacheTs = 0;
 
-  // Build a semantic cache key from intent + entities + context hash.
-  // This means "pontos na gleba palhano" and "quais pontos no palhano?" hit the same cache
-  // when they resolve to the same intent/entities/dbContext.
-  const cacheKey = ai.hashInput(`chat_v3_${intent}_${JSON.stringify({
-    c: entities.cidades,
-    r: entities.regioes,
-    f: entities.formatos,
-    p: entities.pontoIds,
+function getAllPointNames() {
+  const now = Date.now();
+  if (_allPointNamesCache && now - _allPointNamesCacheTs < CITIES_TTL) return _allPointNamesCache;
+  try {
+    const points = ai.getEnrichedPoints();
+    _allPointNamesCache = new Set(points.map(p => norm(p.nome)));
+    _allPointNamesCacheTs = now;
+  } catch {
+    if (!_allPointNamesCache) _allPointNamesCache = new Set();
+  }
+  return _allPointNamesCache;
+}
+
+function extractNamesFromContext(dbContext) {
+  const names = [];
+  if (!dbContext) return names;
+  for (const line of dbContext.split('\n')) {
+    const m = line.match(/^\d+\.\s*(.+?)\s*\(/);
+    if (m) names.push(m[1].trim());
+  }
+  return names;
+}
+
+function validateResponse(responseText, dbContext) {
+  if (!responseText || !dbContext) return { valid: true, issues: [] };
+
+  const allNames = getAllPointNames();
+  const issues = [];
+
+  // Extract point-like names from response (patterns: "1. Name (Type)" or "**Name** —")
+  const responseNames = [];
+  for (const line of responseText.split('\n')) {
+    let m = line.match(/^\d+\.\s*\*?\*?(.+?)\*?\*?\s*[\(\-\—]/);
+    if (m) responseNames.push(m[1].trim());
+  }
+
+  // Check that mentioned point names exist in the inventory
+  for (const name of responseNames) {
+    if (name.length > 3 && !allNames.has(norm(name))) {
+      // Only flag if starts with uppercase (proper noun, likely a point name)
+      if (/[A-ZÀ-Ú]/.test(name[0])) {
+        issues.push({ type: 'unknown_point', name });
+      }
+    }
+  }
+
+  // Check point IDs mentioned as #N
+  const idMatches = [...responseText.matchAll(/#(\d+)/g)];
+  for (const m of idMatches) {
+    const id = Number(m[1]);
+    if (id > 0 && !ai.getPointById(id)) {
+      issues.push({ type: 'invalid_id', id: m[1] });
+    }
+  }
+
+  return { valid: issues.length === 0, issues };
+}
+
+// ── Main entry point ──────────────────────────────────────────────────────────
+async function processInventoryChat(message, history = [], userId = null, sessionId = null) {
+  // Lazy session cleanup
+  cleanupStaleSessions();
+
+  const startMs = Date.now();
+  const intent = classificarIntencao(message);
+  const currentEntities = extractEntities(message);
+
+  // ── Session: load or create ──────────────────────────────────────────────
+  let session = null;
+  let accState = null;
+  if (sessionId) {
+    session = getOrCreateSession(sessionId, userId);
+  }
+
+  // ── Accumulate conversation state ────────────────────────────────────────
+  if (session) {
+    accState = accumulateState(session.conversation_state, currentEntities, message, intent);
+  }
+
+  // ── Effective entities: current entities + accumulated context ────────────
+  const effectiveEntities = {
+    cidades:  currentEntities.cidades.length  ? currentEntities.cidades  : (accState?.cidades || []),
+    regioes:  currentEntities.regioes.length  ? currentEntities.regioes  : (accState?.regioes || []),
+    formatos: currentEntities.formatos.length ? currentEntities.formatos : (accState?.formatos || []),
+    pontoIds: currentEntities.pontoIds.length ? currentEntities.pontoIds : (accState?.pontoIds_discussed || []).slice(-3),
+  };
+
+  const dbContext = buildChatContext(intent, effectiveEntities);
+
+  // ── Semantic cache key (v4: uses effective entities) ─────────────────────
+  const cacheKey = ai.hashInput(`chat_v4_${intent}_${JSON.stringify({
+    c: effectiveEntities.cidades,
+    r: effectiveEntities.regioes,
+    f: effectiveEntities.formatos,
+    p: effectiveEntities.pontoIds,
     ctx: dbContext ? dbContext.slice(0, 200) : '',
   })}`);
 
@@ -870,61 +1087,148 @@ async function processInventoryChat(message, history = [], userId = null) {
     const cached = ai.getCached(cacheKey);
     if (cached && cached.response && cached.response.length > 20) {
       console.log(`[inventory-chat] cache hit (intent=${intent})`);
+
+      // Still update session with this interaction
+      if (session) {
+        const updatedHistory = [
+          ...session.history.slice(-18),
+          { role: 'user', text: message },
+          { role: 'assistant', text: cached.response },
+        ];
+        updateSession(session.id, {
+          history: updatedHistory,
+          conversation_state: accState || session.conversation_state,
+          last_intent: intent,
+        });
+      }
+
       return {
         response: cached.response,
         intent,
-        entities,
+        entities: effectiveEntities,
         _model: cached.model || 'cache',
         _source: 'cache',
+        sessionId: session?.id || null,
       };
     }
   }
 
-  const startMs = Date.now();
+  // ── Build prompt (system_prompt + prompt) ────────────────────────────────
+  const serverHistory = session ? session.history : history;
+  const { system_prompt, prompt } = buildChatPrompt(dbContext, serverHistory, message, accState);
 
-  // Try LLM generation
+  // LLM options: low temperature for grounding
+  const llmOptions = {
+    system_prompt,
+    temperature: 0.2,
+  };
+
+  let responseText = null;
+  let resultModel = null;
+  let validationPassed = true;
+
+  // ── Try LLM generation ──────────────────────────────────────────────────
   try {
-    const prompt = buildChatPrompt(dbContext, history, message);
-    const result = await ai.generateReplicateFirst(prompt);
+    const result = await ai.generateReplicateFirst(prompt, llmOptions);
 
     if (result && typeof result === 'object' && result.text) {
-      const text = result.text.trim();
-      if (text.length > 20) {
-        const latency = Date.now() - startMs;
-        // Save to cache
-        ai.setCache(cacheKey, message, text, result.model || 'replicate', latency);
-        return {
-          response: text,
-          intent,
-          entities,
-          _model: result.model || 'replicate',
-        };
-      }
+      responseText = result.text.trim();
+      resultModel = result.model || 'replicate';
+    } else if (typeof result === 'string' && result.trim().length > 20) {
+      responseText = result.trim();
+      resultModel = 'replicate';
     }
-    if (typeof result === 'string' && result.trim().length > 20) {
-      const latency = Date.now() - startMs;
-      ai.setCache(cacheKey, message, result.trim(), 'replicate', latency);
-      return {
-        response: result.trim(),
-        intent,
-        entities,
-        _model: 'replicate',
-      };
+
+    // ── Validate response (anti-hallucination) ────────────────────────────
+    if (responseText && responseText.length > 20 && dbContext) {
+      const validation = validateResponse(responseText, dbContext);
+      validationPassed = validation.valid;
+
+      if (!validation.valid) {
+        console.warn(`[inventory-chat] validation failed: ${JSON.stringify(validation.issues)}`);
+
+        // Retry with stricter prompt
+        const contextNames = extractNamesFromContext(dbContext);
+        if (contextNames.length) {
+          const stricterPrompt = prompt + `\n\nIMPORTANTE: Use SOMENTE estes nomes de pontos: ${contextNames.join(', ')}. NAO mencione nenhum outro nome de ponto.`;
+          try {
+            const retryResult = await ai.generateReplicateFirst(stricterPrompt, {
+              ...llmOptions,
+              temperature: 0.1,
+            });
+            if (retryResult && retryResult.text && retryResult.text.trim().length > 20) {
+              const retryValidation = validateResponse(retryResult.text.trim(), dbContext);
+              if (retryValidation.valid) {
+                responseText = retryResult.text.trim();
+                resultModel = (retryResult.model || 'replicate') + ':retry';
+                validationPassed = true;
+              }
+            }
+          } catch { /* retry failed, fall through */ }
+        }
+
+        // If still invalid after retry, use algorithmic fallback
+        if (!validationPassed) {
+          responseText = buildAlgorithmicResponse(intent, effectiveEntities, dbContext);
+          resultModel = 'algorithmic:validation_fallback';
+          validationPassed = true; // algorithmic can't hallucinate
+        }
+      }
     }
   } catch (err) {
     console.error('[inventoryChat] LLM failed:', err.message);
   }
 
-  // Algorithmic fallback — also cache it so we don't retry LLM for the same query
-  const fallback = buildAlgorithmicResponse(intent, entities, dbContext);
-  if (intent !== 'saudacao' && intent !== 'desconhecido') {
-    ai.setCache(cacheKey, message, fallback, 'algorithmic', Date.now() - startMs);
+  // ── Algorithmic fallback if LLM produced nothing ────────────────────────
+  if (!responseText || responseText.length <= 20) {
+    responseText = buildAlgorithmicResponse(intent, effectiveEntities, dbContext);
+    resultModel = 'algorithmic';
   }
+
+  // ── Cache the response ──────────────────────────────────────────────────
+  const latency = Date.now() - startMs;
+  if (intent !== 'saudacao' && intent !== 'desconhecido') {
+    ai.setCache(cacheKey, message, responseText, resultModel, latency);
+  }
+
+  // ── Update session ──────────────────────────────────────────────────────
+  if (session) {
+    const updatedHistory = [
+      ...session.history.slice(-18),
+      { role: 'user', text: message },
+      { role: 'assistant', text: responseText },
+    ];
+    updateSession(session.id, {
+      history: updatedHistory,
+      conversation_state: accState || session.conversation_state,
+      last_intent: intent,
+    });
+  }
+
+  // ── Log to ai_memory ────────────────────────────────────────────────────
+  try {
+    ai.saveMemory(
+      message,
+      responseText,
+      userId,
+      JSON.stringify({
+        intent,
+        entities: effectiveEntities,
+        model: resultModel,
+        validation_passed: validationPassed,
+        latency_ms: latency,
+        turn: session ? session.message_count + 1 : 0,
+      }),
+      session?.id || null
+    );
+  } catch { /* non-critical */ }
+
   return {
-    response: fallback,
+    response: responseText,
     intent,
-    entities,
-    _model: 'algorithmic',
+    entities: effectiveEntities,
+    _model: resultModel,
+    sessionId: session?.id || null,
   };
 }
 

@@ -11,6 +11,17 @@ import { MessageCircle, X, Send, Loader2, RotateCcw, Radio } from 'lucide-react'
 import useTheme from '../hooks/useTheme';
 import { fetchInventoryChat } from '../lib/api';
 
+// ── Session ID management (persists across page refreshes) ───────────────────
+const SESSION_KEY = 'dooh_chat_session_id';
+function getOrCreateSessionId() {
+  let id = localStorage.getItem(SESSION_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(SESSION_KEY, id);
+  }
+  return id;
+}
+
 // ── Quick suggestions ─────────────────────────────────────────────────────────
 const SUGESTOES = [
   'Pontos na Gleba Palhano',
@@ -108,6 +119,7 @@ export default function InventarioChatBot() {
   const location = useLocation();
 
   const [aberto, setAberto] = useState(false);
+  const [sessionId, setSessionId] = useState(getOrCreateSessionId);
   const [mensagens, setMensagens] = useState([
     {
       role: 'bot',
@@ -152,7 +164,12 @@ export default function InventarioChatBot() {
         .filter((_, i) => i > 0)
         .map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', text: m.text }));
 
-      const data = await fetchInventoryChat(texto, history);
+      const data = await fetchInventoryChat(texto, history, sessionId);
+      // Adopt server sessionId if returned (ensures consistency)
+      if (data.sessionId && data.sessionId !== sessionId) {
+        setSessionId(data.sessionId);
+        localStorage.setItem(SESSION_KEY, data.sessionId);
+      }
       const msgBot = {
         role: 'bot',
         text: data.response || 'Não consegui processar sua pergunta.',
@@ -170,7 +187,7 @@ export default function InventarioChatBot() {
     } finally {
       setCarregando(false);
     }
-  }, [input, carregando, aberto, mensagens]);
+  }, [input, carregando, aberto, mensagens, sessionId]);
 
   function handleKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -180,6 +197,10 @@ export default function InventarioChatBot() {
   }
 
   function limparConversa() {
+    // Generate new session — fresh context
+    const newId = crypto.randomUUID();
+    setSessionId(newId);
+    localStorage.setItem(SESSION_KEY, newId);
     setMensagens([{
       role: 'bot',
       text: 'Conversa reiniciada!\n\nComo posso ajudar? Pergunte sobre pontos, formatos, cidades ou conceitos de mídia DOOH.',

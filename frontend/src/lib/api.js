@@ -1087,10 +1087,10 @@ export async function fetchAICampaignPointInsights(params) {
   return res.json();
 }
 
-export async function fetchInventoryChat(message, history = []) {
+export async function fetchInventoryChat(message, history = [], sessionId = null) {
   const res = await apiRequest('/inventory-chat', {
     method: 'POST',
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ message, history, sessionId }),
   });
   return res.json();
 }

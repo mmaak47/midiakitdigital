@@ -200,6 +200,14 @@ function ensureTables() {
   try {
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_ai_patterns_score ON ai_patterns(score DESC)`).run();
   } catch { /* */ }
+
+  // Add session_id column to ai_memory (idempotent)
+  try {
+    db.prepare(`ALTER TABLE ai_memory ADD COLUMN session_id TEXT`).run();
+  } catch { /* column already exists */ }
+  try {
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_ai_memory_session ON ai_memory(session_id)`).run();
+  } catch { /* */ }
 }
 
 try { ensureTables(); } catch (e) {
@@ -244,12 +252,12 @@ function setCache(inputHash, prompt, response, model, latencyMs) {
 
 // ── Memory / Learning layer ─────────────────────────────────────────────────
 
-function saveMemory(input, output, userId = null, context = null) {
+function saveMemory(input, output, userId = null, context = null, sessionId = null) {
   try {
     db.prepare(
-      `INSERT INTO ai_memory (input, output, user_id, context)
-       VALUES (?, ?, ?, ?)`
-    ).run(input, output, userId, context);
+      `INSERT INTO ai_memory (input, output, user_id, context, session_id)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(input, output, userId, context, sessionId);
   } catch (e) {
     console.error('[ai-memory] save failed:', e.message);
   }
@@ -338,10 +346,15 @@ function getTopPatterns(input, limit = 3) {
 
 // ── Ollama: local generation ────────────────────────────────────────────────
 
-async function generateLocal(prompt, model = OLLAMA_MODEL) {
+async function generateLocal(prompt, model = OLLAMA_MODEL, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OLLAMA_TIMEOUT_MS);
   const start = Date.now();
+
+  // Build Ollama prompt: if system_prompt provided, prepend as system instruction
+  const ollamaPrompt = options.system_prompt
+    ? `<<SYS>>\n${options.system_prompt}\n<</SYS>>\n\n${prompt}`
+    : prompt;
 
   try {
     const response = await fetch(`${OLLAMA_URL}/api/generate`, {
@@ -350,12 +363,12 @@ async function generateLocal(prompt, model = OLLAMA_MODEL) {
       signal: controller.signal,
       body: JSON.stringify({
         model,
-        prompt,
+        prompt: ollamaPrompt,
         stream: false,
         options: {
-          temperature: 0.7,
-          top_p: 0.9,
-          num_predict: 2048,
+          temperature: options.temperature ?? 0.3,
+          top_p: options.top_p || 0.9,
+          num_predict: options.max_tokens || 2048,
           num_ctx: 4096,
         },
       }),
@@ -381,7 +394,7 @@ async function generateLocal(prompt, model = OLLAMA_MODEL) {
 
 // ── Replicate fallback ──────────────────────────────────────────────────────
 
-async function generateWithReplicate(prompt, model = 'meta/meta-llama-3-70b-instruct') {
+async function generateWithReplicate(prompt, model = 'meta/meta-llama-3-70b-instruct', options = {}) {
   if (!REPLICATE_API_TOKEN) {
     throw new Error('REPLICATE_NOT_CONFIGURED');
   }
@@ -389,6 +402,16 @@ async function generateWithReplicate(prompt, model = 'meta/meta-llama-3-70b-inst
   const start = Date.now();
 
   try {
+    const inputPayload = {
+      prompt,
+      max_tokens: options.max_tokens || 1200,
+      temperature: options.temperature ?? 0.3,
+    };
+    // Use Replicate's system_prompt field when provided
+    if (options.system_prompt) {
+      inputPayload.system_prompt = options.system_prompt;
+    }
+
     const response = await fetch('https://api.replicate.com/v1/models/' + model + '/predictions', {
       method: 'POST',
       headers: {
@@ -396,13 +419,7 @@ async function generateWithReplicate(prompt, model = 'meta/meta-llama-3-70b-inst
         'Content-Type': 'application/json',
         'Prefer': 'wait',
       },
-      body: JSON.stringify({
-        input: {
-          prompt,
-          max_tokens: 1200,
-          temperature: 0.7,
-        },
-      }),
+      body: JSON.stringify({ input: inputPayload }),
     });
 
     if (!response.ok) {
@@ -424,22 +441,22 @@ async function generateWithReplicate(prompt, model = 'meta/meta-llama-3-70b-inst
 
 // ── Fallback chain ──────────────────────────────────────────────────────────
 
-async function generateWithFallback(prompt) {
+async function generateWithFallback(prompt, options = {}) {
   // Try primary model (llama3)
   try {
-    return await generateLocal(prompt, OLLAMA_MODEL);
+    return await generateLocal(prompt, OLLAMA_MODEL, options);
   } catch (e1) {
     console.warn(`[ai] primary failed (${OLLAMA_MODEL}), trying fallback...`);
 
     // Try fallback model (mistral)
     try {
-      return await generateLocal(prompt, OLLAMA_FALLBACK_MODEL);
+      return await generateLocal(prompt, OLLAMA_FALLBACK_MODEL, options);
     } catch (e2) {
       console.warn(`[ai] local fallback failed (${OLLAMA_FALLBACK_MODEL}), trying replicate...`);
 
       // Try Replicate
       try {
-        return await generateWithReplicate(prompt);
+        return await generateWithReplicate(prompt, 'meta/meta-llama-3-70b-instruct', options);
       } catch (e3) {
         console.error('[ai] all providers failed');
         throw new Error('ALL_AI_PROVIDERS_FAILED');
@@ -452,25 +469,25 @@ async function generateWithFallback(prompt) {
  * Replicate-first chain: better model (70B) as primary, local as fallback.
  * Used for client-facing content that needs commercial quality.
  */
-async function generateReplicateFirst(prompt) {
+async function generateReplicateFirst(prompt, options = {}) {
   // 1. Try Replicate 70B (best quality)
   try {
-    return await generateWithReplicate(prompt, 'meta/meta-llama-3-70b-instruct');
+    return await generateWithReplicate(prompt, 'meta/meta-llama-3-70b-instruct', options);
   } catch (e1) {
     console.warn('[ai] replicate 70B failed, trying replicate 8B...');
 
     // 2. Try Replicate 8B
     try {
-      return await generateWithReplicate(prompt, 'meta/meta-llama-3-8b-instruct');
+      return await generateWithReplicate(prompt, 'meta/meta-llama-3-8b-instruct', options);
     } catch (e2) {
       console.warn('[ai] replicate 8B failed, trying local fallback...');
 
       // 3. Try local Ollama (last resort)
       try {
-        return await generateLocal(prompt, OLLAMA_FALLBACK_MODEL);
+        return await generateLocal(prompt, OLLAMA_FALLBACK_MODEL, options);
       } catch (e3) {
         try {
-          return await generateLocal(prompt, OLLAMA_MODEL);
+          return await generateLocal(prompt, OLLAMA_MODEL, options);
         } catch (e4) {
           console.error('[ai] all providers failed (replicate-first chain)');
           throw new Error('ALL_AI_PROVIDERS_FAILED');
@@ -1849,4 +1866,6 @@ module.exports = {
   enrichPointWithContext,
   buildPointContextString,
   DOOH_KNOWLEDGE_COMPACT,
+  saveMemory,
+  getRelevantMemories,
 };

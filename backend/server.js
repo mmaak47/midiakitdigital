@@ -467,7 +467,7 @@ app.use('/api/ai', aiRouter);
 const { processInventoryChat } = require('./services/inventoryChatService');
 const _inventoryChatHandler = async (req, res) => {
   try {
-    const { message, history } = req.body || {};
+    const { message, history, sessionId } = req.body || {};
     if (!message || typeof message !== 'string' || message.trim().length < 2) {
       return res.status(400).json({ error: 'message string is required (min 2 chars)' });
     }
@@ -475,7 +475,8 @@ const _inventoryChatHandler = async (req, res) => {
       ? history.filter(h => h && typeof h.role === 'string' && typeof h.text === 'string').slice(-20)
       : [];
     const userId = req.authUser?.id || null;
-    const result = await processInventoryChat(message.trim(), safeHistory, userId);
+    const safeSessionId = (typeof sessionId === 'string' && sessionId.length >= 10) ? sessionId : null;
+    const result = await processInventoryChat(message.trim(), safeHistory, userId, safeSessionId);
     res.json(result);
   } catch (err) {
     console.error('[inventory-chat]', err.message);
