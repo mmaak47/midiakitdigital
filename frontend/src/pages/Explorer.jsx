@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, CheckCircle, ChevronDown, LayoutGrid, Map, SlidersHorizontal } from 'lucide-react';
+import { AlertCircle, CheckCircle, ChevronDown, LayoutGrid, Map, Search, SlidersHorizontal } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import FilterSidebar from '../components/FilterSidebar';
@@ -281,7 +281,7 @@ export default function Explorer() {
                 animate={{ opacity: 1, y: 0 }}
                 className="text-center py-20"
               >
-                <div className="text-brand-gray-600 text-6xl mb-4">🔍</div>
+                <div className="text-brand-gray-600 mb-4 flex justify-center"><Search size={48} /></div>
                 <h3 className="text-xl font-semibold text-brand-gray-300 mb-2">
                   Nenhum ponto encontrado
                 </h3>

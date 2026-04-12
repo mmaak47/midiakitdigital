@@ -52,6 +52,7 @@ function Lobby({
   setSelectedPracas,
   selectedTipos,
   setSelectedTipos,
+  isDark = true,
 }) {
   const groups = useMemo(() => {
     const map = new Map();
@@ -95,14 +96,16 @@ function Lobby({
         className={`relative h-[88px] flex text-left rounded-xl border overflow-hidden transition-all w-full ${
           selected
             ? 'border-brand-orange bg-brand-orange/[0.06] ring-1 ring-brand-orange/30'
-            : 'border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
+            : isDark
+              ? 'border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
+              : 'border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50'
         }`}
       >
-        <div className="w-24 h-full shrink-0 bg-black/50">
+        <div className={`w-24 h-full shrink-0 ${isDark ? 'bg-black/50' : 'bg-neutral-100'}`}>
           {img ? (
             <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" width="160" height="120" />
           ) : (
-            <div className="h-full w-full bg-white/5" />
+            <div className={`h-full w-full ${isDark ? 'bg-white/5' : 'bg-neutral-100'}`} />
           )}
         </div>
         <div className="flex-1 px-3 py-2.5 min-w-0 overflow-hidden">
@@ -119,7 +122,7 @@ function Lobby({
         </div>
         <div
           className={`absolute top-2 right-2 w-[18px] h-[18px] rounded-full flex items-center justify-center transition-all shrink-0 ${
-            selected ? 'bg-brand-orange' : 'bg-black/40 border border-white/30'
+            selected ? 'bg-brand-orange' : isDark ? 'bg-black/40 border border-white/30' : 'bg-white border border-neutral-300'
           }`}
         >
           {selected && <Check size={9} strokeWidth={3} />}
@@ -134,14 +137,14 @@ function Lobby({
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
           <img src="/logo.png" alt="Intermidia" className="h-7 mb-1.5" />
-          <h1 className="text-xl md:text-2xl font-extrabold leading-tight">Preparar Apresentação</h1>
-          <p className="mt-0.5 text-sm text-brand-gray-400 hidden sm:block">
+          <h1 className={`text-xl md:text-2xl font-extrabold leading-tight ${isDark ? '' : 'text-neutral-900'}`}>Preparar Apresentação</h1>
+          <p className={`mt-0.5 text-sm hidden sm:block ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
             Escolha as praças e formatos, selecione os pontos e inicie.
           </p>
         </div>
         <div className="text-right shrink-0">
           <div className="text-3xl font-black text-brand-orange">{selectedPointIds.size}</div>
-          <div className="text-[11px] uppercase tracking-wide text-brand-gray-400">
+          <div className={`text-[11px] uppercase tracking-wide ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
             ponto{selectedPointIds.size !== 1 ? 's' : ''}<br className="sm:hidden" /> selecionado{selectedPointIds.size !== 1 ? 's' : ''}
           </div>
         </div>
@@ -178,8 +181,8 @@ function Lobby({
         >
           {allSelected ? 'Desmarcar todos' : 'Selecionar todos'}
         </button>
-        <span className="text-white/15">|</span>
-        <span className="text-sm text-brand-gray-400">{filteredPoints.length} pontos disponíveis</span>
+        <span className={isDark ? 'text-white/15' : 'text-neutral-300'}>|</span>
+        <span className={`text-sm ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>{filteredPoints.length} pontos disponíveis</span>
       </div>
 
       {/* Lista agrupada por formato */}
@@ -198,14 +201,14 @@ function Lobby({
                 <div className="flex items-center justify-between gap-3 mb-2">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm">{tipo}</span>
-                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-brand-gray-300">
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] ${isDark ? 'bg-white/10 text-brand-gray-300' : 'bg-neutral-100 text-neutral-600'}`}>
                       {points.length}
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => toggleGroup(points)}
-                    className="text-[11px] text-brand-gray-400 hover:text-white transition-colors py-1 px-2"
+                    className={`text-[11px] transition-colors py-1 px-2 ${isDark ? 'text-brand-gray-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'}`}
                   >
                     {allGroupSelected ? 'Desmarcar grupo' : 'Selecionar grupo'}
                   </button>
@@ -237,7 +240,7 @@ function Lobby({
       </div>
 
       {/* Botão iniciar — sticky na base em mobile, inline em desktop */}
-      <div className="fixed md:static bottom-0 left-0 right-0 z-20 md:z-auto px-4 pb-safe pt-3 md:p-0 md:mt-4 md:flex md:justify-end bg-black/85 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none border-t border-white/10 md:border-none">
+      <div className={`fixed md:static bottom-0 left-0 right-0 z-20 md:z-auto px-4 pb-safe pt-3 md:p-0 md:mt-4 md:flex md:justify-end backdrop-blur-sm md:backdrop-blur-none border-t md:border-none ${isDark ? 'bg-black/85 border-white/10' : 'bg-white/90 border-neutral-200'}`}>
         <button
           type="button"
           onClick={onStart}
@@ -258,7 +261,7 @@ function Lobby({
 }
 
 // ─── Slide de transição entre formatos ───
-function DividerSlide({ tipo, count, totaisTipo, points }) {
+function DividerSlide({ tipo, count, totaisTipo, points, isDark = true }) {
   const pointsWithCoords = useMemo(
     () => (Array.isArray(points) ? points : []).filter((p) => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng))),
     [points],
@@ -273,34 +276,34 @@ function DividerSlide({ tipo, count, totaisTipo, points }) {
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       className="h-full flex flex-col items-center justify-center text-center relative px-4"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(254,92,43,0.2),transparent_62%)]" />
+      <div className={`absolute inset-0 ${isDark ? 'bg-[radial-gradient(ellipse_at_center,rgba(254,92,43,0.2),transparent_62%)]' : 'bg-[radial-gradient(ellipse_at_center,rgba(254,92,43,0.08),transparent_62%)]'}`} />
       <div className="relative z-10 flex flex-col items-center">
         <div className="text-[11px] uppercase tracking-[0.22em] text-brand-orange">Formato</div>
-        <h2 className="slide-divider-heading mt-3 text-5xl md:text-7xl font-black tracking-tight leading-none">{tipo}</h2>
+        <h2 className={`slide-divider-heading mt-3 text-5xl md:text-7xl font-black tracking-tight leading-none ${isDark ? '' : 'text-neutral-900'}`}>{tipo}</h2>
         <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-brand-orange/35 bg-brand-orange/15 px-6 py-2.5 text-xl font-bold text-brand-orange">
           {fmtInt(count)} {count === 1 ? 'ponto' : 'pontos'} selecionados
         </div>
         {totaisTipo && (
           <div className="slide-divider-stats mt-5 grid grid-cols-3 gap-8 text-center">
             <div>
-              <div className="text-2xl font-bold">{fmtInt(totaisTipo.telas)}</div>
-              <div className="text-[11px] uppercase tracking-wide text-brand-gray-400 mt-1">Pontos de Impacto</div>
+              <div className={`text-2xl font-bold ${isDark ? '' : 'text-neutral-900'}`}>{fmtInt(totaisTipo.telas)}</div>
+              <div className={`text-[11px] uppercase tracking-wide mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Pontos de Impacto</div>
             </div>
             <div>
-              <div className="text-2xl font-bold">{fmtInt(totaisTipo.fluxo)}</div>
-              <div className="text-[11px] uppercase tracking-wide text-brand-gray-400 mt-1">Fluxo / mês</div>
+              <div className={`text-2xl font-bold ${isDark ? '' : 'text-neutral-900'}`}>{fmtInt(totaisTipo.fluxo)}</div>
+              <div className={`text-[11px] uppercase tracking-wide mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Fluxo / mês</div>
             </div>
             <div>
-              <div className="text-2xl font-bold">{fmtMoney(totaisTipo.valor)}</div>
-              <div className="text-[11px] uppercase tracking-wide text-brand-gray-400 mt-1">Investimento</div>
+              <div className={`text-2xl font-bold ${isDark ? '' : 'text-neutral-900'}`}>{fmtMoney(totaisTipo.valor)}</div>
+              <div className={`text-[11px] uppercase tracking-wide mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Investimento</div>
             </div>
           </div>
         )}
 
-        <div className="slide-divider-map mt-6 w-full max-w-4xl rounded-2xl border border-white/15 bg-black/40 overflow-hidden">
+        <div className={`slide-divider-map mt-6 w-full max-w-4xl rounded-2xl border overflow-hidden ${isDark ? 'border-white/15 bg-black/40' : 'border-neutral-200 bg-neutral-50'}`}>
           {pointsWithCoords.length ? (
             <div className="h-[32vh] min-h-[220px]">
-              <SmartMap pontos={pointsWithCoords} isDark />
+              <SmartMap pontos={pointsWithCoords} isDark={isDark} />
             </div>
           ) : (
             <div className="h-[32vh] min-h-[220px] flex items-center justify-center text-sm text-brand-gray-400">
@@ -314,7 +317,7 @@ function DividerSlide({ tipo, count, totaisTipo, points }) {
 }
 
 // ─── Slide por ponto ───
-function PointSlide({ slide, selectionLabel, typesLabel }) {
+function PointSlide({ slide, selectionLabel, typesLabel, isDark = true }) {
   const { point, infoOnLeft } = slide;
   const images = getPointDisplayImages(point);
   const [imageIndex, setImageIndex] = useState(0);
@@ -338,37 +341,43 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       className="h-full relative"
     >
-      <div className="absolute inset-0 rounded-2xl overflow-hidden border border-white/10 bg-black/40">
+      <div className={`absolute inset-0 rounded-2xl overflow-hidden border ${isDark ? 'border-white/10 bg-black/40' : 'border-neutral-200 bg-white/60'}`}>
         {img ? (
           <img
             src={img}
             alt={point.nome}
-            className="absolute inset-0 h-full w-full object-cover scale-[1.06] blur-sm opacity-35"
+            className={`absolute inset-0 h-full w-full object-cover scale-[1.06] blur-sm ${isDark ? 'opacity-35' : 'opacity-20'}`}
             style={{ objectPosition: `${focusX}% ${focusY}%` }}
             loading="lazy"
             width="1280"
             height="720"
           />
         ) : (
-          <div className="absolute inset-0 bg-black/70" />
+          <div className={`absolute inset-0 ${isDark ? 'bg-black/70' : 'bg-neutral-100'}`} />
         )}
         <div
           className={`absolute inset-0 ${
             infoOnLeft
-              ? 'bg-[linear-gradient(90deg,rgba(0,0,0,0.93)_0%,rgba(0,0,0,0.65)_35%,rgba(0,0,0,0.18)_72%,rgba(0,0,0,0.04)_100%)]'
-              : 'bg-[linear-gradient(270deg,rgba(0,0,0,0.93)_0%,rgba(0,0,0,0.65)_35%,rgba(0,0,0,0.18)_72%,rgba(0,0,0,0.04)_100%)]'
+              ? isDark
+                ? 'bg-[linear-gradient(90deg,rgba(0,0,0,0.93)_0%,rgba(0,0,0,0.65)_35%,rgba(0,0,0,0.18)_72%,rgba(0,0,0,0.04)_100%)]'
+                : 'bg-[linear-gradient(90deg,rgba(255,255,255,0.95)_0%,rgba(255,255,255,0.70)_35%,rgba(255,255,255,0.18)_72%,rgba(255,255,255,0.04)_100%)]'
+              : isDark
+                ? 'bg-[linear-gradient(270deg,rgba(0,0,0,0.93)_0%,rgba(0,0,0,0.65)_35%,rgba(0,0,0,0.18)_72%,rgba(0,0,0,0.04)_100%)]'
+                : 'bg-[linear-gradient(270deg,rgba(255,255,255,0.95)_0%,rgba(255,255,255,0.70)_35%,rgba(255,255,255,0.18)_72%,rgba(255,255,255,0.04)_100%)]'
           }`}
         />
       </div>
 
       {img ? (
         <div
-          className={`slide-img-panel absolute inset-y-4 z-[12] rounded-2xl border border-white/20 bg-black/30 backdrop-blur-sm p-3 shadow-[0_14px_42px_rgba(0,0,0,0.38)] transition-all hover:bg-black/40 hover:border-white/35 ${
-            infoOnLeft ? 'left-[31%] right-3' : 'left-3 right-[31%]'
-          }`}
+          className={`slide-img-panel absolute inset-y-4 z-[12] rounded-2xl border backdrop-blur-sm p-3 transition-all ${
+            isDark
+              ? 'border-white/20 bg-black/30 shadow-[0_14px_42px_rgba(0,0,0,0.38)] hover:bg-black/40 hover:border-white/35'
+              : 'border-neutral-200 bg-white/30 shadow-[0_14px_42px_rgba(0,0,0,0.1)] hover:bg-white/50 hover:border-neutral-300'
+          } ${infoOnLeft ? 'left-[31%] right-3' : 'left-3 right-[31%]'}`}
         >
           <div
-            className="h-full w-full rounded-xl bg-black/20 flex items-center justify-center overflow-hidden"
+            className={`h-full w-full rounded-xl flex items-center justify-center overflow-hidden ${isDark ? 'bg-black/20' : 'bg-neutral-100/40'}`}
             role="button"
             tabIndex={0}
             onClick={() => setShowImageModal(true)}
@@ -428,12 +437,14 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
       ) : null}
 
       <div
-        className={`slide-mini-map absolute bottom-3 z-20 h-[180px] w-[280px] rounded-xl border border-white/20 bg-black/75 overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.45)] ${
-          infoOnLeft ? 'right-3' : 'left-3'
-        }`}
+        className={`slide-mini-map absolute bottom-3 z-20 h-[180px] w-[280px] rounded-xl border overflow-hidden ${
+          isDark
+            ? 'border-white/20 bg-black/75 shadow-[0_8px_30px_rgba(0,0,0,0.45)]'
+            : 'border-neutral-200 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.1)]'
+        } ${infoOnLeft ? 'right-3' : 'left-3'}`}
       >
         {focusCoords ? (
-          <SmartMap pontos={[point]} isDark focusCoords={focusCoords} />
+          <SmartMap pontos={[point]} isDark={isDark} focusCoords={focusCoords} />
         ) : (
           <div className="h-full w-full flex items-center justify-center text-xs text-brand-gray-400 px-4 text-center">
             Sem coordenadas para mostrar este ponto no mapa.
@@ -446,50 +457,50 @@ function PointSlide({ slide, selectionLabel, typesLabel }) {
           infoOnLeft ? 'left-0' : 'right-0'
         }`}
       >
-        <div className="slide-info-panel-inner h-full rounded-2xl border border-white/15 bg-black/65 backdrop-blur-md p-5 flex flex-col">
+        <div className={`slide-info-panel-inner h-full rounded-2xl border backdrop-blur-md p-5 flex flex-col ${isDark ? 'border-white/15 bg-black/65' : 'border-neutral-200 bg-white/85'}`}>
           <img src="/logo.png" alt="Intermidia" className="slide-info-logo h-7 self-start mb-3 opacity-65" />
           <div className="text-[11px] uppercase tracking-wide text-brand-orange">
             Informações do ponto
           </div>
-          <h3 className="slide-point-title mt-1.5 text-2xl font-extrabold leading-tight">{point.nome}</h3>
-          <p className="mt-1 text-[15px] text-brand-gray-300">
+          <h3 className={`slide-point-title mt-1.5 text-2xl font-extrabold leading-tight ${isDark ? '' : 'text-neutral-900'}`}>{point.nome}</h3>
+          <p className={`mt-1 text-[15px] ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
             {point.tipo || 'Sem tipo'} &bull; {point.cidade || 'Sem cidade'}
           </p>
-          <div className="slide-point-details mt-3.5 space-y-2 text-[18px] leading-[1.35] text-brand-gray-200">
+          <div className={`slide-point-details mt-3.5 space-y-2 text-[18px] leading-[1.35] ${isDark ? 'text-brand-gray-200' : 'text-neutral-700'}`}>
             {point.endereco ? (
               <div>
-                <span className="text-brand-gray-500">Endereço: </span>
+                <span className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'}>Endereço: </span>
                 {point.endereco}
               </div>
             ) : null}
             <div>
-              <span className="text-brand-gray-500">Público: </span>
+              <span className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'}>Público: </span>
               {point.publico || 'N/I'}
             </div>
             <div>
-              <span className="text-brand-gray-500">Fluxo: </span>
+              <span className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'}>Fluxo: </span>
               {fmtInt(Number(point.fluxo) || 0)} / mês
             </div>
             <div>
-              <span className="text-brand-gray-500">Pontos de Impacto: </span>
+              <span className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'}>Pontos de Impacto: </span>
               {fmtInt(Number(point.telas) || 0)}
             </div>
             <div>
-              <span className="text-brand-gray-500">Inserções: </span>
+              <span className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'}>Inserções: </span>
               {fmtInt(Number(point.insercoes) || 0)} / mês
             </div>
             <div>
-              <span className="text-brand-gray-500">Investimento: </span>
-              <strong className="text-white">{fmtMoney(Number(point.preco) || 0)}</strong> / mês
+              <span className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'}>Investimento: </span>
+              <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{fmtMoney(Number(point.preco) || 0)}</strong> / mês
             </div>
           </div>
-          <div className="slide-info-footer mt-auto pt-3 border-t border-white/10 text-[12px] text-brand-gray-400 space-y-0.5">
+          <div className={`slide-info-footer mt-auto pt-3 border-t text-[12px] space-y-0.5 ${isDark ? 'border-white/10 text-brand-gray-400' : 'border-neutral-200 text-neutral-500'}`}>
             <div>
-              <span className="text-brand-gray-500">Praça(s): </span>
+              <span className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'}>Praça(s): </span>
               {selectionLabel}
             </div>
             <div>
-              <span className="text-brand-gray-500">Formato(s): </span>
+              <span className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'}>Formato(s): </span>
               {typesLabel}
             </div>
           </div>
@@ -553,7 +564,7 @@ function useIsMobile() {
 }
 
 // ─── Slide de transição: versão MOBILE ───
-function MobileDividerSlide({ tipo, count, totaisTipo }) {
+function MobileDividerSlide({ tipo, count, totaisTipo, isDark = true }) {
   return (
     <motion.div
       key={`mob-div-${tipo}`}
@@ -563,35 +574,26 @@ function MobileDividerSlide({ tipo, count, totaisTipo }) {
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       className="h-full flex flex-col items-center justify-center text-center px-6 relative overflow-hidden"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(254,92,43,0.16),transparent_62%)]" />
+      <div className={`absolute inset-0 ${isDark ? 'bg-[radial-gradient(ellipse_at_center,rgba(254,92,43,0.16),transparent_62%)]' : 'bg-[radial-gradient(ellipse_at_center,rgba(254,92,43,0.06),transparent_62%)]'}`} />
       <div className="relative z-10 w-full flex flex-col items-center">
-        {/* Label */}
         <div className="text-[11px] uppercase tracking-[0.24em] text-brand-orange mb-4">Formato</div>
-
-        {/* Format name — dominante */}
-        <h2 className="text-[2.5rem] font-black tracking-tight leading-none mb-5">{tipo}</h2>
-
-        {/* Count badge */}
+        <h2 className={`text-[2.5rem] font-black tracking-tight leading-none mb-5 ${isDark ? '' : 'text-neutral-900'}`}>{tipo}</h2>
         <div className="inline-flex items-center gap-2 rounded-full border border-brand-orange/35 bg-brand-orange/15 px-6 py-2.5 text-xl font-bold text-brand-orange mb-8">
           {fmtInt(count)} {count === 1 ? 'ponto' : 'pontos'}
         </div>
-
-        {/* 2 metric cards — não 3, evitar poluição */}
         {totaisTipo && (
           <div className="grid grid-cols-2 gap-3 w-full max-w-[288px]">
-            <div className="rounded-2xl bg-white/[0.06] border border-white/10 p-4 text-center">
-              <div className="text-xl font-bold leading-tight">{fmtInt(totaisTipo.fluxo)}</div>
-              <div className="text-[11px] uppercase tracking-wide text-brand-gray-400 mt-2">Fluxo / mês</div>
+            <div className={`rounded-2xl border p-4 text-center ${isDark ? 'bg-white/[0.06] border-white/10' : 'bg-white border-neutral-200'}`}>
+              <div className={`text-xl font-bold leading-tight ${isDark ? '' : 'text-neutral-900'}`}>{fmtInt(totaisTipo.fluxo)}</div>
+              <div className={`text-[11px] uppercase tracking-wide mt-2 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Fluxo / mês</div>
             </div>
-            <div className="rounded-2xl bg-white/[0.06] border border-white/10 p-4 text-center">
-              <div className="text-lg font-bold leading-tight">{fmtMoney(totaisTipo.valor)}</div>
-              <div className="text-[11px] uppercase tracking-wide text-brand-gray-400 mt-2">Investimento</div>
+            <div className={`rounded-2xl border p-4 text-center ${isDark ? 'bg-white/[0.06] border-white/10' : 'bg-white border-neutral-200'}`}>
+              <div className={`text-lg font-bold leading-tight ${isDark ? '' : 'text-neutral-900'}`}>{fmtMoney(totaisTipo.valor)}</div>
+              <div className={`text-[11px] uppercase tracking-wide mt-2 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Investimento</div>
             </div>
           </div>
         )}
-
-        {/* Swipe hint */}
-        <p className="mt-8 text-[12px] text-brand-gray-500 flex items-center gap-1.5">
+        <p className={`mt-8 text-[12px] flex items-center gap-1.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
           <i className="ri-gesture-line" style={{ fontSize: 14 }} />
           Deslize para ver os pontos
         </p>
@@ -601,7 +603,7 @@ function MobileDividerSlide({ tipo, count, totaisTipo }) {
 }
 
 // ─── Slide por ponto: versão MOBILE ───
-function MobilePointSlide({ slide, selectionLabel, typesLabel }) {
+function MobilePointSlide({ slide, selectionLabel, typesLabel, isDark = true }) {
   const { point } = slide;
   const images = getPointDisplayImages(point);
   const [imageIndex, setImageIndex] = useState(0);
@@ -636,11 +638,11 @@ function MobilePointSlide({ slide, selectionLabel, typesLabel }) {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -32 }}
       transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-      className="h-full flex flex-col overflow-hidden rounded-2xl border border-white/10"
+      className={`h-full flex flex-col overflow-hidden rounded-2xl border ${isDark ? 'border-white/10' : 'border-neutral-200'}`}
     >
       {/* ── Imagem: 52% do espaço ── */}
       <div
-        className="relative flex-none bg-black/60 overflow-hidden"
+        className={`relative flex-none overflow-hidden ${isDark ? 'bg-black/60' : 'bg-neutral-100'}`}
         style={{ height: '52%' }}
         onTouchStart={handleImgTouchStart}
         onTouchEnd={handleImgTouchEnd}
@@ -656,17 +658,17 @@ function MobilePointSlide({ slide, selectionLabel, typesLabel }) {
             height="600"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-white/[0.03]">
+          <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-white/[0.03]' : 'bg-neutral-50'}`}>
             <i className="ri-image-line text-5xl text-brand-gray-700" />
           </div>
         )}
 
         {/* Gradiente na base da imagem para transição suave */}
-        <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[#0d0d0d] to-transparent pointer-events-none" />
+        <div className={`absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t pointer-events-none ${isDark ? 'from-[#0d0d0d] to-transparent' : 'from-white to-transparent'}`} />
 
         {/* Badge do formato */}
         <div className="absolute top-3 left-3">
-          <span className="rounded-full bg-black/65 backdrop-blur-sm px-3 py-1 text-[11px] font-semibold text-white border border-white/20">
+          <span className={`rounded-full backdrop-blur-sm px-3 py-1 text-[11px] font-semibold border ${isDark ? 'bg-black/65 text-white border-white/20' : 'bg-white/80 text-neutral-800 border-neutral-200'}`}>
             {point.tipo || 'Ponto'}
           </span>
         </div>
@@ -689,14 +691,14 @@ function MobilePointSlide({ slide, selectionLabel, typesLabel }) {
       </div>
 
       {/* ── Info: 48% restante ── */}
-      <div className="flex-1 min-h-0 flex flex-col bg-[#0d0d0d] overflow-hidden">
+      <div className={`flex-1 min-h-0 flex flex-col overflow-hidden ${isDark ? 'bg-[#0d0d0d]' : 'bg-white'}`}>
 
         {/* Nome e cidade */}
         <div className="px-4 pt-4 pb-3 flex-shrink-0">
-          <h3 className="text-[1.1rem] font-extrabold leading-snug text-white">
+          <h3 className={`text-[1.1rem] font-extrabold leading-snug ${isDark ? 'text-white' : 'text-neutral-900'}`}>
             {point.nome}
           </h3>
-          <p className="mt-1 text-[13px] text-brand-gray-400 flex items-center gap-1.5">
+          <p className={`mt-1 text-[13px] flex items-center gap-1.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
             <i className="ri-map-pin-2-line text-brand-orange flex-shrink-0" style={{ fontSize: 13 }} />
             {point.cidade || 'Sem cidade'}
           </p>
@@ -705,27 +707,27 @@ function MobilePointSlide({ slide, selectionLabel, typesLabel }) {
         {/* ── 3 métricas principais em cards ── */}
         <div className="px-4 flex-shrink-0">
           <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-xl bg-white/[0.05] border border-white/10 px-2 py-3 text-center">
+            <div className={`rounded-xl border px-2 py-3 text-center ${isDark ? 'bg-white/[0.05] border-white/10' : 'bg-neutral-50 border-neutral-200'}`}>
               <div className="text-[1rem] font-black text-brand-orange leading-none">
                 {fmtInt(Number(point.fluxo) || 0)}
               </div>
-              <div className="text-[10px] text-brand-gray-500 mt-1.5 uppercase tracking-wide leading-tight">
+              <div className={`text-[10px] mt-1.5 uppercase tracking-wide leading-tight ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
                 Fluxo<br />/ mês
               </div>
             </div>
-            <div className="rounded-xl bg-white/[0.05] border border-white/10 px-2 py-3 text-center">
-              <div className="text-[1rem] font-black text-white leading-none">
+            <div className={`rounded-xl border px-2 py-3 text-center ${isDark ? 'bg-white/[0.05] border-white/10' : 'bg-neutral-50 border-neutral-200'}`}>
+              <div className={`text-[1rem] font-black leading-none ${isDark ? 'text-white' : 'text-neutral-900'}`}>
                 {fmtInt(Number(point.telas) || 0)}
               </div>
-              <div className="text-[10px] text-brand-gray-500 mt-1.5 uppercase tracking-wide leading-tight">
+              <div className={`text-[10px] mt-1.5 uppercase tracking-wide leading-tight ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
                 Pontos<br />Impacto
               </div>
             </div>
-            <div className="rounded-xl bg-white/[0.05] border border-white/10 px-2 py-3 text-center">
-              <div className="text-[0.875rem] font-black text-white leading-none">
+            <div className={`rounded-xl border px-2 py-3 text-center ${isDark ? 'bg-white/[0.05] border-white/10' : 'bg-neutral-50 border-neutral-200'}`}>
+              <div className={`text-[0.875rem] font-black leading-none ${isDark ? 'text-white' : 'text-neutral-900'}`}>
                 {fmtMoney(Number(point.preco) || 0)}
               </div>
-              <div className="text-[10px] text-brand-gray-500 mt-1.5 uppercase tracking-wide leading-tight">
+              <div className={`text-[10px] mt-1.5 uppercase tracking-wide leading-tight ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
                 Invest.<br />/ mês
               </div>
             </div>
@@ -736,7 +738,7 @@ function MobilePointSlide({ slide, selectionLabel, typesLabel }) {
         <div className="mt-auto flex flex-col flex-shrink-0">
           <button
             onClick={() => setExpanded((v) => !v)}
-            className="flex items-center justify-between px-4 py-3 text-[13px] text-brand-gray-400 border-t border-white/[0.07] active:bg-white/[0.03] transition"
+            className={`flex items-center justify-between px-4 py-3 text-[13px] border-t transition ${isDark ? 'text-brand-gray-400 border-white/[0.07] active:bg-white/[0.03]' : 'text-neutral-500 border-neutral-100 active:bg-neutral-50'}`}
           >
             <span>{expanded ? 'Ocultar detalhes' : 'Ver mais detalhes'}</span>
             <i className={`ri-arrow-${expanded ? 'up' : 'down'}-s-line`} style={{ fontSize: 16 }} />
@@ -753,19 +755,19 @@ function MobilePointSlide({ slide, selectionLabel, typesLabel }) {
               >
                 <div className="px-4 pb-4 space-y-2.5">
                   {point.endereco ? (
-                    <div className="flex items-start gap-2.5 text-[13px] text-brand-gray-300">
+                    <div className={`flex items-start gap-2.5 text-[13px] ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
                       <i className="ri-map-pin-line text-brand-orange flex-shrink-0 mt-0.5" style={{ fontSize: 14 }} />
                       <span>{point.endereco}</span>
                     </div>
                   ) : null}
                   {point.publico ? (
-                    <div className="flex items-start gap-2.5 text-[13px] text-brand-gray-300">
+                    <div className={`flex items-start gap-2.5 text-[13px] ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
                       <i className="ri-user-smile-line text-brand-orange flex-shrink-0 mt-0.5" style={{ fontSize: 14 }} />
                       <span>Público: {point.publico}</span>
                     </div>
                   ) : null}
                   {Number(point.insercoes) > 0 ? (
-                    <div className="flex items-start gap-2.5 text-[13px] text-brand-gray-300">
+                    <div className={`flex items-start gap-2.5 text-[13px] ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
                       <i className="ri-repeat-2-line text-brand-orange flex-shrink-0 mt-0.5" style={{ fontSize: 14 }} />
                       <span>{fmtInt(Number(point.insercoes))} inserções/mês</span>
                     </div>
@@ -789,6 +791,7 @@ export default function MidiaKitSlidesMode({
   setSelectedPracas,
   selectedTipos = [],
   setSelectedTipos,
+  isDark = true,
 }) {
   const isMobile = useIsMobile();
   const [phase, setPhase] = useState('lobby');
@@ -827,7 +830,11 @@ export default function MidiaKitSlidesMode({
       setPhase('lobby');
       setIndex(0);
       setSelectedPointIds(new Set(filteredPoints.map((p) => p.id || p._id)));
+      document.body.setAttribute('data-slides-active', '1');
+    } else {
+      document.body.removeAttribute('data-slides-active');
     }
+    return () => document.body.removeAttribute('data-slides-active');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -967,14 +974,14 @@ export default function MidiaKitSlidesMode({
     : 'Todos os formatos';
 
   return (
-    <div ref={containerRef} className="fixed inset-0 z-[95] bg-black text-white overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(254,92,43,0.22),transparent_34%)]" />
+    <div ref={containerRef} className={`fixed inset-0 z-[95] overflow-hidden ${isDark ? 'bg-black text-white' : 'bg-[#f4f5f7] text-neutral-900'}`}>
+      <div className={`absolute inset-0 ${isDark ? 'bg-[radial-gradient(circle_at_20%_18%,rgba(254,92,43,0.22),transparent_34%)]' : 'bg-[radial-gradient(circle_at_20%_18%,rgba(254,92,43,0.08),transparent_34%)]'}`} />
       <div className="relative z-[1] h-full flex flex-col">
         {phase === 'lobby' ? (
           <>
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 z-20 rounded-xl border border-white/20 bg-black/40 p-2 text-white/70 hover:text-white"
+              className={`absolute top-4 right-4 z-20 rounded-xl border p-2 ${isDark ? 'border-white/20 bg-black/40 text-white/70 hover:text-white' : 'border-neutral-300 bg-white/80 text-neutral-500 hover:text-neutral-900'}`}
             >
               <X size={18} />
             </button>
@@ -989,6 +996,7 @@ export default function MidiaKitSlidesMode({
               setSelectedPracas={setSelectedPracas}
               selectedTipos={selectedTipos}
               setSelectedTipos={setSelectedTipos}
+              isDark={isDark}
             />
           </>
         ) : (
@@ -998,24 +1006,24 @@ export default function MidiaKitSlidesMode({
 
             {/* Desktop header (informações completas) */}
             <div className="hidden md:flex items-center justify-between gap-3 mb-3">
-              <div className="flex-1 rounded-xl border border-white/15 bg-black/35 px-4 py-2.5">
+              <div className={`flex-1 rounded-xl border px-4 py-2.5 ${isDark ? 'border-white/15 bg-black/35' : 'border-neutral-200 bg-white/80'}`}>
                 <div className="text-[10px] uppercase tracking-wide text-brand-orange">Apresentação ativa</div>
-                <div className="text-base font-extrabold tracking-tight text-white">{topViewingText}</div>
-                <div className="mt-1 grid grid-cols-4 gap-x-3 gap-y-0.5 text-[11px] text-brand-gray-300">
-                  <span>Pontos: <strong className="text-white">{fmtInt(totals.quantidade)}</strong></span>
-                  <span>Pontos de Impacto: <strong className="text-white">{fmtInt(totals.telasTotal)}</strong></span>
-                  <span>Fluxo: <strong className="text-white">{fmtInt(totals.fluxoTotal)}</strong></span>
-                  <span>Invest.: <strong className="text-white">{fmtMoney(totals.valorTotal)}</strong></span>
+                <div className={`text-base font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>{topViewingText}</div>
+                <div className={`mt-1 grid grid-cols-4 gap-x-3 gap-y-0.5 text-[11px] ${isDark ? 'text-brand-gray-300' : 'text-neutral-500'}`}>
+                  <span>Pontos: <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{fmtInt(totals.quantidade)}</strong></span>
+                  <span>Pontos de Impacto: <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{fmtInt(totals.telasTotal)}</strong></span>
+                  <span>Fluxo: <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{fmtInt(totals.fluxoTotal)}</strong></span>
+                  <span>Invest.: <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{fmtMoney(totals.valorTotal)}</strong></span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setPhase('lobby')} className="rounded-xl border border-white/20 bg-black/35 px-3 py-1.5 text-xs text-white/70 hover:text-white">
+                <button type="button" onClick={() => setPhase('lobby')} className={`rounded-xl border px-3 py-1.5 text-xs ${isDark ? 'border-white/20 bg-black/35 text-white/70 hover:text-white' : 'border-neutral-300 bg-white/80 text-neutral-500 hover:text-neutral-900'}`}>
                   ← Seleção
                 </button>
-                <button type="button" onClick={toggleFullscreen} className="rounded-xl border border-white/20 bg-black/35 p-2 text-white/70 hover:text-white" title={isFullscreen ? 'Sair do fullscreen' : 'Tela cheia'}>
+                <button type="button" onClick={toggleFullscreen} className={`rounded-xl border p-2 ${isDark ? 'border-white/20 bg-black/35 text-white/70 hover:text-white' : 'border-neutral-300 bg-white/80 text-neutral-500 hover:text-neutral-900'}`} title={isFullscreen ? 'Sair do fullscreen' : 'Tela cheia'}>
                   {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                 </button>
-                <button onClick={onClose} className="rounded-xl border border-white/20 bg-black/35 p-2 text-white/75 hover:text-white">
+                <button onClick={onClose} className={`rounded-xl border p-2 ${isDark ? 'border-white/20 bg-black/35 text-white/75 hover:text-white' : 'border-neutral-300 bg-white/80 text-neutral-500 hover:text-neutral-900'}`}>
                   <X size={16} />
                 </button>
               </div>
@@ -1026,7 +1034,7 @@ export default function MidiaKitSlidesMode({
               <button
                 type="button"
                 onClick={() => setPhase('lobby')}
-                className="h-10 w-10 flex-shrink-0 flex items-center justify-center rounded-xl border border-white/20 bg-black/40 text-white/70 active:bg-white/10 transition"
+                className={`h-10 w-10 flex-shrink-0 flex items-center justify-center rounded-xl border transition ${isDark ? 'border-white/20 bg-black/40 text-white/70 active:bg-white/10' : 'border-neutral-300 bg-white/80 text-neutral-500 active:bg-neutral-100'}`}
                 aria-label="Voltar à seleção"
               >
                 <ChevronLeft size={18} />
@@ -1035,13 +1043,13 @@ export default function MidiaKitSlidesMode({
                 <div className="text-[11px] text-brand-orange uppercase tracking-wide">
                   {active?.type === 'divider' ? 'Formato' : 'Ponto'}
                 </div>
-                <div className="text-sm font-bold text-white truncate leading-tight">
+                <div className={`text-sm font-bold truncate leading-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
                   {active?.type === 'divider' ? active.tipo : (active?.point?.nome ?? '—')}
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="h-10 w-10 flex-shrink-0 flex items-center justify-center rounded-xl border border-white/20 bg-black/40 text-white/75 active:bg-white/10 transition"
+                className={`h-10 w-10 flex-shrink-0 flex items-center justify-center rounded-xl border transition ${isDark ? 'border-white/20 bg-black/40 text-white/75 active:bg-white/10' : 'border-neutral-300 bg-white/80 text-neutral-500 active:bg-neutral-100'}`}
                 aria-label="Fechar apresentação"
               >
                 <X size={16} />
@@ -1050,7 +1058,7 @@ export default function MidiaKitSlidesMode({
 
             {/* ── ÁREA DO SLIDE ── */}
             <div
-              className="flex-1 min-h-0 rounded-2xl md:rounded-3xl border border-white/15 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-2 md:p-4 overflow-hidden relative"
+              className={`flex-1 min-h-0 rounded-2xl md:rounded-3xl border p-2 md:p-4 overflow-hidden relative ${isDark ? 'border-white/15 bg-gradient-to-b from-white/[0.05] to-white/[0.02]' : 'border-neutral-200 bg-white shadow-sm'}`}
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
             >
@@ -1068,6 +1076,7 @@ export default function MidiaKitSlidesMode({
                         tipo={active.tipo}
                         count={active.count}
                         totaisTipo={active.totaisTipo}
+                        isDark={isDark}
                       />
                     ) : (
                       <DividerSlide
@@ -1076,6 +1085,7 @@ export default function MidiaKitSlidesMode({
                         count={active.count}
                         totaisTipo={active.totaisTipo}
                         points={active.points}
+                        isDark={isDark}
                       />
                     )
                   ) : isMobile ? (
@@ -1084,6 +1094,7 @@ export default function MidiaKitSlidesMode({
                       slide={active}
                       selectionLabel={selectionLabel}
                       typesLabel={typesLabel}
+                      isDark={isDark}
                     />
                   ) : (
                     <PointSlide
@@ -1091,6 +1102,7 @@ export default function MidiaKitSlidesMode({
                       slide={active}
                       selectionLabel={selectionLabel}
                       typesLabel={typesLabel}
+                      isDark={isDark}
                     />
                   )}
                 </AnimatePresence>
@@ -1104,26 +1116,26 @@ export default function MidiaKitSlidesMode({
                   type="button"
                   onClick={() => setIndex((i) => Math.max(0, i - 1))}
                   disabled={index === 0}
-                  className="h-11 w-11 flex items-center justify-center rounded-full border border-white/20 bg-black/40 text-white/70 hover:text-white active:bg-white/10 disabled:opacity-30 transition"
+                  className={`h-11 w-11 flex items-center justify-center rounded-full border disabled:opacity-30 transition ${isDark ? 'border-white/20 bg-black/40 text-white/70 hover:text-white active:bg-white/10' : 'border-neutral-300 bg-white/80 text-neutral-500 hover:text-neutral-900 active:bg-neutral-100'}`}
                   aria-label="Slide anterior"
                 >
                   <ChevronLeft size={20} />
                 </button>
-                <span className="text-xs uppercase tracking-[0.14em] text-white/60 min-w-[64px] text-center select-none">
+                <span className={`text-xs uppercase tracking-[0.14em] min-w-[64px] text-center select-none ${isDark ? 'text-white/60' : 'text-neutral-500'}`}>
                   {slides.length ? `${index + 1} / ${slides.length}` : '—'}
                 </span>
                 <button
                   type="button"
                   onClick={() => setIndex((i) => Math.min(slides.length - 1, i + 1))}
                   disabled={index >= slides.length - 1}
-                  className="h-11 w-11 flex items-center justify-center rounded-full border border-white/20 bg-black/40 text-white/70 hover:text-white active:bg-white/10 disabled:opacity-30 transition"
+                  className={`h-11 w-11 flex items-center justify-center rounded-full border disabled:opacity-30 transition ${isDark ? 'border-white/20 bg-black/40 text-white/70 hover:text-white active:bg-white/10' : 'border-neutral-300 bg-white/80 text-neutral-500 hover:text-neutral-900 active:bg-neutral-100'}`}
                   aria-label="Próximo slide"
                 >
                   <ChevronRight size={20} />
                 </button>
               </div>
               {/* Barra de progresso */}
-              <div className="w-full h-1 rounded-full bg-white/10">
+              <div className={`w-full h-1 rounded-full ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`}>
                 <div
                   className="h-full rounded-full bg-brand-orange transition-all duration-300 ease-out"
                   style={{ width: slides.length > 0 ? `${((index + 1) / slides.length) * 100}%` : '0%' }}

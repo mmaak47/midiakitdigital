@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Gauge } from 'lucide-react';
+import { Gauge, Star, TrendingUp } from 'lucide-react';
 
 const CoverageMeter = memo(function CoverageMeter({ coverage, isDark = true }) {
   if (!coverage) return null;
@@ -17,10 +17,10 @@ const CoverageMeter = memo(function CoverageMeter({ coverage, isDark = true }) {
       </div>
 
       <div className="mt-5 rounded-xl border border-brand-orange/30 bg-gradient-to-r from-brand-orange/20 to-brand-orange/5 p-4">
-        <div className={`text-sm font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-neutral-800'}`}>⭐ Nivel: <span className="text-brand-orange">{coverage.nivel}</span></div>
+        <div className={`text-sm font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-neutral-800'}`}><Star size={14} className="text-brand-orange" /> Nivel: <span className="text-brand-orange">{coverage.nivel}</span></div>
         <p className={`text-xs mt-2 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{coverage.mensagem}</p>
         {coverage.faltamParaProximoNivel > 0 && (
-          <p className={`text-xs mt-2 font-medium ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>📈 +{coverage.faltamParaProximoNivel} ponto{coverage.faltamParaProximoNivel > 1 ? 's' : ''} = próximo nível</p>
+          <p className={`text-xs mt-2 font-medium flex items-center gap-1.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}><TrendingUp size={12} className="text-brand-orange" /> +{coverage.faltamParaProximoNivel} ponto{coverage.faltamParaProximoNivel > 1 ? 's' : ''} = próximo nível</p>
         )}
       </div>
     </section>

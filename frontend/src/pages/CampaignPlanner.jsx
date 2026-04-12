@@ -8,13 +8,14 @@ import {
   Cross, Hospital, GraduationCap, BookOpen, HardHat, Home, ShoppingBag,
   UtensilsCrossed, Calculator, Scale, Cog, MoreHorizontal,
   Car, Dumbbell, Scissors, PawPrint, Pill, ShoppingCart, Landmark, Plane, Laptop, Cpu,
-  Search, Brain, Bot, RefreshCw, MessageCircle,
+  Search, Brain, Bot, RefreshCw, MessageCircle, Monitor,
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import CampaignScore from '../components/CampaignScore';
 import PointCard from '../components/PointCard';
 import PointModal from '../components/PointModal';
 import { fetchPontos, fetchGeoAudienceProfiles, fetchCensusProfiles, fetchAICampaignAnalysis, fetchAIPlanDecision, fetchAICampaignPointInsights } from '../lib/api';
+import { getPrimaryPointDisplayImage } from '../lib/pointImages';
 import {
   SEGMENTOS,
   OBJETIVOS,
@@ -1069,176 +1070,152 @@ export default function CampaignPlanner() {
                 <div className="space-y-3">
                   {rankVisible.map((pt, i) => {
                     const isInPlan = selectedIds.has(pt.id);
+                    const thumbUrl = getPrimaryPointDisplayImage(pt);
                     return (
                       <motion.div
                         key={pt.id}
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.03 }}
                         onClick={() => setSelectedPoint(pt)}
-                        className={`rounded-xl border p-4 cursor-pointer transition-all hover:scale-[1.005] ${
+                        className={`rounded-2xl border overflow-hidden flex cursor-pointer transition-all hover:shadow-md ${
                           isInPlan
                             ? isDark
-                              ? 'border-brand-orange/30 bg-brand-orange/[0.06]'
-                              : 'border-brand-orange/30 bg-brand-orange/5'
+                              ? 'border-brand-orange/30 bg-brand-orange/[0.06] shadow-sm shadow-brand-orange/10'
+                              : 'border-brand-orange/30 bg-brand-orange/5 shadow-sm'
                             : isDark
                               ? 'border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]'
-                              : 'border-neutral-100 bg-white hover:bg-neutral-50'
+                              : 'border-neutral-200 bg-white hover:bg-neutral-50 shadow-sm'
                         }`}
                       >
-                        <div className="flex items-start gap-4">
-                          {/* Rank badge */}
-                          <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
+                        {/* Thumbnail */}
+                        <div className="relative flex-shrink-0 w-24 sm:w-28">
+                          {thumbUrl ? (
+                            <img src={thumbUrl} alt={pt.nome} className="w-full h-full object-cover min-h-[120px]" onError={e => { e.target.style.display = 'none'; }} />
+                          ) : (
+                            <div className={`w-full h-full min-h-[120px] flex items-center justify-center ${isDark ? 'bg-white/[0.04]' : 'bg-neutral-100'}`}>
+                              <Monitor size={20} className={isDark ? 'text-white/20' : 'text-neutral-300'} />
+                            </div>
+                          )}
+                          {/* Rank badge overlay */}
+                          <div className={`absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold ${
                             i === 0 ? 'bg-brand-orange text-white' :
-                            i < 3 ? (isDark ? 'bg-brand-orange/20 text-brand-orange' : 'bg-brand-orange/10 text-brand-orange') :
-                            isDark ? 'bg-white/10 text-white/60' : 'bg-neutral-100 text-neutral-500'
+                            i < 3 ? 'bg-brand-orange/80 text-white' :
+                            'bg-black/60 text-white/80'
                           }`}>
-                            {i + 1}º
+                            {i + 1}
                           </div>
+                        </div>
 
-                          <div className="flex-1 min-w-0">
-                            {/* Name + score */}
-                            <div className="flex items-center justify-between gap-3 mb-1">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-neutral-900'}`}>{pt.nome}</span>
+                        {/* Content */}
+                        <div className="p-3 sm:p-4 flex-1 min-w-0 flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <div className="min-w-0">
+                                <p className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-neutral-900'}`}>{pt.nome}</p>
+                                <p className={`text-xs mt-0.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>{pt.tipo} · {pt.cidade || '—'}</p>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
                                 {isInPlan && (
-                                  <span className="flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-orange/20 text-brand-orange">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-orange/20 text-brand-orange">
                                     No plano
                                   </span>
                                 )}
                                 {isInPlan && result?._pointRoles?.[pt.id] && (
-                                  <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                     result._pointRoles[pt.id] === 'premium'
                                       ? 'bg-amber-500/20 text-amber-500'
                                       : result._pointRoles[pt.id] === 'support'
                                         ? 'bg-blue-500/20 text-blue-400'
                                         : 'bg-emerald-500/20 text-emerald-400'
                                   }`}>
-                                    {result._pointRoles[pt.id] === 'premium' ? '★ Premium' : result._pointRoles[pt.id] === 'support' ? '◆ Suporte' : '◉ Cobertura'}
+                                    {result._pointRoles[pt.id] === 'premium' ? 'Premium' : result._pointRoles[pt.id] === 'support' ? 'Suporte' : 'Cobertura'}
                                   </span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                <span className={`text-2xl font-bold ${
-                                  pt.compatibilidade >= 70 ? 'text-emerald-500' :
-                                  pt.compatibilidade >= 50 ? 'text-brand-orange' :
-                                  pt.compatibilidade >= 35 ? 'text-amber-500' :
-                                  isDark ? 'text-white/40' : 'text-neutral-400'
-                                }`}>
-                                  {pt.compatibilidade}
-                                </span>
-                                <span className={`text-xs ${isDark ? 'text-white/30' : 'text-neutral-400'}`}>/100</span>
-                              </div>
                             </div>
 
-                            {/* Meta */}
-                            <div className={`flex flex-wrap gap-x-3 gap-y-1 text-xs mb-2.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>
-                              <span>{pt.tipo || 'Formato'}</span>
-                              <span>•</span>
-                              <span>Público {pt.publico || '—'}</span>
-                              <span>•</span>
-                              <span>{formatInt(pt.fluxo || 0)} impactos/mês</span>
-                              <span>•</span>
-                              <span>{formatMoney(pt.preco || 0)}/mês</span>
-                              {pt.cpmPonto > 0 && (
-                                <>
-                                  <span>•</span>
-                                  <span>CPM R$ {pt.cpmPonto.toFixed(2)}</span>
-                                </>
+                            {pt.endereco && <p className={`text-xs truncate mb-1.5 ${isDark ? 'text-white/30' : 'text-neutral-400'}`}>{pt.endereco}</p>}
+                          </div>
+
+                          {/* Metrics row */}
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                            {pt.fluxo > 0 && (
+                              <span className={`text-xs ${isDark ? 'text-white/50' : 'text-neutral-600'}`}>
+                                <span className="font-medium">{formatInt(pt.fluxo)}</span> imp/mês
+                              </span>
+                            )}
+                            {pt.telas > 0 && (
+                              <span className={`text-xs ${isDark ? 'text-white/50' : 'text-neutral-600'}`}>
+                                <span className="font-medium">{pt.telas}</span> tela{pt.telas !== 1 ? 's' : ''}
+                              </span>
+                            )}
+                            {(pt.preco || 0) > 0 && (
+                              <span className="text-xs font-semibold text-brand-orange">
+                                {formatMoney(pt.preco)}/mês
+                              </span>
+                            )}
+                            {pt.cpmPonto > 0 && (
+                              <span className={`text-xs ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>
+                                CPM R$ {pt.cpmPonto.toFixed(2)}
+                              </span>
+                            )}
+                            <span className={`ml-auto text-lg font-bold ${
+                              pt.compatibilidade >= 70 ? 'text-emerald-500' :
+                              pt.compatibilidade >= 50 ? 'text-brand-orange' :
+                              pt.compatibilidade >= 35 ? 'text-amber-500' :
+                              isDark ? 'text-white/40' : 'text-neutral-400'
+                            }`}>
+                              {pt.compatibilidade}<span className={`text-[10px] font-normal ${isDark ? 'text-white/25' : 'text-neutral-400'}`}>/100</span>
+                            </span>
+                          </div>
+
+                          {/* GeoAudience Profile Badge */}
+                          {pt.geoProfile && pt.geoProfile.neighborhood_type !== 'indefinido' && (
+                            <div className={`flex flex-wrap items-center gap-2 mt-2 pt-2 border-t ${isDark ? 'border-white/5' : 'border-neutral-100'}`}>
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                isDark ? 'bg-indigo-500/15 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
+                              }`}>
+                                <MapPin size={10} />
+                                {pt.geoProfile.neighborhood_label}
+                              </span>
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                pt.geoProfile.socioeconomic_level === 'alto'
+                                  ? isDark ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-50 text-amber-700'
+                                  : pt.geoProfile.socioeconomic_level === 'medio-alto'
+                                    ? isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-700'
+                                    : isDark ? 'bg-white/10 text-white/50' : 'bg-neutral-100 text-neutral-600'
+                              }`}>
+                                {pt.geoProfile.socioeconomic_level === 'alto' ? 'Nível Alto' :
+                                 pt.geoProfile.socioeconomic_level === 'medio-alto' ? 'Nível Médio-Alto' :
+                                 pt.geoProfile.socioeconomic_level === 'medio' ? 'Nível Médio' :
+                                 'Nível Médio-Baixo'}
+                              </span>
+                              {pt.geoProfile.urban_density && (
+                                <span className={`text-[10px] ${isDark ? 'text-white/25' : 'text-neutral-400'}`}>
+                                  Densidade {pt.geoProfile.urban_density} • {pt.geoProfile.total_pois || 0} POIs
+                                </span>
                               )}
                             </div>
+                          )}
 
-                            {/* Score breakdown bars */}
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1.5">
-                              {Object.entries(pt.dimensoes || {})
-                                .filter(([, v]) => v > 0)
-                                .sort((a, b) => b[1] - a[1])
-                                .slice(0, 4)
-                                .map(([dim, val]) => (
-                                  <div key={dim} className="flex items-center gap-2">
-                                    <span className={`text-[10px] w-16 flex-shrink-0 ${isDark ? 'text-white/30' : 'text-neutral-400'}`}>
-                                      {DIM_LABELS[dim] || dim}
-                                    </span>
-                                    <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`}>
-                                      <div
-                                        className={`h-full rounded-full transition-all ${DIM_COLORS[dim] || 'bg-brand-orange'}`}
-                                        style={{ width: `${Math.round(val)}%` }}
-                                      />
-                                    </div>
-                                    <span className={`text-[10px] w-6 text-right ${isDark ? 'text-white/30' : 'text-neutral-400'}`}>{Math.round(val)}</span>
-                                  </div>
-                                ))}
+                          {/* Census Audience Profile Badge */}
+                          {pt.censusProfile && pt.censusProfile.perfil_dominante && (
+                            <div className={`flex flex-wrap items-center gap-2 mt-1.5 ${!pt.geoProfile ? `pt-2 border-t ${isDark ? 'border-white/5' : 'border-neutral-100'}` : ''}`}>
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                isDark ? 'bg-violet-500/15 text-violet-300' : 'bg-violet-50 text-violet-700'
+                              }`}>
+                                <Users size={10} />
+                                {CENSUS_PROFILE_LABELS[pt.censusProfile.perfil_dominante] || pt.censusProfile.perfil_dominante}
+                              </span>
+                              {pt.censusProfile.score_geral > 0 && (
+                                <span className={`text-[10px] ${isDark ? 'text-white/25' : 'text-neutral-400'}`}>
+                                  Score {Math.round(pt.censusProfile.score_geral * 100)}%
+                                  {pt.censusProfile.total_pois > 0 && ` • ${pt.censusProfile.total_pois} POIs`}
+                                </span>
+                              )}
                             </div>
-
-                            {/* Justificativa estruturada */}
-                            {pt.justificativaCompleta ? (
-                              <div className={`text-xs mt-2 space-y-0.5 ${isDark ? 'text-white/45' : 'text-neutral-500'}`}>
-                                {pt.justificativaCompleta.demografico && (
-                                  <p>{pt.justificativaCompleta.demografico}</p>
-                                )}
-                                {pt.justificativaCompleta.entorno && (
-                                  <p>{pt.justificativaCompleta.entorno}</p>
-                                )}
-                                {pt.justificativaCompleta.comparativo && (
-                                  <p className="font-medium">{pt.justificativaCompleta.comparativo}</p>
-                                )}
-                                {pt.justificativaCompleta.limitacao && (
-                                  <p className={`italic ${isDark ? 'text-white/25' : 'text-neutral-400'}`}>{pt.justificativaCompleta.limitacao}</p>
-                                )}
-                              </div>
-                            ) : (
-                              <p className={`text-xs mt-2 ${isDark ? 'text-white/35' : 'text-neutral-400'}`}>
-                                {pt.motivoPrincipal}
-                              </p>
-                            )}
-
-                            {/* GeoAudience Profile Badge */}
-                            {pt.geoProfile && pt.geoProfile.neighborhood_type !== 'indefinido' && (
-                              <div className={`flex flex-wrap items-center gap-2 mt-2 pt-2 border-t ${isDark ? 'border-white/5' : 'border-neutral-100'}`}>
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                                  isDark ? 'bg-indigo-500/15 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
-                                }`}>
-                                  <MapPin size={10} />
-                                  {pt.geoProfile.neighborhood_label}
-                                </span>
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                                  pt.geoProfile.socioeconomic_level === 'alto'
-                                    ? isDark ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-50 text-amber-700'
-                                    : pt.geoProfile.socioeconomic_level === 'medio-alto'
-                                      ? isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-700'
-                                      : isDark ? 'bg-white/10 text-white/50' : 'bg-neutral-100 text-neutral-600'
-                                }`}>
-                                  {pt.geoProfile.socioeconomic_level === 'alto' ? 'Nível Alto' :
-                                   pt.geoProfile.socioeconomic_level === 'medio-alto' ? 'Nível Médio-Alto' :
-                                   pt.geoProfile.socioeconomic_level === 'medio' ? 'Nível Médio' :
-                                   'Nível Médio-Baixo'}
-                                </span>
-                                {pt.geoProfile.urban_density && (
-                                  <span className={`text-[10px] ${isDark ? 'text-white/25' : 'text-neutral-400'}`}>
-                                    Densidade {pt.geoProfile.urban_density} • {pt.geoProfile.total_pois || 0} POIs
-                                  </span>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Census Audience Profile Badge */}
-                            {pt.censusProfile && pt.censusProfile.perfil_dominante && (
-                              <div className={`flex flex-wrap items-center gap-2 mt-1.5 ${!pt.geoProfile ? `pt-2 border-t ${isDark ? 'border-white/5' : 'border-neutral-100'}` : ''}`}>
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                                  isDark ? 'bg-violet-500/15 text-violet-300' : 'bg-violet-50 text-violet-700'
-                                }`}>
-                                  <Users size={10} />
-                                  {CENSUS_PROFILE_LABELS[pt.censusProfile.perfil_dominante] || pt.censusProfile.perfil_dominante}
-                                </span>
-                                {pt.censusProfile.score_geral > 0 && (
-                                  <span className={`text-[10px] ${isDark ? 'text-white/25' : 'text-neutral-400'}`}>
-                                    Score {Math.round(pt.censusProfile.score_geral * 100)}%
-                                    {pt.censusProfile.total_pois > 0 && ` • ${pt.censusProfile.total_pois} POIs`}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                          )}
                         </div>
                       </motion.div>
                     );

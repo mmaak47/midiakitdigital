@@ -563,7 +563,7 @@ export default function PropostaPublica() {
 
       {/* Approval modal */}
       {approveModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
             <h3 className="text-lg font-bold text-gray-900 mb-1">Confirmar aprovação</h3>
             <p className="text-sm text-gray-500 mb-4">Digite seu nome para registrar a aprovação.</p>

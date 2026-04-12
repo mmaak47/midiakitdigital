@@ -27,7 +27,7 @@ export default {
       fontFamily: {
         heading: ['Poppins', 'system-ui', 'sans-serif'],
         display: ['Syne', 'Poppins', 'system-ui', 'sans-serif'],
-        sans: ['DM Sans', 'Montserrat', 'system-ui', 'sans-serif'],
+        sans: ['Montserrat', 'system-ui', 'sans-serif'],
         body: ['Montserrat', 'system-ui', 'sans-serif'],
         logo: ['Bicyclette', 'Poppins', 'system-ui', 'sans-serif'],
       },

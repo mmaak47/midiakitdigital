@@ -139,7 +139,7 @@ function buildAuditHtml(filtered, filteredStats, filterCidade) {
       ? `<span style="font-size:9px;background:rgba(254,92,43,0.15);color:#FE5C2B;padding:1px 5px;border-radius:3px;font-weight:600;margin-left:4px">${item.telas} telas</span>`
       : '';
     const divergeTag = item.divergente
-      ? `<span style="font-size:9px;background:rgba(234,179,8,0.15);color:#eab308;padding:1px 5px;border-radius:3px;font-weight:600;margin-left:4px">⚠ ${item.nome}</span>`
+      ? `<span style="font-size:9px;background:rgba(234,179,8,0.15);color:#eab308;padding:1px 5px;border-radius:3px;font-weight:600;margin-left:4px">! ${item.nome}</span>`
       : '';
     const onlineIcon = item.status === 'online'
       ? '<span style="color:#4ade80;font-size:10px">●</span>'

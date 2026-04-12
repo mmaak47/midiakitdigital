@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Upload, X, Send, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
+import { Loader2, Upload, X, Send, CheckCircle2, AlertCircle, FileText, MessageCircle, WifiOff, AlertTriangle } from 'lucide-react';
 import { submitNovaVenda } from '../../lib/api';
 
 const TIPOS_NEGOCIO = ['Nova Venda', 'Renovação'];
@@ -116,7 +116,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       if (piFile) fd.append('pi', piFile);
 
       const res = await submitNovaVenda(fd);
-      setResult({ ok: true, msg: res.message || 'Venda registrada e notificação enviada!' });
+      setResult({ ok: true, msg: res.message || 'Venda registrada e notificação enviada!', whatsapp: res.whatsapp_status || 'pendente' });
       setForm({ ...emptyForm });
       setSelectedPontos([]);
       setPiFile(null);
@@ -159,17 +159,52 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       </div>
 
       {result && (
-        <div className={`flex items-start gap-3 rounded-xl p-4 ${result.ok
-          ? isDark ? 'bg-green-500/10 border border-green-500/20' : 'bg-green-50 border border-green-200'
-          : isDark ? 'bg-red-500/10 border border-red-500/20' : 'bg-red-50 border border-red-200'}`}>
-          {result.ok
-            ? <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-green-400" />
-            : <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-400" />}
-          <p className={`text-sm ${result.ok
-            ? isDark ? 'text-green-300' : 'text-green-700'
-            : isDark ? 'text-red-300' : 'text-red-600'}`}>
-            {result.msg}
-          </p>
+        <div className="space-y-2">
+          <div className={`flex items-start gap-3 rounded-xl p-4 ${result.ok
+            ? isDark ? 'bg-green-500/10 border border-green-500/20' : 'bg-green-50 border border-green-200'
+            : isDark ? 'bg-red-500/10 border border-red-500/20' : 'bg-red-50 border border-red-200'}`}>
+            {result.ok
+              ? <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-green-400" />
+              : <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-400" />}
+            <p className={`text-sm ${result.ok
+              ? isDark ? 'text-green-300' : 'text-green-700'
+              : isDark ? 'text-red-300' : 'text-red-600'}`}>
+              {result.msg}
+            </p>
+          </div>
+
+          {result.ok && result.whatsapp && (
+            <div className={`flex items-center gap-2.5 rounded-xl px-4 py-3 border ${
+              result.whatsapp === 'enviado'
+                ? isDark ? 'bg-green-500/10 border-green-500/20' : 'bg-green-50 border-green-200'
+                : result.whatsapp === 'nao_configurado'
+                  ? isDark ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-yellow-50 border-yellow-200'
+                  : isDark ? 'bg-red-500/10 border-red-500/20' : 'bg-red-50 border-red-200'
+            }`}>
+              {result.whatsapp === 'enviado' ? (
+                <>
+                  <MessageCircle size={16} className="shrink-0 text-green-400" />
+                  <span className={`text-sm font-medium ${isDark ? 'text-green-300' : 'text-green-700'}`}>
+                    WhatsApp enviado com sucesso
+                  </span>
+                </>
+              ) : result.whatsapp === 'nao_configurado' ? (
+                <>
+                  <WifiOff size={16} className="shrink-0 text-yellow-400" />
+                  <span className={`text-sm ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>
+                    WhatsApp não configurado — configure a Evolution API nas Configurações
+                  </span>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle size={16} className="shrink-0 text-red-400" />
+                  <span className={`text-sm ${isDark ? 'text-red-300' : 'text-red-600'}`}>
+                    Falha ao enviar WhatsApp — tente reenviar manualmente
+                  </span>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 

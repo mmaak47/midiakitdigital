@@ -118,17 +118,17 @@ function PointImageGallery({ ponto, onExpand }) {
         <>
           <button
             onClick={(e) => { e.stopPropagation(); setIdx((i) => (i - 1 + images.length) % images.length); }}
-            className="absolute left-1.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-black/75 border border-white/25 flex items-center justify-center text-white hover:bg-black transition z-10"
+            className="absolute left-1.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-black/75 border border-white/25 flex items-center justify-center hover:bg-black transition z-10"
             aria-label="Foto anterior"
           >
-            <i className="ri-arrow-left-s-line" style={{ fontSize: 13 }} />
+            <i className="ri-arrow-left-s-line" style={{ fontSize: 13, color: '#fff' }} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); setIdx((i) => (i + 1) % images.length); }}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-black/75 border border-white/25 flex items-center justify-center text-white hover:bg-black transition z-10"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-black/75 border border-white/25 flex items-center justify-center hover:bg-black transition z-10"
             aria-label="Próxima foto"
           >
-            <i className="ri-arrow-right-s-line" style={{ fontSize: 13 }} />
+            <i className="ri-arrow-right-s-line" style={{ fontSize: 13, color: '#fff' }} />
           </button>
           <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
             {images.map((_, i) => (
@@ -194,11 +194,11 @@ function Lightbox({ ponto, imageIndex, onClose, onChangeIndex }) {
           <img src={current} alt={ponto.nome} className="w-full max-h-[72vh] object-contain" loading="lazy" width="1280" height="720" />
           {hasMultiple && (
             <>
-              <button onClick={() => onChangeIndex((imageIndex - 1 + images.length) % images.length)} className="absolute left-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-black/70 border border-white/20 flex items-center justify-center text-white hover:bg-black transition" aria-label="Imagem anterior">
-                <i className="ri-arrow-left-s-line" style={{ fontSize: 20 }} />
+              <button onClick={() => onChangeIndex((imageIndex - 1 + images.length) % images.length)} className="absolute left-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-black/70 border border-white/20 flex items-center justify-center hover:bg-black transition" aria-label="Imagem anterior">
+                <i className="ri-arrow-left-s-line" style={{ fontSize: 20, color: '#fff' }} />
               </button>
-              <button onClick={() => onChangeIndex((imageIndex + 1) % images.length)} className="absolute right-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-black/70 border border-white/20 flex items-center justify-center text-white hover:bg-black transition" aria-label="Próxima imagem">
-                <i className="ri-arrow-right-s-line" style={{ fontSize: 20 }} />
+              <button onClick={() => onChangeIndex((imageIndex + 1) % images.length)} className="absolute right-3 top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-black/70 border border-white/20 flex items-center justify-center hover:bg-black transition" aria-label="Próxima imagem">
+                <i className="ri-arrow-right-s-line" style={{ fontSize: 20, color: '#fff' }} />
               </button>
             </>
           )}
@@ -224,7 +224,7 @@ function MapModal({ pontos, onClose, isDark }) {
     () => Array.from(new Set(pointsWithCoords.map((p) => p.cidade).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
     [pointsWithCoords]
   );
-  const [selectedCity, setSelectedCity] = useState('');
+  const [selectedCity, setSelectedCity] = useState('Londrina');
   const mapPoints = useMemo(
     () => (selectedCity ? pointsWithCoords.filter((p) => p.cidade === selectedCity) : pointsWithCoords),
     [pointsWithCoords, selectedCity]

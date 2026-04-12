@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-  Target, Repeat, Loader2, ChevronDown, ChevronUp
+  Target, Repeat, Loader2, ChevronDown, ChevronUp, Pencil, CheckCircle2, BarChart3, Users
 } from 'lucide-react';
 import { fetchGestaoAcumulado, updateGestaoMetasBatch, fetchGestaoVendedores, fetchGestaoVendas } from '../../lib/api';
 
@@ -264,7 +264,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
             onClick={startEditing}
             className="px-6 py-3 text-base font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-500 transition-colors shadow-lg"
           >
-            {globalMeta.parcela > 0 || globalMeta.recorrencia > 0 ? '✏️ Alterar Meta do Mês' : '🎯 Definir Meta do Mês'}
+            {globalMeta.parcela > 0 || globalMeta.recorrencia > 0 ? <><Pencil size={14} className="inline mr-1" />Alterar Meta do Mês</> : <><Target size={14} className="inline mr-1" />Definir Meta do Mês</>}
           </button>
         )}
       </div>
@@ -321,7 +321,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
               className="px-8 py-3 text-lg font-bold rounded-xl bg-green-600 text-white hover:bg-green-500 disabled:opacity-50 flex items-center gap-2 shadow-md transition-colors"
             >
               {savingMeta && <Loader2 size={20} className="animate-spin" />}
-              ✅ Salvar
+              <CheckCircle2 size={14} className="inline mr-1" /> Salvar
             </button>
             <button
               onClick={() => setEditingMeta(false)}
@@ -361,7 +361,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
       {currentMonth > 1 && (ytdGlobalMeta.parcela > 0 || ytdRealized.parcela > 0) && (
         <div className={`rounded-2xl border ${border} ${cardBg} p-5`}>
           <p className={`text-base font-bold mb-4 ${text}`}>
-            📊 Acumulado do Ano (Janeiro → {MESES[currentMonth - 1]})
+            <BarChart3 size={16} className="inline mr-1.5 text-brand-orange" />Acumulado do Ano (Janeiro → {MESES[currentMonth - 1]})
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className={`rounded-xl p-3 ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
@@ -389,7 +389,7 @@ export default function AcumuladoMeta({ isDark, ano }) {
       {/* ═══════ VENDEDORES ═══════ */}
       <div>
         <p className={`text-lg font-bold mb-4 ${text}`}>
-          👥 Vendedores — {MESES[currentMonth - 1]}
+          <Users size={16} className="inline mr-1.5 text-brand-orange" />Vendedores — {MESES[currentMonth - 1]}
         </p>
         {allVendedorKeys.length === 0 ? (
           <p className={`text-center py-8 ${textMuted}`}>Nenhum vendedor com dados neste período.</p>

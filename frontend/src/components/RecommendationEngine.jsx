@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, Clock3, MapPin, Sparkles, Star, Target, TrendingUp, Zap } from 'lucide-react';
+import { ChevronDown, ChevronUp, CircleDollarSign, Clock3, Footprints, Home, MapPin, Monitor, Radio, Search, Sparkles, Star, Target, TrendingUp, Users, Zap } from 'lucide-react';
 import { computeScreenScore, SCREEN_SCORE_WEIGHTS } from '../lib/strategy';
 
 /* ─── Constants ─── */
@@ -103,7 +103,7 @@ function RecommendationCard({ scored, isDark, onAdd, expanded, onToggle }) {
                 const pct = Math.max(0, Math.min(100, val));
                 return (
                   <div key={key} className="flex items-center gap-2 text-xs" title={DIM_DESC[key]}>
-                    <span className="w-4 text-center">{DIM_ICONS[key] || '·'}</span>
+                    <span className="w-4 text-center flex items-center justify-center">{DIM_ICONS[key] ? (() => { const DIcon = DIM_ICONS[key]; return <DIcon size={12} className="text-brand-orange" />; })() : '·'}</span>
                     <span className={`w-[5.5rem] truncate ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
                       {DIM_LABELS[key] || key}
                     </span>
@@ -150,13 +150,13 @@ const DIM_DESC = {
 };
 
 const DIM_ICONS = {
-  fluxo: '🚶',
-  eficiencia: '💰',
-  entorno: '📍',
-  geoaudience: '🏘️',
-  census: '👥',
-  formato: '📺',
-  cobertura: '📡',
+  fluxo: Footprints,
+  eficiencia: CircleDollarSign,
+  entorno: MapPin,
+  geoaudience: Home,
+  census: Users,
+  formato: Monitor,
+  cobertura: Radio,
 };
 
 /* ═══════════════════════════════════════════════════════════════
@@ -232,7 +232,7 @@ const RecommendationEngine = memo(function RecommendationEngine({
       {/* ── Empty state: no good options ── */}
       {noGoodOptions && (
         <div className={`rounded-xl border p-5 text-center ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-neutral-50'}`}>
-          <div className={`text-3xl mb-2`}>🔍</div>
+          <div className="mb-2 flex justify-center"><Search size={28} className="text-brand-orange" /></div>
           <p className={`text-sm font-medium mb-1 ${isDark ? 'text-white' : 'text-neutral-800'}`}>
             Não encontramos pontos de impacto ideais para este público nesta região.
           </p>

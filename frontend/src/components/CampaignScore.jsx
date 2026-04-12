@@ -1,20 +1,20 @@
 import { memo } from 'react';
-import { Award, BarChart3 } from 'lucide-react';
+import { Award, BarChart3, Crosshair, Radio, RefreshCw, CircleDollarSign, Map } from 'lucide-react';
 
 const PILAR_META = {
-  qualidade: { label: 'Qualidade dos Pontos', icon: '🎯' },
-  alcance: { label: 'Alcance', icon: '📡' },
-  frequencia: { label: 'Frequência', icon: '🔁' },
-  eficiencia: { label: 'Eficiência de Custo', icon: '💰' },
-  cobertura: { label: 'Cobertura Estratégica', icon: '🗺️' },
+  qualidade: { label: 'Qualidade dos Pontos', Icon: Crosshair },
+  alcance: { label: 'Alcance', Icon: Radio },
+  frequencia: { label: 'Frequência', Icon: RefreshCw },
+  eficiencia: { label: 'Eficiência de Custo', Icon: CircleDollarSign },
+  cobertura: { label: 'Cobertura Estratégica', Icon: Map },
 };
 
-function PilarBar({ label, icon, value, isDark }) {
+function PilarBar({ label, Icon, value, isDark }) {
   const pct = Math.max(0, Math.min(100, value * 10));
   const color = value >= 7.5 ? 'bg-emerald-500' : value >= 5 ? 'bg-brand-orange' : 'bg-amber-500';
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span className="w-4 text-center">{icon}</span>
+      <span className="w-4 text-center flex items-center justify-center"><Icon size={12} className="text-brand-orange" /></span>
       <span className={`w-[7rem] truncate ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>{label}</span>
       <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`}>
         <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
@@ -55,7 +55,7 @@ const CampaignScore = memo(function CampaignScore({ scoreInfo, isDark = true }) 
               <PilarBar
                 key={key}
                 label={meta.label}
-                icon={meta.icon}
+                Icon={meta.Icon}
                 value={breakdown[key]}
                 isDark={isDark}
               />

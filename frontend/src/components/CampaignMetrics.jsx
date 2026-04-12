@@ -18,7 +18,7 @@ const CampaignMetrics = memo(function CampaignMetrics({ totals, isDark = true })
   return (
     <section className={`rounded-2xl border p-6 shadow-lg ${isDark ? 'border-white/10 bg-gradient-to-br from-white/[0.05] to-white/[0.01] shadow-black/20' : 'border-neutral-200 bg-white shadow-neutral-200/50'}`}>
       <h3 className={`text-sm font-bold uppercase tracking-wider mb-5 flex items-center gap-2 ${isDark ? 'text-white' : 'text-neutral-800'}`}>
-        📊 Metricas de eficiencia comercial
+        <BarChart3 size={16} className="text-brand-orange" /> Metricas de eficiencia comercial
       </h3>
       <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4">
         {cards.map((card) => (

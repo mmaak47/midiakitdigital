@@ -5,7 +5,7 @@ import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
   Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings,
   Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap, ClipboardList, Activity,
-  LogOut, Camera
+  LogOut, Camera, Info
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import {
@@ -1469,7 +1469,7 @@ export default function Admin() {
 
               <div className={`mt-6 p-4 rounded-xl ${isDark ? 'bg-brand-orange/5 border border-brand-orange/20' : 'bg-orange-50 border border-orange-200'}`}>
                 <p className={`text-xs leading-relaxed ${isDark ? 'text-brand-orange' : 'text-orange-700'}`}>
-                  <strong>ℹ️ Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro mínimo obrigatório (desconto acima do valor configurado aqui), a proposta fica aguardando aprovação de um Gerente Comercial antes de poder ser finalizada.
+                  <strong><Info size={12} className="inline mr-1" />Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro mínimo obrigatório (desconto acima do valor configurado aqui), a proposta fica aguardando aprovação de um Gerente Comercial antes de poder ser finalizada.
                 </p>
               </div>
             </section>

@@ -134,7 +134,19 @@ export default function InventarioChatBot() {
   const inputRef = useRef(null);
 
   // Hide on /comercial/gestao (ComercialChatBot owns that page)
+  // Hide when MidiaKit slides presentation is active
+  const [slidesActive, setSlidesActive] = useState(false);
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setSlidesActive(document.body.hasAttribute('data-slides-active'));
+    });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['data-slides-active'] });
+    setSlidesActive(document.body.hasAttribute('data-slides-active'));
+    return () => observer.disconnect();
+  }, []);
+
   if (location.pathname === '/comercial/gestao') return null;
+  if (slidesActive) return null;
 
   // Auto-scroll
   useEffect(() => {
@@ -351,6 +363,22 @@ export default function InventarioChatBot() {
           </span>
         )}
       </button>
+
+      {/* Label pill — visible when FAB is closed */}
+      {!aberto && (
+        <div
+          onClick={() => setAberto(true)}
+          className={`fixed bottom-[34px] right-[76px] z-[9988] cursor-pointer
+            px-3 py-1.5 rounded-full shadow-lg text-xs font-semibold whitespace-nowrap
+            transition-all duration-300 animate-fade-in
+            ${isDark
+              ? 'bg-brand-gray-900 text-brand-gray-300 border border-white/10'
+              : 'bg-white text-gray-700 border border-gray-200 shadow-md'
+            }`}
+        >
+          Fale com nosso especialista DOOH
+        </div>
+      )}
     </>
   );
 }
