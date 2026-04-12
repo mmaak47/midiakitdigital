@@ -13,12 +13,12 @@ import { fetchInventoryChat } from '../lib/api';
 
 // ── Quick suggestions ─────────────────────────────────────────────────────────
 const SUGESTOES = [
+  'Pontos na Gleba Palhano',
   'Quais pontos em Londrina?',
   'Formatos disponíveis',
   'Ponto com maior fluxo',
   'O que é CPM?',
-  'Resumo de Maringá',
-  'Diferença LED vs Elevador',
+  'Pontos na Higienópolis',
   'Pontos disponíveis',
   'Quanto custa um painel?',
 ];

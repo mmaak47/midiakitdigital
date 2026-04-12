@@ -1835,6 +1835,8 @@ module.exports = {
   getMemoryStats,
   healthCheck,
   hashInput,
+  getCached,
+  setCache,
   aiPlanDecision,
   // Data access (for inventoryChat)
   getEnrichedPoints,
