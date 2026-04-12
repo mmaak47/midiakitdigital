@@ -28,6 +28,7 @@ import {
   invalidateAdminPdfCache,
   updateAdminSettings,
   testFinanceiroReminder,
+  testPdfWhatsapp,
   geocodePoint,
   fetchCurrentUser,
   fetchArteStats,
@@ -177,6 +178,10 @@ export default function Admin() {
   const [evoSaveMsg, setEvoSaveMsg] = useState('');
   const [evoTestLoading, setEvoTestLoading] = useState(false);
   const [evoTestMsg, setEvoTestMsg] = useState('');
+  const [pdfTestPhone, setPdfTestPhone] = useState('');
+  const [pdfTestLoading, setPdfTestLoading] = useState(false);
+  const [pdfTestLog, setPdfTestLog] = useState([]);
+  const [pdfTestError, setPdfTestError] = useState('');
 
   // Usuário logado
   const [currentUser, setCurrentUser] = useState(null);
@@ -696,6 +701,20 @@ export default function Admin() {
       setEvoTestMsg(`Erro: ${err.message}`);
     } finally {
       setEvoTestLoading(false);
+    }
+  };
+
+  const handleTestPdfWhatsapp = async () => {
+    setPdfTestLoading(true);
+    setPdfTestLog([]);
+    setPdfTestError('');
+    try {
+      const data = await testPdfWhatsapp({ phone: pdfTestPhone.trim() });
+      setPdfTestLog(data.log || []);
+    } catch (err) {
+      setPdfTestError(err.message);
+    } finally {
+      setPdfTestLoading(false);
     }
   };
 
@@ -1783,6 +1802,48 @@ export default function Admin() {
                   </p>
                 )}
               </form>
+
+              {/* ── Teste de envio de PDF técnico ── */}
+              <div className={`mt-6 pt-6 border-t ${isDark ? 'border-white/8' : 'border-neutral-200'}`}>
+                <h4 className={`text-xs font-semibold uppercase tracking-wide mb-1 ${th.sectionTitle}`}>
+                  Testar envio de PDF técnico
+                </h4>
+                <p className={`text-xs mb-4 ${th.sectionDesc}`}>
+                  Gera os PDFs técnicos com os primeiros pontos cadastrados e envia para o número informado.
+                  Não registra venda nem notifica o grupo interno.
+                </p>
+                <div className="flex gap-2 max-w-lg">
+                  <input
+                    type="tel"
+                    value={pdfTestPhone}
+                    onChange={e => setPdfTestPhone(e.target.value)}
+                    placeholder="5543999999999 (DDI+DDD+número)"
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleTestPdfWhatsapp}
+                    disabled={pdfTestLoading || !pdfTestPhone.trim()}
+                    className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 transition-colors flex-shrink-0 ${isDark ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange hover:bg-brand-orange/25' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+                  >
+                    {pdfTestLoading ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                    {pdfTestLoading ? 'Enviando...' : 'Enviar teste'}
+                  </button>
+                </div>
+
+                {(pdfTestLog.length > 0 || pdfTestError) && (
+                  <div className={`mt-3 rounded-xl p-3 text-xs font-mono space-y-1 max-w-lg ${isDark ? 'bg-black/30 border border-white/8' : 'bg-neutral-50 border border-neutral-200'}`}>
+                    {pdfTestLog.map((line, i) => (
+                      <div key={i} className={line.startsWith('ERRO') ? 'text-red-400' : isDark ? 'text-green-400' : 'text-green-700'}>
+                        {line.startsWith('ERRO') ? '✗' : '✓'} {line}
+                      </div>
+                    ))}
+                    {pdfTestError && (
+                      <div className="text-red-400">✗ {pdfTestError}</div>
+                    )}
+                  </div>
+                )}
+              </div>
             </section>
           </div>
         ) : null}

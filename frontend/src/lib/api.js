@@ -459,6 +459,16 @@ export async function testFinanceiroReminder() {
   return res.json();
 }
 
+export async function testPdfWhatsapp({ phone, pontos_nomes, responsavel_nome, vendedor_nome }) {
+  const res = await apiRequest('/vendas/test-pdf', {
+    method: 'POST',
+    body: JSON.stringify({ phone, pontos_nomes, responsavel_nome, vendedor_nome })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro ao enviar PDF de teste');
+  return data;
+}
+
 // Retorna o usuário autenticado atual
 export async function fetchCurrentUser() {
   const res = await apiRequest('/users/me');
