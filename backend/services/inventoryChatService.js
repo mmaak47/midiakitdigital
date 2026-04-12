@@ -731,7 +731,7 @@ function buildChatContext(intent, entities) {
               (p.endereco ? ` | End: ${p.endereco}` : '') +
               (p._bairro ? ` | Bairro: ${p._bairro}` : '')
             );
-            return `Pontos na região "${bairroCanonical}" (${broader.length} resultados):\n${lines.join('\n')}\n\nTotal fluxo: ${fmtNum(broader.reduce((s, p) => s + (Number(p.fluxo) || 0), 0))} impactos/mês | Investimento total: ${fmtBRL(broader.reduce((s, p) => s + (Number(p.preco) || 0), 0))}/mês`;
+            return `Pontos na região "${bairroCanonical}" (${broader.length} resultados — LISTA COMPLETA):\n${lines.join('\n')}\n\nTotal fluxo: ${fmtNum(broader.reduce((s, p) => s + (Number(p.fluxo) || 0), 0))} impactos/mês | Investimento total: ${fmtBRL(broader.reduce((s, p) => s + (Number(p.preco) || 0), 0))}/mês\n\nIMPORTANTE: Estes são TODOS os ${broader.length} pontos nesta região. NÃO existem outros.`;
           }
           // List available bairros as suggestions
           const allBairros = [...new Set(Object.values(BAIRRO_MAP))].sort();
@@ -742,7 +742,7 @@ function buildChatContext(intent, entities) {
           (p.endereco ? ` | End: ${p.endereco}` : '') +
           (p._bairro ? ` | Bairro: ${p._bairro}` : '')
         );
-        return `Pontos na região "${bairroCanonical}"${cidade ? ' em ' + cidade : ''} (${pontos.length} resultados):\n${lines.join('\n')}\n\nTotal fluxo: ${fmtNum(pontos.reduce((s, p) => s + (Number(p.fluxo) || 0), 0))} impactos/mês | Investimento total: ${fmtBRL(pontos.reduce((s, p) => s + (Number(p.preco) || 0), 0))}/mês`;
+        return `Pontos na região "${bairroCanonical}"${cidade ? ' em ' + cidade : ''} (${pontos.length} resultados — LISTA COMPLETA):\n${lines.join('\n')}\n\nTotal fluxo: ${fmtNum(pontos.reduce((s, p) => s + (Number(p.fluxo) || 0), 0))} impactos/mês | Investimento total: ${fmtBRL(pontos.reduce((s, p) => s + (Number(p.preco) || 0), 0))}/mês\n\nIMPORTANTE: Estes são TODOS os ${pontos.length} pontos nesta região. NÃO existem outros.`;
       }
 
       case 'pontos_cidade': {
@@ -761,15 +761,14 @@ function buildChatContext(intent, entities) {
         const pontos = ai.getEnrichedPoints(cidade);
         if (!pontos.length) return `Nenhum ponto encontrado em ${cidade}.`;
         const total = pontos.length;
-        const display = pontos.slice(0, 15);
-        const lines = display.map((p, i) => {
+        // Send ALL points — never truncate, to prevent LLM from inventing the rest
+        const lines = pontos.map((p, i) => {
           const bairro = getBairroForPoint(p.nome) || p.neighborhood_label || null;
           return `${i + 1}. ${p.nome} (${p.tipo}) — Fluxo: ${fmtNum(p.fluxo)} imp/mês, ${fmtBRL(p.preco)}/mês` +
             (p.endereco ? ` | End: ${p.endereco}` : '') +
             (bairro ? ` | Bairro: ${bairro}` : '');
         });
-        const suffix = total > 15 ? `\n\n... e mais ${total - 15} pontos. Total: ${total} pontos em ${cidade}.` : '';
-        return `Pontos em ${cidade} (${total} pontos):\n${lines.join('\n')}${suffix}\n\nTotal fluxo: ${fmtNum(pontos.reduce((s, p) => s + (Number(p.fluxo) || 0), 0))} impactos/mês`;
+        return `Pontos em ${cidade} (${total} pontos — LISTA COMPLETA, não existem outros):\n${lines.join('\n')}\n\nTotal fluxo: ${fmtNum(pontos.reduce((s, p) => s + (Number(p.fluxo) || 0), 0))} impactos/mês\n\nIMPORTANTE: Estes são TODOS os ${total} pontos em ${cidade}. NÃO existem outros além destes.`;
       }
 
       case 'ponto_detalhe': {
@@ -1074,7 +1073,7 @@ async function processInventoryChat(message, history = [], userId = null, sessio
   const dbContext = buildChatContext(intent, effectiveEntities);
 
   // ── Semantic cache key (v4: uses effective entities) ─────────────────────
-  const cacheKey = ai.hashInput(`chat_v4_${intent}_${JSON.stringify({
+  const cacheKey = ai.hashInput(`chat_v5_${intent}_${JSON.stringify({
     c: effectiveEntities.cidades,
     r: effectiveEntities.regioes,
     f: effectiveEntities.formatos,
