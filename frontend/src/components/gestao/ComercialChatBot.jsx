@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { MessageCircle, X, Send, Loader2, RotateCcw, Bot } from 'lucide-react';
+import { MessageCircle, X, Send, Loader2, RotateCcw } from 'lucide-react';
 
 // ─── Sugestões rápidas ────────────────────────────────────────────────────────
 const SUGESTOES = [
@@ -61,7 +61,7 @@ function Mensagem({ msg, isDark }) {
       {isBot && (
         <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs
           ${isDark ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-600'}`}>
-          <Bot size={14} />
+          <img src="/mascote.png" alt="Bot" className="w-full h-full rounded-full object-cover" />
         </div>
       )}
       <div className={isError ? bubbleError : isBot ? bubbleBot : bubbleUser}>
@@ -212,7 +212,7 @@ export default function ComercialChatBot({ isDark }) {
           <div className="flex items-center gap-2.5">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center
               ${isDark ? 'bg-orange-500/20' : 'bg-orange-100'}`}>
-              <Bot size={16} className={isDark ? 'text-orange-400' : 'text-orange-600'} />
+              <img src="/mascote.png" alt="Bot" className="w-full h-full rounded-full object-cover" />
             </div>
             <div>
               <p className={`text-sm font-semibold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -251,7 +251,7 @@ export default function ComercialChatBot({ isDark }) {
             <div className="flex items-end gap-2">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center
                 ${isDark ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-600'}`}>
-                <Bot size={14} />
+                <img src="/mascote.png" alt="Bot" className="w-full h-full rounded-full object-cover" />
               </div>
               <div className={`px-4 py-2.5 rounded-2xl rounded-tl-sm border
                 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>

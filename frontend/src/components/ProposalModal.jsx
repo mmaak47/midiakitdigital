@@ -547,6 +547,19 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         .filter(Boolean);
 
       if (format === 'mobile') {
+        let mobileOverviewMap = null;
+        if (proposalPoints.length > 0) {
+          try {
+            mobileOverviewMap = await buildSelectionMapDataUrl(proposalPoints, {
+              connectPoints: true,
+              theme: 'light',
+              width: 540,
+              height: 400
+            });
+          } catch {
+            mobileOverviewMap = null;
+          }
+        }
         await generateProposalMobilePdf({
           clientName: form.clientName,
           city: activeCities,
@@ -559,6 +572,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           strategicTopics,
           strategicSubtitle: form.proposalSubtitle,
           simulationSummary,
+          overviewMapImage: mobileOverviewMap,
           showImpactSection: pdfSections.impact,
         });
         return;

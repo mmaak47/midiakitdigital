@@ -1101,54 +1101,20 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
         </div>
 
         <div data-calibration-id="proposal.cover.metricCards" style="margin-top:auto;">
-          ${showMetricsMethodology
-            ? buildMetricCards(cards, {
-                valueSize: layout.metricValueSize,
-                labelSize: layout.metricLabelSize,
-                iconSize: layout.metricIconSize,
-                minHeight: 146,
-                gap: layout.metricGap,
-                padding: layout.metricPadding,
-                valueWhiteSpace: 'normal',
-                valueWordBreak: 'break-word',
-                valueColor: PROPOSAL_TEXT,
-                labelColor: PROPOSAL_LABEL,
-                background: PROPOSAL_SURFACE,
-                borderColor: PROPOSAL_BORDER
-              })
-            : `${buildMetricCards(cards.slice(0, 2), {
-                columns: 2,
-                valueSize: layout.metricValueSize,
-                labelSize: layout.metricLabelSize,
-                iconSize: layout.metricIconSize,
-                minHeight: 100,
-                gap: layout.metricGap,
-                padding: layout.metricPadding,
-                valueWhiteSpace: 'normal',
-                valueWordBreak: 'break-word',
-                valueColor: PROPOSAL_TEXT,
-                labelColor: PROPOSAL_LABEL,
-                background: PROPOSAL_SURFACE,
-                borderColor: PROPOSAL_BORDER
-              })}
-              <div style="margin-top:${layout.metricGap || 18}px;">
-                ${buildMetricCards(cards.slice(2), {
-                  columns: 3,
-                  valueSize: Math.max(layout.metricValueSize, 32),
-                  labelSize: layout.metricLabelSize,
-                  iconSize: layout.metricIconSize,
-                  minHeight: 100,
-                  gap: layout.metricGap,
-                  padding: layout.metricPadding,
-                  borderColor: PROPOSAL_ACCENT,
-                  valueWhiteSpace: 'normal',
-                  valueWordBreak: 'break-word',
-                  valueColor: PROPOSAL_TEXT,
-                  labelColor: PROPOSAL_LABEL,
-                  background: PROPOSAL_SURFACE
-                })}
-              </div>`
-          }
+          ${buildMetricCards(cards, {
+              valueSize: layout.metricValueSize,
+              labelSize: layout.metricLabelSize,
+              iconSize: layout.metricIconSize,
+              minHeight: 146,
+              gap: layout.metricGap,
+              padding: layout.metricPadding,
+              valueWhiteSpace: 'normal',
+              valueWordBreak: 'break-word',
+              valueColor: PROPOSAL_TEXT,
+              labelColor: PROPOSAL_LABEL,
+              background: PROPOSAL_SURFACE,
+              borderColor: PROPOSAL_BORDER
+            })}
         </div>
       </div>
 
@@ -2152,6 +2118,10 @@ export async function generateProposalPdf({
   const highlights = normalizeLines(strategicText, 4);
   const strategicTopicsList = normalizeLines(strategicTopics, 6);
   const hasEntornoData = proposalPoints.some((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0);
+  // Auto-detect público from points if not provided by user
+  const effectivePublico = (Array.isArray(publico) && publico.filter(Boolean).length > 0)
+    ? publico
+    : Array.from(new Set(proposalPoints.map((p) => p.publico).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const assets = await loadPdfAssets();
   // Pré-carrega e comprime todas as imagens da proposta em paralelo via canvas
   const proposalImages = await Promise.all(
@@ -2214,7 +2184,7 @@ export async function generateProposalPdf({
   }
 
   if (showImpactSection) {
-    pages.push(buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico, assets }));
+    pages.push(buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico: effectivePublico, assets }));
   }
 
   pages.push(buildProposalClosingPage(assets, overviewMapImage));

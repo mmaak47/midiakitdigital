@@ -85,7 +85,7 @@ function pickMapZoom(samples, width, height, padding) {
     return 14;
   }
 
-  for (let zoom = 16; zoom >= 8; zoom -= 1) {
+  for (let zoom = 16; zoom >= 4; zoom -= 1) {
     const projected = samples.map((item) => lngLatToWorldPixel(item.lat, item.lng, zoom));
     const minX = Math.min(...projected.map((item) => item.x));
     const maxX = Math.max(...projected.map((item) => item.x));
@@ -98,7 +98,7 @@ function pickMapZoom(samples, width, height, padding) {
     }
   }
 
-  return 8;
+  return 4;
 }
 
 function getTileUrl(theme, z, x, y) {
@@ -126,7 +126,7 @@ function loadImage(url) {
   return promise;
 }
 
-function createViewport(samples, width, height, zoom) {
+function createViewport(samples, width, height, zoom, padding = 0) {
   const projectedSamples = samples.map((item) => lngLatToWorldPixel(item.lat, item.lng, zoom));
   const minX = Math.min(...projectedSamples.map((item) => item.x));
   const maxX = Math.max(...projectedSamples.map((item) => item.x));
@@ -135,7 +135,9 @@ function createViewport(samples, width, height, zoom) {
   const spanX = Math.max(maxX - minX, 1);
   const spanY = Math.max(maxY - minY, 1);
 
-  const scale = Math.min(width / spanX, height / spanY, 1);
+  const usableWidth = Math.max(width - padding * 2, 1);
+  const usableHeight = Math.max(height - padding * 2, 1);
+  const scale = Math.min(usableWidth / spanX, usableHeight / spanY, 1);
   const centerX = (minX + maxX) / 2;
   const centerY = (minY + maxY) / 2;
   const worldWidth = width / scale;
@@ -428,8 +430,9 @@ export async function buildSelectionMapCanvas(points = [], options = {}) {
   const samples = validPoints.map((point) => ({ lat: point.lat, lng: point.lng }));
 
   const allSamples = clientCoords ? [...samples, clientCoords] : samples;
-  const zoom = pickMapZoom(allSamples, width, height, 54);
-  const viewport = createViewport(allSamples, width, height, zoom);
+  const mapPadding = 54;
+  const zoom = pickMapZoom(allSamples, width, height, mapPadding);
+  const viewport = createViewport(allSamples, width, height, zoom, mapPadding);
 
   await drawTiles(ctx, width, height, zoom, viewport, theme);
 

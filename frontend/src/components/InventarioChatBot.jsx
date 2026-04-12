@@ -7,7 +7,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { MessageCircle, X, Send, Loader2, RotateCcw, Radio } from 'lucide-react';
+import { MessageCircle, X, Send, Loader2, RotateCcw } from 'lucide-react';
 import useTheme from '../hooks/useTheme';
 import { fetchInventoryChat } from '../lib/api';
 
@@ -76,7 +76,7 @@ function Mensagem({ msg, isDark }) {
       {isBot && (
         <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs
           ${isDark ? 'bg-brand-orange/20 text-brand-orange' : 'bg-orange-100 text-brand-orange'}`}>
-          <Radio size={14} />
+          <img src="/mascote.png" alt="Bot" className="w-full h-full rounded-full object-cover" />
         </div>
       )}
       <div className={isError ? bubbleError : isBot ? bubbleBot : bubbleUser}>
@@ -232,7 +232,7 @@ export default function InventarioChatBot() {
           <div className="flex items-center gap-2.5">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center
               ${isDark ? 'bg-brand-orange/20' : 'bg-orange-100'}`}>
-              <Radio size={16} className="text-brand-orange" />
+              <img src="/mascote.png" alt="Bot" className="w-full h-full rounded-full object-cover" />
             </div>
             <div>
               <p className={`text-sm font-semibold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -271,7 +271,7 @@ export default function InventarioChatBot() {
             <div className="flex items-end gap-2">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center
                 ${isDark ? 'bg-brand-orange/20 text-brand-orange' : 'bg-orange-100 text-brand-orange'}`}>
-                <Radio size={14} />
+                <img src="/mascote.png" alt="Bot" className="w-full h-full rounded-full object-cover" />
               </div>
               <div className={`px-4 py-2.5 rounded-2xl rounded-tl-sm border
                 ${isDark ? 'bg-brand-gray-900 border-white/10' : 'bg-white border-gray-200'}`}>

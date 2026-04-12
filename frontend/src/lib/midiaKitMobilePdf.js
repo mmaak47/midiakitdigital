@@ -24,7 +24,7 @@ import {
   getPointTypeLabel,
 } from './midiaKitPdf';
 
-import { sortFormatos } from './strategy';
+import { sortFormatos, buildAudienceQualification } from './strategy';
 
 // ── Dimensões da página mobile ──────────────────────────────────────────────
 const MOBILE_W = 540;
@@ -442,7 +442,7 @@ function buildProposalMobileCoverPage({ proposalClient, proposalCity, proposalTo
     <!-- Orange accent strip top -->
     <div style="position:absolute;top:0;left:0;right:0;height:5px;background:${P_ORANGE};"></div>
     <div style="position:absolute;inset:0;padding:36px 26px 28px;display:flex;flex-direction:column;gap:20px;box-sizing:border-box;overflow:hidden;">
-      ${pPageHeader(assets.logoHorizontal||assets.logo||'', 'Proposta Comercial')}
+      ${pPageHeader(assets.logoLight||assets.logoHorizontal||assets.logo||'', 'Proposta Comercial')}
 
       <div>
         <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${P_ORANGE};">Preparado para</div>
@@ -478,12 +478,16 @@ function buildProposalMobilePointPage({ point, index, total, image, assets }) {
   const photo = image || assets.showcase || '';
   const nome = (point.nome || 'PONTO SEM NOME').toUpperCase();
   const fluxoLabel = isVehicleFlowPoint(point) ? 'Veículos/mês' : 'Pessoas/mês';
+  const audience = buildAudienceQualification(point);
+  const hasEntorno = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0;
+  const entornoCount = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
 
   return createMobilePage(`
-    <!-- Photo panel: image with contain (no cropping) -->
-    <div style="position:absolute;top:0;left:0;right:0;height:38%;background:${P_SURFACE2};overflow:hidden;display:flex;align-items:center;justify-content:center;">
+    <!-- Photo panel: image with contain (no cropping) + blur bg -->
+    <div style="position:absolute;top:0;left:0;right:0;height:34%;background:${P_SURFACE2};overflow:hidden;display:flex;align-items:center;justify-content:center;">
       ${photo
-        ? `<img src="${photo}" alt="" style="max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;" />`
+        ? `<img src="${photo}" alt="" style="position:absolute;inset:-30px;width:calc(100% + 60px);height:calc(100% + 60px);object-fit:cover;filter:blur(14px) saturate(1.1);opacity:0.12;" />
+           <img src="${photo}" alt="" style="position:relative;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;" />`
         : `<div style="color:${P_MUTED};font-size:14px;">Sem imagem</div>`}
       <!-- Orange accent bar -->
       <div style="position:absolute;top:0;left:0;right:0;height:5px;background:${P_ORANGE};"></div>
@@ -492,23 +496,32 @@ function buildProposalMobilePointPage({ point, index, total, image, assets }) {
     </div>
 
     <!-- Info panel -->
-    <div style="position:absolute;top:38%;left:0;right:0;bottom:0;padding:16px 22px 18px;display:flex;flex-direction:column;gap:11px;overflow:hidden;box-sizing:border-box;background:${P_BG};">
-      ${pPageHeader(assets.logoHorizontal||assets.logo||'', tipo)}
+    <div style="position:absolute;top:34%;left:0;right:0;bottom:0;padding:14px 22px 16px;display:flex;flex-direction:column;gap:8px;overflow:hidden;box-sizing:border-box;background:${P_BG};">
+      ${pPageHeader(assets.logoLight||assets.logoHorizontal||assets.logo||'', tipo)}
 
       <div>
-        <div style="font-size:22px;line-height:1.05;font-weight:800;color:${P_TEXT};word-break:break-word;">${escapeHtml(nome)}</div>
-        ${point.endereco ? `<div style="margin-top:4px;font-size:12px;color:${P_MUTED};">${escapeHtml(point.endereco)}${point.cidade ? `, ${escapeHtml(point.cidade)}` : ''}</div>` : ''}
+        <div style="font-size:20px;line-height:1.05;font-weight:800;color:${P_TEXT};word-break:break-word;">${escapeHtml(nome)}</div>
+        ${point.endereco ? `<div style="margin-top:3px;font-size:11px;color:${P_MUTED};">${escapeHtml(point.endereco)}${point.cidade ? `, ${escapeHtml(point.cidade)}` : ''}</div>` : ''}
+      </div>
+
+      <!-- Audience qualification -->
+      <div style="padding:10px 14px;border-radius:10px;background:${P_SURFACE};border:1px solid ${P_BORDER};">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="display:inline-flex;align-items:center;justify-content:center;height:24px;padding:0 10px;border-radius:100px;background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.24);font-size:11px;font-weight:700;color:${P_ORANGE};">${escapeHtml(audience.badge)}</span>
+          ${hasEntorno ? `<span style="display:inline-flex;align-items:center;justify-content:center;height:24px;padding:0 10px;border-radius:100px;background:rgba(0,0,0,0.05);font-size:11px;font-weight:600;color:${P_MUTED};">${formatInt(entornoCount)} locais no entorno</span>` : ''}
+        </div>
+        <div style="margin-top:6px;font-size:14px;line-height:1.3;font-weight:700;color:${P_TEXT};">${escapeHtml(audience.headline)}</div>
+        <div style="margin-top:3px;font-size:11px;line-height:1.3;color:${P_MUTED};">${escapeHtml(audience.summary)}</div>
       </div>
 
       <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
         ${pMetricRow(fluxoLabel, formatInt(point.fluxo))}
         ${pMetricRow('Pontos de Impacto', formatInt(point.telas))}
         ${pMetricRow('Inserções mín.', formatInt(point.insercoes))}
-        ${point.publico ? pMetricRow('Público-alvo', point.publico) : ''}
       </div>
 
       ${point.preco ? `
-      <div style="padding:13px 16px;border-radius:12px;background:rgba(232,89,26,0.07);border:1px solid rgba(232,89,26,0.20);display:flex;align-items:center;justify-content:space-between;">
+      <div style="padding:12px 16px;border-radius:12px;background:rgba(232,89,26,0.07);border:1px solid rgba(232,89,26,0.20);display:flex;align-items:center;justify-content:space-between;">
         <span style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};">Investimento / mês</span>
         <span style="font-size:22px;font-weight:800;color:${P_ORANGE};">${escapeHtml(formatMoney(point.preco))}</span>
       </div>` : ''}
@@ -601,19 +614,33 @@ function buildProposalMobilePricingPages({ proposalPoints, proposalTotals, prici
   return pages;
 }
 
-function buildProposalMobileImpactPage({ proposalTotals, pricingSummary, proposalClient, assets }) {
+function buildProposalMobileImpactPage({ proposalTotals, pricingSummary, proposalClient, proposalCity, publico, assets }) {
+  const publicoLabel = Array.isArray(publico) ? publico.filter(Boolean).join(', ') : (publico || '—');
+  const cityLabel = Array.isArray(proposalCity) ? proposalCity.join(', ') : (proposalCity || '—');
   return createMobilePage(`
     <div style="position:absolute;inset:0;background:${P_BG};"></div>
     <div style="position:absolute;top:0;left:0;right:0;height:5px;background:${P_ORANGE};"></div>
-    <div style="position:absolute;inset:0;padding:32px 26px 28px;display:flex;flex-direction:column;gap:18px;box-sizing:border-box;overflow:hidden;">
-      ${pPageHeader(assets.logoHorizontal||assets.logo||'', 'Investimento')}
+    <div style="position:absolute;inset:0;padding:32px 26px 28px;display:flex;flex-direction:column;gap:14px;box-sizing:border-box;overflow:hidden;">
+      ${pPageHeader(assets.logoLight||assets.logoHorizontal||assets.logo||'', 'Investimento')}
 
       <div>
         <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};">Resumo financeiro</div>
         <div style="margin-top:5px;font-size:26px;font-weight:700;color:${P_TEXT};">${escapeHtml(proposalClient)}</div>
       </div>
 
-      <div style="display:flex;flex-direction:column;gap:12px;flex:1;">
+      <!-- Summary cards -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div style="padding:10px 12px;border-top:3px solid ${P_ORANGE};background:${P_SURFACE};border-radius:10px;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${P_MUTED};">Cidades</div>
+          <div style="margin-top:4px;font-size:13px;font-weight:600;color:${P_TEXT};word-break:break-word;">${escapeHtml(cityLabel)}</div>
+        </div>
+        <div style="padding:10px 12px;border-top:3px solid ${P_ORANGE};background:${P_SURFACE};border-radius:10px;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${P_MUTED};">Públicos</div>
+          <div style="margin-top:4px;font-size:13px;font-weight:600;color:${P_TEXT};word-break:break-word;">${escapeHtml(publicoLabel)}</div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;flex:1;">
         ${pCard(`
           <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};margin-bottom:5px;">Total negociado / mês</div>
           <div style="font-size:42px;font-weight:800;color:${P_ORANGE};line-height:1;">${escapeHtml(formatMoney(proposalTotals.valorTotal||0))}</div>
@@ -638,6 +665,29 @@ function buildProposalMobileImpactPage({ proposalTotals, pricingSummary, proposa
           <div style="font-size:24px;font-weight:700;color:${P_TEXT};">${escapeHtml(formatMoney(proposalTotals.cpmEstimado))}</div>
           <div style="font-size:12px;color:${P_MUTED};margin-top:3px;">por 1.000 visualizações</div>
         `) : ''}
+      </div>
+    </div>
+  `, P_BG);
+}
+
+function buildProposalMobileClosingPage(assets, overviewMapImage) {
+  const mapHtml = overviewMapImage
+    ? `<div style="width:100%;border-radius:14px;overflow:hidden;border:1px solid ${P_BORDER};box-shadow:0 6px 24px rgba(0,0,0,0.08);">
+        <img src="${overviewMapImage}" alt="Mapa de cobertura" style="display:block;width:100%;height:auto;object-fit:contain;" />
+      </div>`
+    : '';
+
+  return createMobilePage(`
+    <div style="position:absolute;inset:0;background:${P_BG};"></div>
+    <div style="position:absolute;top:0;left:0;right:0;height:5px;background:${P_ORANGE};"></div>
+    <div style="position:relative;z-index:1;height:${MOBILE_H}px;max-height:${MOBILE_H}px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:40px 28px;box-sizing:border-box;overflow:hidden;">
+      <img src="${assets.logoLight||assets.logo||''}" alt="" style="height:44px;width:auto;object-fit:contain;" />
+      ${mapHtml}
+      <div style="text-align:center;">
+        <div style="font-family:Poppins, system-ui, sans-serif;font-size:28px;font-weight:800;line-height:1.15;letter-spacing:-0.02em;color:${P_TEXT};">
+          O mundo acontece lá fora<span style="color:${P_ORANGE};">.</span>
+        </div>
+        <div style="margin-top:10px;font-size:11px;font-weight:500;color:${P_MUTED};letter-spacing:0.06em;text-transform:uppercase;">Intermidia OOH + DOOH — Desde 2007</div>
       </div>
     </div>
   `, P_BG);
@@ -708,6 +758,7 @@ export async function generateProposalMobilePdf({
   simulationSummary,
   segmento,
   pointMapImages = [],
+  overviewMapImage = null,
   showImpactSection = true,
 }) {
   const proposalPoints  = Array.isArray(points) ? points : [];
@@ -717,6 +768,10 @@ export async function generateProposalMobilePdf({
   const highlights      = normalizeLines(strategicText, 4);
   const topicsList      = normalizeLines(strategicTopics, 6);
   const assets          = await loadPdfAssets();
+  // Auto-detect público from points if not provided by user
+  const effectivePublico = (Array.isArray(publico) && publico.filter(Boolean).length > 0)
+    ? publico
+    : Array.from(new Set(proposalPoints.map((p) => p.publico).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
   const proposalImages = await Promise.all(
     proposalPoints.map((p) => imageToDataUrl(pickProposalImageUrl(p)))
@@ -763,10 +818,12 @@ export async function generateProposalMobilePdf({
       pricingSummary,
       proposalClient,
       proposalCity,
-      publico,
+      publico: effectivePublico,
       assets,
     }));
   }
+
+  pages.push(buildProposalMobileClosingPage(assets, overviewMapImage));
 
   const fileName = `proposta-mobile-${slugify(proposalClient)}-${new Date().toISOString().slice(0, 10)}.pdf`;
   const citySlugs = Array.from(new Set(
