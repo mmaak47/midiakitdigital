@@ -13,7 +13,7 @@ import Navbar from '../components/Navbar';
 import CampaignScore from '../components/CampaignScore';
 import PointCard from '../components/PointCard';
 import PointModal from '../components/PointModal';
-import { fetchPontos, fetchGeoAudienceProfiles, fetchCensusProfiles, fetchAICampaignAnalysis } from '../lib/api';
+import { fetchPontos, fetchGeoAudienceProfiles, fetchCensusProfiles, fetchAICampaignAnalysis, fetchAIRecommendation, fetchAIScoreOptimization } from '../lib/api';
 import {
   SEGMENTOS,
   OBJETIVOS,
@@ -24,6 +24,7 @@ import {
   RECOMMENDATION_WEIGHTS,
   estimateReachFrequency,
   campaignTotals,
+  optimizeBudgetAllocation,
   buildGeoAudienceNarrative,
   CENSUS_PROFILE_LABELS,
 } from '../lib/strategy';
@@ -369,9 +370,66 @@ export default function CampaignPlanner() {
     { icon: '📊', label: 'Mapeando pontos estratégicos em ' + (cidade || 'sua cidade') + '...' },
     { icon: '🧠', label: 'Calculando alcance e frequência ideal...' },
     { icon: '💰', label: 'Otimizando investimento e CPM...' },
-    { icon: '🤖', label: 'Gerando análise inteligente da campanha...' },
+    { icon: '🤖', label: 'Consultando IA para validar seleção de pontos...' },
+    { icon: '🔄', label: 'Gerando análise inteligente da campanha...' },
     { icon: '✨', label: 'Montando recomendação personalizada...' },
   ];
+
+  // Merge AI recommendation with algorithmic result
+  function mergeAIWithAlgo(algoResult, aiRecommend, allPts, campaignParams) {
+    if (!aiRecommend?.pontos_recomendados?.length) {
+      return { ...algoResult, aiInfluence: 'none' };
+    }
+
+    const algoIds = new Set(algoResult.plan.pontos.map(p => p.id));
+    const aiIds = new Set(aiRecommend.pontos_recomendados.map(Number));
+
+    // Check overlap
+    const aiOnlyIds = [...aiIds].filter(id => !algoIds.has(id));
+    if (aiOnlyIds.length === 0) {
+      return { ...algoResult, aiInfluence: 'confirmed' };
+    }
+
+    // Merge: algo points + AI-only points, then re-optimize within budget
+    const aiOnlyPoints = allPts.filter(p => aiOnlyIds.includes(Number(p.id)));
+    const mergedCandidates = [...algoResult.plan.pontos, ...aiOnlyPoints].map(p => ({
+      ...p,
+      _baseScore: p._screenScore?.score ?? p.compatibilidade ?? 50,
+      _preco: Math.max(0, Number(p.preco) || 0),
+    }));
+
+    const optimized = optimizeBudgetAllocation({
+      candidates: mergedCandidates,
+      budget: campaignParams.budget || 0,
+      objective: campaignParams.objetivo,
+      minPoints: Math.min(4, mergedCandidates.length),
+    });
+
+    const trimmed = optimized.selected.map(({ _baseScore, _preco, _entornoScore, ...p }) => p);
+    if (trimmed.length === 0) {
+      return { ...algoResult, aiInfluence: 'considered' };
+    }
+
+    const mergedScore = calculateCampaignScore({
+      selected: trimmed,
+      objective: campaignParams.objetivo,
+      desiredPublico: campaignParams.publicoAlvo,
+      cityInventory: campaignParams.cityPontos,
+    });
+
+    if (mergedScore.score > algoResult.scoreInfo.score) {
+      const mergedTotals = campaignTotals(trimmed);
+      const mergedRF = estimateReachFrequency({ selected: trimmed, cityInventory: campaignParams.cityPontos });
+      return {
+        ...algoResult,
+        plan: { ...algoResult.plan, pontos: trimmed, totals: mergedTotals, reachFrequency: mergedRF },
+        scoreInfo: mergedScore,
+        aiInfluence: 'improved',
+      };
+    }
+
+    return { ...algoResult, aiInfluence: 'considered' };
+  }
 
   const runRecommendation = useCallback(() => {
     // 1. Show the AI thinking screen immediately
@@ -383,11 +441,24 @@ export default function CampaignPlanner() {
     // 2. Advance phases on a timer (visual progression)
     const phaseTimers = [];
     const phaseDelay = 2500; // ms between phases
-    for (let i = 1; i < 6; i++) {
+    for (let i = 1; i < 7; i++) {
       phaseTimers.push(setTimeout(() => setAiPhaseIndex(i), phaseDelay * i));
     }
 
-    // 3. Run algorithmic computation (instant, but we delay to show phases)
+    // 3. Fire AI recommendation in parallel (before algo finishes)
+    const aiRecommendPromise = Promise.race([
+      fetchAIRecommendation({
+        cidade: cidade || '',
+        segmento,
+        objetivo: objetivos[0] || '',
+        budget: budget || 0,
+        maxPontos: 10,
+        publico: publicoAlvo.length ? publicoAlvo.join(',') : 'A/B',
+      }).catch(() => null),
+      new Promise(resolve => setTimeout(() => resolve(null), 15000))
+    ]);
+
+    // 4. Run algorithmic computation (instant, but we delay to show phases)
     const algoPromise = new Promise((resolve) => {
       requestAnimationFrame(() => {
         setTimeout(() => {
@@ -440,7 +511,7 @@ export default function CampaignPlanner() {
       });
     });
 
-    // 4. Fire AI analysis in parallel
+    // 5. Fire AI narrative analysis in parallel (after algo completes)
     const aiPromise = algoPromise.then((algoResult) => {
       const { plan, scoreInfo } = algoResult;
       return fetchAICampaignAnalysis({
@@ -458,15 +529,75 @@ export default function CampaignPlanner() {
         score: scoreInfo?.score || 0,
         breakdown: scoreInfo?.breakdown || {},
         publico: publicoAlvo,
+        pontos: plan.pontos.slice(0, 5).map(p => ({
+          nome: p.nome, tipo: p.tipo, fluxo: p.fluxo, preco: p.preco, cidade: p.cidade,
+        })),
       }).catch(() => null);
     });
 
-    // 5. Wait for both algo and a minimum display time, then reveal results
-    const minDisplayPromise = new Promise((resolve) => setTimeout(resolve, 6 * phaseDelay + 1500));
+    // 6. Wait for algo + AI recommend + minimum display time, then merge and reveal results
+    const minDisplayPromise = new Promise((resolve) => setTimeout(resolve, 7 * phaseDelay + 1500));
 
-    Promise.all([algoPromise, aiPromise, minDisplayPromise]).then(([algoResult, aiData]) => {
+    Promise.all([algoPromise, aiRecommendPromise, aiPromise, minDisplayPromise]).then(async ([algoResult, aiRecommend, aiData]) => {
       phaseTimers.forEach(clearTimeout);
-      setResult(algoResult);
+
+      const cityPontos = allPontos.filter((p) => !cidade || p.cidade === cidade);
+      let merged = mergeAIWithAlgo(algoResult, aiRecommend, allPontos, {
+        objetivo: objetivos[0] || '',
+        publicoAlvo,
+        cityPontos,
+        budget: budget || 0,
+      });
+
+      // Phase 4: If score is still low, try AI-driven point swap optimization
+      if (merged.scoreInfo?.score < 5.0 && merged.scoreInfo?.breakdown) {
+        const bk = merged.scoreInfo.breakdown;
+        const pillars = Object.entries(bk).filter(([k]) => k !== 'boost').map(([k, v]) => ({ key: k, val: Number(v) }));
+        const weakest = pillars.reduce((a, b) => a.val < b.val ? a : b, pillars[0]);
+
+        try {
+          const optimizeResult = await Promise.race([
+            fetchAIScoreOptimization({
+              cidade: cidade || '',
+              selectedPointIds: merged.plan.pontos.map(p => p.id),
+              weakestPillar: weakest.key,
+              scoreBreakdown: bk,
+              budget: budget || 0,
+              objetivo: objetivos[0] || '',
+              segmento,
+            }),
+            new Promise(resolve => setTimeout(() => resolve(null), 12000)),
+          ]);
+
+          if (optimizeResult?.swaps?.length) {
+            let improved = [...merged.plan.pontos];
+            for (const swap of optimizeResult.swaps) {
+              const removeId = Number(swap.remove_id);
+              const addId = Number(swap.add_id);
+              const addPoint = allPontos.find(p => Number(p.id) === addId);
+              if (addPoint && improved.some(p => Number(p.id) === removeId)) {
+                improved = improved.map(p => Number(p.id) === removeId ? addPoint : p);
+              }
+            }
+            const improvedScore = calculateCampaignScore({
+              selected: improved,
+              objective: objetivos[0] || '',
+              desiredPublico: publicoAlvo,
+              cityInventory: cityPontos,
+            });
+            if (improvedScore.score > merged.scoreInfo.score) {
+              merged = {
+                ...merged,
+                plan: { ...merged.plan, pontos: improved, totals: campaignTotals(improved) },
+                scoreInfo: improvedScore,
+                aiInfluence: 'optimized',
+              };
+            }
+          }
+        } catch (_) { /* silently fall back */ }
+      }
+
+      setResult(merged);
       if (aiData) setAiAnalysis(aiData);
       setAiLoading(false);
       setComputing(false);
@@ -872,6 +1003,16 @@ export default function CampaignPlanner() {
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand-orange/10 text-brand-orange border border-brand-orange/20">
                   <Cpu size={10} /> Plano gerado por IA
                 </span>
+                {(result?.aiInfluence === 'improved' || result?.aiInfluence === 'optimized') && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-green-500/10 text-green-500 border border-green-500/20">
+                    <Sparkles size={10} /> IA otimizou o plano
+                  </span>
+                )}
+                {result?.aiInfluence === 'confirmed' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                    <Check size={10} /> IA validou a seleção
+                  </span>
+                )}
               </div>
               <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
                 Recomendação inteligente para {empresa}

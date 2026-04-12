@@ -104,6 +104,21 @@ router.post('/recommend', async (req, res) => {
   }
 });
 
+// ── POST /api/ai/optimize-score — AI-driven score optimization via point swaps ─
+router.post('/optimize-score', async (req, res) => {
+  try {
+    const params = req.body;
+    if (!params?.cidade || !params?.selectedPointIds?.length) {
+      return res.status(400).json({ error: 'cidade and selectedPointIds required' });
+    }
+    const result = await ai.optimizeScore(params);
+    res.json(result);
+  } catch (err) {
+    console.error('[ai/optimize-score]', err.message);
+    res.status(503).json({ error: 'Score optimization failed', detail: err.message });
+  }
+});
+
 // ── POST /api/ai/feedback — Update memory feedback ─────────────────────────
 router.post('/feedback', (req, res) => {
   try {

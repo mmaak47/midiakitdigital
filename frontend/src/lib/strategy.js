@@ -993,6 +993,11 @@ function marginalGain(candidate, selected, budget, spend, objetivo) {
     : 9999;
   const cpmBonus = cpm < 18 ? 10 : cpm < 28 ? 5 : cpm < 40 ? 1 : -3;
 
+  // Favor high-flux points when current selection has low cumulative flux (improves Alcance/Frequência)
+  const currentFlux = selected.reduce((s, p) => s + toNumber(p.fluxo), 0);
+  const candidateFluxShare = toNumber(candidate.fluxo) / Math.max(1, currentFlux + toNumber(candidate.fluxo));
+  const fluxBonus = candidateFluxShare * 12;
+
   const objetivoCapilaridade = objetivo === 'cobertura regional' ? (diversidadeFormato * 0.45 + diversidadeCidade * 0.75) : 0;
 
   return (
@@ -1000,6 +1005,7 @@ function marginalGain(candidate, selected, budget, spend, objetivo) {
     diversidadeFormato +
     diversidadeCidade +
     cpmBonus +
+    fluxBonus +
     objetivoCapilaridade -
     saturacaoTipo -
     saturacaoCidade -
@@ -1127,8 +1133,62 @@ export function suggestIdealPlan({
       : 'Sem limite de orçamento informado, o motor priorizou eficiência e diversidade para um plano-base robusto.'
   ].join(' ');
 
+  // ── Post-selection swap: try to improve the weakest score pillar ──────
+  let finalPontos = cleaned;
+  const cityInv = cityInventory.length ? cityInventory : filtered;
+  const initialScore = calculateCampaignScore({ selected: cleaned, objective: objetivo, desiredPublico: publico, cityInventory: cityInv });
+
+  if (initialScore.score < 5.5 && initialScore.breakdown && nonSeeded.length > 0) {
+    const bk = initialScore.breakdown;
+    const pillars = [
+      { key: 'alcance', val: bk.alcance },
+      { key: 'frequencia', val: bk.frequencia },
+      { key: 'eficiencia', val: bk.eficiencia },
+      { key: 'cobertura', val: bk.cobertura },
+    ];
+    const weakest = pillars.reduce((a, b) => a.val < b.val ? a : b);
+    const unselectedIds = new Set(finalPontos.map(p => p.id));
+    const availableForSwap = nonSeeded
+      .filter(c => !unselectedIds.has(c.id))
+      .map(({ _baseScore, _preco, _entornoScore, ...p }) => p);
+
+    let bestSwap = null;
+    let bestScore = initialScore.score;
+
+    for (const sel of finalPontos) {
+      let candidates;
+      if (weakest.key === 'alcance' || weakest.key === 'frequencia') {
+        candidates = availableForSwap.filter(c => toNumber(c.fluxo) > toNumber(sel.fluxo));
+      } else if (weakest.key === 'eficiencia') {
+        const selCPM = toNumber(sel.preco) > 0 && toNumber(sel.fluxo) > 0 ? toNumber(sel.preco) / (toNumber(sel.fluxo) / 1000) : 9999;
+        candidates = availableForSwap.filter(c => {
+          const cCPM = toNumber(c.preco) > 0 && toNumber(c.fluxo) > 0 ? toNumber(c.preco) / (toNumber(c.fluxo) / 1000) : 9999;
+          return cCPM < selCPM;
+        });
+      } else {
+        const fmtCounts = {};
+        finalPontos.forEach(p => { fmtCounts[p.tipo] = (fmtCounts[p.tipo] || 0) + 1; });
+        if ((fmtCounts[sel.tipo] || 0) <= 1) continue;
+        candidates = availableForSwap.filter(c => c.tipo !== sel.tipo);
+      }
+
+      for (const cand of candidates.slice(0, 3)) {
+        const trial = finalPontos.map(p => p.id === sel.id ? cand : p);
+        const trialTotals = campaignTotals(trial);
+        if (budget > 0 && trialTotals.valorTotal > budget * 1.05) continue;
+        const trialScore = calculateCampaignScore({ selected: trial, objective: objetivo, desiredPublico: publico, cityInventory: cityInv });
+        if (trialScore.score > bestScore) {
+          bestScore = trialScore.score;
+          bestSwap = trial;
+        }
+      }
+    }
+
+    if (bestSwap) finalPontos = bestSwap;
+  }
+
   return {
-    pontos: cleaned,
+    pontos: finalPontos,
     totals,
     reachFrequency,
     optimizer: {
@@ -1168,29 +1228,38 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
   // Linear scale: 0-100 → 0-10, with mild power curve for differentiation
   const dimQualidade = Math.min(10, Math.pow(weightedAvg / 100, 0.85) * 10);
 
+  // ── Budget-relative scaling ────────────────────────────────────────────
+  // Small campaigns are structurally penalized on reach/frequency because they
+  // cover a tiny fraction of city inventory. Scale thresholds so a well-optimized
+  // R$5K campaign can still score 6-7 instead of 3-4.
+  const cityInvTotal = cityInventory.length ? campaignTotals(cityInventory).valorTotal : 0;
+  const scaleRatio = cityInvTotal > 0 ? totals.valorTotal / cityInvTotal : 1;
+  const scaleFactor = Math.min(1.5, 1 / Math.max(0.15, scaleRatio));
+
   // ── Pilar 2: Alcance (peso 25%) ───────────────────────────────────────
   const reachPct = rf.effectiveReachPct || 0;
-  // Linear thresholds: <5% = poor, 5-15% = ok, 15-40% = good, 40%+ = excellent
+  const adjustedReach = Math.min(100, reachPct * scaleFactor);
   let dimAlcance;
-  if (reachPct >= 50) dimAlcance = 9.0 + Math.min(1.0, (reachPct - 50) / 50);
-  else if (reachPct >= 25) dimAlcance = 7.0 + (reachPct - 25) / 12.5;
-  else if (reachPct >= 10) dimAlcance = 4.5 + (reachPct - 10) / 6;
-  else if (reachPct >= 3) dimAlcance = 2.0 + (reachPct - 3) / 2.8;
-  else dimAlcance = reachPct * 0.67;
+  if (adjustedReach >= 50) dimAlcance = 9.0 + Math.min(1.0, (adjustedReach - 50) / 50);
+  else if (adjustedReach >= 25) dimAlcance = 7.0 + (adjustedReach - 25) / 12.5;
+  else if (adjustedReach >= 10) dimAlcance = 4.5 + (adjustedReach - 10) / 6;
+  else if (adjustedReach >= 3) dimAlcance = 2.0 + (adjustedReach - 3) / 2.8;
+  else dimAlcance = adjustedReach * 0.67;
 
   // ── Pilar 3: Frequência (peso 20%) ────────────────────────────────────
   const freq = rf.avgFrequency || 0;
+  const adjustedFreq = freq * Math.min(1.3, scaleFactor * 0.7);
   let dimFrequencia;
-  if (freq >= 2 && freq <= 6) {
-    dimFrequencia = 7.5 + Math.min(2.0, (freq - 2) * 0.5); // 7.5 to 9.5
-  } else if (freq >= 1.5) {
-    dimFrequencia = 5.0 + (freq - 1.5) * 5; // 5.0 → 7.5
-  } else if (freq > 0) {
-    dimFrequencia = Math.max(1.5, freq * 3.33); // floor 1.5
+  if (adjustedFreq >= 2 && adjustedFreq <= 6) {
+    dimFrequencia = 7.5 + Math.min(2.0, (adjustedFreq - 2) * 0.5); // 7.5 to 9.5
+  } else if (adjustedFreq >= 1.5) {
+    dimFrequencia = 5.0 + (adjustedFreq - 1.5) * 5; // 5.0 → 7.5
+  } else if (adjustedFreq > 0) {
+    dimFrequencia = Math.max(1.5, adjustedFreq * 3.33); // floor 1.5
   } else {
     dimFrequencia = 0;
   }
-  if (freq > 8) dimFrequencia = Math.max(5.0, dimFrequencia - (freq - 8) * 0.5);
+  if (adjustedFreq > 8) dimFrequencia = Math.max(5.0, dimFrequencia - (adjustedFreq - 8) * 0.5);
 
   // ── Pilar 4: Eficiência de Custo (peso 15%) ──────────────────────────
   const cityPrices = (cityInventory.length ? cityInventory : selected)
@@ -1241,7 +1310,7 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
   const maxDim = Math.max(...allDims);
   const spread = maxDim - minDim;
   // Only boost if all dimensions are within a narrow band and min is decent
-  const balanceBoost = (minDim >= 5.0 && spread < 3.0) ? Math.min(0.5, (minDim - 5.0) * 0.1) : 0;
+  const balanceBoost = (minDim >= 3.5 && spread < 4.0) ? Math.min(0.8, (minDim - 3.5) * 0.15) : 0;
 
   // ── No safety floor — let bad campaigns score low ─────────────────────
   const score = Math.min(9.8, Math.max(0.5, Number((rawScore + balanceBoost).toFixed(1))));

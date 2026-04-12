@@ -650,8 +650,17 @@ function buildCampaignAnalysisPrompt(campaignData, cityStats) {
 
   // Score breakdown detail
   let breakdownCtx = '';
+  let weakestPillar = '';
+  let weakestLabel = '';
   if (Object.keys(breakdown).length) {
-    breakdownCtx = `\nDETALHE DO SCORE: ${Object.entries(breakdown).map(([k,v]) => `${k}=${fmtDec(v.score || v, 1)}`).join(', ')}.`;
+    const pillarLabels = { qualidade: 'Qualidade dos Pontos', alcance: 'Alcance', frequencia: 'Frequência', eficiencia: 'Eficiência de Custo', cobertura: 'Cobertura Estratégica' };
+    const entries = Object.entries(breakdown).filter(([k]) => k !== 'boost');
+    breakdownCtx = `\nDETALHE DO SCORE: ${entries.map(([k,v]) => `${pillarLabels[k] || k}=${fmtDec(v.score || v, 1)}/10`).join(', ')}.`;
+    const sorted = entries.map(([k, v]) => ({ key: k, val: Number(v.score || v || 0) })).sort((a, b) => a.val - b.val);
+    if (sorted.length) {
+      weakestPillar = sorted[0].key;
+      weakestLabel = pillarLabels[weakestPillar] || weakestPillar;
+    }
   }
 
   return `Analise esta campanha DOOH. Responda usando EXATAMENTE as tags abaixo, cada uma em sua própria linha.
@@ -663,6 +672,8 @@ ${pontosSel} pontos, formatos: ${formatos.length ? formatos.join(', ') : 'variad
 Investimento: R$${fmt(investimento)}/mês, Fluxo: ${fmt(fluxoTotal)} impactos/mês
 CPM: R$${fmtDec(cpm)} (${cpmClass}), Alcance: ${fmtDec(alcancePct, 1)}%, Frequência: ${fmtDec(frequencia, 1)}x
 Score: ${fmtDec(score, 1)}/10 (${scoreClass})${cityCtx}${breakdownCtx}
+${pontosSummary ? `\nPONTOS PRINCIPAIS: ${pontosSummary}` : ''}
+${weakestLabel ? `\nPILAR MAIS FRACO: ${weakestLabel} — foque a estratégia em como melhorar este aspecto.` : ''}
 
 Responda EXATAMENTE neste formato (cada tag em nova linha):
 
@@ -672,7 +683,7 @@ FORTE1: [melhor aspecto desta campanha, cite um número]
 FORTE2: [segundo ponto forte, cite um número]
 OPORTUNIDADE1: [uma melhoria concreta]
 OPORTUNIDADE2: [segunda melhoria]
-ESTRATEGIA: [recomendação para ${objetivo} em ${segmento}]
+ESTRATEGIA: [recomendação para ${objetivo} em ${segmento}${weakestLabel ? `, focando em melhorar o pilar mais fraco: ${weakestLabel}` : ''}]
 
 IMPORTANTE: Use EXATAMENTE as tags acima (AVALIACAO, RESUMO, FORTE1, FORTE2, OPORTUNIDADE1, OPORTUNIDADE2, ESTRATEGIA). Cada tag deve iniciar uma nova linha.`;
 }
@@ -1069,6 +1080,78 @@ async function smartRecommendation(params, userId = null) {
   return { ...response, _source: 'generated', _model: result.model };
 }
 
+/**
+ * AI-powered score optimization via targeted point swaps.
+ * Identifies the weakest score pillar and asks the LLM to suggest 1-2 swaps.
+ */
+async function optimizeScore(params) {
+  const { cidade, selectedPointIds, weakestPillar, scoreBreakdown, budget, objetivo, segmento } = params;
+
+  const pillarLabels = {
+    qualidade: 'Qualidade dos Pontos', alcance: 'Alcance',
+    frequencia: 'Frequência', eficiencia: 'Eficiência de Custo',
+    cobertura: 'Cobertura Estratégica',
+  };
+
+  const enriched = getEnrichedPoints(cidade);
+  if (!enriched.length) return { swaps: [], _source: 'empty' };
+
+  const idSet = new Set(selectedPointIds.map(Number));
+  const selected = enriched.filter(p => idSet.has(Number(p.id)));
+  const unselected = enriched.filter(p => !idSet.has(Number(p.id))).slice(0, 10);
+
+  if (!selected.length || !unselected.length) return { swaps: [], _source: 'insufficient' };
+
+  const fmt = n => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
+  const fmtDec = (n, d = 2) => Number(n || 0).toFixed(d);
+
+  const selectedTable = selected.map(p =>
+    `ID:${p.id} ${p.nome} (${p.tipo}) Fluxo:${fmt(p.fluxo)} R$${fmt(p.preco)} Score:${fmtDec(p.score_base, 0)}`
+  ).join('\n');
+
+  const unselectedTable = unselected.map(p =>
+    `ID:${p.id} ${p.nome} (${p.tipo}) Fluxo:${fmt(p.fluxo)} R$${fmt(p.preco)} Score:${fmtDec(p.score_base, 0)}`
+  ).join('\n');
+
+  const breakdownStr = Object.entries(scoreBreakdown || {})
+    .filter(([k]) => k !== 'boost')
+    .map(([k, v]) => `${pillarLabels[k] || k}: ${fmtDec(v, 1)}/10`)
+    .join(', ');
+
+  const prompt = `Você é um especialista em mídia DOOH. Uma campanha de ${segmento} com objetivo "${objetivo}" em ${cidade} tem score baixo.
+
+SCORE ATUAL: ${breakdownStr}
+PILAR MAIS FRACO: ${pillarLabels[weakestPillar] || weakestPillar}
+ORÇAMENTO: R$${fmt(budget)}/mês
+
+PONTOS ATUAIS DA CAMPANHA:
+${selectedTable}
+
+PONTOS DISPONÍVEIS PARA TROCA:
+${unselectedTable}
+
+Sugira 1 ou 2 trocas para melhorar o pilar "${pillarLabels[weakestPillar] || weakestPillar}".
+${weakestPillar === 'alcance' || weakestPillar === 'frequencia' ? 'Priorize pontos com MAIOR fluxo.' : ''}
+${weakestPillar === 'eficiencia' ? 'Priorize pontos com MENOR preço e bom fluxo (menor CPM).' : ''}
+${weakestPillar === 'cobertura' ? 'Priorize pontos com formato DIFERENTE dos atuais.' : ''}
+
+Responda SOMENTE com JSON:
+{"swaps":[{"remove_id":NUMBER,"add_id":NUMBER,"reason":"texto curto"}]}`;
+
+  try {
+    const result = await generateWithFallback(prompt);
+    const parsed = extractJSON(result.text);
+
+    if (parsed?.swaps?.length) {
+      return { swaps: parsed.swaps, _source: 'generated', _model: result.model };
+    }
+
+    return { swaps: [], _source: 'parse_failed', _model: result.model };
+  } catch (err) {
+    return { swaps: [], _source: 'error', _error: err.message };
+  }
+}
+
 // ── Stats & health ──────────────────────────────────────────────────────────
 
 function getMemoryStats() {
@@ -1129,6 +1212,7 @@ module.exports = {
   generatePointInsight,
   analyzeCampaign,
   smartRecommendation,
+  optimizeScore,
   updateFeedback,
   getMemoryStats,
   healthCheck,

@@ -1059,3 +1059,12 @@ export async function fetchAIPointInsight(pontoId) {
   if (!res.ok) return null;
   return res.json();
 }
+
+export async function fetchAIScoreOptimization(params) {
+  const res = await apiRequest('/ai/optimize-score', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
