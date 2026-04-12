@@ -579,6 +579,20 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         })
       );
 
+      let overviewMapImage = null;
+      if (proposalPoints.length > 0) {
+        try {
+          overviewMapImage = await buildSelectionMapDataUrl(proposalPoints, {
+            connectPoints: true,
+            theme: 'light',
+            width: 900,
+            height: 500
+          });
+        } catch {
+          overviewMapImage = null;
+        }
+      }
+
       await generateProposalPdf({
         clientName: form.clientName,
         clientAddress: form.clientAddress,
@@ -595,6 +609,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         simulationSummary,
         analysisMode,
         pointMapImages,
+        overviewMapImage,
         showMetricsMethodology: pdfSections.methodology,
         showCampaignScore: pdfSections.score,
         showCoverageLayer: pdfSections.coverage,

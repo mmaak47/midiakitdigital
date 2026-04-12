@@ -9,8 +9,14 @@ const Admin = lazy(() => import('./pages/Admin'));
 const CampaignPlanner = lazy(() => import('./pages/CampaignPlanner'));
 const GestaoComercial = lazy(() => import('./pages/GestaoComercial'));
 
+function hasAuthHintCookie() {
+  if (typeof document === 'undefined') return false;
+  return document.cookie.split(';').some((c) => c.trim().startsWith('auth_hint=1'));
+}
+
 function RequireCommercialAuth({ children }) {
-  const hasToken = typeof window !== 'undefined' && !!sessionStorage.getItem('admin_token');
+  const hasToken = typeof window !== 'undefined' &&
+    (!!sessionStorage.getItem('admin_token') || hasAuthHintCookie());
   return hasToken ? children : <Navigate to="/comercial" replace />;
 }
 

@@ -61,7 +61,7 @@ async function apiRequest(pathname, options = {}) {
     ...options,
     method,
     headers,
-    credentials: 'same-origin'
+    credentials: 'include'
   });
 }
 
@@ -119,6 +119,10 @@ export async function login(username, password) {
     throw new Error(message || 'Erro ao fazer login');
   }
   return res.json();
+}
+
+export async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
 }
 
 export async function fetchAdminPontos() {

@@ -119,6 +119,7 @@ function verifyPassword(password, storedValue) {
 }
 
 module.exports = {
+  TOKEN_TTL_SECONDS,
   createAuthToken,
   parseAuthToken,
   extractBearerToken,

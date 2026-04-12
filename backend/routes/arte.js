@@ -109,7 +109,7 @@ router.post('/preview-prompt', (req, res) => {
     const prompt = gerarPrompt(ponto, contexto || {});
     res.json({ prompt });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[arte]', err?.message || err); res.status(500).json({ error: 'Erro interno no servidor.' });
   }
 });
 
@@ -193,10 +193,10 @@ router.post('/gerar', async (req, res) => {
       return res.status(504).json({ error: err.message, retry: true });
     }
     if (err.message?.startsWith('REPLICATE_RATE_LIMIT')) {
-      return res.status(429).json({ error: err.message, retry: true });
+      return res.status(429).json({ error: 'Limite de requisições atingido. Tente novamente em instantes.', retry: true });
     }
     if (err.message?.startsWith('REPLICATE_API_TOKEN')) {
-      return res.status(503).json({ error: err.message });
+      return res.status(503).json({ error: 'API de geração de imagem não configurada.' });
     }
 
     const apiErrMatch = String(err.message || '').match(/^REPLICATE_API_ERROR\s+(\d+)/);
@@ -306,7 +306,7 @@ router.post('/gerar-lote', async (req, res) => {
 
   } catch (err) {
     console.error('[arte/gerar-lote]', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[arte]', err?.message || err); res.status(500).json({ error: 'Erro interno no servidor.' });
   }
 });
 
@@ -328,7 +328,7 @@ router.get('/geracoes/:proposta_id', (req, res) => {
 
     res.json(hydrated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[arte]', err?.message || err); res.status(500).json({ error: 'Erro interno no servidor.' });
   }
 });
 
@@ -350,7 +350,7 @@ router.get('/geracoes-ponto/:ponto_id', (req, res) => {
 
     res.json(hydrated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[arte]', err?.message || err); res.status(500).json({ error: 'Erro interno no servidor.' });
   }
 });
 
@@ -370,7 +370,7 @@ router.patch('/geracoes/:id/escolha', (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[arte]', err?.message || err); res.status(500).json({ error: 'Erro interno no servidor.' });
   }
 });
 
@@ -384,7 +384,7 @@ router.delete('/geracoes/:id', (req, res) => {
     db.prepare('DELETE FROM arte_geracoes WHERE id = ?').run(req.params.id);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[arte]', err?.message || err); res.status(500).json({ error: 'Erro interno no servidor.' });
   }
 });
 
@@ -415,7 +415,7 @@ router.get('/stats', (req, res) => {
       pontos_mais_regenerados: taxaRegeneracao,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[arte]', err?.message || err); res.status(500).json({ error: 'Erro interno no servidor.' });
   }
 });
 

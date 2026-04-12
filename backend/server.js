@@ -26,6 +26,7 @@ const comercialChatRouter = require('./routes/comercialChat');
 const geoRouter           = require('./routes/geo');
 const aiRouter            = require('./routes/ai');
 const {
+  TOKEN_TTL_SECONDS,
   createAuthToken,
   parseAuthToken,
   extractBearerToken,
@@ -129,6 +130,37 @@ function corsOriginValidator(origin, callback) {
   }
 
   callback(new Error('Origem não permitida pelo CORS'));
+}
+
+// Origens permitidas para endpoints públicos de monitores (players de tela).
+// Configure via MONITOR_ORIGINS=https://player1.com,https://player2.com no .env
+// Se não configurado, aceita mesmas origens que o frontend.
+function getMonitorCorsOptions() {
+  const fromEnv = String(process.env.MONITOR_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  if (fromEnv.length) {
+    const monitorOrigins = new Set(fromEnv);
+    return {
+      origin: (origin, cb) => {
+        if (!origin || monitorOrigins.has(origin)) cb(null, true);
+        else cb(new Error('Origem não permitida'));
+      },
+      methods: ['GET', 'HEAD', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Accept'],
+      maxAge: 86400
+    };
+  }
+
+  // Sem MONITOR_ORIGINS definido: usa as mesmas origens do frontend (mais restritivo que '*')
+  return {
+    origin: corsOriginValidator,
+    methods: ['GET', 'HEAD', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Accept'],
+    maxAge: 86400
+  };
 }
 
 const apiLimiter = rateLimit({
@@ -236,6 +268,26 @@ app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+
+  // Content-Security-Policy
+  // - 'unsafe-inline' em style-src necessário para Leaflet/MapLibre injetarem estilos dinâmicos
+  // - 'unsafe-eval' em script-src necessário para maplibre-gl (WebAssembly / eval)
+  // - blob: em worker-src necessário para web workers do maplibre-gl
+  // - data: em img-src necessário para canvas toDataURL() usado na geração de PDF
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "connect-src 'self' https:",
+    "worker-src 'self' blob:",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'"
+  ].join('; ');
+  res.setHeader('Content-Security-Policy', csp);
+
   if (req.secure || String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https') {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
@@ -322,9 +374,41 @@ app.use(express.json({ limit: '1mb' }));
 app.use(compression({ threshold: 1024 }));
 app.use('/api', apiLimiter);
 
+// Responde com erro 500 genérico ao cliente e loga detalhes no servidor
+function internalError(res, err, msg = 'Erro interno no servidor.') {
+  console.error('[error]', err?.message || err);
+  res.status(500).json({ error: msg });
+}
+
+// Lê token do cookie HttpOnly (fallback ao Bearer header)
+function extractTokenFromCookie(req) {
+  const cookieHeader = String(req.headers.cookie || '');
+  const match = cookieHeader.match(/(?:^|;\s*)admin_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]).trim() : '';
+}
+
+// Helpers para setar/limpar cookies de autenticação
+function setAuthCookies(res, req, token) {
+  const isHttps = req.secure || String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https';
+  const secure = isHttps ? '; Secure' : '';
+  res.setHeader('Set-Cookie', [
+    `admin_token=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Max-Age=${TOKEN_TTL_SECONDS}; Path=/api${secure}`,
+    `auth_hint=1; SameSite=Strict; Max-Age=${TOKEN_TTL_SECONDS}; Path=/${secure}`
+  ]);
+}
+
+function clearAuthCookies(res, req) {
+  const isHttps = req.secure || String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https';
+  const secure = isHttps ? '; Secure' : '';
+  res.setHeader('Set-Cookie', [
+    `admin_token=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/api${secure}`,
+    `auth_hint=; SameSite=Strict; Max-Age=0; Path=/${secure}`
+  ]);
+}
+
 function resolveAuthenticatedUser(req, res, next) {
   try {
-    const token = extractBearerToken(req.headers.authorization);
+    const token = extractBearerToken(req.headers.authorization) || extractTokenFromCookie(req);
     if (!token) {
       return res.status(401).json({ error: 'Token de autenticação obrigatório.' });
     }
@@ -854,7 +938,7 @@ app.get('/api/pontos', (req, res) => {
     const pontos = db.prepare(sqlParts.join('')).all(...params).map(hydratePontoRow);
     res.json(pontos);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -865,7 +949,7 @@ app.get('/api/pontos/:id', (req, res) => {
     if (!ponto) return res.status(404).json({ error: 'Ponto não encontrado' });
     res.json(hydratePontoRow(ponto));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -874,7 +958,7 @@ app.get('/api/audience-tags', (req, res) => {
     const rows = db.prepare('SELECT audience_tags, publico FROM pontos WHERE ativo = 1').all();
     res.json(buildAudienceTagCatalog(rows));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -884,7 +968,7 @@ app.get('/api/publicos', (req, res) => {
     const rows = db.prepare('SELECT DISTINCT publico FROM pontos WHERE ativo = 1 AND publico IS NOT NULL ORDER BY publico').all();
     res.json(rows.map(r => r.publico));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -897,12 +981,20 @@ app.get('/api/stats', (req, res) => {
     const fluxo = db.prepare('SELECT COALESCE(SUM(fluxo), 0) as c FROM pontos WHERE ativo = 1').get().c;
     res.json({ total, cidades, telas, fluxo });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
 // ── Public Monitor API (auditoria de loop) ───────────────────────────────────
-const openCors = cors({ origin: '*', methods: ['GET', 'HEAD', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Accept'], maxAge: 86400 });
+const openCors = cors(getMonitorCorsOptions());
+const monitorLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: Number(process.env.MONITOR_RATE_LIMIT_MAX || 120),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
+  message: { error: 'Muitas requisições ao monitor. Tente novamente em breve.' }
+});
 
 // Tipos que não participam da auditoria de loop (impressão física ou gerenciamento externo)
 const MONITOR_BASE_WHERE = `ativo = 1 AND tipo NOT IN ('Backlight','Frontlight','Totem Digital','Circuito Muffato')`;
@@ -987,7 +1079,7 @@ function scoreMonitorMatch(query, row) {
   return Math.round((overlap / Math.max(qw.length, nw.length)) * 60);
 }
 
-app.get('/api/monitors', openCors, (req, res) => {
+app.get('/api/monitors', openCors, monitorLimiter, (req, res) => {
   const statusFilter = String(req.query.status || '').trim().toLowerCase();
   const cidadeFilter = String(req.query.cidade || '').trim();
   const sqlParts = [`${MONITOR_SELECT} WHERE ${MONITOR_BASE_WHERE}`];
@@ -1009,7 +1101,7 @@ app.get('/api/monitors', openCors, (req, res) => {
 });
 
 // Lookup por nome: retorna candidatos ordenados por similaridade (para auto-match de player_id)
-app.get('/api/monitors/lookup', openCors, (req, res) => {
+app.get('/api/monitors/lookup', openCors, monitorLimiter, (req, res) => {
   const q = String(req.query.nome || '').trim();
   if (!q) return res.status(400).json({ error: 'Parâmetro nome é obrigatório.' });
   try {
@@ -1027,7 +1119,7 @@ app.get('/api/monitors/lookup', openCors, (req, res) => {
   }
 });
 
-app.get('/api/monitors/:id', openCors, (req, res) => {
+app.get('/api/monitors/:id', openCors, monitorLimiter, (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido.' });
   try {
@@ -1111,7 +1203,7 @@ try {
   )`).run();
 } catch (e) { /* já existe */ }
 
-app.get('/api/loop-audit', openCors, async (req, res) => {
+app.get('/api/loop-audit', openCors, monitorLimiter, async (req, res) => {
   try {
     if (req.query.bust === '1') { _loopCache = null; _loopCacheAt = 0; }
     const monitors = await fetchOriginMonitors();
@@ -1217,7 +1309,7 @@ app.get('/api/loop-audit', openCors, async (req, res) => {
 });
 
 // ── Gerenciar exclusões do loop audit ──
-app.get('/api/loop-audit/exclusions', openCors, (req, res) => {
+app.get('/api/loop-audit/exclusions', openCors, monitorLimiter, (req, res) => {
   const rows = db.prepare('SELECT origin_id, nome, motivo, excluido_em FROM loop_audit_exclusions ORDER BY excluido_em DESC').all();
   res.json(rows);
 });
@@ -1260,12 +1352,20 @@ app.post('/api/auth/login', loginLimiter, validateLoginPayload, (req, res) => {
   }
 
   const { password: _password, ...safeUser } = user;
+  const token = createAuthToken(safeUser);
 
-  res.json({ 
-    success: true, 
-    token: createAuthToken(safeUser),
+  setAuthCookies(res, req, token);
+  res.json({
+    success: true,
+    token,
     user: safeUser
   });
+});
+
+// Logout — limpa cookies de autenticação no servidor
+app.post('/api/auth/logout', (req, res) => {
+  clearAuthCookies(res, req);
+  res.json({ ok: true });
 });
 
 // CREATE ponto
@@ -1333,7 +1433,7 @@ app.post('/api/pontos', upload.fields([
     invalidateCityCaches(ponto.cidade, db);
     res.status(201).json(hydratePontoRow(ponto));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1440,7 +1540,7 @@ app.put('/api/pontos/:id', upload.fields([
     if (currentCity && currentCity !== previousCity) invalidateCityCaches(currentCity, db);
     res.json(hydratePontoRow(ponto));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1453,7 +1553,7 @@ app.get('/api/geocode', requireRoles(['admin', 'gerente_comercial', 'vendedor'])
     if (!location) return res.status(404).json({ error: 'Endereço não encontrado' });
     res.json({ lat: location.lat, lng: location.lng });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1486,7 +1586,7 @@ app.post('/api/entorno/analyze', requireRoles(['admin', 'gerente_comercial']), (
         : 'Analise de entorno enfileirada com sucesso.'
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1503,7 +1603,7 @@ app.get('/api/entorno/jobs/:id', requireRoles(['admin', 'gerente_comercial', 've
     }
     res.json(job);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1519,7 +1619,7 @@ app.get('/api/entorno/jobs', requireRoles(['admin', 'gerente_comercial']), (req,
     });
     res.json({ jobs });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1531,7 +1631,7 @@ app.get('/api/entorno/auto', requireRoles(['admin', 'gerente_comercial']), (req,
       state: getAutoRefreshState()
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1541,7 +1641,7 @@ app.post('/api/entorno/auto/run-now', requireRoles(['admin', 'gerente_comercial'
     runAutoRefreshCycle();
     res.json({ success: true, state: getAutoRefreshState() });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1572,7 +1672,7 @@ app.get('/api/entorno/scores', requireRoles(['admin', 'gerente_comercial', 'vend
       job
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1643,7 +1743,7 @@ app.post('/api/entorno/client-address', requireRoles(['admin', 'gerente_comercia
       rankedPoints: rankedPoints.slice(0, 12)
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1657,7 +1757,7 @@ app.get('/api/geoaudience/profiles', (req, res) => {
     const summary = geoAudience.getCoverageSummary(cidade);
     res.json({ profiles, summary });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1670,7 +1770,7 @@ app.get('/api/geoaudience/profile/:pontoId', requireRoles(['admin', 'gerente_com
     if (!profile) return res.status(404).json({ error: 'Perfil não encontrado. Execute a análise primeiro.' });
     res.json(profile);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1681,7 +1781,7 @@ app.get('/api/geoaudience/coverage', requireRoles(['admin', 'gerente_comercial',
     const summary = geoAudience.getCoverageSummary(cidade);
     res.json(summary);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1720,7 +1820,7 @@ app.post('/api/geoaudience/analyze', requireRoles(['admin', 'gerente_comercial']
       console.error('[geoaudience] Analysis failed:', err.message);
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1738,7 +1838,7 @@ app.post('/api/geoaudience/analyze/:pontoId', requireRoles(['admin', 'gerente_co
 
     res.json({ success: true, profile });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1755,7 +1855,7 @@ app.get('/api/census/profiles', (req, res) => {
     const summary = censusAudience.getCoverageSummary(municipio);
     res.json({ profiles, summary });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1767,7 +1867,7 @@ app.get('/api/census/profile/:pontoId', requireRoles(['admin', 'gerente_comercia
     if (!profile) return res.status(404).json({ error: 'Perfil censitário não encontrado' });
     res.json(profile);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1776,7 +1876,7 @@ app.get('/api/census/coverage', requireRoles(['admin', 'gerente_comercial', 'ven
     const { municipio } = req.query;
     res.json(censusAudience.getCoverageSummary(municipio));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1801,7 +1901,7 @@ app.get('/api/census/geojson', requireRoles(['admin', 'gerente_comercial', 'vend
     });
     res.json(geojson);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1817,7 +1917,7 @@ app.post('/api/census/analyze', requireRoles(['admin', 'gerente_comercial']), as
       console.error('[census] Analysis failed:', err.message);
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1831,7 +1931,7 @@ app.post('/api/census/analyze/:pontoId', requireRoles(['admin', 'gerente_comerci
     if (!profile) return res.status(422).json({ error: 'Coordenadas inválidas para este ponto' });
     res.json(profile);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1841,7 +1941,7 @@ app.post('/api/census/analyze/:pontoId', requireRoles(['admin', 'gerente_comerci
 app.get('/api/audience-intel/profiles', (req, res) => {
   try {
     res.json(audienceIntel.listProfiles());
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { internalError(res, err); }
 });
 
 app.put('/api/audience-intel/profiles/:name', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
@@ -1849,14 +1949,14 @@ app.put('/api/audience-intel/profiles/:name', requireRoles(['admin', 'gerente_co
     const { label, description, weights } = req.body;
     if (!label || !weights) return res.status(400).json({ error: 'label and weights required' });
     res.json(audienceIntel.upsertProfile(req.params.name, { label, description, weights }));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { internalError(res, err); }
 });
 
 app.delete('/api/audience-intel/profiles/:name', requireRoles(['admin']), (req, res) => {
   try {
     const deleted = audienceIntel.deleteProfile(req.params.name);
     res.json({ deleted });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { internalError(res, err); }
 });
 
 // Point scoring
@@ -1864,7 +1964,7 @@ app.get('/api/audience-intel/scores', requireRoles(['admin', 'gerente_comercial'
   try {
     const { cidade, profile, minScore } = req.query;
     res.json(audienceIntel.getAllScores({ cidade, profile, minScore }));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { internalError(res, err); }
 });
 
 app.get('/api/audience-intel/scores/:pontoId', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
@@ -1872,7 +1972,7 @@ app.get('/api/audience-intel/scores/:pontoId', requireRoles(['admin', 'gerente_c
     const pontoId = Number(req.params.pontoId);
     if (!Number.isFinite(pontoId)) return res.status(400).json({ error: 'ID inválido' });
     res.json(audienceIntel.getPointScores(pontoId));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { internalError(res, err); }
 });
 
 app.get('/api/audience-intel/ranking', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
@@ -1880,7 +1980,7 @@ app.get('/api/audience-intel/ranking', requireRoles(['admin', 'gerente_comercial
     const { profile, cidade, limit } = req.query;
     if (!profile) return res.status(400).json({ error: 'profile query param required' });
     res.json(audienceIntel.getRanking({ profile, cidade, limit: Number(limit) || 20 }));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { internalError(res, err); }
 });
 
 // Analyze (triggers async scoring)
@@ -1891,7 +1991,7 @@ app.post('/api/audience-intel/analyze/:pontoId', requireRoles(['admin', 'gerente
     const force = req.query.force === '1' || req.query.force === 'true';
     const scores = await audienceIntel.analyzePoint(pontoId, { force });
     res.json(scores);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { internalError(res, err); }
 });
 
 app.post('/api/audience-intel/analyze-city', requireRoles(['admin', 'gerente_comercial']), async (req, res) => {
@@ -1901,7 +2001,7 @@ app.post('/api/audience-intel/analyze-city', requireRoles(['admin', 'gerente_com
     const result = audienceIntel.analyzeCity(cidade, { force: !!force });
     // Don't await — return immediately
     res.json({ message: 'Analysis started', cidade: cidade || 'all' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { internalError(res, err); }
 });
 
 app.get('/api/audience-intel/jobs/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
@@ -1909,7 +2009,7 @@ app.get('/api/audience-intel/jobs/:id', requireRoles(['admin', 'gerente_comercia
     const job = audienceIntel.getJob(Number(req.params.id));
     if (!job) return res.status(404).json({ error: 'Job not found' });
     res.json(job);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { internalError(res, err); }
 });
 
 // Heatmap
@@ -1930,7 +2030,7 @@ app.get('/api/audience-intel/heatmap', requireRoles(['admin', 'gerente_comercial
       bounds,
       cellSizeM: Number(cellSize) || undefined,
     }));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { internalError(res, err); }
 });
 
 // Campaign Simulator
@@ -1947,7 +2047,7 @@ app.post('/api/audience-intel/simulate', requireRoles(['admin', 'gerente_comerci
       investment: Number(investment),
       periodDays: Number(periodDays),
     }));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { internalError(res, err); }
 });
 
 // DELETE ponto (soft delete)
@@ -1960,7 +2060,7 @@ app.delete('/api/pontos/:id', requireRoles(['admin', 'gerente_comercial']), (req
     invalidateCityCaches(existing.cidade, db);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1970,7 +2070,7 @@ app.get('/api/admin/pontos', requireRoles(['admin', 'gerente_comercial', 'vended
     const pontos = db.prepare('SELECT * FROM pontos ORDER BY cidade, nome').all().map(hydratePontoRow);
     res.json(pontos);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -1979,7 +2079,7 @@ app.get('/api/admin/users', requireRoles(['admin']), (req, res) => {
     const users = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, is_vendedor, photo_url, created_at FROM admin_users ORDER BY first_name ASC, last_name ASC, username ASC').all();
     res.json(users);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2027,7 +2127,7 @@ app.post('/api/admin/users', requireRoles(['admin']), (req, res) => {
     const created = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, is_vendedor, photo_url, created_at FROM admin_users WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(created);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2050,7 +2150,7 @@ app.delete('/api/admin/users/:id', requireRoles(['admin']), (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2080,7 +2180,7 @@ app.put('/api/admin/users/:id', requireRoles(['admin']), (req, res) => {
     if (!updated) return res.status(404).json({ error: 'Usuário não encontrado' });
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2088,7 +2188,7 @@ app.get('/api/admin/pdf-layout', requireRoles(['admin', 'gerente_comercial', 've
   try {
     res.json(readPdfLayoutOverrides());
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2101,7 +2201,7 @@ app.get('/api/admin/settings', requireRoles(['admin']), (req, res) => {
     });
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2121,7 +2221,7 @@ app.get('/api/admin/pdf-cache', requireRoles(['admin']), (req, res) => {
     `).all();
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2134,7 +2234,7 @@ app.delete('/api/admin/pdf-cache/:id', requireRoles(['admin']), (req, res) => {
     db.prepare('UPDATE pdf_cache SET is_valid = 0 WHERE id = ?').run(id);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2178,7 +2278,7 @@ app.put('/api/admin/settings', requireRoles(['admin']), (req, res) => {
     });
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2257,7 +2357,7 @@ app.post('/api/admin/test-financeiro-reminder', requireRoles(['admin']), async (
     });
   } catch (err) {
     console.error('[test-reminder] Erro:', err.message);
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2289,7 +2389,7 @@ app.get('/api/propostas', requireRoles(['admin', 'gerente_comercial', 'vendedor'
     const propostas = db.prepare(query).all(...params);
     res.json(propostas);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2312,7 +2412,7 @@ app.get('/api/propostas/:id', requireRoles(['admin', 'gerente_comercial', 'vende
 
     res.json(proposta);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2359,7 +2459,7 @@ app.post('/api/propostas', requireRoles(['admin', 'gerente_comercial', 'vendedor
     const proposta = db.prepare('SELECT id, usuario_id, titulo, status, requer_aprovacao FROM propostas WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(proposta);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2411,7 +2511,7 @@ app.put('/api/propostas/:id', requireRoles(['admin', 'gerente_comercial', 'vende
     const updated = db.prepare('SELECT id, usuario_id, titulo, status, requer_aprovacao FROM propostas WHERE id = ?').get(id);
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2435,7 +2535,7 @@ app.delete('/api/propostas/:id', requireRoles(['admin', 'gerente_comercial', 've
 
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2466,7 +2566,7 @@ app.post('/api/propostas/:id/aprovar', requireRoles(['admin', 'gerente_comercial
 
     res.json({ success: true, message: 'Proposta aprovada com sucesso' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2501,7 +2601,7 @@ app.post('/api/propostas/:id/rejeitar', requireRoles(['admin', 'gerente_comercia
 
     res.json({ success: true, message: 'Proposta rejeitada com sucesso' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2513,7 +2613,7 @@ app.put('/api/admin/pdf-layout', requireRoles(['admin']), (req, res) => {
     }
     res.json(writePdfLayoutOverrides(overrides || {}));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2522,7 +2622,7 @@ app.delete('/api/admin/pdf-layout', requireRoles(['admin']), (req, res) => {
     db.prepare('DELETE FROM app_settings WHERE key = ?').run(PDF_LAYOUT_SETTINGS_KEY);
     res.json({ success: true, overrides: {}, updatedAt: null });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2542,7 +2642,7 @@ app.post('/api/users/me/photo', resolveAuthenticatedUser, upload.fields([{ name:
     db.prepare("UPDATE admin_users SET photo_url = ?, updated_at = datetime('now') WHERE id = ?").run(photoUrl, req.authUser.id);
     res.json({ success: true, photo_url: photoUrl });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2557,7 +2657,7 @@ app.post('/api/admin/users/:id/photo', requireRoles(['admin']), upload.fields([{
     db.prepare("UPDATE admin_users SET photo_url = ?, updated_at = datetime('now') WHERE id = ?").run(photoUrl, id);
     res.json({ success: true, photo_url: photoUrl });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -2809,8 +2909,15 @@ function getEvolutionSettings() {
   ];
   const result = {};
   keys.forEach(k => {
-    const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(k);
-    result[k] = row?.value || '';
+    // Env vars têm precedência sobre o banco — use EVOLUTION_API_KEY, EVOLUTION_API_URL, etc.
+    const envKey = k.toUpperCase().replace(/-/g, '_');
+    const fromEnv = process.env[envKey] || '';
+    if (fromEnv) {
+      result[k] = fromEnv;
+    } else {
+      const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(k);
+      result[k] = row?.value || '';
+    }
   });
   return result;
 }
@@ -3277,7 +3384,7 @@ app.post(
 
     } catch (err) {
       console.error('[vendas] erro:', err.message);
-      res.status(500).json({ error: err.message });
+      internalError(res, err);
     }
   }
 );
@@ -3388,7 +3495,7 @@ app.get('/api/vendas', requireRoles(['admin', 'gerente_comercial', 'vendedor']),
     const rows = db.prepare(sql).all(...params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3452,7 +3559,7 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
 
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3474,7 +3581,7 @@ app.patch('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial', 'vended
     db.prepare(`UPDATE vendas SET status = ?, obs = ?, updated_at = datetime('now') WHERE id = ?`).run(status, obs || null, id);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3490,7 +3597,7 @@ app.delete('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req
     db.prepare('DELETE FROM vendas WHERE id = ?').run(id);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3511,7 +3618,7 @@ app.get('/api/vendas/:id/etapas', requireRoles(['admin', 'gerente_comercial', 'v
     ).all(id);
     res.json(etapas);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3590,7 +3697,7 @@ app.get('/api/gestao/vendedores', requireRoles(['admin','gerente_comercial','ven
     const rows = db.prepare("SELECT id, username, first_name, last_name, role, photo_url FROM admin_users WHERE is_vendedor = 1 ORDER BY first_name, last_name").all();
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3601,7 +3708,7 @@ app.get('/api/gestao/metas', requireRoles(['admin','gerente_comercial','vendedor
     const rows = db.prepare('SELECT * FROM metas_vendedor WHERE ano = ? ORDER BY vendedor_nome, mes').all(ano);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3616,7 +3723,7 @@ app.put('/api/gestao/metas', requireRoles(['admin','gerente_comercial']), (req, 
     `).run(String(vendedor_nome), Number(ano), Number(mes), Number(valor_meta || 0), Number(valor_meta_recorrencia || 0), Number(valor_meta || 0), Number(valor_meta_recorrencia || 0));
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3633,7 +3740,7 @@ app.put('/api/gestao/metas/batch', requireRoles(['admin','gerente_comercial']), 
     }
     res.json({ ok: true, count: metas.length });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3658,7 +3765,7 @@ app.get('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vendedo
     }
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3683,7 +3790,7 @@ app.post('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vended
     );
     res.json({ ok: true, id: result.lastInsertRowid });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3716,7 +3823,7 @@ app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','ven
     );
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3760,7 +3867,7 @@ app.patch('/api/gestao/vendas/:id/status', requireRoles(['admin','gerente_comerc
     }
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3769,7 +3876,7 @@ app.delete('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial'])
     db.prepare('DELETE FROM vendas_comercial WHERE id = ?').run(Number(req.params.id));
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3785,7 +3892,7 @@ app.get('/api/gestao/renovacoes', requireRoles(['admin','gerente_comercial','ven
     const rows = db.prepare(sql).all(...params);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3804,7 +3911,7 @@ app.post('/api/gestao/renovacoes', requireRoles(['admin','gerente_comercial','ve
     );
     res.json({ ok: true, id: result.lastInsertRowid });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3825,7 +3932,7 @@ app.put('/api/gestao/renovacoes/:id', requireRoles(['admin','gerente_comercial',
     );
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3834,7 +3941,7 @@ app.delete('/api/gestao/renovacoes/:id', requireRoles(['admin','gerente_comercia
     db.prepare('DELETE FROM renovacoes WHERE id = ?').run(Number(req.params.id));
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3874,7 +3981,7 @@ app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vend
     const vendedoresAtivos = getVendedoresAtivos();
     res.json({ ano, metas, vendas, renovacoes, vendedores: vendedoresAtivos, mesesLabel: MESES_LABEL });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3940,7 +4047,7 @@ app.post('/api/gestao/import', requireRoles(['admin']), (req, res) => {
 
     res.json({ ok: true, importedVendas, importedMetas, importedRenovacoes });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    internalError(res, err);
   }
 });
 
@@ -3955,13 +4062,15 @@ app.use((err, req, res, next) => {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: 'Arquivo excede o limite de 50MB.' });
     }
-    return res.status(400).json({ error: 'Erro de upload.', details: err.message });
+    console.error('[upload]', err.message);
+    return res.status(400).json({ error: 'Erro de upload.' });
   }
   if (err?.message === 'Origem não permitida pelo CORS') {
-    return res.status(403).json({ error: err.message });
+    return res.status(403).json({ error: 'Origem não permitida.' });
   }
   if (err?.message) {
-    return res.status(400).json({ error: err.message });
+    console.error('[error-handler]', err.message);
+    return res.status(400).json({ error: 'Requisição inválida.' });
   }
   next(err);
 });

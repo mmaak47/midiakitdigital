@@ -463,7 +463,7 @@ async function renderPagesToPdf(pages, fileName, options = {}) {
 <title>${escapeHtml(pdfTitle)}</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; }
-html, body { margin: 0; padding: 0; background: #000; }
+html, body { margin: 0; padding: 0; background: #FFFFFF; }
 @page { size: 1366px 768px; margin: 0; }
 section {
   display: block;
@@ -591,6 +591,7 @@ function buildHeroImageFrame(image, options = {}) {
 
   return `
     <div style="position:relative;height:100%;border-radius:${options.radius || 30}px;overflow:hidden;border:1px solid ${PROPOSAL_BORDER};background:${PROPOSAL_SURFACE_ALT};">
+      <img src="${image}" alt="" style="position:absolute;inset:-40px;width:calc(100% + 80px);height:calc(100% + 80px);object-fit:cover;object-position:${escapeHtml(focalPoint)};filter:blur(16px) saturate(1.1);opacity:0.12;" />
       <div style="position:absolute;left:28px;top:28px;right:28px;bottom:28px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
         <img src="${image}" alt="" style="${mainImageStyle}filter:drop-shadow(0 12px 24px rgba(0,0,0,0.12));" />
       </div>
@@ -1077,7 +1078,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
     <div style="position:relative;z-index:1;display:grid;grid-template-columns:1.04fr 0.96fr;height:768px;max-height:768px;padding:58px 64px 50px;gap:22px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;flex-direction:column;min-width:0;">
         <div style="display:flex;align-items:center;gap:18px;">
-          <img src="${assets.logo || ''}" alt="" style="height:48px;width:auto;object-fit:contain;" />
+          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:48px;width:auto;object-fit:contain;" />
           <div data-calibration-id="proposal.cover.badge" style="display:inline-flex;align-items:center;justify-content:center;height:${layout.badgeMinHeight}px;padding:0 ${layout.badgePaddingX}px;border-radius:100px;background:${PROPOSAL_ACCENT};border:1px solid ${PROPOSAL_ACCENT};font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#fff;line-height:1;text-align:center;">
             <span style="display:block;">Proposta comercial</span>
           </div>
@@ -1335,7 +1336,7 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
     <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:24px 28px;box-sizing:border-box;display:grid;grid-template-rows:auto 1fr;gap:10px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div data-calibration-id="proposal.point.header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
         <div style="display:flex;align-items:center;gap:16px;min-width:0;">
-          <img src="${assets.logo || ''}" alt="" style="height:34px;width:auto;object-fit:contain;" />
+          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:34px;width:auto;object-fit:contain;" />
           <div style="min-width:0;">
             <div style="font-family:Poppins, system-ui, sans-serif;font-size:24px;line-height:1.03;font-weight:700;letter-spacing:-0.03em;color:${PROPOSAL_TEXT};white-space:normal;word-break:break-word;max-height:2.1em;overflow:hidden;">${formatPointNameHtml(point.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.66em;font-weight:600;letter-spacing:-0.01em;' })}</div>
             <div style="margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;line-height:1.25;color:${PROPOSAL_TEXT_SECONDARY};">
@@ -2101,6 +2102,29 @@ export async function generateMidiaKitPdf({ praca, pracas, pontos }) {
   await renderPagesToPdf(pages, fileName, { citySlugs });
 }
 
+function buildProposalClosingPage(assets, overviewMapImage) {
+  const mapHtml = overviewMapImage
+    ? `<div style="width:900px;max-width:100%;border-radius:18px;overflow:hidden;border:1px solid ${PROPOSAL_BORDER};box-shadow:0 8px 32px rgba(0,0,0,0.08);">
+        <img src="${overviewMapImage}" alt="Mapa de cobertura" style="display:block;width:100%;height:auto;object-fit:contain;" />
+      </div>`
+    : '';
+
+  return createPage(`
+    <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
+    <div style="position:absolute;inset:auto auto -180px -60px;width:560px;height:560px;border-radius:999px;background:radial-gradient(circle,rgba(232,89,26,0.08) 0%,rgba(232,89,26,0.02) 48%,rgba(232,89,26,0) 72%);"></div>
+    <div style="position:relative;z-index:1;height:768px;max-height:768px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:48px 64px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+      <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:52px;width:auto;object-fit:contain;" />
+      ${mapHtml}
+      <div style="text-align:center;">
+        <div style="font-family:Poppins, system-ui, sans-serif;font-size:38px;font-weight:800;line-height:1.1;letter-spacing:-0.03em;color:${PROPOSAL_TEXT};">
+          O mundo acontece lá fora<span style="color:${PROPOSAL_ACCENT};">.</span>
+        </div>
+        <div style="margin-top:12px;font-size:13px;font-weight:500;color:${PROPOSAL_TEXT_SECONDARY};letter-spacing:0.06em;text-transform:uppercase;">Intermidia OOH + DOOH — Desde 2007</div>
+      </div>
+    </div>
+  `);
+}
+
 export async function generateProposalPdf({
   clientName,
   city,
@@ -2114,6 +2138,7 @@ export async function generateProposalPdf({
   pricingSummary,
   publico,
   pointMapImages = [],
+  overviewMapImage = null,
   showMetricsMethodology = true,
   showCampaignScore = true,
   showCoverageLayer = true,
@@ -2191,6 +2216,8 @@ export async function generateProposalPdf({
   if (showImpactSection) {
     pages.push(buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico, assets }));
   }
+
+  pages.push(buildProposalClosingPage(assets, overviewMapImage));
 
   const fileName = `proposta-${slugify(proposalClient)}-${new Date().toISOString().slice(0, 10)}.pdf`;
   const citySlugs = Array.from(new Set(

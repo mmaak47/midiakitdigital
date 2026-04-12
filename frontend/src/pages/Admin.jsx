@@ -10,6 +10,7 @@ import {
 import Navbar from '../components/Navbar';
 import {
   login,
+  logout,
   fetchAdminPontos,
   createPonto,
   updatePonto,
@@ -376,6 +377,7 @@ export default function Admin() {
   };
 
   const handleLogout = () => {
+    logout();
     sessionStorage.removeItem('admin_token');
     sessionStorage.removeItem('comercial_manual_login');
     setAuth(false);
