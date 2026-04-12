@@ -1464,7 +1464,7 @@ export default function CampaignPlanner() {
                   )}
                   {aiAnalysis.oportunidades_melhoria?.length > 0 && (
                     <div>
-                      <p className={`text-xs font-semibold uppercase tracking-wider mb-1.5 ${isDark ? 'text-amber-400/80' : 'text-amber-700'}`}>Oportunidades de Melhoria</p>
+                      <p className={`text-xs font-semibold uppercase tracking-wider mb-1.5 ${isDark ? 'text-amber-400/80' : 'text-amber-700'}`}>Oportunidades de Expansão</p>
                       <ul className="space-y-1">
                         {aiAnalysis.oportunidades_melhoria.map((op, i) => (
                           <li key={i} className={`text-sm flex gap-2 ${isDark ? 'text-white/60' : 'text-neutral-600'}`}>
@@ -1480,8 +1480,8 @@ export default function CampaignPlanner() {
                       <span className="font-semibold text-brand-orange">Estratégia: </span>{aiAnalysis.estrategia_recomendada}
                     </p>
                   )}
-                  {aiAnalysis._model && (
-                    <p className={`text-[10px] mt-2 ${isDark ? 'text-white/20' : 'text-neutral-300'}`}>Modelo: {aiAnalysis._model}</p>
+                  {aiAnalysis._model && aiAnalysis._model !== 'algorithmic' && (
+                    <p className={`text-[10px] mt-2 ${isDark ? 'text-white/20' : 'text-neutral-300'}`}>Análise gerada por IA</p>
                   )}
                 </div>
               )}

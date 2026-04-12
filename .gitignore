@@ -23,41 +23,12 @@ backend/pdf-cache/*
 
 deploy.tar.gz
 
-deploy.py
+# --- Block ALL Python scripts ---
+*.py
+**/*.py
 
-# --- secrets / credentials (NEVER commit) ---
-secrets.py
+# Credentials / config with secrets
 ecosystem.config.js
-.tmp_*.py
-_*.py
-
-# Deployment helper scripts that contain or load credentials
-_check_vps.py
-_test_ssh.py
-_verify_deploy.py
-_check_env.py
-check_logs.py
-check_nginx_config.py
-configure_subdomain_ssl.py
-configure_www_redirect.py
-configure_webhook.py
-debug_webhook.py
-download_db.py
-evolution_connect_whatsapp.py
-fix_cors_new_vps.py
-fix_encoding.py
-migrate_to_new_vps.py
-setup_evolution_api.py
-
-# One-time migration/seed scripts (may reference credentials)
-_migration_helper.py
-_seed_new_segments.py
-_seed_original_segments.py
-test_pdf_render.py
-test_remote_real.py
-write_landing.py
-_expire_census_cache.py
-_trigger_census_reanalysis.py
 
 # Build artifacts accidentally committed with credentials in path
 "frontend/sshpass*"

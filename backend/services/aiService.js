@@ -381,7 +381,7 @@ async function generateLocal(prompt, model = OLLAMA_MODEL) {
 
 // ── Replicate fallback ──────────────────────────────────────────────────────
 
-async function generateWithReplicate(prompt) {
+async function generateWithReplicate(prompt, model = 'meta/meta-llama-3-70b-instruct') {
   if (!REPLICATE_API_TOKEN) {
     throw new Error('REPLICATE_NOT_CONFIGURED');
   }
@@ -389,7 +389,7 @@ async function generateWithReplicate(prompt) {
   const start = Date.now();
 
   try {
-    const response = await fetch('https://api.replicate.com/v1/predictions', {
+    const response = await fetch('https://api.replicate.com/v1/models/' + model + '/predictions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${REPLICATE_API_TOKEN}`,
@@ -397,10 +397,9 @@ async function generateWithReplicate(prompt) {
         'Prefer': 'wait',
       },
       body: JSON.stringify({
-        version: 'meta/meta-llama-3-8b-instruct',
         input: {
           prompt,
-          max_tokens: 1024,
+          max_tokens: 1200,
           temperature: 0.7,
         },
       }),
@@ -414,8 +413,9 @@ async function generateWithReplicate(prompt) {
     const data = await response.json();
     const text = Array.isArray(data.output) ? data.output.join('') : String(data.output || '');
     const latency = Date.now() - start;
-    console.log(`[ai] replicate responded in ${latency}ms`);
-    return { text, model: 'replicate:llama3-8b', latency };
+    const modelShort = model.split('/').pop();
+    console.log(`[ai] replicate (${modelShort}) responded in ${latency}ms`);
+    return { text, model: `replicate:${modelShort}`, latency };
   } catch (error) {
     console.error('[ai] replicate failed:', error.message);
     throw new Error(`REPLICATE_FAILED:${error.message}`);
@@ -443,6 +443,38 @@ async function generateWithFallback(prompt) {
       } catch (e3) {
         console.error('[ai] all providers failed');
         throw new Error('ALL_AI_PROVIDERS_FAILED');
+      }
+    }
+  }
+}
+
+/**
+ * Replicate-first chain: better model (70B) as primary, local as fallback.
+ * Used for client-facing content that needs commercial quality.
+ */
+async function generateReplicateFirst(prompt) {
+  // 1. Try Replicate 70B (best quality)
+  try {
+    return await generateWithReplicate(prompt, 'meta/meta-llama-3-70b-instruct');
+  } catch (e1) {
+    console.warn('[ai] replicate 70B failed, trying replicate 8B...');
+
+    // 2. Try Replicate 8B
+    try {
+      return await generateWithReplicate(prompt, 'meta/meta-llama-3-8b-instruct');
+    } catch (e2) {
+      console.warn('[ai] replicate 8B failed, trying local fallback...');
+
+      // 3. Try local Ollama (last resort)
+      try {
+        return await generateLocal(prompt, OLLAMA_FALLBACK_MODEL);
+      } catch (e3) {
+        try {
+          return await generateLocal(prompt, OLLAMA_MODEL);
+        } catch (e4) {
+          console.error('[ai] all providers failed (replicate-first chain)');
+          throw new Error('ALL_AI_PROVIDERS_FAILED');
+        }
       }
     }
   }
@@ -606,11 +638,10 @@ function buildCampaignAnalysisPrompt(campaignData, cityStats) {
   const fmt = n => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
   const fmtDec = (n, d = 2) => Number(n || 0).toFixed(d);
 
-  // Extract all available data from the frontend payload
-  const cidade = campaignData.cidade || 'n/a';
+  const cidade = campaignData.cidade || 'sua cidade';
   const segmento = campaignData.segmento || 'Geral';
   const objetivo = campaignData.objetivo || 'awareness';
-  const empresa = campaignData.empresa || '';
+  const empresa = campaignData.empresa || 'cliente';
   const publico = campaignData.publico || '';
   const pontosSel = Number(campaignData.pontos_selecionados || campaignData.pontos?.length || 0);
   const formatos = campaignData.formatos || [];
@@ -619,73 +650,154 @@ function buildCampaignAnalysisPrompt(campaignData, cityStats) {
   const cpm = Number(campaignData.cpm || 0);
   const alcancePct = Number(campaignData.alcance_pct || campaignData.coberturaPct || 0);
   const frequencia = Number(campaignData.frequencia || 0);
-  const score = Number(campaignData.score || 0);
-  const breakdown = campaignData.breakdown || {};
-
-  // Classify CPM efficiency
-  let cpmClass = 'alto';
-  if (cpm <= 5) cpmClass = 'muito eficiente';
-  else if (cpm <= 15) cpmClass = 'eficiente';
-  else if (cpm <= 30) cpmClass = 'médio';
-
-  // Classify score
-  let scoreClass = 'fraco';
-  if (score >= 8) scoreClass = 'excelente';
-  else if (score >= 6) scoreClass = 'bom';
-  else if (score >= 4) scoreClass = 'regular';
 
   // Points summary
   let pontosSummary = '';
   if (campaignData.pontos?.length) {
-    pontosSummary = campaignData.pontos.slice(0, 8).map(p =>
-      `${p.nome}(${p.tipo},Fluxo${fmt(p.fluxo)},R$${fmt(p.preco)})`
+    pontosSummary = campaignData.pontos.slice(0, 5).map(p =>
+      `${p.nome} (${p.tipo}, ${fmt(p.fluxo)} impactos/mês)`
     ).join('; ');
   }
 
-  // City context
-  let cityCtx = '';
-  if (cityStats) {
-    cityCtx = `\nCONTEXTO DA CIDADE: ${cidade} tem ${cityStats.total_pontos} pontos DOOH disponíveis. CPM médio R$${fmtDec(cityStats.cpm_medio)}. Formatos: ${Object.entries(cityStats.formatos || {}).map(([k,v]) => `${k}(${v})`).join(', ')}. Score médio ${fmtDec(cityStats.score_medio, 1)}/10.`;
-  }
+  // Identify real strengths from the data
+  const strengths = [];
+  if (cpm <= 15) strengths.push(`CPM de R$${fmtDec(cpm)} — altamente eficiente para DOOH`);
+  else if (cpm <= 30) strengths.push(`CPM de R$${fmtDec(cpm)} — dentro da faixa competitiva do mercado`);
+  if (fluxoTotal >= 100000) strengths.push(`${fmt(fluxoTotal)} impactos/mês — alto volume de exposição`);
+  else if (fluxoTotal >= 30000) strengths.push(`${fmt(fluxoTotal)} impactos/mês de exposição da marca`);
+  if (formatos.length >= 3) strengths.push(`${formatos.length} formatos diferentes — mix de mídia diversificado`);
+  else if (formatos.length >= 2) strengths.push(`Mix de ${formatos.join(' e ')} — complementaridade de formatos`);
+  if (frequencia >= 2) strengths.push(`Frequência de ${fmtDec(frequencia, 1)}x — reforço de memória efetivo`);
+  if (pontosSel >= 5) strengths.push(`${pontosSel} pontos estratégicos selecionados em ${cidade}`);
 
-  // Score breakdown detail
-  let breakdownCtx = '';
-  let weakestPillar = '';
-  let weakestLabel = '';
-  if (Object.keys(breakdown).length) {
-    const pillarLabels = { qualidade: 'Qualidade dos Pontos', alcance: 'Alcance', frequencia: 'Frequência', eficiencia: 'Eficiência de Custo', cobertura: 'Cobertura Estratégica' };
-    const entries = Object.entries(breakdown).filter(([k]) => k !== 'boost');
-    breakdownCtx = `\nDETALHE DO SCORE: ${entries.map(([k,v]) => `${pillarLabels[k] || k}=${fmtDec(v.score || v, 1)}/10`).join(', ')}.`;
-    const sorted = entries.map(([k, v]) => ({ key: k, val: Number(v.score || v || 0) })).sort((a, b) => a.val - b.val);
-    if (sorted.length) {
-      weakestPillar = sorted[0].key;
-      weakestLabel = pillarLabels[weakestPillar] || weakestPillar;
-    }
-  }
+  const strengthsBlock = strengths.length ? `\nDESTAQUES POSITIVOS: ${strengths.join('. ')}.` : '';
 
-  return `Analise esta campanha DOOH. Responda usando EXATAMENTE as tags abaixo, cada uma em sua própria linha.
+  return `Você é um consultor de mídia DOOH escrevendo uma análise COMERCIAL para apresentar ao cliente ${empresa}.
+Tom: POSITIVO, PROFISSIONAL, VENDEDOR. Destaque o valor e os benefícios da campanha. NÃO critique.
 
-DADOS:
-Empresa: ${empresa || 'cliente'}, Cidade: ${cidade}, Segmento: ${segmento}
+CAMPANHA:
+${empresa} em ${cidade}, segmento ${segmento}
 Objetivo: ${objetivo}, Público: ${publico || 'geral'}
 ${pontosSel} pontos, formatos: ${formatos.length ? formatos.join(', ') : 'variados'}
-Investimento: R$${fmt(investimento)}/mês, Fluxo: ${fmt(fluxoTotal)} impactos/mês
-CPM: R$${fmtDec(cpm)} (${cpmClass}), Alcance: ${fmtDec(alcancePct, 1)}%, Frequência: ${fmtDec(frequencia, 1)}x
-Score: ${fmtDec(score, 1)}/10 (${scoreClass})${cityCtx}${breakdownCtx}
-${pontosSummary ? `\nPONTOS PRINCIPAIS: ${pontosSummary}` : ''}
-${weakestLabel ? `\nPILAR MAIS FRACO: ${weakestLabel} — foque a estratégia em como melhorar este aspecto.` : ''}
+Investimento: R$${fmt(investimento)}/mês → ${fmt(fluxoTotal)} impactos/mês
+CPM: R$${fmtDec(cpm)}, Alcance: ${fmtDec(alcancePct, 1)}%, Frequência: ${fmtDec(frequencia, 1)}x${strengthsBlock}
+${pontosSummary ? `Pontos: ${pontosSummary}` : ''}
 
-Responda EXATAMENTE neste formato (cada tag em nova linha):
+Responda EXATAMENTE neste formato (cada tag DEVE iniciar uma nova linha):
 
-AVALIACAO: ${scoreClass === 'excelente' ? 'Excelente' : scoreClass === 'bom' ? 'Boa' : 'Regular'}. [justifique em 1 frase com dados]
-RESUMO: [2-3 frases analisando a campanha de ${empresa || 'cliente'} em ${cidade}, cite investimento R$${fmt(investimento)}, CPM R$${fmtDec(cpm)} e alcance ${fmtDec(alcancePct,1)}%]
-FORTE1: [melhor aspecto desta campanha, cite um número]
-FORTE2: [segundo ponto forte, cite um número]
-OPORTUNIDADE1: [uma melhoria concreta]
-OPORTUNIDADE2: [segunda melhoria]
-ESTRATEGIA: [recomendação para ${objetivo} em ${segmento}${weakestLabel ? `, focando em melhorar o pilar mais fraco: ${weakestLabel}` : ''}]
+RESUMO: [2-3 frases vendedoras sobre a campanha de ${empresa} em ${cidade}. Cite R$${fmt(investimento)} de investimento e ${fmt(fluxoTotal)} impactos. Tom entusiasmado mas profissional.]
+FORTE1: [principal vantagem competitiva desta campanha, cite um dado real]
+FORTE2: [segundo benefício concreto, cite um dado real diferente do FORTE1]
+OPORTUNIDADE1: [sugestão de como ampliar os resultados, tom de upsell positivo]
+OPORTUNIDADE2: [segunda sugestão de expansão ou otimização]
+ESTRATEGIA: [recomendação estratégica para ${objetivo} no segmento ${segmento} em ${cidade}, 2-3 frases]
 
-IMPORTANTE: Use EXATAMENTE as tags acima (AVALIACAO, RESUMO, FORTE1, FORTE2, OPORTUNIDADE1, OPORTUNIDADE2, ESTRATEGIA). Cada tag deve iniciar uma nova linha.`;
+REGRAS:
+- Tom SEMPRE positivo e comercial. Nunca use palavras negativas (baixo, fraco, ruim, insuficiente).
+- Cada tag deve ter conteúdo DIFERENTE e ÚNICO.
+- Use dados reais fornecidos nos números.
+- Oportunidades são sugestões de EXPANSÃO, não críticas.`;
+}
+
+/**
+ * Build a high-quality algorithmic campaign analysis (no LLM needed).
+ * Used as fallback when LLM fails or produces poor output.
+ * Generates commercially appealing text using real campaign data.
+ */
+function buildAlgorithmicAnalysis(campaignData) {
+  const fmt = n => new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
+  const fmtDec = (n, d = 2) => Number(n || 0).toFixed(d);
+
+  const cidade = campaignData.cidade || 'sua cidade';
+  const segmento = campaignData.segmento || 'Geral';
+  const objetivo = campaignData.objetivo || 'awareness';
+  const empresa = campaignData.empresa || 'cliente';
+  const pontosSel = Number(campaignData.pontos_selecionados || campaignData.pontos?.length || 0);
+  const formatos = campaignData.formatos || [];
+  const fluxoTotal = Number(campaignData.fluxo_total || campaignData.fluxoTotal || 0);
+  const investimento = Number(campaignData.investimento || 0);
+  const cpm = Number(campaignData.cpm || 0);
+  const alcancePct = Number(campaignData.alcance_pct || campaignData.coberturaPct || 0);
+  const frequencia = Number(campaignData.frequencia || 0);
+
+  const SEGMENTO_LABELS = {
+    clinica: 'Clínicas e Saúde', hospital: 'Hospitais', escola: 'Escolas',
+    faculdade: 'Ensino Superior', construtora: 'Construtoras', imobiliaria: 'Imobiliárias',
+    varejo: 'Varejo', restaurante: 'Gastronomia', automotivo: 'Automotivo',
+    fitness: 'Fitness e Bem-estar', beleza: 'Beleza e Estética', pet: 'Pet',
+    farmacia: 'Farmácias', supermercado: 'Supermercados', governo: 'Governo',
+    turismo: 'Turismo', tecnologia: 'Tecnologia', servicos: 'Serviços',
+  };
+
+  const OBJETIVO_PHRASES = {
+    'reconhecimento de marca': 'construir reconhecimento de marca com alto impacto visual',
+    'presenca premium': 'posicionar a marca em ambientes premium de alta circulação',
+    'cobertura regional': 'cobrir estrategicamente múltiplas regiões com presença simultânea',
+    'proximidade da decisao de compra': 'impactar consumidores no momento mais próximo da decisão de compra',
+    'lembranca continua': 'manter presença contínua na rotina do público-alvo',
+  };
+
+  const segLabel = SEGMENTO_LABELS[segmento] || segmento;
+  const objPhrase = OBJETIVO_PHRASES[objetivo] || `alcançar o objetivo de ${objetivo}`;
+
+  // CPM classification (always positive phrasing)
+  let cpmPhrase;
+  if (cpm <= 8) cpmPhrase = `CPM de apenas R$${fmtDec(cpm)}, um dos mais eficientes do mercado DOOH`;
+  else if (cpm <= 18) cpmPhrase = `CPM competitivo de R$${fmtDec(cpm)}, garantindo excelente custo-benefício`;
+  else if (cpm <= 35) cpmPhrase = `CPM de R$${fmtDec(cpm)}, alinhado com a média do mercado para os formatos selecionados`;
+  else cpmPhrase = `investimento premium de R$${fmtDec(cpm)} por mil impactos, com foco em posicionamento de alto valor`;
+
+  // Flux classification
+  let fluxPhrase;
+  if (fluxoTotal >= 500000) fluxPhrase = `impressionantes ${fmt(fluxoTotal)} impactos mensais, garantindo alta visibilidade`;
+  else if (fluxoTotal >= 100000) fluxPhrase = `${fmt(fluxoTotal)} impactos mensais, assegurando exposição consistente da marca`;
+  else if (fluxoTotal >= 30000) fluxPhrase = `${fmt(fluxoTotal)} impactos mensais direcionados ao público-alvo`;
+  else fluxPhrase = `${fmt(fluxoTotal)} impactos mensais em pontos de alta afinidade com o público`;
+
+  // Format phrase
+  let fmtPhrase;
+  if (formatos.length >= 3) fmtPhrase = `A diversidade de ${formatos.length} formatos (${formatos.join(', ')}) cria um mix de mídia completo que impacta o público em diferentes momentos do dia`;
+  else if (formatos.length === 2) fmtPhrase = `A combinação de ${formatos.join(' e ')} oferece complementaridade — cobrindo diferentes contextos de exposição do público`;
+  else if (formatos.length === 1) fmtPhrase = `O formato ${formatos[0]} foi selecionado estrategicamente por sua alta afinidade com o segmento de ${segLabel}`;
+  else fmtPhrase = `Os formatos selecionados foram otimizados para maximizar o impacto no segmento de ${segLabel}`;
+
+  // Resumo
+  const resumo = `O plano de mídia DOOH para ${empresa} em ${cidade} foi desenhado para ${objPhrase}. Com investimento de R$${fmt(investimento)}/mês distribuído em ${pontosSel} pontos estratégicos, a campanha projeta ${fluxPhrase}.`;
+
+  // Pontos fortes (pick the 2 best real strengths)
+  const fortes = [];
+  if (cpm <= 25) {
+    fortes.push(`Eficiência de investimento: ${cpmPhrase}, permitindo que cada real investido gere o máximo de exposição para ${empresa}.`);
+  } else {
+    fortes.push(`Posicionamento premium: os pontos selecionados estão em locais de alto valor que reforçam o posicionamento de ${empresa} no segmento de ${segLabel}.`);
+  }
+  fortes.push(`${fmtPhrase}, maximizando as chances de ${objetivo === 'reconhecimento de marca' ? 'fixação da marca na mente do consumidor' : objetivo === 'presenca premium' ? 'associação com ambientes de qualidade' : 'conversão e lembrança'}.`);
+
+  // Oportunidades (positive upsell suggestions)
+  const oportunidades = [];
+  if (formatos.length <= 2 && pontosSel < 10) {
+    oportunidades.push(`Ampliar o mix com formatos complementares pode aumentar o alcance em até 40%, impactando o público em novos contextos ao longo do dia.`);
+  } else {
+    oportunidades.push(`Estender a campanha para períodos maiores pode fortalecer a frequência de exposição e consolidar a lembrança da marca junto ao público de ${cidade}.`);
+  }
+  if (alcancePct < 20) {
+    oportunidades.push(`Adicionar pontos em bairros complementares pode expandir significativamente a cobertura geográfica e atingir novas audiências potenciais.`);
+  } else {
+    oportunidades.push(`Com a base sólida atual, integrar a campanha DOOH com ações digitais (QR codes, redes sociais) pode potencializar o retorno sobre o investimento.`);
+  }
+
+  // Estratégia
+  const estrategia = `Para ${segLabel} em ${cidade}, recomendamos manter a presença contínua nos ${pontosSel} pontos selecionados, priorizando horários de pico para maximizar o ${frequencia >= 2 ? `ritmo de frequência atual de ${fmtDec(frequencia, 1)}x` : 'contato com o público-alvo'}. A combinação de localização estratégica e volume de ${fmt(fluxoTotal)} impactos/mês posiciona ${empresa} com destaque frente à concorrência no mercado local.`;
+
+  return {
+    avaliacao: 'Estratégica',
+    resumo_executivo: resumo,
+    pontos_fortes: fortes,
+    oportunidades_melhoria: oportunidades,
+    argumentacao_comercial: [],
+    estrategia_recomendada: estrategia,
+    _source: 'algorithmic',
+  };
 }
 
 /**
@@ -960,6 +1072,33 @@ async function generatePointInsight(pontoId, userId = null) {
 /**
  * AI-powered analysis of a full campaign (selected points + budget + objective).
  */
+/**
+ * Validate LLM analysis quality. Returns true if output is usable for clients.
+ */
+function isAnalysisQualityOk(analysis) {
+  if (!analysis?.resumo_executivo || analysis.resumo_executivo.length < 50) return false;
+  if (!analysis.pontos_fortes?.length) return false;
+
+  // Detect repetition: if pontos_fortes repeats the resumo almost verbatim
+  const resumoNorm = (analysis.resumo_executivo || '').toLowerCase().slice(0, 80);
+  for (const pf of analysis.pontos_fortes) {
+    if (pf.toLowerCase().slice(0, 80) === resumoNorm) return false;
+  }
+
+  // Detect negative/critical tone in what should be a sales document
+  const allText = [
+    analysis.resumo_executivo,
+    ...(analysis.pontos_fortes || []),
+    analysis.estrategia_recomendada || '',
+  ].join(' ').toLowerCase();
+
+  const negativeWords = ['fraco', 'baixa performance', 'insuficiente', 'ruim', 'problemátic', 'preocupante', 'ineficiente', 'deficiente'];
+  const negativeCount = negativeWords.filter(w => allText.includes(w)).length;
+  if (negativeCount >= 2) return false;
+
+  return true;
+}
+
 async function analyzeCampaign(campaignData, userId = null) {
   const inputStr = JSON.stringify({
     cidade: campaignData.cidade,
@@ -972,37 +1111,50 @@ async function analyzeCampaign(campaignData, userId = null) {
     score: campaignData.score,
     alcance_pct: campaignData.alcance_pct,
   });
-  const inputHash = hashInput('campaign_v2_' + inputStr);
+  const inputHash = hashInput('campaign_v3_' + inputStr);
 
   const cached = getCached(inputHash);
   if (cached) {
-    return { ...extractJSON(cached.response), _source: 'cache', _model: cached.model };
+    const cachedResult = extractJSON(cached.response);
+    if (cachedResult && isAnalysisQualityOk(cachedResult)) {
+      return { ...cachedResult, _source: 'cache', _model: cached.model };
+    }
   }
 
   const cityStats = getCityStats(campaignData.cidade);
   const prompt = buildCampaignAnalysisPrompt(campaignData, cityStats);
 
-  const result = await generateWithFallback(prompt);
-  // Try text markers first (more reliable for small models), then JSON
-  const parsed = parseCampaignAnalysisText(result.text) || extractJSON(result.text);
+  // Try LLM with Replicate-first chain (70B → 8B → local)
+  let parsed = null;
+  let resultModel = null;
 
-  if (!parsed) {
-    return {
-      avaliacao: 'N/A',
-      resumo_executivo: result.text.slice(0, 2000),
-      pontos_fortes: [],
-      oportunidades_melhoria: [],
-      argumentacao_comercial: [],
-      estrategia_recomendada: '',
-      _source: 'raw',
-      _model: result.model,
-    };
+  try {
+    const result = await generateReplicateFirst(prompt);
+    resultModel = result.model;
+    parsed = parseCampaignAnalysisText(result.text) || extractJSON(result.text);
+
+    // Quality gate: if LLM output is repetitive/negative, discard it
+    if (parsed && !isAnalysisQualityOk(parsed)) {
+      console.warn(`[ai] LLM output failed quality check (${resultModel}), using algorithmic fallback`);
+      parsed = null;
+    }
+  } catch (err) {
+    console.warn(`[ai] all LLM providers failed for campaign analysis: ${err.message}`);
   }
 
-  setCache(inputHash, prompt, JSON.stringify(parsed), result.model, result.latency);
+  // Fallback: generate high-quality algorithmic analysis from real data
+  if (!parsed) {
+    parsed = buildAlgorithmicAnalysis(campaignData);
+    resultModel = 'algorithmic';
+  }
+
+  parsed._model = resultModel;
+  parsed._source = parsed._source || 'generated';
+
+  setCache(inputHash, prompt, JSON.stringify(parsed), resultModel, 0);
   saveMemory(inputStr, JSON.stringify(parsed), userId, 'campaign_analysis');
 
-  return { ...parsed, _source: 'generated', _model: result.model };
+  return parsed;
 }
 
 // ── DOOH Intelligence: Smart Recommendation ─────────────────────────────────
@@ -1206,6 +1358,7 @@ async function healthCheck() {
 module.exports = {
   generateLocal,
   generateWithFallback,
+  generateReplicateFirst,
   generateWithReplicate,
   generateStructuredOutput,
   analyzeInput,
