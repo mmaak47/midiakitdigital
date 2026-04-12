@@ -578,7 +578,7 @@ function formatPointCountLabel(count) {
 function buildHeroImageFrame(image, options = {}) {
   if (!image) {
     return `
-      <div style="height:100%;border-radius:${options.radius || 30}px;border:1px solid ${BRAND_BORDER};background:linear-gradient(135deg,#121212,#1B1B1B);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.62);font-size:28px;font-weight:600;">
+      <div style="height:100%;border-radius:${options.radius || 30}px;border:1px solid ${PROPOSAL_BORDER};background:${PROPOSAL_SURFACE_ALT};display:flex;align-items:center;justify-content:center;color:${PROPOSAL_LABEL};font-size:28px;font-weight:600;">
         Imagem indisponível
       </div>
     `;
@@ -587,14 +587,12 @@ function buildHeroImageFrame(image, options = {}) {
   const focalPoint = String(options.focalPoint || 'center center').trim() || 'center center';
   const mainImageStyle = options.fit === 'cover'
     ? `display:block;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(focalPoint)};`
-    : 'display:block;max-width:100%;max-height:100%;width:auto;height:auto;';
+    : 'display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;';
 
   return `
-    <div style="position:relative;height:100%;border-radius:${options.radius || 30}px;overflow:hidden;border:1px solid ${BRAND_BORDER};background:#050505;">
-      <img src="${image}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(26px) saturate(1.1);transform:scale(1.08);opacity:0.45;" />
-      <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,7,7,0.12),rgba(7,7,7,0.62));"></div>
+    <div style="position:relative;height:100%;border-radius:${options.radius || 30}px;overflow:hidden;border:1px solid ${PROPOSAL_BORDER};background:${PROPOSAL_SURFACE_ALT};">
       <div style="position:absolute;left:28px;top:28px;right:28px;bottom:28px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-        <img src="${image}" alt="" style="${mainImageStyle}filter:drop-shadow(0 24px 44px rgba(0,0,0,0.45));" />
+        <img src="${image}" alt="" style="${mainImageStyle}filter:drop-shadow(0 12px 24px rgba(0,0,0,0.12));" />
       </div>
     </div>
   `;
@@ -1181,7 +1179,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
         </div>
       </div>
     </div>
-  `, BRAND_DARK);
+  `, PROPOSAL_BG);
 }
 
 function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, pricingSummary, segmento, assets }) {
@@ -1333,25 +1331,24 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
   const imageFrameHtml = buildHeroImageFrame(image, { fit: 'contain', radius: 28, focalPoint });
 
   return createPage(`
-    <div style="position:absolute;inset:0;background:linear-gradient(135deg,#000000 0%,#050505 38%,#101010 100%);"></div>
-    <div style="position:absolute;top:0;right:0;bottom:0;width:34%;background:url('${assets.wallpaper || assets.cityBg || ''}') center/cover no-repeat;opacity:${layout.rightWallpaperOpacity};"></div>
-    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:24px 28px;box-sizing:border-box;display:grid;grid-template-rows:auto 1fr;gap:10px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;">
+    <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
+    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:24px 28px;box-sizing:border-box;display:grid;grid-template-rows:auto 1fr;gap:10px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div data-calibration-id="proposal.point.header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
         <div style="display:flex;align-items:center;gap:16px;min-width:0;">
           <img src="${assets.logo || ''}" alt="" style="height:34px;width:auto;object-fit:contain;" />
           <div style="min-width:0;">
-            <div style="font-family:Poppins, system-ui, sans-serif;font-size:24px;line-height:1.03;font-weight:700;letter-spacing:-0.03em;color:#fff;white-space:normal;word-break:break-word;max-height:2.1em;overflow:hidden;">${formatPointNameHtml(point.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.66em;font-weight:600;letter-spacing:-0.01em;' })}</div>
+            <div style="font-family:Poppins, system-ui, sans-serif;font-size:24px;line-height:1.03;font-weight:700;letter-spacing:-0.03em;color:${PROPOSAL_TEXT};white-space:normal;word-break:break-word;max-height:2.1em;overflow:hidden;">${formatPointNameHtml(point.nome || 'PONTO SEM NOME', { innerStyle: 'font-size:0.66em;font-weight:600;letter-spacing:-0.01em;' })}</div>
             <div style="margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;line-height:1.25;color:${PROPOSAL_TEXT_SECONDARY};">
               <span style="display:inline-flex;align-items:center;justify-content:center;height:24px;padding:0 10px;border-radius:100px;background:${PROPOSAL_ACCENT};font-size:11px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.08em;">${escapeHtml(getPointTypeLabel(point) || '-')}</span>
               <span>${escapeHtml(point.cidade || '-')}</span>
-              ${coords ? `<span style="display:inline-flex;align-items:center;justify-content:center;min-height:22px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);font-size:12px;line-height:1;color:rgba(255,255,255,0.58);">${escapeHtml(coords)}</span>` : ''}
+              ${coords ? `<span style="display:inline-flex;align-items:center;justify-content:center;min-height:22px;padding:0 10px;border-radius:999px;border:1px solid rgba(0,0,0,0.10);background:rgba(0,0,0,0.04);font-size:12px;line-height:1;color:${PROPOSAL_TEXT_SECONDARY};">${escapeHtml(coords)}</span>` : ''}
             </div>
           </div>
         </div>
-        <div data-calibration-id="proposal.point.counter" style="display:inline-flex;align-items:center;justify-content:center;gap:${layout.counterGap}px;min-width:${counterMinWidth}px;height:${layout.counterMinHeight}px;padding:0 ${counterPaddingX}px;border-radius:100px;background:rgba(255,255,255,0.08);font-size:13px;font-weight:700;color:#fff;line-height:1;font-family:Poppins, system-ui, sans-serif;white-space:nowrap;text-align:center;letter-spacing:0;box-sizing:border-box;">
+        <div data-calibration-id="proposal.point.counter" style="display:inline-flex;align-items:center;justify-content:center;gap:${layout.counterGap}px;min-width:${counterMinWidth}px;height:${layout.counterMinHeight}px;padding:0 ${counterPaddingX}px;border-radius:100px;background:rgba(0,0,0,0.06);font-size:13px;font-weight:700;color:${PROPOSAL_TEXT};line-height:1;font-family:Poppins, system-ui, sans-serif;white-space:nowrap;text-align:center;letter-spacing:0;box-sizing:border-box;">
           <span style="display:block;color:${PROPOSAL_ACCENT};">${index}</span>
-          <span style="display:block;color:rgba(255,255,255,0.56);">/</span>
-          <span style="display:block;color:rgba(255,255,255,0.86);">${total}</span>
+          <span style="display:block;color:${PROPOSAL_LABEL};">/</span>
+          <span style="display:block;color:${PROPOSAL_TEXT};">${total}</span>
         </div>
       </div>
 
@@ -1359,7 +1356,6 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
         <div data-calibration-id="proposal.point.imageFrame" style="position:relative;min-width:0;">
           <div style="position:absolute;inset:0;padding:14px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};box-sizing:border-box;">
             ${imageFrameHtml}
-            <div style="position:absolute;left:14px;right:14px;bottom:14px;height:72px;background:linear-gradient(to top,rgba(0,0,0,0.62),transparent);pointer-events:none;"></div>
           </div>
         </div>
 
@@ -1367,33 +1363,33 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
           ${hasEntornoData ? `
             <div data-calibration-id="proposal.point.addressBox" style="padding:12px 14px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
               <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};border-top:2px solid ${PROPOSAL_ACCENT};padding-top:8px;">Entorno relevante</div>
-              <div style="margin-top:4px;font-size:24px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(relevantPlacesCount)}</div>
-              <div style="margin-top:4px;font-size:11px;line-height:1.3;color:rgba(255,255,255,0.72);">${escapeHtml(relevantPlacesCount === 1 ? 'local relevante no raio analisado.' : 'locais relevantes no raio analisado.')}</div>
+              <div style="margin-top:4px;font-size:24px;line-height:1;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${formatInt(relevantPlacesCount)}</div>
+              <div style="margin-top:4px;font-size:11px;line-height:1.3;color:${PROPOSAL_TEXT_SECONDARY};">${escapeHtml(relevantPlacesCount === 1 ? 'local relevante no raio analisado.' : 'locais relevantes no raio analisado.')}</div>
             </div>
           ` : ''}
 
           <div style="padding:12px 14px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
             <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};border-top:2px solid ${PROPOSAL_ACCENT};padding-top:8px;">Qualificação do público</div>
-            <div style="margin-top:8px;display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 12px;border-radius:100px;background:rgba(255,90,31,0.15);border:1px solid rgba(255,90,31,0.24);font-size:12px;font-weight:700;color:${PROPOSAL_ACCENT};">${escapeHtml(audience.badge)}</div>
-            <div style="margin-top:6px;font-size:16px;line-height:1.3;color:#fff;font-weight:700;word-break:break-word;max-height:2.6em;overflow:hidden;">${escapeHtml(audience.headline)}</div>
+            <div style="margin-top:8px;display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 12px;border-radius:100px;background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.24);font-size:12px;font-weight:700;color:${PROPOSAL_ACCENT};">${escapeHtml(audience.badge)}</div>
+            <div style="margin-top:6px;font-size:16px;line-height:1.3;color:${PROPOSAL_TEXT};font-weight:700;word-break:break-word;max-height:2.6em;overflow:hidden;">${escapeHtml(audience.headline)}</div>
             <div style="margin-top:4px;font-size:12px;line-height:1.32;color:${PROPOSAL_TEXT_SECONDARY};word-break:break-word;max-height:2.6em;overflow:hidden;">${escapeHtml(audience.summary)}</div>
           </div>
 
           ${mapImage ? `
             <div style="padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
               <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Localização no mapa</div>
-              <div style="margin-top:6px;height:72px;border-radius:10px;overflow:hidden;border:1px solid ${PROPOSAL_BORDER};background:rgba(255,255,255,0.02);">
-                <img src="${mapImage}" alt="Mapa do ponto" style="width:100%;height:100%;object-fit:cover;filter:brightness(0.85) contrast(1.1);" />
+              <div style="margin-top:6px;height:72px;border-radius:10px;overflow:hidden;border:1px solid ${PROPOSAL_BORDER};background:${PROPOSAL_SURFACE_ALT};">
+                <img src="${mapImage}" alt="Mapa do ponto" style="width:100%;height:100%;object-fit:cover;" />
               </div>
-              <div style="margin-top:2px;font-size:9px;line-height:1.1;color:rgba(255,255,255,0.62);">Fonte cartográfica: OpenStreetMap/Carto.</div>
+              <div style="margin-top:2px;font-size:9px;line-height:1.1;color:${PROPOSAL_LABEL};">Fonte cartográfica: OpenStreetMap/Carto.</div>
             </div>
           ` : ''}
 
           <div data-calibration-id="proposal.point.statsList" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
             ${stats.map((item) => `
-              <div style="padding:10px 12px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid ${PROPOSAL_BORDER};">
+              <div style="padding:10px 12px;border-radius:8px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
                 <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(item.label)}</div>
-                <div style="margin-top:2px;font-size:${item.label === 'Valor Negociado' ? '22px' : '16px'};line-height:1.2;color:${item.label === 'Valor Negociado' ? PROPOSAL_ACCENT : '#fff'};font-weight:800;word-break:break-word;">${escapeHtml(item.value)}</div>
+                <div style="margin-top:2px;font-size:${item.label === 'Valor Negociado' ? '22px' : '16px'};line-height:1.2;color:${item.label === 'Valor Negociado' ? PROPOSAL_ACCENT : PROPOSAL_TEXT};font-weight:800;word-break:break-word;">${escapeHtml(item.value)}</div>
               </div>
             `).join('')}
           </div>
@@ -1401,7 +1397,7 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
         </div>
       </div>
     </div>
-  `, BRAND_DARK);
+  `, PROPOSAL_BG);
 }
 
 function resolvePointCoordinates(point) {
@@ -1649,39 +1645,37 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
-    <img src="${assets.wallpaper || assets.heroBg || ''}" alt="" style="position:absolute;inset:-80px;width:calc(100% + 160px);height:calc(100% + 160px);object-fit:cover;filter:blur(18px) saturate(1.1);opacity:0.12;" />
-    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.68),rgba(0,0,0,0.9));"></div>
 
-    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:42px 56px;box-sizing:border-box;display:grid;grid-template-rows:auto auto auto 1fr;gap:12px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;">
+    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:42px 56px;box-sizing:border-box;display:grid;grid-template-rows:auto auto auto 1fr;gap:12px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
         <div style="display:flex;align-items:center;gap:14px;">
           <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;" />
-          <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border-radius:100px;background:rgba(255,90,31,0.12);border:1px solid rgba(255,90,31,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Evidências de entorno</div>
+          <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border-radius:100px;background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Evidências de entorno</div>
         </div>
-        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.62);">${escapeHtml(proposalCity || 'Múltiplas praças')} • ${escapeHtml(segmentLabel)}</div>
+        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(proposalCity || 'Múltiplas praças')} • ${escapeHtml(segmentLabel)}</div>
       </div>
 
-      <div style="padding:14px 18px;border-radius:18px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
+      <div style="padding:14px 18px;border-radius:18px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
         <div>
-          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Pontos com aderência</div>
-          <div style="margin-top:6px;font-size:30px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(pointsWithEntorno.length)}</div>
+          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Pontos com aderência</div>
+          <div style="margin-top:6px;font-size:30px;line-height:1;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${formatInt(pointsWithEntorno.length)}</div>
         </div>
         <div>
-          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Total de pontos da proposta</div>
-          <div style="margin-top:6px;font-size:30px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(proposalPoints.length)}</div>
+          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Total de pontos da proposta</div>
+          <div style="margin-top:6px;font-size:30px;line-height:1;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${formatInt(proposalPoints.length)}</div>
         </div>
         <div>
-          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Foco do segmento</div>
-            <div style="margin-top:6px;font-size:22px;line-height:1.2;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(segmentLabel)}</div>
+          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Foco do segmento</div>
+            <div style="margin-top:6px;font-size:22px;line-height:1.2;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(segmentLabel)}</div>
         </div>
       </div>
 
       <div style="display:grid;grid-template-columns:1.05fr 0.95fr;gap:10px;height:280px;">
         <div style="border-radius:12px;border:1px solid ${PROPOSAL_BORDER};background:${PROPOSAL_SURFACE};overflow:hidden;position:relative;">
-          <div style="position:absolute;top:10px;left:12px;z-index:2;padding:5px 10px;border-radius:100px;border:1px solid rgba(255,90,31,0.26);background:rgba(255,90,31,0.14);font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Mapa geográfico de evidências</div>
-          <div style="position:absolute;right:12px;bottom:10px;z-index:2;display:flex;gap:10px;align-items:center;font-size:11px;color:rgba(255,255,255,0.68);">
+          <div style="position:absolute;top:10px;left:12px;z-index:2;padding:5px 10px;border-radius:100px;border:1px solid rgba(232,89,26,0.26);background:rgba(232,89,26,0.14);font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Mapa geográfico de evidências</div>
+          <div style="position:absolute;right:12px;bottom:10px;z-index:2;display:flex;gap:10px;align-items:center;font-size:11px;color:${PROPOSAL_TEXT_SECONDARY};">
             <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:999px;background:${BRAND_ORANGE};display:inline-block;"></span>Pontos</span>
-            <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:999px;background:rgba(255,255,255,0.8);display:inline-block;"></span>Entorno</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:999px;background:rgba(0,0,0,0.35);display:inline-block;"></span>Entorno</span>
           </div>
           <div style="position:absolute;inset:0;padding:10px;box-sizing:border-box;">${evidenceMapSvg}</div>
         </div>
@@ -1689,11 +1683,11 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
         <div style="display:grid;gap:8px;align-content:start;">
           ${rows.slice(0, 3).map(({ point, totalLocais, score }) => `
             <div style="padding:12px 12px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};border-left:3px solid ${PROPOSAL_ACCENT};">
-              <div style="font-size:14px;line-height:1.2;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
-              <div style="margin-top:5px;font-size:12px;color:rgba(255,255,255,0.68);">${escapeHtml(point.cidade || '-')} • ${escapeHtml(getPointTypeLabel(point) || '-')}</div>
+              <div style="font-size:14px;line-height:1.2;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
+              <div style="margin-top:5px;font-size:12px;color:${PROPOSAL_TEXT_SECONDARY};">${escapeHtml(point.cidade || '-')} • ${escapeHtml(getPointTypeLabel(point) || '-')}</div>
               <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                <div style="font-size:12px;color:rgba(255,255,255,0.62);">Locais relevantes</div>
-                <div style="font-size:18px;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(totalLocais)}</div>
+                <div style="font-size:12px;color:${PROPOSAL_LABEL};">Locais relevantes</div>
+                <div style="font-size:18px;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${formatInt(totalLocais)}</div>
               </div>
               <div style="margin-top:4px;font-size:32px;color:${PROPOSAL_ACCENT};font-weight:800;line-height:1;">${score.toFixed(1).replace('.', ',')}</div>
             </div>
@@ -1705,25 +1699,25 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
         ${rows.slice(0, 3).map(({ point, totalLocais, score, places, summary }) => `
           <div style="padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};display:grid;grid-template-columns:2fr 0.8fr 1.5fr;gap:10px;align-items:start;">
             <div>
-              <div style="font-size:14px;line-height:1.2;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
-              <div style="margin-top:3px;font-size:12px;color:rgba(255,255,255,0.65);">${escapeHtml(point.cidade || '-')} • ${escapeHtml(getPointTypeLabel(point) || '-')}</div>
-              <div style="margin-top:6px;font-size:11px;line-height:1.35;color:rgba(255,255,255,0.78);max-height:2.7em;overflow:hidden;">${escapeHtml(summary.summary)}</div>
+              <div style="font-size:14px;line-height:1.2;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
+              <div style="margin-top:3px;font-size:12px;color:${PROPOSAL_TEXT_SECONDARY};">${escapeHtml(point.cidade || '-')} • ${escapeHtml(getPointTypeLabel(point) || '-')}</div>
+              <div style="margin-top:6px;font-size:11px;line-height:1.35;color:${PROPOSAL_TEXT_SECONDARY};max-height:2.7em;overflow:hidden;">${escapeHtml(summary.summary)}</div>
             </div>
             <div>
-              <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Locais / score</div>
-              <div style="margin-top:6px;font-size:17px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${formatInt(totalLocais)}</div>
+              <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Locais / score</div>
+              <div style="margin-top:6px;font-size:17px;line-height:1;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${formatInt(totalLocais)}</div>
               <div style="margin-top:4px;font-size:12px;color:${PROPOSAL_ACCENT};font-weight:700;">score ${score.toFixed(1).replace('.', ',')}</div>
             </div>
             <div style="display:grid;gap:6px;">
               ${(places.length ? places : ['Sem locais próximos listados no cache atual.']).map((label) => `
-                <div style="padding:6px 8px;border-radius:10px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.06);font-size:10px;color:rgba(255,255,255,0.82);line-height:1.3;word-break:break-word;">${escapeHtml(label)}</div>
+                <div style="padding:6px 8px;border-radius:10px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};font-size:10px;color:${PROPOSAL_TEXT_SECONDARY};line-height:1.3;word-break:break-word;">${escapeHtml(label)}</div>
               `).join('')}
             </div>
           </div>
         `).join('')}
       </div>
     </div>
-  `, BRAND_DARK);
+  `, PROPOSAL_BG);
 }
 
 export async function loadPdfAssets(cidade = '') {
@@ -1785,22 +1779,22 @@ function buildCampaignScorePage({ proposalPoints, segmento, assets }) {
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
     <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(254,92,43,0.08) 0%,transparent 40%);"></div>
-    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;">
+    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
         <div style="display:flex;align-items:center;gap:16px;">
           <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;" />
-          <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 18px;border-radius:100px;background:rgba(255,90,31,0.12);border:1px solid rgba(255,90,31,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Score da campanha</div>
+          <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 18px;border-radius:100px;background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Score da campanha</div>
         </div>
-        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">${escapeHtml(segmentLabel)}</div>
+        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(segmentLabel)}</div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div style="padding:22px 26px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
-          <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Pontos com score</div>
-          <div style="margin-top:10px;font-size:42px;line-height:1;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${rows.filter((r) => r.score > 0).length}</div>
+          <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Pontos com score</div>
+          <div style="margin-top:10px;font-size:42px;line-height:1;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${rows.filter((r) => r.score > 0).length}</div>
         </div>
-        <div style="padding:22px 26px;border-radius:24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
-          <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">Score médio</div>
+        <div style="padding:22px 26px;border-radius:24px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
+          <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Score médio</div>
           <div style="margin-top:10px;font-size:64px;line-height:1;font-weight:800;color:${PROPOSAL_ACCENT};font-family:Poppins, system-ui, sans-serif;">${rows.length ? (rows.reduce((s, r) => s + r.score, 0) / rows.length).toFixed(1).replace('.', ',') : '0,0'}</div>
         </div>
       </div>
@@ -1808,23 +1802,23 @@ function buildCampaignScorePage({ proposalPoints, segmento, assets }) {
       <div style="flex:1;display:grid;gap:12px;align-content:start;overflow:hidden;">
         ${rows.map((row) => {
           const bar = Math.max(2, Math.round((row.score / maxScore) * 100));
-          const color = row.score >= 7 ? BRAND_ORANGE : row.score >= 4 ? '#fff' : 'rgba(255,255,255,0.45)';
+          const color = row.score >= 7 ? BRAND_ORANGE : row.score >= 4 ? PROPOSAL_TEXT : PROPOSAL_LABEL;
           return `
             <div style="display:grid;grid-template-columns:minmax(0,2fr) 112px minmax(0,1.4fr);gap:14px;align-items:center;padding:16px 20px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
               <div>
-                <div style="font-size:18px;font-weight:700;color:#fff;font-family:Poppins, system-ui, sans-serif;">${escapeHtml(row.nome)}</div>
-                <div style="margin-top:3px;font-size:13px;color:rgba(255,255,255,0.55);">${escapeHtml(row.cidade)} · ${row.total} locais relevantes</div>
+                <div style="font-size:18px;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${escapeHtml(row.nome)}</div>
+                <div style="margin-top:3px;font-size:13px;color:${PROPOSAL_TEXT_SECONDARY};">${escapeHtml(row.cidade)} · ${row.total} locais relevantes</div>
               </div>
-              <div style="text-align:center;font-size:28px;font-weight:700;line-height:1;color:${row.score <= 0 ? 'rgba(255,255,255,0.25)' : color};font-family:Poppins, system-ui, sans-serif;">${row.score.toFixed(1).replace('.', ',')}</div>
-              <div style="display:flex;align-items:center;height:8px;border-radius:100px;background:rgba(255,255,255,0.08);overflow:hidden;">
-                <div style="height:100%;width:${bar}%;border-radius:100px;background:${row.score >= 6 ? PROPOSAL_ACCENT : 'rgba(255,255,255,0.4)'};"></div>
+              <div style="text-align:center;font-size:28px;font-weight:700;line-height:1;color:${row.score <= 0 ? 'rgba(0,0,0,0.20)' : color};font-family:Poppins, system-ui, sans-serif;">${row.score.toFixed(1).replace('.', ',')}</div>
+              <div style="display:flex;align-items:center;height:8px;border-radius:100px;background:rgba(0,0,0,0.06);overflow:hidden;">
+                <div style="height:100%;width:${bar}%;border-radius:100px;background:${row.score >= 6 ? PROPOSAL_ACCENT : 'rgba(0,0,0,0.25)'};"></div>
               </div>
             </div>
           `;
         }).join('')}
       </div>
     </div>
-  `, BRAND_DARK);
+  `, PROPOSAL_BG);
 }
 
 function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, assets }) {
@@ -1837,13 +1831,13 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
     <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(254,92,43,0.06) 0%,transparent 40%);"></div>
-    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;">
+    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
         <div style="display:flex;align-items:center;gap:16px;">
           <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;" />
-          <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 18px;border-radius:100px;background:rgba(255,90,31,0.12);border:1px solid rgba(255,90,31,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Cobertura e presença</div>
+          <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 18px;border-radius:100px;background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Cobertura e presença</div>
         </div>
-        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);">${escapeHtml(segmentLabel)}</div>
+        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(segmentLabel)}</div>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
@@ -1855,13 +1849,13 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
         ].map((card) => `
           <div style="padding:22px 20px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
             <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(card.label)}</div>
-            <div style="margin-top:10px;font-size:${card.label === 'Cobertura do segmento' ? '56px' : '36px'};line-height:1;font-weight:800;color:${card.label === 'Cobertura do segmento' ? PROPOSAL_ACCENT : '#fff'};font-family:Poppins, system-ui, sans-serif;">${escapeHtml(card.value)}</div>
+            <div style="margin-top:10px;font-size:${card.label === 'Cobertura do segmento' ? '56px' : '36px'};line-height:1;font-weight:800;color:${card.label === 'Cobertura do segmento' ? PROPOSAL_ACCENT : PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${escapeHtml(card.value)}</div>
           </div>
         `).join('')}
       </div>
 
       <div style="flex:1;display:grid;gap:12px;align-content:start;overflow:hidden;">
-        <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08);">Presença por ponto</div>
+        <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};padding-bottom:8px;border-bottom:1px solid ${PROPOSAL_BORDER};">Presença por ponto</div>
         ${proposalPoints.map((point) => {
           const locais = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
           const score = Number(point?.entornoMetrics?.score_relevancia) || 0;
@@ -1870,20 +1864,20 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
           return `
             <div style="display:grid;grid-template-columns:minmax(0,1.8fr) 88px 92px minmax(0,1.2fr);gap:14px;align-items:center;padding:14px 18px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
               <div>
-                <div style="font-size:16px;font-weight:700;color:#fff;">${escapeHtml(point.nome || 'Ponto')}</div>
-                <div style="margin-top:2px;font-size:12px;color:rgba(255,255,255,0.5);">${escapeHtml(point.cidade || '-')} · ${escapeHtml(getPointTypeLabel(point) || '-')}</div>
+                <div style="font-size:16px;font-weight:700;color:${PROPOSAL_TEXT};">${escapeHtml(point.nome || 'Ponto')}</div>
+                <div style="margin-top:2px;font-size:12px;color:${PROPOSAL_LABEL};">${escapeHtml(point.cidade || '-')} · ${escapeHtml(getPointTypeLabel(point) || '-')}</div>
               </div>
-              <div style="text-align:center;font-size:22px;font-weight:700;line-height:1;color:${hasData ? '#fff' : 'rgba(255,255,255,0.3)'};font-family:Poppins;">${formatInt(locais)}</div>
-              <div style="text-align:center;font-size:18px;font-weight:700;line-height:1;color:${score >= 6 ? PROPOSAL_ACCENT : 'rgba(255,255,255,0.4)'};font-family:Poppins;">${score.toFixed(1).replace('.', ',')}</div>
-              <div style="display:flex;align-items:center;height:8px;border-radius:100px;background:rgba(255,255,255,0.08);overflow:hidden;">
-                <div style="height:100%;width:${barPct}%;border-radius:100px;background:${score >= 6 ? PROPOSAL_ACCENT : 'rgba(255,255,255,0.4)'};"></div>
+              <div style="text-align:center;font-size:22px;font-weight:700;line-height:1;color:${hasData ? PROPOSAL_TEXT : 'rgba(0,0,0,0.25)'};font-family:Poppins;">${formatInt(locais)}</div>
+              <div style="text-align:center;font-size:18px;font-weight:700;line-height:1;color:${score >= 6 ? PROPOSAL_ACCENT : 'rgba(0,0,0,0.30)'};font-family:Poppins;">${score.toFixed(1).replace('.', ',')}</div>
+              <div style="display:flex;align-items:center;height:8px;border-radius:100px;background:rgba(0,0,0,0.06);overflow:hidden;">
+                <div style="height:100%;width:${barPct}%;border-radius:100px;background:${score >= 6 ? PROPOSAL_ACCENT : 'rgba(0,0,0,0.25)'};"></div>
               </div>
             </div>
           `;
         }).join('')}
       </div>
     </div>
-  `, BRAND_DARK);
+  `, PROPOSAL_BG);
 }
 
 function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico, assets }) {
@@ -1907,35 +1901,35 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
 
   let pointRows = proposalPoints.map((p) => `
     <tr>
-      <td style="padding:12px 16px;font-size:13px;font-weight:600;color:#fff;border-bottom:1px solid rgba(255,255,255,0.06);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.nome || 'Ponto')}</td>
-      <td style="padding:12px 16px;font-size:12px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.06);">${escapeHtml(p.cidade || '—')}</td>
-      <td style="padding:12px 16px;font-size:12px;color:rgba(255,255,255,0.6);border-bottom:1px solid rgba(255,255,255,0.06);">${escapeHtml(getPointTypeLabel(p) || '—')}</td>
-      <td style="padding:12px 16px;font-size:13px;font-weight:700;color:${PROPOSAL_ACCENT};border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;white-space:nowrap;">${formatMoney(p.precoOriginal ?? p.preco ?? 0)}</td>
-      <td style="padding:12px 16px;font-size:13px;font-weight:700;color:${PROPOSAL_ACCENT};border-bottom:1px solid rgba(255,255,255,0.06);text-align:right;white-space:nowrap;">${formatMoney(p.precoFinal ?? p.preco ?? 0)}</td>
+      <td style="padding:12px 16px;font-size:13px;font-weight:600;color:${PROPOSAL_TEXT};border-bottom:1px solid ${PROPOSAL_BORDER};max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.nome || 'Ponto')}</td>
+      <td style="padding:12px 16px;font-size:12px;color:${PROPOSAL_TEXT_SECONDARY};border-bottom:1px solid ${PROPOSAL_BORDER};">${escapeHtml(p.cidade || '—')}</td>
+      <td style="padding:12px 16px;font-size:12px;color:${PROPOSAL_TEXT_SECONDARY};border-bottom:1px solid ${PROPOSAL_BORDER};">${escapeHtml(getPointTypeLabel(p) || '—')}</td>
+      <td style="padding:12px 16px;font-size:13px;font-weight:700;color:${PROPOSAL_ACCENT};border-bottom:1px solid ${PROPOSAL_BORDER};text-align:right;white-space:nowrap;">${formatMoney(p.precoOriginal ?? p.preco ?? 0)}</td>
+      <td style="padding:12px 16px;font-size:13px;font-weight:700;color:${PROPOSAL_ACCENT};border-bottom:1px solid ${PROPOSAL_BORDER};text-align:right;white-space:nowrap;">${formatMoney(p.precoFinal ?? p.preco ?? 0)}</td>
     </tr>
   `).join('');
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
-    <div style="position:absolute;top:-20%;right:-10%;width:800px;height:800px;background:radial-gradient(circle, rgba(255,90,31,0.08) 0%, transparent 60%);border-radius:50%;filter:blur(60px);pointer-events:none;"></div>
-    <div style="position:absolute;bottom:-20%;left:-10%;width:600px;height:600px;background:radial-gradient(circle, rgba(255,90,31,0.05) 0%, transparent 60%);border-radius:50%;filter:blur(60px);pointer-events:none;"></div>
+    <div style="position:absolute;top:-20%;right:-10%;width:800px;height:800px;background:radial-gradient(circle, rgba(232,89,26,0.06) 0%, transparent 60%);border-radius:50%;filter:blur(60px);pointer-events:none;"></div>
+    <div style="position:absolute;bottom:-20%;left:-10%;width:600px;height:600px;background:radial-gradient(circle, rgba(232,89,26,0.04) 0%, transparent 60%);border-radius:50%;filter:blur(60px);pointer-events:none;"></div>
 
-    <div style="position:relative;z-index:1;height:${impactPageHeight}px;max-height:${impactPageHeight}px;padding:42px 52px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:visible;font-family:Poppins, system-ui, sans-serif;">
+    <div style="position:relative;z-index:1;height:${impactPageHeight}px;max-height:${impactPageHeight}px;padding:42px 52px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:visible;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
 
       <!-- Header -->
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div style="display:flex;align-items:center;gap:14px;">
           <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:36px;width:auto;object-fit:contain;" />
-          <div style="width:2px;height:24px;background:rgba(255,255,255,0.1);"></div>
-          <div style="font-size:18px;font-weight:600;color:#fff;letter-spacing:0.02em;">Plano de Investimento & Impacto</div>
+          <div style="width:2px;height:24px;background:${PROPOSAL_BORDER};"></div>
+          <div style="font-size:18px;font-weight:600;color:${PROPOSAL_TEXT};letter-spacing:0.02em;">Plano de Investimento & Impacto</div>
         </div>
       </div>
 
       <div style="display:flex;gap:24px;flex:1;overflow:visible;">
-        
+
         <!-- LEFT COLUMN (Points & Info) -->
         <div style="flex:1;display:flex;flex-direction:column;gap:20px;overflow:visible;">
-          
+
           <!-- Summary cards -->
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
             ${[
@@ -1944,27 +1938,27 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
               { label: 'Segmento', value: segmentLabel },
               { label: 'Públicos', value: publicoLabel }
             ].map((card) => `
-              <div style="padding:14px 16px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};box-shadow:0 4px 16px rgba(0,0,0,0.1);">
+              <div style="padding:14px 16px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};box-shadow:0 2px 8px rgba(0,0,0,0.06);">
                 <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">${escapeHtml(card.label)}</div>
-                <div style="margin-top:6px;font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(card.value)}">${escapeHtml(card.value)}</div>
+                <div style="margin-top:6px;font-size:13px;font-weight:600;color:${PROPOSAL_TEXT};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(card.value)}">${escapeHtml(card.value)}</div>
               </div>
             `).join('')}
           </div>
 
           <!-- Points table -->
-          <div style="flex:1;display:flex;flex-direction:column;border-radius:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};overflow:visible;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
-            <div style="padding:14px 20px;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;">
-              <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.6);">Pontos da campanha</div>
-              <div style="font-size:11px;font-weight:700;color:${PROPOSAL_ACCENT};background:rgba(255,90,31,0.1);border:1px solid rgba(255,90,31,0.2);padding:4px 12px;border-radius:100px;">Total de ${pointCount} pontos</div>
+          <div style="flex:1;display:flex;flex-direction:column;border-radius:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};overflow:visible;box-shadow:0 4px 16px rgba(0,0,0,0.06);">
+            <div style="padding:14px 20px;background:${PROPOSAL_SURFACE_ALT};border-bottom:1px solid ${PROPOSAL_BORDER};display:flex;align-items:center;justify-content:space-between;">
+              <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Pontos da campanha</div>
+              <div style="font-size:11px;font-weight:700;color:${PROPOSAL_ACCENT};background:rgba(232,89,26,0.10);border:1px solid rgba(232,89,26,0.20);padding:4px 12px;border-radius:100px;">Total de ${pointCount} pontos</div>
             </div>
             <table style="width:100%;border-collapse:collapse;">
               <thead>
                 <tr>
-                  <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Ponto</th>
-                  <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Cidade</th>
-                  <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">Tipo</th>
-                  <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:right;border-bottom:1px solid rgba(255,255,255,0.1);">Valor Tabela</th>
-                  <th style="padding:5px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);text-align:right;border-bottom:1px solid rgba(255,255,255,0.1);line-height:1.2;">Valor Negociado<br>no Combo</th>
+                  <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};text-align:left;border-bottom:1px solid ${PROPOSAL_BORDER};">Ponto</th>
+                  <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};text-align:left;border-bottom:1px solid ${PROPOSAL_BORDER};">Cidade</th>
+                  <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};text-align:left;border-bottom:1px solid ${PROPOSAL_BORDER};">Tipo</th>
+                  <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};text-align:right;border-bottom:1px solid ${PROPOSAL_BORDER};">Valor Tabela</th>
+                  <th style="padding:5px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};text-align:right;border-bottom:1px solid ${PROPOSAL_BORDER};line-height:1.2;">Valor Negociado<br>no Combo</th>
                 </tr>
               </thead>
               <tbody>
@@ -1972,59 +1966,59 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
               </tbody>
             </table>
           </div>
-          
+
         </div>
 
         <!-- RIGHT COLUMN (Impact & Finance) -->
         <div style="width:340px;display:flex;flex-direction:column;gap:20px;">
-          
+
           <!-- Impact Metrics Box -->
-          <div style="border-radius:16px;background:linear-gradient(180deg, ${PROPOSAL_SURFACE} 0%, rgba(255,255,255,0.02) 100%);border:1px solid ${PROPOSAL_BORDER};padding:24px;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
-            <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#fff;margin-bottom:20px;display:flex;align-items:center;gap:8px;">
+          <div style="border-radius:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};padding:24px;box-shadow:0 4px 16px rgba(0,0,0,0.06);">
+            <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_TEXT};margin-bottom:20px;display:flex;align-items:center;gap:8px;">
               <div style="width:6px;height:6px;border-radius:50%;background:${PROPOSAL_ACCENT};box-shadow:0 0 10px ${PROPOSAL_ACCENT};"></div>
               Estimativas de Impacto
             </div>
-            
+
             <div style="display:flex;flex-direction:column;gap:18px;">
-              <div style="padding-bottom:16px;border-bottom:1px dashed rgba(255,255,255,0.08);">
-                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.45);margin-bottom:4px;">Inserções (Mensais)</div>
-                <div style="font-size:24px;font-weight:800;color:#fff;font-family:Poppins, system-ui, sans-serif;">${insercoesLabel}</div>
+              <div style="padding-bottom:16px;border-bottom:1px dashed ${PROPOSAL_BORDER};">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:${PROPOSAL_LABEL};margin-bottom:4px;">Inserções (Mensais)</div>
+                <div style="font-size:24px;font-weight:800;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${insercoesLabel}</div>
               </div>
-              <div style="padding-bottom:16px;border-bottom:1px dashed rgba(255,255,255,0.08);">
-                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.45);margin-bottom:4px;">Fluxo de Pessoas (Mensal)</div>
-                <div style="font-size:24px;font-weight:800;color:#fff;font-family:Poppins, system-ui, sans-serif;">${fluxoLabel}</div>
+              <div style="padding-bottom:16px;border-bottom:1px dashed ${PROPOSAL_BORDER};">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:${PROPOSAL_LABEL};margin-bottom:4px;">Fluxo de Pessoas (Mensal)</div>
+                <div style="font-size:24px;font-weight:800;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${fluxoLabel}</div>
               </div>
               <div>
-                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.45);margin-bottom:4px;">CPM Estimado</div>
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:${PROPOSAL_LABEL};margin-bottom:4px;">CPM Estimado</div>
                 <div style="font-size:24px;font-weight:800;color:${PROPOSAL_ACCENT};font-family:Poppins, system-ui, sans-serif;">${cpmLabel}</div>
               </div>
             </div>
           </div>
 
           <!-- Investment Summary -->
-          <div style="flex:1;border-radius:16px;background:rgba(255,90,31,0.04);border:1px solid rgba(255,90,31,0.25);padding:24px;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden;box-shadow:0 12px 40px rgba(255,90,31,0.08);">
+          <div style="flex:1;border-radius:16px;background:rgba(232,89,26,0.04);border:1px solid rgba(232,89,26,0.20);padding:24px;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden;box-shadow:0 4px 20px rgba(232,89,26,0.06);">
             <div style="position:absolute;top:0;left:0;width:100%;height:3px;background:linear-gradient(90deg, transparent, ${PROPOSAL_ACCENT}, transparent);"></div>
-            
-            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_ACCENT};background:rgba(255,90,31,0.12);border:1px solid rgba(255,90,31,0.2);padding:6px 12px;border-radius:100px;align-self:flex-start;margin-bottom:auto;">
+
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_ACCENT};background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.2);padding:6px 12px;border-radius:100px;align-self:flex-start;margin-bottom:auto;">
               Resumo Financeiro
             </div>
 
             <div style="margin-top:24px;">
               ${hasDiscount ? `
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                  <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.5);">Valor Original</div>
-                  <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.4);text-decoration:line-through;font-family:Poppins, system-ui, sans-serif;">${formatMoney(originalTotal)}</div>
+                  <div style="font-size:12px;font-weight:500;color:${PROPOSAL_LABEL};">Valor Original</div>
+                  <div style="font-size:14px;font-weight:600;color:${PROPOSAL_LABEL};text-decoration:line-through;font-family:Poppins, system-ui, sans-serif;">${formatMoney(originalTotal)}</div>
                 </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:16px;border-bottom:1px dashed rgba(255,255,255,0.12);">
-                  <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.7);">Desconto Aplicado</div>
-                  <div style="font-size:14px;font-weight:700;color:#facc15;font-family:Poppins, system-ui, sans-serif;">-${formatMoney(discountTotal)}</div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:16px;border-bottom:1px dashed ${PROPOSAL_BORDER};">
+                  <div style="font-size:12px;font-weight:500;color:${PROPOSAL_TEXT_SECONDARY};">Desconto Aplicado</div>
+                  <div style="font-size:14px;font-weight:700;color:#16a34a;font-family:Poppins, system-ui, sans-serif;">-${formatMoney(discountTotal)}</div>
                 </div>
               ` : ''}
 
               <div style="display:flex;flex-direction:column;gap:6px;">
-                <div style="font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:rgba(255,255,255,0.7);">Total Mensal</div>
-                <div style="font-size:32px;font-weight:800;color:#fff;font-family:Poppins, system-ui, sans-serif;line-height:1.1;letter-spacing:-0.02em;">${formatMoney(finalTotal)}</div>
-                <div style="font-size:9.5px;color:rgba(255,255,255,0.5);margin-top:12px;line-height:1.45;">
+                <div style="font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:${PROPOSAL_TEXT_SECONDARY};">Total Mensal</div>
+                <div style="font-size:32px;font-weight:800;color:${PROPOSAL_ACCENT};font-family:Poppins, system-ui, sans-serif;line-height:1.1;letter-spacing:-0.02em;">${formatMoney(finalTotal)}</div>
+                <div style="font-size:9.5px;color:${PROPOSAL_LABEL};margin-top:12px;line-height:1.45;">
                   Negociação válida <strong>exclusivamente</strong> para o plano e quantidade de pontos apresentados.<br>
                   Para outras condições de compra, os valores deverão ser consultados.<br>
                   * Produção de materiais por conta do cliente.
@@ -2036,7 +2030,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
         </div>
       </div>
     </div>
-  `, BRAND_DARK, { height: impactPageHeight, cssClass: 'impact-page' });
+  `, PROPOSAL_BG, { height: impactPageHeight, cssClass: 'impact-page' });
 }
 
 export async function generateMidiaKitPdf({ praca, pracas, pontos }) {
