@@ -117,7 +117,7 @@ function PointCard({ point, index, total }) {
         {/* ── Left: Info panel ─────────────────────────────── */}
         <div className="relative flex flex-col p-6 sm:p-8">
           {/* Orange accent bar */}
-          <div className="absolute top-0 left-0 right-0 md:right-auto md:w-full h-1.5 md:h-auto md:w-1.5 md:top-0 md:bottom-0 md:left-0 md:right-auto" style={{ background: ORANGE }} />
+          <div className="absolute top-0 left-0 right-0 h-1.5 md:right-auto md:bottom-0 md:h-auto md:w-1.5" style={{ background: ORANGE }} />
 
           {/* Logo + counter */}
           <div className="flex items-start justify-between mb-4 md:pl-3">
