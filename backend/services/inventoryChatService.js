@@ -46,6 +46,212 @@ function getKnownCities() {
   return _knownCities;
 }
 
+// ── Bairro map: point name → bairro (built from actual seed addresses) ───────
+// Each entry maps a point name (lowercased) to its bairro.
+// Derived by traversing all 89 seed addresses and identifying the neighborhood
+// from the "endereco" field (part after " - ") or from the street/avenue context.
+const BAIRRO_MAP = {
+  // ── LONDRINA ───────────────────────────────────────────────────────────────
+  // Gleba Palhano / Palhano region
+  'palhano premium':            'Gleba Palhano',
+  'palhano business t.1':       'Gleba Palhano',
+  'palhano business t.2':       'Gleba Palhano',
+  'ed. nyc palhano':            'Gleba Palhano',
+  'garden palhano':             'Gleba Palhano',
+  'ed. premiatto residence':    'Gleba Palhano',
+  'ed. maison tuscany':         'Gleba Palhano',
+  'panetteria palhano':         'Gleba Palhano',
+  'panetteria palhano (backlight)': 'Gleba Palhano',
+  'posto alpha (tela conveniencia)': 'Gleba Palhano',
+  'posto alpha (led)':          'Gleba Palhano',
+  'totem led caba mall':        'Gleba Palhano',
+  'lab. oswaldo cruz (gleba)':  'Gleba Palhano',
+  'ed. palhano residence':      'Guanabara',
+  'videowall muffato madre':    'Gleba Palhano',
+  'hachimitsu alameda jardino': 'Gleba Palhano',
+  'ed. geneve':                 'Gleba Palhano',
+  'fruttaria alphaville':       'Gleba Palhano',
+  // Centro
+  'comercial senador':          'Centro',
+  'ed. studio d':               'Centro',
+  'ldn grill':                  'Centro',
+  'lab. oswaldo cruz (souza naves)': 'Centro',
+  'posto ipiranga tiradentes x rio branco': 'Centro',
+  'posto ipiranga (tiradentes)': 'Centro',
+  'bar valentino':              'Centro',
+  'bento munhoz':               'Centro',
+  'posto ipiranga quintino':    'Centro',
+  // Higienópolis
+  'ed. pioneiros do cafe':      'Higienópolis',
+  'hospital uniorte':           'Higienópolis',
+  'uniorte fisio':              'Higienópolis',
+  // Guanabara
+  'uniorte prime':              'Guanabara',
+  // Morumbi
+  'duetto residence':           'Morumbi',
+  // Jardim Andrade / Shangri-lá
+  'ed. morada shangri-la':      'Shangri-lá',
+  'ed. brisas alto do araxa':   'Jardim Andrade',
+  // Terra Bonita
+  'ed. fit terra bonita':       'Terra Bonita',
+  // Petrópolis
+  'ed. terranoble':             'Petrópolis',
+  // Inglaterra
+  'ed. torre santorini':        'Inglaterra',
+  // Duque de Caxias area
+  'duque hall':                 'Vila Casoni',
+  'totem digital muffato duque': 'Vila Casoni',
+  // Zona Norte
+  'lab. oswaldo cruz (saul elkind)': 'Zona Norte',
+  'totem digital muffato saul elkind': 'Zona Norte',
+  // Aeroporto / Robert Koch
+  'videowall muffato aeroporto': 'Aeroporto',
+  // Cafezal
+  'totem digital muffato cafezal': 'Cafezal',
+  // Harry Prochet / Mediterrâneo
+  'posto mediterraneo':         'Mediterrâneo',
+  // Andes
+  'posto gastech':              'Andes',
+  // Maranhão / Leste-Oeste
+  'posto ipiranga leste oeste': 'Jardim Bandeirantes',
+  'posto ipiranga sun lake':    'Jardim Sun Lake',
+  'posto br via expressa':      'Zona Leste',
+  'posto ipiranga av maringa':  'Centro',
+  // Strassberg (Rod. Celso Garcia Cid)
+  'strassberg':                 'Rodovia Celso Garcia Cid',
+  'strassberg (frontlight)':    'Rodovia Celso Garcia Cid',
+  'rod. celso garcia cid':      'Rodovia Celso Garcia Cid',
+  // Hachimitsu JK
+  'hachimitsu jk':              'Av. Juscelino Kubitschek',
+  'hachimitsu bela suica':      'Bela Suíça',
+  // Others Londrina
+  "arnaldo's":                  'Av. Maringá',
+  'o casarao':                  'Av. Maringá',
+  'waldemar spranger':          'Waldemar Spranger',
+  'gil de abreu e souza':       'Gil de Abreu',
+  'joaquim de matos barreto':   'Joaquim de Matos Barreto',
+  'merkava clube de tiro':      'Cambé',
+  'totem digital muffato ibipora': 'Ibiporã',
+  'totem muffato cambe':        'Cambé',
+
+  // ── MARINGÁ ────────────────────────────────────────────────────────────────
+  'boteco do neco':             'Zona II',
+  'sr. zanoni':                 'Zona 04',
+  'hachimitsu maringa':         'Zona 02',
+  'mercadao fratello':          'Centro',
+  'mercadao de maringa':        'Centro',
+  'maison lumini':              'Zona 01',
+  'maison montalcino':          'Zona 08',
+  'maison porto fino':          'Zona 08',
+  'new tower plaza (torre 1)':  'Zona 07',
+  'new tower plaza (torre 2)':  'Zona 07',
+  'ed. marcelino champagnat':   'Zona 02',
+  'nyc maringa':                'Zona 08',
+  'ed. solar do bosque':        'Vila Cleópatra',
+  'imperium residence':         'Cidade Nova',
+  'spazio misato':              'Jardim das Estações',
+  'residencial alta floresta':  'Zona 07',
+  'ed. torre alvorear':         'Jardim Alvorada',
+  'aeroporto de maringa':       'Aeroporto',
+
+  // ── BALNEÁRIO CAMBORIÚ ─────────────────────────────────────────────────────
+  'big wheel - cabines':        'Pioneiros',
+  'big wheel - painel bilheteria': 'Pioneiros',
+  'cafeteria da praca':         'Centro',
+  'martin luther - painel 1':   'Nações',
+  'martin luther - painel 2':   'Nações',
+  'ed. seas tower':             'Centro',
+  'ed. central park':           'Centro',
+
+  // ── ITAJAÍ ─────────────────────────────────────────────────────────────────
+  'ed. ville de leon':          'Itaipava',
+  'london hub':                 'Centro',
+};
+
+// ── Bairro aliases: user input → canonical bairro name ──────────────────────
+const BAIRRO_ALIASES = {
+  'gleba palhano': 'Gleba Palhano',
+  'gleba': 'Gleba Palhano',
+  'palhano': 'Gleba Palhano',
+  'higienopolis': 'Higienópolis',
+  'higienópolis': 'Higienópolis',
+  'jardim higienopolis': 'Higienópolis',
+  'guanabara': 'Guanabara',
+  'centro': 'Centro',
+  'morumbi': 'Morumbi',
+  'shangri-la': 'Shangri-lá',
+  'shangri la': 'Shangri-lá',
+  'shangrila': 'Shangri-lá',
+  'terra bonita': 'Terra Bonita',
+  'petropolis': 'Petrópolis',
+  'petrópolis': 'Petrópolis',
+  'inglaterra': 'Inglaterra',
+  'jardim andrade': 'Jardim Andrade',
+  'vila casoni': 'Vila Casoni',
+  'zona norte': 'Zona Norte',
+  'zona sul': 'Zona Sul',
+  'zona leste': 'Zona Leste',
+  'zona oeste': 'Zona Oeste',
+  'cafezal': 'Cafezal',
+  'aeroporto': 'Aeroporto',
+  'andes': 'Andes',
+  'bela suica': 'Bela Suíça',
+  'bela suíça': 'Bela Suíça',
+  'mediterraneo': 'Mediterrâneo',
+  'mediterrâneo': 'Mediterrâneo',
+  'cambe': 'Cambé',
+  'cambé': 'Cambé',
+  'ibipora': 'Ibiporã',
+  'ibiporã': 'Ibiporã',
+  // Maringá zones
+  'zona 01': 'Zona 01',
+  'zona 02': 'Zona 02',
+  'zona 04': 'Zona 04',
+  'zona 07': 'Zona 07',
+  'zona 08': 'Zona 08',
+  'zona ii': 'Zona II',
+  'vila cleopatra': 'Vila Cleópatra',
+  'vila cleópatra': 'Vila Cleópatra',
+  'cidade nova': 'Cidade Nova',
+  'jardim alvorada': 'Jardim Alvorada',
+  'jardim das estacoes': 'Jardim das Estações',
+  'jardim das estações': 'Jardim das Estações',
+  // Balneário Camboriú
+  'pioneiros': 'Pioneiros',
+  'nacoes': 'Nações',
+  'nações': 'Nações',
+  // Itajaí
+  'itaipava': 'Itaipava',
+};
+
+/**
+ * Get the canonical bairro name for a point (by its nome field).
+ * Returns null if not mapped.
+ */
+function getBairroForPoint(pointName) {
+  if (!pointName) return null;
+  return BAIRRO_MAP[String(pointName).toLowerCase().trim()] || null;
+}
+
+/**
+ * Resolve user input to a canonical bairro name.
+ * Checks BAIRRO_ALIASES first, then tries a fuzzy match against BAIRRO_MAP values.
+ */
+function resolveRegionName(input) {
+  const n = norm(input);
+  // Direct alias match
+  if (BAIRRO_ALIASES[n]) return BAIRRO_ALIASES[n];
+  // Also try with accents preserved (user might type "Higienópolis")
+  const lower = String(input).toLowerCase().trim();
+  if (BAIRRO_ALIASES[lower]) return BAIRRO_ALIASES[lower];
+  // Check if it directly matches a bairro value in BAIRRO_MAP
+  const allBairros = new Set(Object.values(BAIRRO_MAP));
+  for (const b of allBairros) {
+    if (norm(b) === n) return b;
+  }
+  return input; // fallback: use as-is
+}
+
 // ── Cached bairro/region index (30 min TTL) ──────────────────────────────────
 let _knownRegions = [];      // [{ name, nameNorm, city }]
 let _regionsCacheTs = 0;
@@ -54,19 +260,29 @@ function getKnownRegions() {
   const now = Date.now();
   if (_knownRegions.length && now - _regionsCacheTs < CITIES_TTL) return _knownRegions;
   try {
-    const points = ai.getEnrichedPoints();
     const regionSet = new Map(); // nameNorm → { name, city }
 
+    // 1. Primary source: BAIRRO_MAP — traverse all point→bairro mappings
+    //    and also associate each bairro with its city (from enriched data)
+    const points = ai.getEnrichedPoints();
+    const pointCityMap = new Map();
     for (const p of points) {
-      // Extract from nome — common patterns: "PALHANO PREMIUM", "NYC PALHANO"
-      // Extract from endereco — "Av. X, 100 - Gleba Palhano"
-      // Extract from neighborhood_label
+      if (p.nome) pointCityMap.set(String(p.nome).toLowerCase().trim(), p.cidade || '');
+    }
+
+    for (const [pointNameLower, bairro] of Object.entries(BAIRRO_MAP)) {
+      const bairroNorm = norm(bairro);
+      if (bairroNorm.length < 2) continue;
+      if (!regionSet.has(bairroNorm)) {
+        const city = pointCityMap.get(pointNameLower) || '';
+        regionSet.set(bairroNorm, { name: bairro, nameNorm: bairroNorm, city });
+      }
+    }
+
+    // 2. Secondary: from enriched point data (neighborhood_label, endereco)
+    for (const p of points) {
       const sources = [];
-
-      // 1. Neighborhood label from geo_audience_profiles
       if (p.neighborhood_label) sources.push(p.neighborhood_label);
-
-      // 2. Endereco after " - " often has bairro: "R. X, 100 - Centro"
       if (p.endereco) {
         const dashParts = String(p.endereco).split(/\s*-\s*/);
         for (let i = 1; i < dashParts.length; i++) {
@@ -76,35 +292,20 @@ function getKnownRegions() {
           }
         }
       }
-
       for (const raw of sources) {
-        const n = norm(raw);
-        if (n.length < 3) continue;
-        // Skip if it's just a city name
-        const isCidade = getKnownCities().some(c => norm(c) === n);
+        const n2 = norm(raw);
+        if (n2.length < 3) continue;
+        const isCidade = getKnownCities().some(c => norm(c) === n2);
         if (isCidade) continue;
-        if (!regionSet.has(n)) {
-          regionSet.set(n, { name: raw, nameNorm: n, city: p.cidade || '' });
+        if (!regionSet.has(n2)) {
+          regionSet.set(n2, { name: raw, nameNorm: n2, city: p.cidade || '' });
         }
       }
     }
 
-    // Hand-curated common aliases for well-known neighborhoods
-    const REGION_ALIASES = {
-      'gleba palhano': 'Palhano',
-      'gleba': 'Palhano',
-      'palhano': 'Palhano',
-      'higienopolis': 'Higienópolis',
-      'jardim higienopolis': 'Higienópolis',
-      'guanabara': 'Guanabara',
-      'centro': 'Centro',
-      'zona sul': 'Zona Sul',
-      'zona norte': 'Zona Norte',
-      'zona leste': 'Zona Leste',
-      'zona oeste': 'Zona Oeste',
-    };
-
-    for (const [aliasNorm, canonical] of Object.entries(REGION_ALIASES)) {
+    // 3. Add all aliases so user inputs match
+    for (const [aliasRaw, canonical] of Object.entries(BAIRRO_ALIASES)) {
+      const aliasNorm = norm(aliasRaw);
       if (!regionSet.has(aliasNorm)) {
         regionSet.set(aliasNorm, { name: canonical, nameNorm: aliasNorm, city: '' });
       }
@@ -117,14 +318,42 @@ function getKnownRegions() {
 }
 
 /**
- * Search points matching a bairro/region by name, endereco, or neighborhood_label.
- * Uses direct DB query (LIKE) to catch all matches, not just cached data.
+ * Search points matching a bairro/region.
+ * Strategy: BAIRRO_MAP lookup first (most reliable), then case-insensitive DB search.
  */
 function searchPointsByRegion(regionName, cidade) {
+  // 1. Resolve the canonical bairro name from user input
+  const canonical = resolveRegionName(regionName);
+  const canonicalNorm = norm(canonical);
+
+  // 2. Find all point names that belong to this bairro (from BAIRRO_MAP)
+  const matchedNames = [];
+  for (const [pointNameLower, bairro] of Object.entries(BAIRRO_MAP)) {
+    if (norm(bairro) === canonicalNorm) {
+      matchedNames.push(pointNameLower);
+    }
+  }
+
+  // 3. If we have BAIRRO_MAP matches, fetch those points from enriched data
+  if (matchedNames.length > 0) {
+    const points = ai.getEnrichedPoints(cidade);
+    const result = points.filter(p => {
+      const pn = String(p.nome || '').toLowerCase().trim();
+      return matchedNames.includes(pn);
+    });
+    if (result.length > 0) {
+      // Tag each point with its bairro for display
+      return result
+        .map(p => ({ ...p, _bairro: canonical }))
+        .sort((a, b) => (Number(b.fluxo) || 0) - (Number(a.fluxo) || 0));
+    }
+  }
+
+  // 4. Fallback: case-insensitive DB search (catches points not in BAIRRO_MAP)
   const term = `%${regionName}%`;
   try {
-    // Try pontos_enriquecidos first (PostgreSQL), fall back to pontos table (SQLite)
-    let sql = `SELECT * FROM pontos_enriquecidos WHERE ativo = 1 AND (nome LIKE ? OR endereco LIKE ?)`;
+    // Use LOWER() for case-insensitive search (works on both SQLite and PostgreSQL)
+    let sql = `SELECT * FROM pontos_enriquecidos WHERE ativo = 1 AND (LOWER(nome) LIKE LOWER(?) OR LOWER(endereco) LIKE LOWER(?))`;
     const params = [term, term];
     if (cidade) {
       sql += ' AND cidade = ?';
@@ -133,17 +362,17 @@ function searchPointsByRegion(regionName, cidade) {
     sql += ' ORDER BY fluxo DESC';
 
     try {
-      return db.prepare(sql).all(...params);
+      const rows = db.prepare(sql).all(...params);
+      return rows.map(p => ({ ...p, _bairro: canonical }));
     } catch {
-      // Fallback: query plain pontos table (SQLite)
-      let sqlFallback = `SELECT * FROM pontos WHERE ativo = 1 AND (nome LIKE ? OR endereco LIKE ?)`;
+      let sqlFb = `SELECT * FROM pontos WHERE ativo = 1 AND (LOWER(nome) LIKE LOWER(?) OR LOWER(endereco) LIKE LOWER(?))`;
       const paramsFb = [term, term];
       if (cidade) {
-        sqlFallback += ' AND cidade = ?';
+        sqlFb += ' AND cidade = ?';
         paramsFb.push(cidade);
       }
-      sqlFallback += ' ORDER BY fluxo DESC';
-      return db.prepare(sqlFallback).all(...paramsFb);
+      sqlFb += ' ORDER BY fluxo DESC';
+      return db.prepare(sqlFb).all(...paramsFb).map(p => ({ ...p, _bairro: canonical }));
     }
   } catch {
     return [];
@@ -282,12 +511,12 @@ function classificarIntencao(txt) {
     }
   }
 
-  // Boost pontos_regiao if a known region is detected in the message
+  // Boost pontos_regiao if a known region or bairro alias is detected
   const regions = getKnownRegions();
   const hasRegion = regions.some(r => n.includes(r.nameNorm));
-  if (hasRegion && scores.pontos_regiao < 6) {
-    // Boost it so region queries win over generic pontos_cidade
-    scores.pontos_regiao = Math.max(scores.pontos_regiao, 6);
+  const hasBairroAlias = Object.keys(BAIRRO_ALIASES).some(alias => n.includes(norm(alias)));
+  if ((hasRegion || hasBairroAlias) && scores.pontos_regiao < 8) {
+    scores.pontos_regiao = Math.max(scores.pontos_regiao, 8);
   }
 
   const melhor = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
@@ -307,36 +536,35 @@ function extractEntities(message) {
     if (cn.length >= 3 && n.includes(cn)) cidades.push(c);
   }
 
-  // Detect regions/bairros
+  // Detect regions/bairros — check BAIRRO_ALIASES first, then known regions
   const regioes = [];
+  // 1. Check BAIRRO_ALIASES for exact matches (most reliable)
+  for (const [aliasRaw, canonical] of Object.entries(BAIRRO_ALIASES)) {
+    const aliasNorm = norm(aliasRaw);
+    if (n.includes(aliasNorm) && !regioes.some(r => norm(r) === norm(canonical))) {
+      regioes.push(canonical);
+    }
+  }
+  // 2. Check dynamically discovered regions
   const regions = getKnownRegions();
   for (const r of regions) {
-    if (n.includes(r.nameNorm) && !regioes.includes(r.name)) {
+    if (n.includes(r.nameNorm) && !regioes.some(rr => norm(rr) === r.nameNorm)) {
       regioes.push(r.name);
-      // If the region has a known city, auto-add it
       if (r.city && !cidades.includes(r.city)) cidades.push(r.city);
     }
   }
-
-  // Also do free-text region detection for common patterns
-  // "na Gleba Palhano", "do Centro", "na Higienópolis", "região do Palhano"
-  const regionPatterns = [
-    /\b(?:n[ao]|d[ao]|em|regiao\s*(?:d[ao])?)\s+([A-ZÀ-Ú][a-zà-ú]+(?:\s+[A-ZÀ-Ú][a-zà-ú]+){0,2})/g,
-    /\b(gleba\s*palhano|palhano|higienopolis|guanabara|centro|jardim\s+\w+|vila\s+\w+)\b/gi,
-  ];
-  for (const pat of regionPatterns) {
-    let m;
-    while ((m = pat.exec(message)) !== null) {
-      const candidate = m[1].trim();
-      const cn = norm(candidate);
-      // Not a city
-      if (cities.some(c => norm(c) === cn)) continue;
-      // Not a format
-      if (FORMAT_ALIASES[cn]) continue;
-      // Not too short
-      if (cn.length < 3) continue;
-      if (!regioes.some(r => norm(r) === cn)) {
-        regioes.push(candidate);
+  // 3. If we found a bairro but no city, try to infer city from BAIRRO_MAP
+  if (regioes.length && !cidades.length) {
+    const resolvedBairro = resolveRegionName(regioes[0]);
+    const resolvedNorm = norm(resolvedBairro);
+    // Find any point in this bairro and grab its city
+    const points = ai.getEnrichedPoints();
+    for (const p of points) {
+      const pn = String(p.nome || '').toLowerCase().trim();
+      const mappedBairro = BAIRRO_MAP[pn];
+      if (mappedBairro && norm(mappedBairro) === resolvedNorm && p.cidade) {
+        cidades.push(p.cidade);
+        break;
       }
     }
   }
@@ -376,25 +604,30 @@ function buildChatContext(intent, entities) {
           // Fallback to pontos_cidade behavior
           return buildChatContext('pontos_cidade', entities);
         }
+        // Resolve canonical bairro name for display
+        const bairroCanonical = resolveRegionName(regiao);
         const pontos = searchPointsByRegion(regiao, cidade);
         if (!pontos.length) {
-          // Try a broader search with just the regiao term
+          // Try broader search without city filter
           const broader = searchPointsByRegion(regiao, null);
           if (broader.length) {
             const lines = broader.map((p, i) =>
               `${i + 1}. ${p.nome} (${p.tipo}, ${p.cidade}) — Fluxo: ${fmtNum(p.fluxo)} imp/mês, ${fmtBRL(p.preco)}/mês` +
-              (p.endereco ? ` | End: ${p.endereco}` : '')
+              (p.endereco ? ` | End: ${p.endereco}` : '') +
+              (p._bairro ? ` | Bairro: ${p._bairro}` : '')
             );
-            return `Pontos encontrados na região "${regiao}" (${broader.length} resultados):\n${lines.join('\n')}\n\nTotal fluxo: ${fmtNum(broader.reduce((s, p) => s + (Number(p.fluxo) || 0), 0))} impactos/mês | Investimento total: ${fmtBRL(broader.reduce((s, p) => s + (Number(p.preco) || 0), 0))}/mês`;
+            return `Pontos na região "${bairroCanonical}" (${broader.length} resultados):\n${lines.join('\n')}\n\nTotal fluxo: ${fmtNum(broader.reduce((s, p) => s + (Number(p.fluxo) || 0), 0))} impactos/mês | Investimento total: ${fmtBRL(broader.reduce((s, p) => s + (Number(p.preco) || 0), 0))}/mês`;
           }
-          return `Nenhum ponto encontrado na região "${regiao}"${cidade ? ' em ' + cidade : ''}.`;
+          // List available bairros as suggestions
+          const allBairros = [...new Set(Object.values(BAIRRO_MAP))].sort();
+          return `Nenhum ponto encontrado na região "${bairroCanonical}"${cidade ? ' em ' + cidade : ''}.\n\nBairros disponíveis no inventário: ${allBairros.slice(0, 15).join(', ')}${allBairros.length > 15 ? '...' : ''}.`;
         }
         const lines = pontos.map((p, i) =>
           `${i + 1}. ${p.nome} (${p.tipo}) — Fluxo: ${fmtNum(p.fluxo)} imp/mês, ${fmtBRL(p.preco)}/mês` +
           (p.endereco ? ` | End: ${p.endereco}` : '') +
-          (p.neighborhood_label ? ` | Zona: ${p.neighborhood_label}` : '')
+          (p._bairro ? ` | Bairro: ${p._bairro}` : '')
         );
-        return `Pontos na região "${regiao}"${cidade ? ' em ' + cidade : ''} (${pontos.length} resultados):\n${lines.join('\n')}\n\nTotal fluxo: ${fmtNum(pontos.reduce((s, p) => s + (Number(p.fluxo) || 0), 0))} impactos/mês | Investimento total: ${fmtBRL(pontos.reduce((s, p) => s + (Number(p.preco) || 0), 0))}/mês`;
+        return `Pontos na região "${bairroCanonical}"${cidade ? ' em ' + cidade : ''} (${pontos.length} resultados):\n${lines.join('\n')}\n\nTotal fluxo: ${fmtNum(pontos.reduce((s, p) => s + (Number(p.fluxo) || 0), 0))} impactos/mês | Investimento total: ${fmtBRL(pontos.reduce((s, p) => s + (Number(p.preco) || 0), 0))}/mês`;
       }
 
       case 'pontos_cidade': {
@@ -414,11 +647,12 @@ function buildChatContext(intent, entities) {
         if (!pontos.length) return `Nenhum ponto encontrado em ${cidade}.`;
         const total = pontos.length;
         const display = pontos.slice(0, 15);
-        const lines = display.map((p, i) =>
-          `${i + 1}. ${p.nome} (${p.tipo}) — Fluxo: ${fmtNum(p.fluxo)} imp/mês, ${fmtBRL(p.preco)}/mês` +
-          (p.endereco ? ` | End: ${p.endereco}` : '') +
-          (p.neighborhood_label ? ` | Zona: ${p.neighborhood_label}` : '')
-        );
+        const lines = display.map((p, i) => {
+          const bairro = getBairroForPoint(p.nome) || p.neighborhood_label || null;
+          return `${i + 1}. ${p.nome} (${p.tipo}) — Fluxo: ${fmtNum(p.fluxo)} imp/mês, ${fmtBRL(p.preco)}/mês` +
+            (p.endereco ? ` | End: ${p.endereco}` : '') +
+            (bairro ? ` | Bairro: ${bairro}` : '');
+        });
         const suffix = total > 15 ? `\n\n... e mais ${total - 15} pontos. Total: ${total} pontos em ${cidade}.` : '';
         return `Pontos em ${cidade} (${total} pontos):\n${lines.join('\n')}${suffix}\n\nTotal fluxo: ${fmtNum(pontos.reduce((s, p) => s + (Number(p.fluxo) || 0), 0))} impactos/mês`;
       }
@@ -623,7 +857,7 @@ async function processInventoryChat(message, history = [], userId = null) {
   // Build a semantic cache key from intent + entities + context hash.
   // This means "pontos na gleba palhano" and "quais pontos no palhano?" hit the same cache
   // when they resolve to the same intent/entities/dbContext.
-  const cacheKey = ai.hashInput(`chat_v2_${intent}_${JSON.stringify({
+  const cacheKey = ai.hashInput(`chat_v3_${intent}_${JSON.stringify({
     c: entities.cidades,
     r: entities.regioes,
     f: entities.formatos,
