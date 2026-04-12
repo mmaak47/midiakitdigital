@@ -3254,6 +3254,86 @@ app.post(
   }
 );
 
+// ─── Teste de envio de PDF técnico via WhatsApp ───────────────────────────────
+// Gera os PDFs para os pontos informados e envia ao número de teste.
+// Não registra venda, não notifica o grupo interno.
+app.post('/api/vendas/test-pdf', requireRoles(['admin', 'gerente_comercial']), async (req, res) => {
+  const { phone, pontos_nomes, responsavel_nome, vendedor_nome } = req.body || {};
+
+  if (!phone || !String(phone).trim()) {
+    return res.status(400).json({ error: 'Informe o campo "phone" com o número de destino (ex: 5543999999999).' });
+  }
+
+  let pontosArr = [];
+  try {
+    pontosArr = Array.isArray(pontos_nomes) ? pontos_nomes : JSON.parse(pontos_nomes || '[]');
+  } catch {
+    return res.status(400).json({ error: 'Campo "pontos_nomes" deve ser um array JSON de nomes.' });
+  }
+
+  if (pontosArr.length === 0) {
+    // Se nenhum ponto foi informado, usa os 2 primeiros pontos ativos do banco como fallback
+    try {
+      const fallback = db.prepare('SELECT nome FROM pontos WHERE ativo = 1 LIMIT 2').all();
+      pontosArr = fallback.map(r => r.nome);
+    } catch { /* ignora */ }
+  }
+
+  if (pontosArr.length === 0) {
+    return res.status(400).json({ error: 'Nenhum ponto encontrado. Informe "pontos_nomes" ou cadastre pontos ativos.' });
+  }
+
+  const evo = getEvolutionSettings();
+  if (!evo.evolution_api_url || !evo.evolution_instance || !evo.evolution_api_key) {
+    return res.status(400).json({ error: 'Evolution API não configurada nas Configurações.' });
+  }
+
+  const destPhone      = String(phone).trim();
+  const nomeResp       = responsavel_nome ? String(responsavel_nome).trim() : 'cliente teste';
+  const nomeVend       = vendedor_nome    ? String(vendedor_nome).trim()    : req.authUser?.username || 'vendedor';
+  const caption        = `Oi, ${nomeResp}! Tudo bem? 😄\n\nPassando pra te dar os parabéns pela escolha dos pontos — excelente decisão!\n\nEu sou o assistente de criação que trabalha junto com o ${nomeVend} e vou te ajudar com tudo que envolver criativos.\n\nTe enviei a proposta técnica com os detalhes 📄\n\nSe quiser trocar ideias ou precisar de ajuda com as artes, estou por aqui!`;
+  const log            = [];
+
+  try {
+    log.push(`Gerando PDFs para ${pontosArr.length} ponto(s): ${pontosArr.join(', ')}`);
+    const { desktop, mobile } = await generatePdfsFromPointNames(db, pontosArr);
+    log.push(`PDFs gerados — desktop: ${(desktop.length / 1024).toFixed(0)} KB, mobile: ${(mobile.length / 1024).toFixed(0)} KB`);
+
+    // Envia desktop
+    const tmpD = require('path').join(require('os').tmpdir(), `test_pdf_desktop_${Date.now()}.pdf`);
+    require('fs').writeFileSync(tmpD, desktop);
+    try {
+      await sendEvolutionDocument({
+        apiUrl: evo.evolution_api_url, instance: evo.evolution_instance, apiKey: evo.evolution_api_key,
+        number: destPhone, caption, filePath: tmpD, fileName: 'Informações Técnicas.pdf'
+      });
+      log.push(`PDF desktop enviado para ${destPhone}.`);
+    } finally {
+      try { require('fs').unlinkSync(tmpD); } catch {}
+    }
+
+    // Envia mobile
+    const tmpM = require('path').join(require('os').tmpdir(), `test_pdf_mobile_${Date.now()}.pdf`);
+    require('fs').writeFileSync(tmpM, mobile);
+    try {
+      await sendEvolutionDocument({
+        apiUrl: evo.evolution_api_url, instance: evo.evolution_instance, apiKey: evo.evolution_api_key,
+        number: destPhone, caption: '📱 Versão mobile da proposta técnica:', filePath: tmpM,
+        fileName: 'Informações Técnicas Mobile.pdf'
+      });
+      log.push(`PDF mobile enviado para ${destPhone}.`);
+    } finally {
+      try { require('fs').unlinkSync(tmpM); } catch {}
+    }
+
+    res.json({ success: true, phone: destPhone, pontos: pontosArr, log });
+  } catch (err) {
+    log.push(`ERRO: ${err.message}`);
+    console.error('[vendas/test-pdf]', err.message);
+    res.status(500).json({ success: false, error: err.message, log });
+  }
+});
+
 // ─── Listagem de vendas ───────────────────────────────────────────────────────
 app.get('/api/vendas', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
