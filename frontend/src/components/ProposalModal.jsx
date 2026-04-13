@@ -351,12 +351,25 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
         if (!active) return;
 
+        const scoresByPoint = response.byPoint || {};
+        const selectedIds = proposalSourcePoints
+          .map((point) => String(point?.id || '').trim())
+          .filter(Boolean);
+        const matchedCount = selectedIds.filter((id) => Boolean(scoresByPoint[id])).length;
+
+        // If current cache coverage is high but none of the selected points have data,
+        // trigger one forced refresh to ensure proposal points receive entorno metrics.
+        if (!force && selectedIds.length > 0 && matchedCount === 0) {
+          await loadScores(true);
+          return;
+        }
+
         const latest = response.metrics?.[0]?.updated_at || null;
         setEntorno((prev) => ({
           ...prev,
           loading: false,
           coverage: Number(response.coverage || response.coberturaCache || 0),
-          scoresByPoint: response.byPoint || {},
+          scoresByPoint,
           updatedAt: latest,
           jobId: response.job?.jobId || null,
           error: ''
