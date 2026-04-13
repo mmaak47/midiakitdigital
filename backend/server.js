@@ -72,6 +72,62 @@ const app = express();
 const DB_ENGINE = String(process.env.DB_ENGINE || 'sqlite').toLowerCase();
 const PORT = process.env.PORT || 3002;
 
+// ── Schema bootstrap — runs for BOTH SQLite and PostgreSQL ───────────────────
+// In SQLite mode, database.sqlite.js already ran these; the IF NOT EXISTS
+// guards make them safe to run again. In PostgreSQL mode this is the ONLY
+// place these tables are created (database.js has no auto-migration).
+try {
+  // Written in SQLite syntax — the postgres compat layer (database.js) transforms
+  // INTEGER PRIMARY KEY AUTOINCREMENT → SERIAL PRIMARY KEY and datetime('now') → NOW()
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS leads (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL UNIQUE,
+      telefone   TEXT NOT NULL,
+      empresa    TEXT NOT NULL,
+      status     TEXT DEFAULT 'novo',
+      notas      TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_session ON leads(session_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS navigation_events (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      event_data TEXT,
+      page_url   TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_nav_events_session ON navigation_events(session_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_nav_events_created ON navigation_events(created_at)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS proposta_tokens (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      token         TEXT UNIQUE NOT NULL,
+      proposta_data TEXT NOT NULL,
+      expires_at    TEXT NOT NULL,
+      created_by    INTEGER,
+      created_at    TEXT DEFAULT (datetime('now')),
+      viewed_at     TEXT,
+      approved_at   TEXT,
+      approved_name TEXT
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_proposta_tokens_token ON proposta_tokens(token)`);
+
+  // Column migrations — safe to ignore if already applied
+  try { db.exec(`ALTER TABLE chat_sessions ADD COLUMN lead_captured INTEGER DEFAULT 0`); } catch { /* exists */ }
+} catch (e) {
+  console.error('[schema bootstrap]', e.message);
+}
+
 // ---------------------------------------------------------------------------
 // Global error handlers — prevent silent crashes under Passenger / shared hosting
 // ---------------------------------------------------------------------------
