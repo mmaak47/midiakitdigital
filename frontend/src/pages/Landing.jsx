@@ -293,7 +293,7 @@ function MapModal({ pontos, onClose, isDark }) {
           <div className={`flex items-center justify-between px-5 py-4 shrink-0 ${m.headerBorder}`}>
             <div>
               <div className="text-xs uppercase tracking-wider text-brand-orange mb-0.5">Mapa da rede</div>
-              <h3 className={`text-sm font-semibold ${m.title}`}>{mapPoints.length} pontos no mapa</h3>
+              <h3 className={`text-sm font-semibold ${m.title}`}>{mapPoints.length} endereços no mapa</h3>
             </div>
             <button onClick={onClose} className={`h-8 w-8 flex items-center justify-center rounded-full border transition ${m.closeBtn}`} aria-label="Fechar mapa">
               <i className="ri-close-line" style={{ fontSize: 15 }} />
@@ -1049,7 +1049,7 @@ export default function Landing() {
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
               {[
-                { label: 'Pontos', raw: resumo.pontos, iconClass: 'ri-pin-distance-line', fmt: formatInt },
+                { label: 'Endereços', raw: resumo.pontos, iconClass: 'ri-pin-distance-line', fmt: formatInt },
                 { label: 'Pontos de Impacto', raw: resumo.telas, iconClass: 'ri-tv-2-line', fmt: formatInt },
                 { label: 'Fluxo mensal', raw: resumo.fluxo, iconClass: 'ri-group-line', fmt: formatInt },
                 { label: 'Alcance estimado', raw: reachFrequency.estimatedUnique, iconClass: 'ri-user-star-line', fmt: formatInt },
@@ -1108,7 +1108,7 @@ export default function Landing() {
                 <thead className={t.tableHead}>
                   <tr>
                     <th className="text-left font-medium px-5 py-3">Formato</th>
-                    <th className="text-left font-medium px-5 py-3">Pontos</th>
+                    <th className="text-left font-medium px-5 py-3">Endereços</th>
                     <th className="text-left font-medium px-5 py-3">Pontos de Impacto</th>
                     <th className="text-left font-medium px-5 py-3">Fluxo</th>
                     <th className="text-left font-medium px-5 py-3">CPM est.</th>
@@ -1156,7 +1156,7 @@ export default function Landing() {
                   <div key={item.label} className={t.audienceCard}>
                     <div className={`flex items-center justify-between text-sm mb-2`}>
                       <span className="font-medium">{item.label}</span>
-                      <span className={`tabular-nums ${t.textSec}`}>{item.total} pontos · <span className="text-brand-orange font-semibold">{pct}%</span></span>
+                      <span className={`tabular-nums ${t.textSec}`}>{item.total} endereços · <span className="text-brand-orange font-semibold">{pct}%</span></span>
                     </div>
                     <div className={t.vizBar}>
                       <motion.div
@@ -1188,7 +1188,7 @@ export default function Landing() {
               <h2 className="text-2xl font-bold">Catálogo da seleção atual</h2>
             </div>
             <span className={`text-xs uppercase tracking-wide ${t.textMuted}`}>
-              {searchQuery ? `${formatInt(pontosFiltrados.length)} de ${formatInt(pontos.length)}` : formatInt(pontos.length)} pontos
+              {searchQuery ? `${formatInt(pontosFiltrados.length)} de ${formatInt(pontos.length)}` : formatInt(pontos.length)} endereços
             </span>
           </div>
 
@@ -1274,7 +1274,7 @@ export default function Landing() {
               <section key={grupo.anchorId} id={grupo.anchorId} className="scroll-mt-24">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-lg font-semibold">{grupo.tipo}</h3>
-                  <span className={`text-xs uppercase tracking-wide ${t.textMuted}`}>{formatInt(grupo.quantidade)} pontos</span>
+                  <span className={`text-xs uppercase tracking-wide ${t.textMuted}`}>{formatInt(grupo.quantidade)} endereços</span>
                 </div>
 
                 <div className="space-y-4">
