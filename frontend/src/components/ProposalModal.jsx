@@ -208,6 +208,56 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     window.location.assign('/comercial');
   };
 
+  const mergeEntornoMetrics = (points, scoresByPoint = {}) => {
+    const safePoints = Array.isArray(points) ? points : [];
+    return safePoints.map((point) => {
+      const hit = scoresByPoint?.[point?.id] || scoresByPoint?.[String(point?.id)] || null;
+      return {
+        ...point,
+        entornoMetrics: point?.entornoMetrics || hit || null
+      };
+    });
+  };
+
+  const ensurePointsWithEntorno = async (points) => {
+    let enriched = mergeEntornoMetrics(points, entorno.scoresByPoint || {});
+    const countWithoutEntorno = enriched.filter((point) => !point?.entornoMetrics).length;
+    if (!enriched.length || countWithoutEntorno === 0) return enriched;
+
+    const fetchScores = async (force) => {
+      const response = await fetchEntornoScores({
+        segmento: form.segmento,
+        cidade: activeCities.length === 1 ? activeCities[0] : '',
+        raio: DEFAULT_ENTORNO_RADIUS,
+        force
+      });
+      return response?.byPoint || {};
+    };
+
+    try {
+      const byPoint = await fetchScores(false);
+      enriched = mergeEntornoMetrics(enriched, byPoint);
+    } catch (err) {
+      if (handleAuthExpired(err, 'Sua sessão expirou durante a leitura da análise de entorno. Faça login novamente.')) {
+        return enriched;
+      }
+    }
+
+    const missingAfterFirstTry = enriched.filter((point) => !point?.entornoMetrics).length;
+    if (missingAfterFirstTry === 0) return enriched;
+
+    try {
+      const byPointForced = await fetchScores(true);
+      enriched = mergeEntornoMetrics(enriched, byPointForced);
+    } catch (err) {
+      if (handleAuthExpired(err, 'Sua sessão expirou durante a atualização da análise de entorno. Faça login novamente.')) {
+        return enriched;
+      }
+    }
+
+    return enriched;
+  };
+
   const persistSimulationPreview = async (previewBlob, previewUrl = '') => {
     if (previewBlob instanceof Blob) {
       const serverUrl = await uploadProposalImage(previewBlob);
@@ -623,6 +673,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     setShowPdfFormatPicker(false);
     try {
       setPdfBusy(true);
+      const pointsWithEntorno = await ensurePointsWithEntorno(proposalPoints);
       const strategicTopics = String(form.strategicTopics || '')
         .split(/\n+/)
         .map((line) => line.replace(/^[-•\d.)\s]+/, '').trim())
@@ -632,7 +683,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         let mobileOverviewMap = null;
         if (proposalPoints.length > 0) {
           try {
-            mobileOverviewMap = await buildSelectionMapDataUrl(proposalPoints, {
+            mobileOverviewMap = await buildSelectionMapDataUrl(pointsWithEntorno, {
               connectPoints: true,
               theme: 'light',
               width: 540,
@@ -646,7 +697,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           clientName: form.clientName,
           city: activeCities,
           publico: form.publicos,
-          points: proposalPoints,
+          points: pointsWithEntorno,
           totals,
           pricingSummary,
           segmento: form.segmento,
@@ -661,7 +712,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       }
 
       const pointMapImages = await Promise.all(
-        proposalPoints.map(async (point) => {
+        pointsWithEntorno.map(async (point) => {
           try {
             return await buildSelectionMapDataUrl([point], {
               width: 860,
@@ -676,9 +727,9 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       );
 
       let overviewMapImage = null;
-      if (proposalPoints.length > 0) {
+      if (pointsWithEntorno.length > 0) {
         try {
-          overviewMapImage = await buildSelectionMapDataUrl(proposalPoints, {
+          overviewMapImage = await buildSelectionMapDataUrl(pointsWithEntorno, {
             connectPoints: true,
             theme: 'light',
             width: 900,
@@ -695,7 +746,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         city: activeCities,
         publico: form.publicos,
         objective: form.objetivo,
-        points: proposalPoints,
+        points: pointsWithEntorno,
         totals,
         pricingSummary,
         segmento: form.segmento,
@@ -758,12 +809,13 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const handleCompartilhar = async () => {
     setShareBusy(true);
     try {
+      const pointsWithEntorno = await ensurePointsWithEntorno(proposalPoints);
       const proposalData = {
         clientName: form.clientName, clientAddress: form.clientAddress,
         segmento: form.segmento, objetivo: form.objetivo,
         strategicTopics: form.strategicTopics,
         strategicText: argumentos,
-        points: proposalPoints.map(({ custo_operacional: _co, ...p }) => p),
+        points: pointsWithEntorno.map(({ custo_operacional: _co, ...p }) => p),
         totals, pricingSummary
       };
 
