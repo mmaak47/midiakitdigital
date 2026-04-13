@@ -43,6 +43,7 @@ import UserModal from '../components/admin/UserModal';
 import NovaVendaTab from '../components/admin/NovaVendaTab';
 import VendasListTab from '../components/admin/VendasListTab';
 import AuditoriaLoopTab from '../components/admin/AuditoriaLoopTab';
+import LeadsTab from '../components/admin/LeadsTab';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
 import { generateTechnicalInfoPdf } from '../lib/technicalInfoPdf';
 import { generateTechnicalInfoMobilePdf } from '../lib/technicalInfoMobilePdf';
@@ -76,6 +77,7 @@ const ADMIN_TABS = [
   { key: 'historico_vendas', label: 'Vendas',             icon: ClipboardList, roles: ['admin', 'gerente_comercial', 'vendedor'] },
   { key: 'gestao_comercial', label: 'Gestão Comercial',   icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'], href: '/comercial/gestao' },
   { key: 'auditoria_loop',   label: 'Auditoria de Loop', icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'] },
+  { key: 'leads',             label: 'Leads',             icon: UserPlus,      roles: ['admin', 'gerente_comercial'] },
   { key: 'configuracoes',    label: 'Configurações',      icon: Settings,      roles: ['admin', 'gerente_comercial'] },
 ];
 
@@ -1423,6 +1425,10 @@ export default function Admin() {
 
         {activeTab === 'auditoria_loop' ? (
           <AuditoriaLoopTab isDark={isDark} pontos={pontos} />
+        ) : null}
+
+        {activeTab === 'leads' ? (
+          <LeadsTab isDark={isDark} />
         ) : null}
 
         {activeTab === 'configuracoes' ? (

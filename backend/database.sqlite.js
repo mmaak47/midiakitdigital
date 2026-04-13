@@ -524,6 +524,40 @@ try {
   // Column already exists — safe to ignore
 }
 
+// ── Leads & Navigation Tracking ──────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS leads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL UNIQUE,
+    telefone TEXT NOT NULL,
+    empresa TEXT NOT NULL,
+    status TEXT DEFAULT 'novo',
+    notas TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_session ON leads(session_id)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at)`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS navigation_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    event_data TEXT,
+    page_url TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_nav_events_session ON navigation_events(session_id)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_nav_events_created ON navigation_events(created_at)`);
+
+// Migration: lead_captured flag on chat_sessions
+try {
+  db.exec(`ALTER TABLE chat_sessions ADD COLUMN lead_captured INTEGER DEFAULT 0`);
+} catch { /* already exists */ }
+
 // Seed data if empty
 const count = db.prepare('SELECT COUNT(*) as c FROM pontos').get();
 if (count.c === 0) {

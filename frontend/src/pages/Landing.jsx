@@ -8,6 +8,7 @@ import SmartMap from '../components/SmartMap';
 import { fetchPontos } from '../lib/api';
 import { getPointDisplayImages, getPrimaryPointMediaKitImage } from '../lib/pointImages';
 import { campaignTotals, sortFormatos, estimateReachFrequency } from '../lib/strategy';
+import { trackEvent } from '../lib/tracking';
 
 const MidiaKitSlidesMode = lazy(() => import('../components/MidiaKitSlidesMode'));
 
@@ -429,6 +430,7 @@ export default function Landing() {
 
   useEffect(() => {
     document.title = 'Intermidia — Mídia Kit Digital | OOH e DOOH';
+    trackEvent('page_view', { page: 'landing' });
   }, []);
 
   useEffect(() => {
@@ -608,6 +610,7 @@ export default function Landing() {
       }
       setPdfStatus('ready');
       setPdfToast({ type: 'success', message: 'PDF gerado com sucesso ✓' });
+      trackEvent('pdf_generate', { format });
       setTimeout(() => setPdfStatus(null), 120);
     } catch (err) {
       console.error(err);
@@ -889,7 +892,7 @@ export default function Landing() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               {/* Slides button — left side */}
               <button
-                onClick={() => setShowSlidesMode(true)}
+                onClick={() => { setShowSlidesMode(true); trackEvent('slides_open'); }}
                 className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[10px] px-5 text-sm font-bold transition-all duration-200 whitespace-nowrap"
                 style={{
                   background: 'linear-gradient(135deg, #FF6B35, #FF8F5E)',
@@ -1488,6 +1491,7 @@ export default function Landing() {
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Falar com o comercial pelo WhatsApp"
+        onClick={() => trackEvent('whatsapp_click')}
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 1.4, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}

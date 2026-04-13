@@ -5,6 +5,7 @@ import { fetchPropostaPublica, aprovarPropostaPublica, fetchCensusProfiles } fro
 import { buildAudienceQualification, getSegmentDisplayName } from '../lib/strategy';
 import { computeCityBoundingBoxes } from '../lib/geo';
 import { getPrimaryPointScreenImage } from '../lib/pointImages';
+import { trackEvent } from '../lib/tracking';
 import 'leaflet/dist/leaflet.css';
 
 const SmartMap = lazy(() => import('../components/SmartMap'));
@@ -250,6 +251,7 @@ export default function PropostaPublica() {
 
   useEffect(() => {
     if (!token) return;
+    trackEvent('proposal_view', { token });
     fetchPropostaPublica(token)
       .then(data => {
         setState({ loading: false, error: null, data });

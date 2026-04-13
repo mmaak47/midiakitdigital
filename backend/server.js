@@ -467,7 +467,8 @@ function authenticateSensitiveApi(req, res, next) {
     '/geo',
     '/ai/health',
     '/ai/stats',
-    '/ai/point'
+    '/ai/point',
+    '/leads/check'
   ];
 
   if (method === 'GET' && publicGetPrefixes.some((prefix) => routePath === prefix || routePath.startsWith(`${prefix}/`))) {
@@ -475,7 +476,7 @@ function authenticateSensitiveApi(req, res, next) {
   }
 
   // AI campaign analysis + recommendation — public for /planejar
-  const publicPostPaths = ['/ai/campaign', '/ai/recommend', '/ai/plan-decision', '/inventory-chat', '/ai/proposta-texto'];
+  const publicPostPaths = ['/ai/campaign', '/ai/recommend', '/ai/plan-decision', '/inventory-chat', '/ai/proposta-texto', '/track', '/leads/capture'];
   if (method === 'POST' && publicPostPaths.includes(routePath)) {
     return next();
   }
@@ -4152,6 +4153,102 @@ app.post('/api/p/:token/aprovar', express.json(), (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     internalError(res, err);
+  }
+});
+
+// ── Navigation tracking (public) ──────────────────────────────────────────────
+const VALID_EVENT_TYPES = new Set(['page_view', 'pdf_generate', 'slides_open', 'chatbot_open', 'chatbot_message', 'whatsapp_click', 'proposal_view', 'point_detail_view']);
+
+app.post('/api/track', (req, res) => {
+  try {
+    const { sessionId, eventType, eventData, pageUrl } = req.body || {};
+    if (!sessionId || typeof sessionId !== 'string' || !VALID_EVENT_TYPES.has(eventType)) {
+      return res.status(400).json({ error: 'Invalid tracking data.' });
+    }
+    db.prepare('INSERT INTO navigation_events (session_id, event_type, event_data, page_url) VALUES (?, ?, ?, ?)').run(
+      sessionId.slice(0, 64), eventType, eventData ? JSON.stringify(eventData).slice(0, 2000) : null, (pageUrl || '').slice(0, 500)
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    internalError(res, err, 'Erro ao registrar evento.');
+  }
+});
+
+// ── Lead capture (public) ─────────────────────────────────────────────────────
+app.post('/api/leads/capture', (req, res) => {
+  try {
+    const { sessionId, telefone, empresa } = req.body || {};
+    if (!sessionId || !telefone || !empresa) {
+      return res.status(400).json({ error: 'sessionId, telefone e empresa são obrigatórios.' });
+    }
+    const cleanPhone = String(telefone).replace(/\D/g, '').slice(0, 15);
+    if (cleanPhone.length < 10) {
+      return res.status(400).json({ error: 'Telefone inválido.' });
+    }
+    const result = db.prepare(
+      `INSERT INTO leads (session_id, telefone, empresa) VALUES (?, ?, ?)
+       ON CONFLICT(session_id) DO UPDATE SET telefone = excluded.telefone, empresa = excluded.empresa, updated_at = datetime('now')`
+    ).run(sessionId.slice(0, 64), cleanPhone, String(empresa).trim().slice(0, 200));
+    try {
+      db.prepare('UPDATE chat_sessions SET lead_captured = 1 WHERE id = ?').run(sessionId);
+    } catch { /* session may not exist yet */ }
+    res.json({ ok: true, leadId: result.lastInsertRowid || null });
+  } catch (err) {
+    internalError(res, err, 'Erro ao capturar lead.');
+  }
+});
+
+app.get('/api/leads/check/:sessionId', (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const lead = db.prepare('SELECT id, telefone, empresa FROM leads WHERE session_id = ?').get(sessionId);
+    res.json({ captured: !!lead, telefone: lead?.telefone, empresa: lead?.empresa });
+  } catch (err) {
+    internalError(res, err, 'Erro ao verificar lead.');
+  }
+});
+
+// ── Leads admin (authenticated) ───────────────────────────────────────────────
+app.get('/api/leads', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const { status, q, page = 1, limit = 50 } = req.query;
+    const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
+    let where = '1=1';
+    const params = [];
+    if (status && status !== 'todos') { where += ' AND l.status = ?'; params.push(status); }
+    if (q) { where += ' AND (l.empresa LIKE ? OR l.telefone LIKE ?)'; params.push(`%${q}%`, `%${q}%`); }
+    const total = db.prepare(`SELECT COUNT(*) as c FROM leads l WHERE ${where}`).get(...params).c;
+    const leads = db.prepare(`
+      SELECT l.*, (SELECT COUNT(*) FROM navigation_events ne WHERE ne.session_id = l.session_id) as event_count,
+        (SELECT MAX(ne.created_at) FROM navigation_events ne WHERE ne.session_id = l.session_id) as last_event_at
+      FROM leads l WHERE ${where} ORDER BY l.created_at DESC LIMIT ? OFFSET ?
+    `).all(...params, Number(limit), offset);
+    res.json({ leads, total, page: Number(page) });
+  } catch (err) {
+    internalError(res, err, 'Erro ao listar leads.');
+  }
+});
+
+app.get('/api/leads/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+    const events = db.prepare('SELECT * FROM navigation_events WHERE session_id = ? ORDER BY created_at ASC').all(lead.session_id);
+    res.json({ lead, events });
+  } catch (err) {
+    internalError(res, err, 'Erro ao buscar lead.');
+  }
+});
+
+app.put('/api/leads/:id/status', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const { status, notas } = req.body || {};
+    const validStatuses = ['novo', 'em_atendimento', 'convertido', 'descartado'];
+    if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Status inválido.' });
+    db.prepare('UPDATE leads SET status = ?, notas = coalesce(?, notas), updated_at = datetime(\'now\') WHERE id = ?').run(status, notas || null, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    internalError(res, err, 'Erro ao atualizar lead.');
   }
 });
 

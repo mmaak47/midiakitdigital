@@ -16,6 +16,7 @@ import PointCard from '../components/PointCard';
 import PointModal from '../components/PointModal';
 import { fetchPontos, fetchGeoAudienceProfiles, fetchCensusProfiles, fetchAICampaignAnalysis, fetchAIPlanDecision, fetchAICampaignPointInsights } from '../lib/api';
 import { getPrimaryPointDisplayImage } from '../lib/pointImages';
+import { trackEvent } from '../lib/tracking';
 import {
   SEGMENTOS,
   OBJETIVOS,
@@ -322,6 +323,7 @@ export default function CampaignPlanner() {
 
   useEffect(() => {
     document.title = 'Planejador de Campanha | Intermidia Mídia Kit Digital';
+    trackEvent('page_view', { page: 'campaign_planner' });
     return () => { document.title = 'Intermidia — Mídia Kit Digital | OOH e DOOH'; };
   }, []);
 

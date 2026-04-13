@@ -26,6 +26,9 @@ function ensureRequestPolicy(pathname, method) {
   if (pathname === '/auth/login') return;
   if (pathname.startsWith('/ai/')) return;
   if (pathname === '/inventory-chat') return;
+  if (pathname === '/leads/capture') return;
+  if (pathname.startsWith('/leads/check/')) return;
+  if (pathname === '/track') return;
 
   const token = getAdminToken();
   const requiresToken = isAdminOrSensitivePath(pathname) || MUTATION_METHODS.has(normalizedMethod);
@@ -1147,5 +1150,45 @@ export async function fetchInventoryChat(message, history = [], sessionId = null
     method: 'POST',
     body: JSON.stringify({ message, history, sessionId }),
   });
+  return res.json();
+}
+
+// ── Leads ─────────────────────────────────────────────────────────────────────
+export async function checkLeadStatus(sessionId) {
+  const res = await apiRequest(`/leads/check/${sessionId}`);
+  return res.json();
+}
+
+export async function captureLeadInfo({ sessionId, telefone, empresa }) {
+  const res = await apiRequest('/leads/capture', {
+    method: 'POST',
+    body: JSON.stringify({ sessionId, telefone, empresa }),
+  });
+  return res.json();
+}
+
+export async function fetchLeads({ status, q, page, limit } = {}) {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (q) params.set('q', q);
+  if (page) params.set('page', page);
+  if (limit) params.set('limit', limit);
+  const res = await apiRequest(`/leads?${params}`);
+  if (!res.ok) throw new Error('Erro ao carregar leads.');
+  return res.json();
+}
+
+export async function fetchLeadDetail(id) {
+  const res = await apiRequest(`/leads/${id}`);
+  if (!res.ok) throw new Error('Erro ao carregar detalhes do lead.');
+  return res.json();
+}
+
+export async function updateLeadStatus(id, { status, notas }) {
+  const res = await apiRequest(`/leads/${id}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status, notas }),
+  });
+  if (!res.ok) throw new Error('Erro ao atualizar status.');
   return res.json();
 }

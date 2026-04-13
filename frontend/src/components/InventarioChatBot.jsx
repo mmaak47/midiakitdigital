@@ -3,24 +3,16 @@
  * AI-powered DOOH/OOH inventory chatbot — global floating FAB.
  * Uses Replicate 70B LLM with real database context injection.
  * Brand: Intermídia orange (#FE5C2B) — dark-first design.
+ *
+ * Lead gate: collects phone + company name before allowing chat.
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MessageCircle, X, Send, Loader2, RotateCcw } from 'lucide-react';
 import useTheme from '../hooks/useTheme';
-import { fetchInventoryChat } from '../lib/api';
-
-// ── Session ID management (persists across page refreshes) ───────────────────
-const SESSION_KEY = 'dooh_chat_session_id';
-function getOrCreateSessionId() {
-  let id = localStorage.getItem(SESSION_KEY);
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem(SESSION_KEY, id);
-  }
-  return id;
-}
+import { fetchInventoryChat, checkLeadStatus, captureLeadInfo } from '../lib/api';
+import { getOrCreateSessionId, trackEvent } from '../lib/tracking';
 
 // ── Quick suggestions ─────────────────────────────────────────────────────────
 const SUGESTOES = [
@@ -113,25 +105,28 @@ function horaAtual() {
   return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function isValidPhone(text) {
+  const digits = text.replace(/\D/g, '');
+  return digits.length >= 10 && digits.length <= 11;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function InventarioChatBot() {
   const isDark = useTheme();
   const location = useLocation();
 
   const [aberto, setAberto] = useState(false);
-  const [sessionId, setSessionId] = useState(getOrCreateSessionId);
-  const [mensagens, setMensagens] = useState([
-    {
-      role: 'bot',
-      text: 'Olá! Sou o Especialista DOOH da Rede Intermídia.\n\nPosso responder perguntas sobre nosso inventário de mídia digital, formatos, pontos disponíveis e conceitos de OOH.\n\nExperimente perguntar algo!',
-      timestamp: horaAtual(),
-    },
-  ]);
+  const [sessionId] = useState(getOrCreateSessionId);
+  const [mensagens, setMensagens] = useState([]);
   const [input, setInput] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [unread, setUnread] = useState(0);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  // Lead gate state machine: checking | greeting | collecting_empresa | collecting_telefone | ready
+  const [gatePhase, setGatePhase] = useState('checking');
+  const [leadInfo, setLeadInfo] = useState({ empresa: '', telefone: '' });
 
   // Hide on /comercial/gestao (ComercialChatBot owns that page)
   // Hide when MidiaKit slides presentation is active
@@ -144,6 +139,38 @@ export default function InventarioChatBot() {
     setSlidesActive(document.body.hasAttribute('data-slides-active'));
     return () => observer.disconnect();
   }, []);
+
+  // Check lead status on mount
+  useEffect(() => {
+    if (!sessionId) return;
+    checkLeadStatus(sessionId)
+      .then(data => {
+        if (data.captured) {
+          setGatePhase('ready');
+          setLeadInfo({ empresa: data.empresa || '', telefone: data.telefone || '' });
+          setMensagens([{
+            role: 'bot',
+            text: `Olá novamente! Sou o Especialista DOOH da Rede Intermídia.\n\nComo posso te ajudar hoje? Pergunte sobre pontos, formatos, cidades ou conceitos de mídia DOOH.`,
+            timestamp: horaAtual(),
+          }]);
+        } else {
+          setGatePhase('greeting');
+          setMensagens([{
+            role: 'bot',
+            text: 'Olá! Sou o Especialista DOOH da Rede Intermídia.\n\nPosso te ajudar com informações sobre nosso inventário de mídia digital, formatos, pontos disponíveis e muito mais.\n\nPara começar, qual o *nome da sua empresa*?',
+            timestamp: horaAtual(),
+          }]);
+        }
+      })
+      .catch(() => {
+        setGatePhase('greeting');
+        setMensagens([{
+          role: 'bot',
+          text: 'Olá! Sou o Especialista DOOH da Rede Intermídia.\n\nPosso te ajudar com informações sobre nosso inventário de mídia digital, formatos, pontos disponíveis e muito mais.\n\nPara começar, qual o *nome da sua empresa*?',
+          timestamp: horaAtual(),
+        }]);
+      });
+  }, [sessionId]);
 
   // Auto-scroll
   useEffect(() => {
@@ -168,20 +195,55 @@ export default function InventarioChatBot() {
     const msgUsuario = { role: 'user', text: texto, timestamp: horaAtual() };
     setMensagens(prev => [...prev, msgUsuario]);
     setInput('');
+
+    // ── Lead gate flow ────────────────────────────────────────────
+    if (gatePhase === 'greeting' || gatePhase === 'collecting_empresa') {
+      setLeadInfo(prev => ({ ...prev, empresa: texto }));
+      setGatePhase('collecting_telefone');
+      setMensagens(prev => [...prev, {
+        role: 'bot',
+        text: `*${texto}* — anotado!\n\nAgora, qual o seu *telefone para contato*? (com DDD)`,
+        timestamp: horaAtual(),
+      }]);
+      return;
+    }
+
+    if (gatePhase === 'collecting_telefone') {
+      if (!isValidPhone(texto)) {
+        setMensagens(prev => [...prev, {
+          role: 'bot',
+          text: 'Hmm, não consegui identificar o número. Por favor, informe seu telefone com DDD.\n\nExemplo: *(43) 99999-9999*',
+          timestamp: horaAtual(),
+        }]);
+        return;
+      }
+      const cleanPhone = texto.replace(/\D/g, '');
+      setLeadInfo(prev => ({ ...prev, telefone: cleanPhone }));
+      setCarregando(true);
+      try {
+        await captureLeadInfo({ sessionId, telefone: cleanPhone, empresa: leadInfo.empresa });
+      } catch { /* silent */ }
+      setCarregando(false);
+      setGatePhase('ready');
+      setMensagens(prev => [...prev, {
+        role: 'bot',
+        text: 'Perfeito! Agora posso te ajudar com todo nosso inventário de mídia DOOH.\n\nPergunte o que quiser — pontos, formatos, cidades, preços ou conceitos de OOH!',
+        timestamp: horaAtual(),
+      }]);
+      return;
+    }
+
+    // ── Normal chat flow (gatePhase === 'ready') ─────────────────
     setCarregando(true);
+    trackEvent('chatbot_message', { message_length: texto.length });
 
     try {
       const allMsgs = [...mensagens, msgUsuario];
       const history = allMsgs
-        .filter((_, i) => i > 0)
+        .filter(m => m.role !== 'bot' || !m.text.includes('Sou o Especialista DOOH'))
         .map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', text: m.text }));
 
       const data = await fetchInventoryChat(texto, history, sessionId);
-      // Adopt server sessionId if returned (ensures consistency)
-      if (data.sessionId && data.sessionId !== sessionId) {
-        setSessionId(data.sessionId);
-        localStorage.setItem(SESSION_KEY, data.sessionId);
-      }
       const msgBot = {
         role: 'bot',
         text: data.response || 'Não consegui processar sua pergunta.',
@@ -199,7 +261,7 @@ export default function InventarioChatBot() {
     } finally {
       setCarregando(false);
     }
-  }, [input, carregando, aberto, mensagens, sessionId]);
+  }, [input, carregando, aberto, mensagens, sessionId, gatePhase, leadInfo.empresa]);
 
   if (hidden) return null;
 
@@ -211,16 +273,26 @@ export default function InventarioChatBot() {
   }
 
   function limparConversa() {
-    // Generate new session — fresh context
-    const newId = crypto.randomUUID();
-    setSessionId(newId);
-    localStorage.setItem(SESSION_KEY, newId);
+    // Keep sessionId to preserve lead association
     setMensagens([{
       role: 'bot',
-      text: 'Conversa reiniciada!\n\nComo posso ajudar? Pergunte sobre pontos, formatos, cidades ou conceitos de mídia DOOH.',
+      text: gatePhase === 'ready'
+        ? 'Conversa reiniciada!\n\nComo posso ajudar? Pergunte sobre pontos, formatos, cidades ou conceitos de mídia DOOH.'
+        : 'Olá! Sou o Especialista DOOH da Rede Intermídia.\n\nPara começar, qual o *nome da sua empresa*?',
       timestamp: horaAtual(),
     }]);
+    if (gatePhase !== 'ready') {
+      setGatePhase('greeting');
+      setLeadInfo({ empresa: '', telefone: '' });
+    }
   }
+
+  const isGating = gatePhase !== 'ready' && gatePhase !== 'checking';
+  const inputPlaceholder = gatePhase === 'collecting_telefone'
+    ? '(43) 99999-9999'
+    : gatePhase === 'greeting' || gatePhase === 'collecting_empresa'
+      ? 'Nome da empresa...'
+      : 'Pergunte sobre o inventário...';
 
   // ── Styles (brand colors) ─────────────────────────────────────────────────
   const panelBg   = isDark ? 'bg-brand-black border-white/10' : 'bg-gray-50 border-gray-200';
@@ -295,7 +367,7 @@ export default function InventarioChatBot() {
                   <span className="w-1.5 h-1.5 rounded-full animate-bounce bg-brand-orange/60" style={{ animationDelay: '300ms' }} />
                 </div>
                 <p className={`text-[10px] mt-1 ${isDark ? 'text-brand-gray-500' : 'text-gray-400'}`}>
-                  Consultando inventário...
+                  {isGating ? 'Registrando...' : 'Consultando inventário...'}
                 </p>
               </div>
             </div>
@@ -303,15 +375,17 @@ export default function InventarioChatBot() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Suggestions */}
-        <div className={`flex-shrink-0 px-3 py-2 border-t overflow-x-auto ${isDark ? 'border-white/5' : 'border-gray-200'}`}
-          style={{ scrollbarWidth: 'none' }}>
-          <div className="flex gap-2 w-max">
-            {SUGESTOES.map(s => (
-              <SugestaoChip key={s} texto={s} isDark={isDark} onClick={enviarMensagem} />
-            ))}
+        {/* Suggestions — only visible when gate is complete */}
+        {!isGating && (
+          <div className={`flex-shrink-0 px-3 py-2 border-t overflow-x-auto ${isDark ? 'border-white/5' : 'border-gray-200'}`}
+            style={{ scrollbarWidth: 'none' }}>
+            <div className="flex gap-2 w-max">
+              {SUGESTOES.map(s => (
+                <SugestaoChip key={s} texto={s} isDark={isDark} onClick={enviarMensagem} />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Input */}
         <div className={`flex-shrink-0 p-3 border-t ${inputWrap}`}>
@@ -322,14 +396,14 @@ export default function InventarioChatBot() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Pergunte sobre o inventário..."
-              disabled={carregando}
+              placeholder={inputPlaceholder}
+              disabled={carregando || gatePhase === 'checking'}
               className={`flex-1 rounded-xl border px-3 py-2 text-sm focus:outline-none
                 focus:ring-2 focus:ring-brand-orange/30 transition-all ${inputBg}`}
             />
             <button
               onClick={() => enviarMensagem()}
-              disabled={!input.trim() || carregando}
+              disabled={!input.trim() || carregando || gatePhase === 'checking'}
               className="flex-shrink-0 w-9 h-9 rounded-xl bg-brand-orange text-white flex items-center justify-center
                 hover:bg-brand-orange-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow"
             >
@@ -344,7 +418,12 @@ export default function InventarioChatBot() {
 
       {/* ── Floating FAB — left of WhatsApp button ──────────────────── */}
       <button
-        onClick={() => setAberto(o => !o)}
+        onClick={() => {
+          setAberto(o => {
+            if (!o) trackEvent('chatbot_open');
+            return !o;
+          });
+        }}
         className={`fixed bottom-6 right-6 z-[9989] w-14 h-14 rounded-full shadow-lg
           flex items-center justify-center transition-all duration-300 group
           ${aberto

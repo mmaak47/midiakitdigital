@@ -103,7 +103,7 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
               href="https://www.instagram.com/intermidiadigitalooh/"
               target="_blank"
               rel="noopener noreferrer"
-              className={`flex items-center justify-center w-9 h-9 rounded-lg border-2 transition-all duration-200 border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-orange`}
+              className={`flex items-center justify-center w-9 h-9 rounded-lg border-2 transition-all duration-200 border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-white`}
               aria-label="Instagram"
             >
               <i className="ri-instagram-line" style={{ fontSize: 18 }} />
