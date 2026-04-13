@@ -966,11 +966,16 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
     if (!point.simulacao_tela || !point.imagem) {
       console.warn('[handleAiArteEscolhida] SEM TELA/IMAGEM pontoId=', pontoId, { simulacao_tela: !!point.simulacao_tela, imagem: !!point.imagem });
+      // When the point has no screen image (imagem), applying the arte as preview
+      // would replace the facade photo (imagem2) with the raw banner — wrong.
+      // Leave previewUrl empty so the system falls back to imagem2 naturally.
       setSimulationResults((current) => ({
         ...current,
         [point.id]: {
-          status: 'Arte IA gerada (sem simulação: área/imagem ausente)',
-          previewUrl: urlArte,
+          status: !point.imagem
+            ? 'Arte IA gerada (ponto sem foto da tela — exibindo fachada)'
+            : 'Arte IA gerada (sem simulação: área da tela não cadastrada)',
+          previewUrl: '',
           geracaoId,
           variacao
         }
