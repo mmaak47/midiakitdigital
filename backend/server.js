@@ -1190,6 +1190,11 @@ app.post('/api/admin/pontos/sync-hours/google', requireRoles(['admin', 'gerente_
       results: processed
     });
   } catch (err) {
+    const message = String(err?.message || '');
+    if (message.includes('GOOGLE_PLACES_API_KEY') || message.includes('GOOGLE_MAPS_API_KEY')) {
+      console.error('[error]', message);
+      return res.status(400).json({ error: message });
+    }
     internalError(res, err, 'Erro ao sincronizar horarios via Google Places.');
   }
 });

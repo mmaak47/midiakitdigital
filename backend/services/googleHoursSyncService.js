@@ -72,7 +72,13 @@ async function fetchJson(url) {
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    return response.json();
+    const payload = await response.json();
+    const status = String(payload?.status || '').toUpperCase();
+    if (status && status !== 'OK' && status !== 'ZERO_RESULTS') {
+      const errorMessage = String(payload?.error_message || '').trim();
+      throw new Error(`Google Places retornou ${status}${errorMessage ? `: ${errorMessage}` : ''}`);
+    }
+    return payload;
   } finally {
     clearTimeout(timeout);
   }
