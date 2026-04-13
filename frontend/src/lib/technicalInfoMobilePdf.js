@@ -162,10 +162,9 @@ function buildTechMobileCoverPage(points) {
 
       <!-- Title block -->
       <div style="margin-top:8px;">
-        <div style="width:44px;height:4px;background:${ORANGE};border-radius:2px;margin-bottom:16px;"></div>
-        <div style="font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${ORANGE};">Rede Intermidia</div>
-        <h1 style="margin-top:10px;font-size:40px;line-height:1.0;font-weight:800;letter-spacing:-0.03em;color:${TEXT};">Manual de<br/>Especificações</h1>
-        <p style="margin-top:12px;font-size:15px;line-height:1.55;color:${MUTED};">Informações técnicas para produção e envio de materiais para os pontos de mídia.</p>
+        <div style="display:inline-flex;align-items:center;padding:8px 16px;border:1px solid rgba(255,255,255,0.15);border-radius:999px;background:rgba(255,255,255,0.04);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${ORANGE};margin-bottom:16px;">Manual de Especificações</div>
+        <h1 style="margin-top:10px;font-size:40px;line-height:1.0;font-weight:800;letter-spacing:-0.03em;color:${TEXT};">Informações<br/>Técnicas</h1>
+        <p style="margin-top:12px;font-size:15px;line-height:1.55;color:${MUTED};">Diretrizes de resolução, formatos e regras criativas dos pontos selecionados.</p>
       </div>
 
       <!-- Point count -->
@@ -178,16 +177,18 @@ function buildTechMobileCoverPage(points) {
       <div style="flex:1;display:flex;flex-direction:column;gap:10px;overflow:hidden;">
         <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};margin-bottom:4px;">Especificações gerais</div>
         ${specCard([
-          specItem('Formatos aceitos', 'MP4, AVI, MOV, GIF, JPG, PNG'),
-          specItem('Prazo de envio', '48h antes da veiculação'),
-          specItem('Peso máximo', '50 MB por arquivo'),
-          specItem('Áudio', 'Sem áudio (mídia indoor silenciosa)'),
+          specItem('Tipos de arquivo', 'Vídeo (mp4, mov) ou Imagem (jpg, png, pdf)'),
+          specItem('Prazo para envio', 'Até 48h antes do início'),
+          specItem('Áudio', 'Campanhas sem áudio'),
         ])}
       </div>
 
       <!-- Footer contact -->
-      <div style="padding-top:16px;border-top:1px solid ${BORDER};">
-        <div style="font-size:12px;color:${MUTED};">Dúvidas: <span style="color:${TEXT};">criacao@redeintermidia.com</span></div>
+      <div style="padding:16px 18px;background:rgba(232,89,26,0.05);border:1px solid rgba(232,89,26,0.2);border-radius:14px;">
+        <div style="font-size:11px;font-weight:700;color:${ORANGE};text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Dúvidas? Fale com a criação</div>
+        <div style="font-size:18px;font-weight:800;color:${TEXT};">Maite Doin</div>
+        <div style="font-size:13px;color:${MUTED};margin-top:4px;">criacao@redeintermidia.com</div>
+        <div style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:6px 14px;background:rgba(232,89,26,0.15);border:1px solid rgba(232,89,26,0.3);border-radius:999px;font-size:14px;font-weight:700;color:${TEXT};">43 8800-5719</div>
       </div>
     </div>
   `);
@@ -196,21 +197,46 @@ function buildTechMobileCoverPage(points) {
 function buildTechMobilePointPage(point, index, total) {
   const img        = pickImg(point);
   const focalPt    = String(point?.foto_focal_point || 'center center').trim();
-  const nome       = (point.nome || 'SEM NOME').toUpperCase();
-  const durSec     = parseDuracao(point?.duracao);
-  const durLabel   = formatDuracaoLabel(durSec);
-  const hoursDay   = parseHorario(point?.horario);
-  const insPerDay  = durSec > 0 ? Math.round((hoursDay * 3600) / durSec) : null;
-  const insercoesLabel = insPerDay ? `≈ ${insPerDay}/dia` : '-';
-  const widthPx    = Number(point?.arte_largura || point?.largura_px || 0);
-  const heightPx   = Number(point?.arte_altura  || point?.altura_px  || 0);
-  const resolucao  = widthPx && heightPx ? `${widthPx}×${heightPx} px` : '-';
-  const loopSec    = (() => {
-    if (!point?.loop) return durSec * 5 || 30;
-    const v = String(point.loop).replace(/[^0-9.]/g, '');
-    return Number(v) || (durSec * 5 || 30);
-  })();
-  const loopLabel  = loopSec >= 60 ? `${Math.round(loopSec / 60)} min` : `${loopSec}s`;
+  const nome       = escHtml(point?.nome || 'Ponto');
+
+  // Ambiente + Perfil (matching desktop)
+  const ambiente   = escHtml((point?.ambiente && String(point.ambiente).trim() !== '') ? point.ambiente : 'Indoor');
+  const perfil     = escHtml((point?.perfil_publico && String(point.perfil_publico).trim() !== '') ? point.perfil_publico : 'A/B');
+
+  // Coordinates (matching desktop)
+  const coords     = (point?.lat && point?.lng && point.lat !== '0' && point.lng !== '0')
+    ? `${point.lat}, ${point.lng}` : '-';
+
+  // Location
+  const endereco   = escHtml(point?.endereco ? String(point.endereco).trim() : (point?.cidade || '-'));
+
+  // Formato / aspect ratio (matching desktop)
+  const widthPx    = Math.max(1, Math.round(Number(point?.arte_largura || 1080) || 1080));
+  const heightPx   = Math.max(1, Math.round(Number(point?.arte_altura || 1920) || 1920));
+  const isVertical = heightPx >= widthPx;
+  const formatAspect = isVertical ? 'Vertical 9:16' : 'Horizontal 16:9';
+
+  const resolucao  = `${widthPx}×${heightPx} px`;
+
+  // Duration — use point.tempo (matching desktop), NOT point.duracao
+  const duracaoItem = (point?.tempo && String(point.tempo).trim() !== '') ? escHtml(point.tempo) : '15s';
+
+  // Insertions per hour — matching desktop formula
+  const insercoesMesTxt = String(point?.insercoes || '').replace(/\\D/g, '');
+  const insercoesMes = parseInt(insercoesMesTxt, 10);
+  let insercoesLabel = '';
+  if (!isNaN(insercoesMes) && insercoesMes > 0) {
+    const hoursDay = parseHorario(point?.horario);
+    const perDay   = insercoesMes / 30;
+    const perHour  = Math.round(perDay / hoursDay);
+    insercoesLabel = `${perHour} inserções/h`;
+  } else {
+    const loopSeg = parseDuracao(point?.loop) || 180;
+    insercoesLabel = `${Math.floor(3600 / loopSeg)} inserções/h`;
+  }
+
+  // Loop — simple display matching desktop
+  const loopLabel = (point?.loop && String(point.loop).trim() !== '') ? escHtml(point.loop) : '180s';
 
   return createMobilePage(`
     <!-- Photo panel: top 38% -->
@@ -220,39 +246,57 @@ function buildTechMobilePointPage(point, index, total) {
         : `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:${MUTED};">Sem foto cadastrada</div>`}
       <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 50%,rgba(11,11,11,0.7) 100%);"></div>
       <div style="position:absolute;top:0;left:0;right:0;height:5px;background:${ORANGE};"></div>
-      <div style="position:absolute;top:16px;right:16px;padding:5px 12px;border-radius:999px;background:rgba(0,0,0,0.65);font-size:12px;font-weight:700;color:#fff;">${index}/${total}</div>
+      <div style="position:absolute;top:16px;right:16px;padding:5px 12px;border-radius:999px;background:rgba(0,0,0,0.65);font-size:12px;font-weight:700;color:#fff;">Ponto ${index} de ${total}</div>
       <div style="position:absolute;bottom:12px;left:18px;">
         <img src="/logo.png" alt="" style="height:24px;width:auto;object-fit:contain;opacity:0.85;" />
       </div>
     </div>
 
     <!-- Content panel: bottom 62% -->
-    <div style="position:absolute;top:38%;left:0;right:0;bottom:0;padding:18px 22px 18px;display:flex;flex-direction:column;gap:12px;overflow:hidden;box-sizing:border-box;">
+    <div style="position:absolute;top:38%;left:0;right:0;bottom:0;padding:16px 22px 14px;display:flex;flex-direction:column;gap:10px;overflow:hidden;box-sizing:border-box;">
 
-      <!-- Name + location -->
-      <div>
-        <div style="font-size:24px;line-height:1.05;font-weight:700;letter-spacing:-0.01em;color:${TEXT};word-break:break-word;">${escHtml(nome)}</div>
-        ${point.tipo ? `<span style="margin-top:8px;display:inline-flex;padding:5px 14px;border-radius:999px;background:${ORANGE};font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#fff;">${escHtml(point.tipo)}</span>` : ''}
-        ${point.endereco ? `<div style="margin-top:6px;font-size:13px;color:${MUTED};">${escHtml(point.endereco)}${point.cidade ? `, ${escHtml(point.cidade)}` : ''}</div>` : ''}
+      <!-- Dados do ponto -->
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:14px 16px;">
+        <div style="font-size:10px;font-weight:800;color:${ORANGE};text-transform:uppercase;letter-spacing:0.12em;margin-bottom:4px;">Dados do ponto</div>
+        <div style="font-size:20px;line-height:1.1;font-weight:700;color:${TEXT};word-break:break-word;">${nome}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+          <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:8px 10px;">
+            <div style="font-size:9px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">Ambiente / Perfil</div>
+            <div style="font-size:12px;color:#fff;font-weight:600;">${ambiente} &bull; ${perfil}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:8px 10px;">
+            <div style="font-size:9px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">Coordenadas</div>
+            <div style="font-size:12px;color:#fff;font-weight:600;">${coords}</div>
+          </div>
+          <div style="grid-column:1 / -1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:8px 10px;">
+            <div style="font-size:9px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">Localização</div>
+            <div style="font-size:12px;color:#fff;font-weight:600;">${endereco}</div>
+          </div>
+        </div>
       </div>
 
       <!-- Technical specifications -->
       <div style="flex:1;overflow:hidden;">
-        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};margin-bottom:8px;">Especificações técnicas</div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};margin-bottom:6px;">Especificações da tela</div>
         ${specCard([
+          specItem('Formato', formatAspect),
           specItem('Resolução', resolucao),
-          specItem('Duração do spot', durLabel),
+          specItem('Duração', duracaoItem),
           specItem('Exibição média', insercoesLabel),
           specItem('Loop estimado', loopLabel),
+          specItem('Tamanho máximo', '50MB'),
           specItem('Funcionamento', point?.horario || '6h às 23h'),
-          specItem('Peso máximo', '50 MB'),
         ])}
       </div>
 
-      <!-- Creative rules note -->
-      <div style="padding:12px 16px;border-radius:10px;background:rgba(232,89,26,0.07);border-left:3px solid ${ORANGE};">
-        <div style="font-size:12px;font-weight:700;color:${TEXT};">Regras criativas</div>
-        <p style="margin-top:4px;font-size:12px;line-height:1.5;color:${MUTED};">Texto curto, alto contraste e logotipo em destaque. Material sujeito a aprovação técnica.</p>
+      <!-- Creative rules + operation note -->
+      <div style="padding:10px 14px;border-radius:10px;background:rgba(232,89,26,0.07);border-left:3px solid ${ORANGE};">
+        <div style="font-size:11px;font-weight:700;color:${TEXT};">Regras criativas</div>
+        <p style="margin-top:3px;font-size:11px;line-height:1.5;color:${MUTED};">Texto curto, alto contraste e logo em destaque</p>
+      </div>
+      <div style="padding:10px 14px;border-radius:8px;background:rgba(232,89,26,0.08);border-left:4px solid ${ORANGE};display:flex;align-items:center;gap:8px;">
+        <span style="font-size:12px;font-weight:700;color:${TEXT};">Operação:</span>
+        <span style="font-size:12px;color:rgba(255,255,255,0.85);">Material sujeito a aprovação técnica.</span>
       </div>
     </div>
   `);

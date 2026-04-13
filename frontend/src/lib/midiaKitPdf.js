@@ -29,7 +29,7 @@ const CITY_STATE_MAP = {
   'florianópolis': 'Santa Catarina',
   'florianopolis': 'Santa Catarina',
 };
-function getCityState(cidade) {
+export function getCityState(cidade) {
   const key = String(cidade || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const keyRaw = String(cidade || '').toLowerCase();
   return CITY_STATE_MAP[keyRaw] || CITY_STATE_MAP[key] || '';
@@ -74,7 +74,7 @@ export function formatMoney(value) {
   }).format(Number(value) || 0);
 }
 
-function formatDecimalMoney(value) {
+export function formatDecimalMoney(value) {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -83,7 +83,7 @@ function formatDecimalMoney(value) {
   }).format(Number(value) || 0);
 }
 
-function formatCostPerImpact(value) {
+export function formatCostPerImpact(value) {
   const numeric = Number(value) || 0;
   if (!Number.isFinite(numeric) || numeric <= 0) {
     return '-';
@@ -130,7 +130,7 @@ async function blobUrlToDataUrl(url) {
   }
 }
 
-function formatPointNameHtml(name, options = {}) {
+export function formatPointNameHtml(name, options = {}) {
   const source = String(name || '').trim().toUpperCase();
   if (!source) return 'PONTO SEM NOME';
 
@@ -155,7 +155,7 @@ function formatPointNameHtml(name, options = {}) {
   return html;
 }
 
-function formatPointAddress(address) {
+export function formatPointAddress(address) {
   const raw = String(address || '').trim();
   if (!raw) return '';
 
@@ -223,7 +223,7 @@ export function buildResumo(pontos) {
   return { ...totals, ticketMedio };
 }
 
-function getAudienceQualityScore(point) {
+export function getAudienceQualityScore(point) {
   const tags = Array.isArray(point?.audience_tags) ? point.audience_tags : [];
   if (tags.length) {
     const avgWeight = tags.reduce((sum, tag) => sum + (Number(tag?.weight) || 1), 0) / tags.length;
@@ -631,7 +631,7 @@ function midiaKitDetailIcon(kind, color = BRAND_ORANGE, size = 18) {
   return icons[kind] || icons.location;
 }
 
-function formatCoordinates(ponto) {
+export function formatCoordinates(ponto) {
   const lat = Number(ponto?.lat);
   const lng = Number(ponto?.lng);
 
@@ -880,7 +880,7 @@ function splitFormatTitle(tipo) {
   return [first, second];
 }
 
-function getFormatDescription(tipo) {
+export function getFormatDescription(tipo) {
   const normalized = String(tipo || '')
     .toLowerCase()
     .normalize('NFD')
