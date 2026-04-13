@@ -29,12 +29,15 @@ function formatCoord(v) {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function getPointImage(point) {
-  return point?.simulacao_preview
-    || point?.proposalSimulationPreview
-    || getPrimaryPointScreenImage(point)
-    || point?.imagem
-    || point?.imagem2
-    || '';
+  // Never serve blob: URLs — they only exist in the creator's browser session
+  const candidates = [
+    point?.proposalSimulationPreview,
+    point?.simulacao_preview,
+    getPrimaryPointScreenImage(point),
+    point?.imagem,
+    point?.imagem2,
+  ];
+  return candidates.find(url => url && !String(url).startsWith('blob:')) || '';
 }
 
 function getPointType(point) {

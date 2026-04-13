@@ -134,9 +134,13 @@ export async function logout() {
 export async function uploadProposalImage(blob) {
   const fd = new FormData();
   fd.append('image', blob, 'simulation.png');
+  const token = typeof window !== 'undefined' ? window.sessionStorage.getItem('admin_token') : null;
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${String(token).trim()}`;
   const res = await fetch('/api/proposta-publica/upload-image', {
     method: 'POST',
     credentials: 'include',
+    headers,
     body: fd
   });
   if (!res.ok) {

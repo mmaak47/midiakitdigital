@@ -706,6 +706,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
             point.proposalSimulationPreview = serverUrl;
           } catch (e) {
             console.warn('[ProposalModal] Failed to upload simulation image for point', point.id, e.message);
+            // Clear blob URL so the client doesn't receive a broken URL
+            point.proposalSimulationPreview = '';
           }
         });
         await Promise.all(uploadTasks);
