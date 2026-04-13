@@ -597,7 +597,6 @@ export default function Landing() {
   const handleExportPdf = async (formatOverride) => {
     if (!pontos.length || pdfStatus === 'generating') return;
     const format = formatOverride || pdfFormat;
-    setShowPdfFormatPicker(false);
     setPdfStatus('generating');
     try {
       if (format === 'mobile') {

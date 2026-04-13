@@ -159,6 +159,7 @@ function Lobby({
           options={cidades}
           placeholder="Todas as praças"
           multiple
+          isDark={isDark}
         />
         <CustomSelect
           label="Formatos"
@@ -167,6 +168,7 @@ function Lobby({
           options={tipos}
           placeholder="Todos os formatos"
           multiple
+          isDark={isDark}
         />
       </div>
 

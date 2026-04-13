@@ -103,7 +103,7 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
               href="https://www.instagram.com/intermidiadigitalooh/"
               target="_blank"
               rel="noopener noreferrer"
-              className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-all duration-200 ${isDark ? 'border-brand-orange/50 text-brand-orange hover:text-brand-orange hover:bg-brand-orange/10' : 'border-brand-orange/50 text-brand-orange hover:text-brand-orange hover:bg-brand-orange/10'}`}
+              className={`flex items-center justify-center w-9 h-9 rounded-lg border-2 transition-all duration-200 border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-white`}
               aria-label="Instagram"
             >
               <i className="ri-instagram-line" style={{ fontSize: 18 }} />
@@ -160,7 +160,7 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setOpen(false)}
-                className={`flex items-center justify-center w-12 h-12 rounded-xl border transition-colors ${isDark ? 'border-brand-orange/50 text-brand-orange hover:text-brand-orange hover:bg-brand-orange/10' : 'border-brand-orange/50 text-brand-orange hover:text-brand-orange hover:bg-brand-orange/10'}`}
+                className={`flex items-center justify-center w-12 h-12 rounded-xl border-2 transition-colors border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-white`}
                 aria-label="Instagram"
               >
                 <i className="ri-instagram-line" style={{ fontSize: 20 }} />
