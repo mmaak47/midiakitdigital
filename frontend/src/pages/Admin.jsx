@@ -30,6 +30,7 @@ import {
   updateAdminSettings,
   testFinanceiroReminder,
   testPdfWhatsapp,
+  syncGoogleOperatingHours,
   geocodePoint,
   fetchCurrentUser,
   fetchArteStats,
@@ -172,6 +173,14 @@ export default function Admin() {
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsError, setSettingsError] = useState('');
   const [lucroMinimoValue, setLucroMinimoValue] = useState(15);
+  const [hoursSyncCity, setHoursSyncCity] = useState('');
+  const [hoursSyncLimit, setHoursSyncLimit] = useState(60);
+  const [hoursSyncRadiusMeters, setHoursSyncRadiusMeters] = useState(220);
+  const [hoursSyncConfidence, setHoursSyncConfidence] = useState(0.56);
+  const [hoursSyncOverwrite, setHoursSyncOverwrite] = useState(false);
+  const [hoursSyncBusy, setHoursSyncBusy] = useState(false);
+  const [hoursSyncResult, setHoursSyncResult] = useState(null);
+  const [hoursSyncError, setHoursSyncError] = useState('');
 
   // Evolution API
   const [evoApiUrl, setEvoApiUrl] = useState('');
@@ -721,6 +730,29 @@ export default function Admin() {
       setPdfTestError(err.message);
     } finally {
       setPdfTestLoading(false);
+    }
+  };
+
+  const handleRunHoursSync = async (dryRun = true) => {
+    setHoursSyncBusy(true);
+    setHoursSyncError('');
+    setHoursSyncResult(null);
+    try {
+      const result = await syncGoogleOperatingHours({
+        dryRun,
+        overwrite: hoursSyncOverwrite,
+        city: hoursSyncCity.trim(),
+        limit: Number(hoursSyncLimit) || 60,
+        radiusMeters: Number(hoursSyncRadiusMeters) || 220,
+        confidenceThreshold: Number(hoursSyncConfidence) || 0.56
+      });
+      setHoursSyncResult(result || null);
+    } catch (err) {
+      if (!handleSessionError(err)) {
+        setHoursSyncError(err.message || 'Falha na sincronização de horários');
+      }
+    } finally {
+      setHoursSyncBusy(false);
     }
   };
 
@@ -1484,6 +1516,144 @@ export default function Admin() {
                   <strong><Info size={12} className="inline mr-1" />Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro mínimo obrigatório (desconto acima do valor configurado aqui), a proposta fica aguardando aprovação de um Gerente Comercial antes de poder ser finalizada.
                 </p>
               </div>
+            </section>
+
+            <section className={`rounded-2xl border p-4 sm:p-5 ${th.card}`}>
+              <div>
+                <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Sincronizar horario via Google</h3>
+                <p className={`text-xs mt-1 ${th.sectionDesc}`}>
+                  Busca horario real pelo nome + coordenada de cada ponto. Sem horario no Google, sem escrita no banco.
+                </p>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+                <div className="md:col-span-2">
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>Cidade (opcional)</label>
+                  <input
+                    type="text"
+                    value={hoursSyncCity}
+                    onChange={(event) => setHoursSyncCity(event.target.value)}
+                    placeholder="Ex: Londrina"
+                    className={`w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none ${th.inp}`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>Limite</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={hoursSyncLimit}
+                    onChange={(event) => setHoursSyncLimit(Number(event.target.value))}
+                    className={`w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none ${th.inp}`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>Raio (m)</label>
+                  <input
+                    type="number"
+                    min="50"
+                    max="2000"
+                    step="10"
+                    value={hoursSyncRadiusMeters}
+                    onChange={(event) => setHoursSyncRadiusMeters(Number(event.target.value))}
+                    className={`w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none ${th.inp}`}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[220px_auto] md:items-end">
+                <div>
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>Confianca minima</label>
+                  <input
+                    type="number"
+                    min="0.2"
+                    max="0.95"
+                    step="0.01"
+                    value={hoursSyncConfidence}
+                    onChange={(event) => setHoursSyncConfidence(Number(event.target.value))}
+                    className={`w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none ${th.inp}`}
+                  />
+                </div>
+                <label className={`inline-flex items-center gap-2 text-xs ${th.sectionDesc}`}>
+                  <input
+                    type="checkbox"
+                    checked={hoursSyncOverwrite}
+                    onChange={(event) => setHoursSyncOverwrite(Boolean(event.target.checked))}
+                    className="h-4 w-4 rounded border-white/20 bg-black text-brand-orange focus:ring-brand-orange/40"
+                  />
+                  Sobrescrever horario existente (se desmarcado, atualiza apenas pontos sem horario)
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleRunHoursSync(true)}
+                  disabled={hoursSyncBusy}
+                  className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${isDark ? 'border-blue-500/40 bg-blue-500/15 text-blue-300 hover:bg-blue-500/25' : 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
+                >
+                  {hoursSyncBusy ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+                  Dry-run (sem salvar)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRunHoursSync(false)}
+                  disabled={hoursSyncBusy}
+                  className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${isDark ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange hover:bg-brand-orange/25' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+                >
+                  {hoursSyncBusy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  Executar e salvar
+                </button>
+              </div>
+
+              {hoursSyncError ? <p className="mt-3 text-xs text-red-300">{hoursSyncError}</p> : null}
+
+              {hoursSyncResult ? (
+                <div className={`mt-4 rounded-xl border p-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                    <div>
+                      <span className={th.sectionDesc}>Analisados</span>
+                      <p className={`font-semibold ${th.tableName}`}>{Number(hoursSyncResult.summary?.totalProcessed || 0)}</p>
+                    </div>
+                    <div>
+                      <span className={th.sectionDesc}>Atualizados</span>
+                      <p className={`font-semibold ${th.tableName}`}>{Number(hoursSyncResult.summary?.updated || 0)}</p>
+                    </div>
+                    <div>
+                      <span className={th.sectionDesc}>Com match</span>
+                      <p className={`font-semibold ${th.tableName}`}>{Number(hoursSyncResult.summary?.matched || 0)}</p>
+                    </div>
+                    <div>
+                      <span className={th.sectionDesc}>Sem alteracao</span>
+                      <p className={`font-semibold ${th.tableName}`}>{Number(hoursSyncResult.summary?.skipped || 0)}</p>
+                    </div>
+                  </div>
+
+                  <div className={`mt-3 max-h-72 overflow-auto rounded-lg border ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
+                    <table className="w-full text-xs">
+                      <thead className={`${isDark ? 'bg-white/[0.04] text-brand-gray-400' : 'bg-neutral-100 text-neutral-500'}`}>
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium">Ponto</th>
+                          <th className="px-3 py-2 text-left font-medium">Acao</th>
+                          <th className="px-3 py-2 text-left font-medium">Confianca</th>
+                          <th className="px-3 py-2 text-left font-medium">Motivo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(Array.isArray(hoursSyncResult.results) ? hoursSyncResult.results : []).slice(0, 120).map((row) => (
+                          <tr key={`${row.pointId}-${row.pointName}`} className={`border-t ${isDark ? 'border-white/10 text-white/90' : 'border-neutral-200 text-neutral-800'}`}>
+                            <td className="px-3 py-2">{row.pointName}</td>
+                            <td className="px-3 py-2">{row.action || '-'}</td>
+                            <td className="px-3 py-2">{typeof row.matchConfidence === 'number' ? row.matchConfidence.toFixed(3) : '-'}</td>
+                            <td className={`px-3 py-2 ${th.sectionDesc}`}>{row.reason || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
             </section>
 
             <section className={`rounded-2xl border p-4 sm:p-5 ${th.card}`}>

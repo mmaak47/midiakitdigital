@@ -569,6 +569,34 @@ export async function testPdfWhatsapp({ phone, pontos_nomes, responsavel_nome, v
   return data;
 }
 
+export async function syncGoogleOperatingHours({
+  dryRun = true,
+  overwrite = false,
+  city = '',
+  limit = 60,
+  radiusMeters = 220,
+  confidenceThreshold = 0.56,
+  pointIds = []
+} = {}) {
+  const res = await apiRequest('/admin/pontos/sync-hours/google', {
+    method: 'POST',
+    body: JSON.stringify({
+      dryRun,
+      overwrite,
+      city,
+      limit,
+      radiusMeters,
+      confidenceThreshold,
+      pointIds
+    })
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao sincronizar horários via Google');
+  }
+  return res.json();
+ }
+
 // Retorna o usuário autenticado atual
 export async function fetchCurrentUser() {
   const res = await apiRequest('/users/me');
