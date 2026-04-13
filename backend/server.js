@@ -249,16 +249,27 @@ const apiLimiter = rateLimit({
   max: Number(process.env.API_RATE_LIMIT_MAX || 1200),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
+  keyGenerator: (req) => {
+    const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    const ip = forwarded || req.ip || req.connection?.remoteAddress || 'unknown';
+    return ip.replace(/^::ffff:/, '');
+  },
   message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' }
 });
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.LOGIN_RATE_LIMIT_MAX || 15),
+  max: Number(process.env.LOGIN_RATE_LIMIT_MAX || 40),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
+  // Count only failed attempts and partition by IP + login identifier.
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => {
+    const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    const ip = (forwarded || req.ip || req.connection?.remoteAddress || 'unknown').replace(/^::ffff:/, '');
+    const identifier = String(req.body?.username || req.body?.email || '').trim().toLowerCase();
+    return identifier ? `${ip}:${identifier}` : ip;
+  },
   message: { error: 'Muitas tentativas de login. Tente novamente em alguns minutos.' }
 });
 
@@ -277,7 +288,11 @@ const publicLimiter = rateLimit({
   max: Number(process.env.PUBLIC_RATE_LIMIT_MAX || 3000),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
+  keyGenerator: (req) => {
+    const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    const ip = forwarded || req.ip || req.connection?.remoteAddress || 'unknown';
+    return ip.replace(/^::ffff:/, '');
+  },
   message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' }
 });
 
