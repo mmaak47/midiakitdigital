@@ -400,6 +400,9 @@ async function generateWithReplicate(prompt, model = 'meta/meta-llama-3-70b-inst
   }
 
   const start = Date.now();
+  const POLL_INTERVAL_MS = 2000;
+  const MAX_WAIT_MS = 90000; // 90s total — well within any reasonable proxy timeout
+  const modelShort = model.split('/').pop();
 
   try {
     const inputPayload = {
@@ -407,32 +410,64 @@ async function generateWithReplicate(prompt, model = 'meta/meta-llama-3-70b-inst
       max_tokens: options.max_tokens || 1200,
       temperature: options.temperature ?? 0.3,
     };
-    // Use Replicate's system_prompt field when provided
     if (options.system_prompt) {
       inputPayload.system_prompt = options.system_prompt;
     }
 
-    const response = await fetch('https://api.replicate.com/v1/models/' + model + '/predictions', {
+    // Step 1: Submit prediction (no Prefer:wait — avoid long-lived single connection
+    // that proxy/nginx can cut before Replicate finishes)
+    const createRes = await fetch('https://api.replicate.com/v1/models/' + model + '/predictions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${REPLICATE_API_TOKEN}`,
         'Content-Type': 'application/json',
-        'Prefer': 'wait',
       },
       body: JSON.stringify({ input: inputPayload }),
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Replicate HTTP ${response.status}: ${errText.slice(0, 200)}`);
+    if (!createRes.ok) {
+      const errText = await createRes.text();
+      throw new Error(`Replicate HTTP ${createRes.status}: ${errText.slice(0, 200)}`);
     }
 
-    const data = await response.json();
-    const text = Array.isArray(data.output) ? data.output.join('') : String(data.output || '');
-    const latency = Date.now() - start;
-    const modelShort = model.split('/').pop();
-    console.log(`[ai] replicate (${modelShort}) responded in ${latency}ms`);
-    return { text, model: `replicate:${modelShort}`, latency };
+    const prediction = await createRes.json();
+
+    // Immediate result (cold-cache hit)
+    if (prediction.status === 'succeeded') {
+      const text = Array.isArray(prediction.output) ? prediction.output.join('') : String(prediction.output || '');
+      return { text, model: `replicate:${modelShort}`, latency: Date.now() - start };
+    }
+
+    const predictionId = prediction.id;
+    if (!predictionId) throw new Error('Replicate returned no prediction ID');
+
+    // Step 2: Poll GET /predictions/{id} every 2s until done
+    while (Date.now() - start < MAX_WAIT_MS) {
+      await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+
+      const pollRes = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+        headers: { 'Authorization': `Bearer ${REPLICATE_API_TOKEN}` },
+      });
+
+      if (!pollRes.ok) continue; // transient error — keep polling
+
+      const data = await pollRes.json();
+
+      if (data.status === 'succeeded') {
+        const text = Array.isArray(data.output) ? data.output.join('') : String(data.output || '');
+        const latency = Date.now() - start;
+        console.log(`[ai] replicate (${modelShort}) responded in ${latency}ms`);
+        return { text, model: `replicate:${modelShort}`, latency };
+      }
+
+      if (data.status === 'failed' || data.status === 'canceled') {
+        throw new Error(`Replicate prediction ${data.status}: ${data.error || 'unknown'}`);
+      }
+
+      // status 'starting' | 'processing' → keep polling
+    }
+
+    throw new Error(`Replicate timeout after ${MAX_WAIT_MS / 1000}s`);
   } catch (error) {
     console.error('[ai] replicate failed:', error.message);
     throw new Error(`REPLICATE_FAILED:${error.message}`);
