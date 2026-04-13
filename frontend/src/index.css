@@ -15,8 +15,8 @@ html {
 
 body {
   font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
-  background-color: #000;
-  color: #fff;
+  background-color: #f4f5f7;
+  color: #171717;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
