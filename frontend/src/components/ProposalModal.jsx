@@ -162,6 +162,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [shareModal, setShareModal] = useState(null); // null | { url, token, expires_at }
   const [shareBusy, setShareBusy] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [sessionExpiredModal, setSessionExpiredModal] = useState({ open: false, message: '' });
   const [pdfSections, setPdfSections] = useState({ methodology: true, score: true, coverage: true, impact: true, mapPrint: false });
   const [connectMapPoints, setConnectMapPoints] = useState(true);
   const [mapBusy, setMapBusy] = useState(false);
@@ -182,6 +183,30 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     error: ''
   });
   const promptTextareaRef = useRef(null);
+
+  const isSessionExpiredError = (error) => {
+    const message = String(error?.message || '').toLowerCase();
+    return /token|expirad|autentica|unauthoriz|401/.test(message);
+  };
+
+  const triggerSessionExpiredModal = (message) => {
+    try { sessionStorage.removeItem('admin_token'); } catch { /* ignore */ }
+    setSessionExpiredModal({
+      open: true,
+      message: message || 'Sua sessão expirou. Faça login novamente para continuar.'
+    });
+  };
+
+  const handleAuthExpired = (error, message) => {
+    if (!isSessionExpiredError(error)) return false;
+    triggerSessionExpiredModal(message);
+    return true;
+  };
+
+  const goToCommercialLogin = () => {
+    if (typeof window === 'undefined') return;
+    window.location.assign('/comercial');
+  };
 
   // Auto-save draft whenever form-related state changes
   useEffect(() => {
@@ -329,6 +354,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         }
       } catch (err) {
         if (!active) return;
+        if (handleAuthExpired(err, 'Sua sessão expirou durante a análise de entorno. Faça login novamente para continuar gerando a proposta.')) {
+          setEntorno((prev) => ({ ...prev, loading: false, error: 'Sessão expirada.' }));
+          return;
+        }
         setEntorno((prev) => ({
           ...prev,
           loading: false,
@@ -349,8 +378,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           }
 
           pollTimer = window.setTimeout(poll, 3500);
-        } catch {
+        } catch (err) {
           if (!active) return;
+          if (handleAuthExpired(err, 'Sua sessão expirou durante o processamento da análise. Faça login novamente.')) {
+            return;
+          }
           pollTimer = window.setTimeout(poll, 5000);
         }
       };
@@ -398,6 +430,16 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         });
       } catch (error) {
         if (!active) return;
+        if (handleAuthExpired(error, 'Sua sessão expirou durante a análise do endereço do cliente. Faça login novamente para continuar.')) {
+          setClientAnalysis({
+            loading: false,
+            location: null,
+            byPoint: {},
+            rankedPoints: [],
+            error: 'Sessão expirada.'
+          });
+          return;
+        }
         setClientAnalysis({
           loading: false,
           location: null,
@@ -675,7 +717,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       ].filter(Boolean);
       setForm(s => ({ ...s, strategicTopics: lines.join('\n') }));
     } catch (err) {
+      if (handleAuthExpired(err, 'Sua sessão expirou antes de gerar os argumentos comerciais. Faça login novamente para evitar perda de créditos/tokens.')) {
+        return;
+      }
       console.error('[ProposalModal] AI text error:', err.message);
+      setSimulationError(err?.message || 'Falha ao gerar argumentos comerciais.');
     } finally {
       setAiTextBusy(false);
     }
@@ -716,6 +762,9 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       const result = await criarPropostaPublica(proposalData, 7);
       setShareModal(result);
     } catch (err) {
+      if (handleAuthExpired(err, 'Sua sessão expirou antes de compartilhar a proposta. Faça login novamente para gerar o link público/PDF com segurança.')) {
+        return;
+      }
       alert(err.message);
     } finally {
       setShareBusy(false);
@@ -1892,6 +1941,40 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
               <Download size={15} />
               Baixar cartão QR
             </button>
+          </div>
+        </div>
+      )}
+
+      {sessionExpiredModal.open && (
+        <div className="fixed inset-0 z-[95] bg-black/65 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSessionExpiredModal({ open: false, message: '' })}>
+          <div
+            className={`w-full max-w-md rounded-2xl border p-6 shadow-2xl ${isDark ? 'bg-[#141414] border-white/10' : 'bg-white border-neutral-200'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Sessão expirada</h3>
+            <p className={`mt-2 text-sm leading-relaxed ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
+              {sessionExpiredModal.message}
+            </p>
+            <p className={`mt-2 text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+              Para evitar perda de trabalho e consumo desnecessário de tokens, faça login novamente antes de continuar.
+            </p>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSessionExpiredModal({ open: false, message: '' })}
+                className={`h-10 px-4 rounded-xl border text-sm font-medium ${isDark ? 'border-white/15 text-white hover:bg-white/[0.06]' : 'border-neutral-200 text-neutral-700 hover:bg-neutral-100'}`}
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                onClick={goToCommercialLogin}
+                className="h-10 px-4 rounded-xl bg-brand-orange text-white text-sm font-semibold hover:bg-brand-orange-hover"
+              >
+                Fazer login novamente
+              </button>
+            </div>
           </div>
         </div>
       )}
