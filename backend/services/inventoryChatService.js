@@ -114,6 +114,11 @@ function accumulateState(existingState, newEntities, message, intent) {
 
   if (newEntities.cidades.length) {
     state.cidades = dedupe([...newEntities.cidades, ...(state.cidades || [])]);
+    // User explicitly asked about a city without specifying a region → clear accumulated
+    // region so future queries for this city aren't incorrectly filtered by a prior bairro
+    if (!newEntities.regioes.length) {
+      state.regioes = [];
+    }
   }
 
   if (newEntities.regioes.length) {
@@ -1063,9 +1068,15 @@ async function processInventoryChat(message, history = [], userId = null, sessio
   }
 
   // ── Effective entities: current entities + accumulated context ────────────
+  // When user explicitly asks about a whole city (pontos_cidade) without specifying
+  // a region, do NOT inherit the accumulated region — they want ALL points in that
+  // city, not filtered by a previously discussed bairro (e.g. "Gleba Palhano").
+  const cityQueryWithoutRegion =
+    intent === 'pontos_cidade' && currentEntities.cidades.length > 0 && currentEntities.regioes.length === 0;
+
   const effectiveEntities = {
     cidades:  currentEntities.cidades.length  ? currentEntities.cidades  : (accState?.cidades || []),
-    regioes:  currentEntities.regioes.length  ? currentEntities.regioes  : (accState?.regioes || []),
+    regioes:  currentEntities.regioes.length  ? currentEntities.regioes  : (cityQueryWithoutRegion ? [] : (accState?.regioes || [])),
     formatos: currentEntities.formatos.length ? currentEntities.formatos : (accState?.formatos || []),
     pontoIds: currentEntities.pontoIds.length ? currentEntities.pontoIds : (accState?.pontoIds_discussed || []).slice(-3),
   };
@@ -1114,7 +1125,11 @@ async function processInventoryChat(message, history = [], userId = null, sessio
 
   // ── Build prompt (system_prompt + prompt) ────────────────────────────────
   const serverHistory = session ? session.history : history;
-  const { system_prompt, prompt } = buildChatPrompt(dbContext, serverHistory, message, accState);
+  // Pass effective state to the prompt — remove stale region when user asked for a whole city
+  const promptState = accState
+    ? { ...accState, regioes: effectiveEntities.regioes }
+    : null;
+  const { system_prompt, prompt } = buildChatPrompt(dbContext, serverHistory, message, promptState);
 
   // LLM options: low temperature for grounding
   const llmOptions = {
