@@ -515,6 +515,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const proposalPoints = useMemo(() => {
     return pricing.points.map((point) => {
       const result = simulationResults[point.id];
+      const persistedPreview = point.proposalSimulationPreview || point.simulacao_preview || '';
       const entornoMetrics = entorno.scoresByPoint[point.id] || entorno.scoresByPoint[String(point.id)] || null;
       const clientMetrics = clientAnalysis.byPoint[point.id] || clientAnalysis.byPoint[String(point.id)] || null;
       return {
@@ -523,7 +524,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         clientDistanceMeters: clientMetrics?.distanceMeters || null,
         clientDistanceKm: clientMetrics?.distanceKm || null,
         clientProximityScore: clientMetrics?.proximityScore || null,
-        proposalSimulationPreview: result?.previewUrl || '',
+        proposalSimulationPreview: result?.previewUrl || persistedPreview,
         proposalSimulationStatus: result?.status || (!simulationArtFile ? 'Envie a arte para gerar' : 'Gerar simulação pendente')
       };
     });
