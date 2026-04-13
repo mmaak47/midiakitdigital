@@ -208,13 +208,17 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     window.location.assign('/comercial');
   };
 
-  const persistSimulationPreview = async (blobUrl) => {
-    if (!blobUrl || !String(blobUrl).startsWith('blob:')) return blobUrl || '';
+  const persistSimulationPreview = async (previewBlob, previewUrl = '') => {
+    if (previewBlob instanceof Blob) {
+      const serverUrl = await uploadProposalImage(previewBlob);
+      return serverUrl || '';
+    }
 
-    const resp = await fetch(blobUrl);
-    const blob = await resp.blob();
-    const serverUrl = await uploadProposalImage(blob);
-    return serverUrl || '';
+    // If we don't have the blob in memory, keep only stable non-blob URLs.
+    if (previewUrl && !String(previewUrl).startsWith('blob:')) {
+      return previewUrl;
+    }
+    return '';
   };
 
   // Auto-save draft whenever form-related state changes
@@ -1009,7 +1013,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           displaySettings: simulationSettings,
           mediaParams
         });
-        const persistedPreviewUrl = await persistSimulationPreview(result.previewUrl);
+        const persistedPreviewUrl = await persistSimulationPreview(result.blob, result.previewUrl);
         return [point.id, { status: 'Gerada', previewUrl: persistedPreviewUrl }];
       } catch (error) {
         if (handleAuthExpired(error, 'Sua sessão expirou durante o upload da simulação. Faça login novamente para salvar os previews.')) {
@@ -1097,7 +1101,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         mediaParams
       });
 
-      const persistedPreviewUrl = await persistSimulationPreview(result.previewUrl);
+      const persistedPreviewUrl = await persistSimulationPreview(result.blob, result.previewUrl);
 
       console.log('[handleAiArteEscolhida] SUCCESS pontoId=', pontoId, { previewUrl: persistedPreviewUrl?.substring(0, 60) });
       setSimulationResults((current) => ({
