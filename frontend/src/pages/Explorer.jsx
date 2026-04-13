@@ -231,7 +231,7 @@ export default function Explorer() {
                 <SlidersHorizontal size={18} />
               </button>
               <h1 className="text-lg font-semibold">
-                Pontos de Mídia
+                Endereços de Mídia
               </h1>
               <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'text-brand-gray-500 bg-white/5' : 'text-neutral-500 bg-neutral-100 border border-neutral-200'}`}>
                 {pontos.length}
@@ -283,7 +283,7 @@ export default function Explorer() {
               >
                 <div className="text-brand-gray-600 mb-4 flex justify-center"><Search size={48} /></div>
                 <h3 className="text-xl font-semibold text-brand-gray-300 mb-2">
-                  Nenhum ponto encontrado
+                  Nenhum endereço encontrado
                 </h3>
                 <p className="text-brand-gray-500 text-sm">
                   Tente ajustar os filtros para ver mais resultados.

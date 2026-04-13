@@ -333,7 +333,7 @@ export default function PropostaPublica() {
     { label: 'Impactos/mês', value: formatNumber(totals.fluxoTotal) },
     { label: 'CPM estimado', value: totals.cpmEstimado ? formatCurrency(totals.cpmEstimado) : '—' },
     { label: 'Inserções/mês', value: totals.insercoesTotal ? formatNumber(totals.insercoesTotal) : '—' },
-    { label: 'Pontos', value: String(points.length) },
+    { label: 'Endereços', value: String(points.length) },
   ].filter(c => c.value && c.value !== '—' && c.value !== '0');
 
   return (
@@ -376,7 +376,7 @@ export default function PropostaPublica() {
             {segmentLabel && (
               <span className="inline-flex items-center h-7 px-3 rounded-full text-xs font-bold text-white" style={{ background: ORANGE }}>{segmentLabel}</span>
             )}
-            <span className="inline-flex items-center h-7 px-3 rounded-full bg-white/80 border border-gray-200 text-gray-600 text-xs font-medium">{points.length} ponto{points.length !== 1 ? 's' : ''}</span>
+            <span className="inline-flex items-center h-7 px-3 rounded-full bg-white/80 border border-gray-200 text-gray-600 text-xs font-medium">{points.length} endereço{points.length !== 1 ? 's' : ''}</span>
           </div>
         </div>
 
@@ -418,7 +418,7 @@ export default function PropostaPublica() {
               <h2 className="text-base font-bold text-gray-900">Plano de Investimento & Impacto</h2>
             </div>
             <span className="inline-flex items-center h-6 px-3 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
-              Total de {points.length} pontos
+              Total de {points.length} endereços
             </span>
           </div>
 
@@ -428,7 +428,7 @@ export default function PropostaPublica() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-t border-b border-gray-100">
-                    <th className="text-left px-5 py-2.5 text-[10px] font-bold uppercase tracking-wide text-gray-400">Ponto</th>
+                    <th className="text-left px-5 py-2.5 text-[10px] font-bold uppercase tracking-wide text-gray-400">Endereço</th>
                     <th className="text-left px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide text-gray-400">Cidade</th>
                     <th className="text-left px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide text-gray-400">Tipo</th>
                     <th className="text-right px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide text-gray-400">Valor Tabela</th>
@@ -502,7 +502,7 @@ export default function PropostaPublica() {
                   <p className="text-2xl font-extrabold" style={{ color: ORANGE }}>{formatCurrency(finalTotal)}</p>
                 </div>
                 <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
-                  Negociação válida exclusivamente para o plano e quantidade de pontos apresentados. Para outras condições, os valores deverão ser consultados.
+                  Negociação válida exclusivamente para o plano e quantidade de endereços apresentados. Para outras condições, os valores deverão ser consultados.
                 </p>
               </div>
             </div>
@@ -530,7 +530,7 @@ export default function PropostaPublica() {
         {/* ── Points list (mídia kit style cards) ────────────────────────── */}
         <div>
           <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500 mb-5">
-            Pontos de Mídia
+            Endereços de Mídia
           </h2>
           <div className="space-y-6">
             {points.map((p, i) => (
