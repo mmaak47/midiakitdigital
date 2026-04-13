@@ -2105,22 +2105,28 @@ export async function generateMidiaKitPdf({ praca, pracas, pontos }) {
 
 function buildProposalClosingPage(assets, overviewMapImage) {
   const mapHtml = overviewMapImage
-    ? `<div style="width:900px;max-width:100%;border-radius:18px;overflow:hidden;border:1px solid ${PROPOSAL_BORDER};box-shadow:0 8px 32px rgba(0,0,0,0.08);">
-        <img src="${overviewMapImage}" alt="Mapa de cobertura" style="display:block;width:100%;height:auto;object-fit:contain;" />
+    ? `<div style="width:100%;max-width:980px;margin:0 auto;border-radius:20px;overflow:hidden;border:1px solid ${PROPOSAL_BORDER};background:${PROPOSAL_SURFACE};box-shadow:0 12px 36px rgba(0,0,0,0.10);">
+        <div style="width:100%;height:0;padding-top:56%;position:relative;">
+          <img src="${overviewMapImage}" alt="Mapa de cobertura" style="position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;" />
+        </div>
       </div>`
     : '';
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
     <div style="position:absolute;inset:auto auto -180px -60px;width:560px;height:560px;border-radius:999px;background:radial-gradient(circle,rgba(232,89,26,0.08) 0%,rgba(232,89,26,0.02) 48%,rgba(232,89,26,0) 72%);"></div>
-    <div style="position:relative;z-index:1;height:768px;max-height:768px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:48px 64px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
-      <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:52px;width:auto;object-fit:contain;" />
-      ${mapHtml}
-      <div style="text-align:center;">
-        <div style="font-family:Poppins, system-ui, sans-serif;font-size:38px;font-weight:800;line-height:1.1;letter-spacing:-0.03em;color:${PROPOSAL_TEXT};">
+    <div style="position:relative;z-index:1;height:768px;max-height:768px;display:flex;align-items:center;justify-content:center;padding:44px 56px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+      <div style="width:100%;max-width:1060px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;text-align:center;">
+        <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:56px;width:auto;object-fit:contain;flex-shrink:0;" />
+        ${mapHtml}
+        <div style="text-align:center;max-width:980px;">
+          <div style="font-family:Poppins, system-ui, sans-serif;font-size:56px;font-weight:800;line-height:1.08;letter-spacing:-0.03em;color:${PROPOSAL_TEXT};">
           O mundo acontece lá fora<span style="color:${PROPOSAL_ACCENT};">.</span>
+          </div>
+          <div style="margin-top:14px;font-size:14px;font-weight:500;color:${PROPOSAL_TEXT_SECONDARY};letter-spacing:0.08em;text-transform:uppercase;">
+            Intermidia OOH + DOOH — Desde 2007
+          </div>
         </div>
-        <div style="margin-top:12px;font-size:13px;font-weight:500;color:${PROPOSAL_TEXT_SECONDARY};letter-spacing:0.06em;text-transform:uppercase;">Intermidia OOH + DOOH — Desde 2007</div>
       </div>
     </div>
   `);
