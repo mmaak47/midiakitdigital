@@ -2484,8 +2484,7 @@ app.put('/api/admin/settings', requireRoles(['admin']), (req, res) => {
       evolution_instance,
       evolution_api_key,
       evolution_dest_number,
-      evolution_financeiro_number,
-      evolution_aux_admin_number
+      evolution_financeiro_number
     } = req.body;
 
     if (lucro_minimo_percentual !== undefined) {
@@ -2500,14 +2499,7 @@ app.put('/api/admin/settings', requireRoles(['admin']), (req, res) => {
     }
 
     // Evolution API settings (string values — salva independente do valor)
-    const evoFields = {
-      evolution_api_url,
-      evolution_instance,
-      evolution_api_key,
-      evolution_dest_number,
-      evolution_financeiro_number,
-      evolution_aux_admin_number
-    };
+    const evoFields = { evolution_api_url, evolution_instance, evolution_api_key, evolution_dest_number, evolution_financeiro_number };
     Object.entries(evoFields).forEach(([key, val]) => {
       if (val !== undefined) {
         db.prepare("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))").run(
@@ -3169,8 +3161,7 @@ function getEvolutionSettings() {
     'evolution_instance',
     'evolution_api_key',
     'evolution_dest_number',
-    'evolution_financeiro_number',
-    'evolution_aux_admin_number'
+    'evolution_financeiro_number'
   ];
   const result = {};
   keys.forEach(k => {
@@ -3429,13 +3420,10 @@ app.post(
 
       // Disparo WhatsApp via Evolution API
       const evo = getEvolutionSettings();
-      const vendedorWhatsapp = String(req.authUser?.whatsapp || '').trim();
-      const internalDispatchNumber = vendedorWhatsapp || String(evo.evolution_dest_number || '').trim();
       let whatsappStatus = 'pendente';
       let whatsappError = null;
-      let waMsgId = null;
 
-      if (evo.evolution_api_url && evo.evolution_instance && evo.evolution_api_key && internalDispatchNumber) {
+      if (evo.evolution_api_url && evo.evolution_instance && evo.evolution_api_key && evo.evolution_dest_number) {
         try {
           const mensagem = buildVendaWhatsappMessage({
             tipo,
@@ -3458,13 +3446,14 @@ app.post(
             obs: obs || ''
           });
 
+          let waMsgId = null;
           if (piPath) {
             // Envia o PDF com a mensagem como caption
             const evoResp = await sendEvolutionDocument({
               apiUrl: evo.evolution_api_url,
               instance: evo.evolution_instance,
               apiKey: evo.evolution_api_key,
-              number: internalDispatchNumber,
+              number: evo.evolution_dest_number,
               caption: mensagem,
               filePath: piPath,
               fileName: req.file?.originalname || 'PI.pdf'
@@ -3475,7 +3464,7 @@ app.post(
               apiUrl: evo.evolution_api_url,
               instance: evo.evolution_instance,
               apiKey: evo.evolution_api_key,
-              number: internalDispatchNumber,
+              number: evo.evolution_dest_number,
               text: mensagem
             });
             waMsgId = evoResp?.key?.id || evoResp?.[0]?.key?.id || null;
@@ -3489,7 +3478,7 @@ app.post(
               apiUrl: evo.evolution_api_url,
               instance: evo.evolution_instance,
               apiKey: evo.evolution_api_key,
-              number: internalDispatchNumber,
+              number: evo.evolution_dest_number,
               name: `📋 Etapas — ${String(razao_social).trim()}`,
               values: ETAPAS_VENDA.map(e => `${e.emoji} ${e.label}`)
             });
@@ -3568,7 +3557,7 @@ app.post(
             : `Venda registrada. Falha no WhatsApp: ${whatsappError || 'erro desconhecido'}`
       });
 
-      // ─── Disparo assíncrono: PDF técnico para Aux Admin (ou cliente) ───────
+      // ─── Disparo assíncrono: PDF técnico para o WhatsApp do cliente ───────
       // Roda em background para não atrasar a resposta ao vendedor.
       setImmediate(async () => {
         const evoClient = getEvolutionSettings();
@@ -3577,10 +3566,8 @@ app.post(
         }
 
         const clientPhone = responsavel_whatsapp ? String(responsavel_whatsapp).trim() : null;
-        const auxAdminPhone = String(evoClient.evolution_aux_admin_number || '').trim();
-        const technicalDispatchNumber = auxAdminPhone || clientPhone;
-        if (!technicalDispatchNumber) {
-          console.warn(`[vendas/pdf] Venda ${vendaId}: sem destino técnico (Aux Admin/cliente) — PDF não enviado.`);
+        if (!clientPhone) {
+          console.warn(`[vendas/pdf] Venda ${vendaId}: responsavel_whatsapp não informado — PDF não enviado.`);
           return;
         }
 
@@ -3599,11 +3586,8 @@ app.post(
 
         const nomeResponsavel = responsavel_nome ? String(responsavel_nome).trim() : 'cliente';
         const nomeVendedor    = vendedor_nome || req.authUser?.username || 'nosso time';
-        const technicalPrefix = auxAdminPhone
-          ? `Cliente: ${nomeResponsavel}${clientPhone ? ` (${clientPhone})` : ''}\n\n`
-          : '';
 
-        const caption = `${technicalPrefix}Oi, ${nomeResponsavel}! Tudo bem? 😄\n\nPassando pra te dar os parabéns pela escolha dos pontos — excelente decisão!\n\nEu sou o assistente de criação que trabalha junto com o ${nomeVendedor} e vou te ajudar com tudo que envolver criativos.\n\nTe enviei a proposta técnica com os detalhes 📄\n\nSe quiser trocar ideias ou precisar de ajuda com as artes, estou por aqui!`;
+        const caption = `Oi, ${nomeResponsavel}! Tudo bem? 😄\n\nPassando pra te dar os parabéns pela escolha dos pontos — excelente decisão!\n\nEu sou o assistente de criação que trabalha junto com o ${nomeVendedor} e vou te ajudar com tudo que envolver criativos.\n\nTe enviei a proposta técnica com os detalhes 📄\n\nSe quiser trocar ideias ou precisar de ajuda com as artes, estou por aqui!`;
 
         console.log(`[vendas/pdf] Gerando PDFs técnicos para venda ${vendaId} (${pontosArr.length} ponto(s))...`);
 
@@ -3618,13 +3602,13 @@ app.post(
               apiUrl:   evoClient.evolution_api_url,
               instance: evoClient.evolution_instance,
               apiKey:   evoClient.evolution_api_key,
-              number:   technicalDispatchNumber,
+              number:   clientPhone,
               caption,
               filePath: tmpDesktop,
               fileName: 'Informações Técnicas.pdf'
             });
             require('fs').unlinkSync(tmpDesktop);
-            console.log(`[vendas/pdf] PDF desktop enviado para ${technicalDispatchNumber} (venda ${vendaId}).`);
+            console.log(`[vendas/pdf] PDF desktop enviado para ${clientPhone} (venda ${vendaId}).`);
           } catch (sendErr) {
             console.error(`[vendas/pdf] Falha ao enviar PDF desktop (venda ${vendaId}):`, sendErr.message);
           }
@@ -3637,13 +3621,13 @@ app.post(
               apiUrl:   evoClient.evolution_api_url,
               instance: evoClient.evolution_instance,
               apiKey:   evoClient.evolution_api_key,
-              number:   technicalDispatchNumber,
+              number:   clientPhone,
               caption:  '📱 Versão mobile da proposta técnica:',
               filePath: tmpMobile,
               fileName: 'Informações Técnicas Mobile.pdf'
             });
             require('fs').unlinkSync(tmpMobile);
-            console.log(`[vendas/pdf] PDF mobile enviado para ${technicalDispatchNumber} (venda ${vendaId}).`);
+            console.log(`[vendas/pdf] PDF mobile enviado para ${clientPhone} (venda ${vendaId}).`);
           } catch (sendErr) {
             console.error(`[vendas/pdf] Falha ao enviar PDF mobile (venda ${vendaId}):`, sendErr.message);
           }
@@ -3667,11 +3651,8 @@ app.post(
 app.post('/api/vendas/test-pdf', requireRoles(['admin', 'gerente_comercial']), async (req, res) => {
   const { phone, pontos_nomes, responsavel_nome, vendedor_nome } = req.body || {};
 
-  const evo = getEvolutionSettings();
-  const fallbackPhone = String(evo.evolution_aux_admin_number || '').trim();
-  const destPhone = String(phone || fallbackPhone || '').trim();
-  if (!destPhone) {
-    return res.status(400).json({ error: 'Informe o campo "phone" ou configure o número do Aux Admin nas Configurações.' });
+  if (!phone || !String(phone).trim()) {
+    return res.status(400).json({ error: 'Informe o campo "phone" com o número de destino (ex: 5543999999999).' });
   }
 
   let pontosArr = [];
@@ -3693,10 +3674,12 @@ app.post('/api/vendas/test-pdf', requireRoles(['admin', 'gerente_comercial']), a
     return res.status(400).json({ error: 'Nenhum ponto encontrado. Informe "pontos_nomes" ou cadastre pontos ativos.' });
   }
 
+  const evo = getEvolutionSettings();
   if (!evo.evolution_api_url || !evo.evolution_instance || !evo.evolution_api_key) {
     return res.status(400).json({ error: 'Evolution API não configurada nas Configurações.' });
   }
 
+  const destPhone      = String(phone).trim();
   const nomeResp       = responsavel_nome ? String(responsavel_nome).trim() : 'cliente teste';
   const nomeVend       = vendedor_nome    ? String(vendedor_nome).trim()    : req.authUser?.username || 'vendedor';
   const caption        = `Oi, ${nomeResp}! Tudo bem? 😄\n\nPassando pra te dar os parabéns pela escolha dos pontos — excelente decisão!\n\nEu sou o assistente de criação que trabalha junto com o ${nomeVend} e vou te ajudar com tudo que envolver criativos.\n\nTe enviei a proposta técnica com os detalhes 📄\n\nSe quiser trocar ideias ou precisar de ajuda com as artes, estou por aqui!`;
@@ -4523,17 +4506,13 @@ app.post('/api/p/:token/aprovar', express.json(), (req, res) => {
     // Notificação WhatsApp para o vendedor
     try {
       const settings = getEvolutionSettings();
-      if (settings.evolution_api_url && settings.evolution_api_key) {
-        const vendedor = db.prepare('SELECT first_name, last_name, whatsapp FROM admin_users WHERE id = ?').get(row.created_by);
-        const notifyNumber = String(vendedor?.whatsapp || '').trim() || String(settings.evolution_dest_number || '').trim();
-        if (!notifyNumber) {
-          return;
-        }
+      if (settings.evolution_api_url && settings.evolution_api_key && settings.evolution_dest_number) {
+        const vendedor = db.prepare('SELECT first_name, last_name FROM admin_users WHERE id = ?').get(row.created_by);
         const vendedorNome = vendedor ? `${vendedor.first_name} ${vendedor.last_name}`.trim() : 'vendedor';
         const data = JSON.parse(row.proposta_data || '{}');
         const clienteNome = data.clientName || 'Cliente';
         const msg = `✅ *${nome}* aprovou a proposta de *${clienteNome}*!\n\nVendedor: ${vendedorNome}\nLink: /p/${token}`;
-        sendEvolutionText({ apiUrl: settings.evolution_api_url, instance: settings.evolution_instance, apiKey: settings.evolution_api_key, number: notifyNumber, text: msg }).catch(() => {});
+        sendEvolutionText({ apiUrl: settings.evolution_api_url, instance: settings.evolution_instance, apiKey: settings.evolution_api_key, number: settings.evolution_dest_number, text: msg }).catch(() => {});
       }
     } catch (_) { /* notificação não bloqueia resposta */ }
 

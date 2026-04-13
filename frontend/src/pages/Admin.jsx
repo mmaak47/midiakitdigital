@@ -188,7 +188,6 @@ export default function Admin() {
   const [evoApiKey, setEvoApiKey] = useState('');
   const [evoDestNumber, setEvoDestNumber] = useState('');
   const [evoFinanceiroNumber, setEvoFinanceiroNumber] = useState('');
-  const [evoAuxAdminNumber, setEvoAuxAdminNumber] = useState('');
   const [evoSaving, setEvoSaving] = useState(false);
   const [evoSaveMsg, setEvoSaveMsg] = useState('');
   const [evoTestLoading, setEvoTestLoading] = useState(false);
@@ -662,7 +661,6 @@ export default function Admin() {
       setEvoApiKey(data.evolution_api_key || '');
       setEvoDestNumber(data.evolution_dest_number || '');
       setEvoFinanceiroNumber(data.evolution_financeiro_number || '');
-      setEvoAuxAdminNumber(data.evolution_aux_admin_number || '');
     } catch (err) {
       if (!handleSessionError(err)) {
         setSettingsError(err.message || 'Falha ao carregar configurações');
@@ -696,8 +694,7 @@ export default function Admin() {
         evolution_instance: evoInstance.trim(),
         evolution_api_key: evoApiKey.trim(),
         evolution_dest_number: evoDestNumber.trim(),
-        evolution_financeiro_number: evoFinanceiroNumber.trim(),
-        evolution_aux_admin_number: evoAuxAdminNumber.trim()
+        evolution_financeiro_number: evoFinanceiroNumber.trim()
       });
       setEvoSaveMsg('Configurações salvas!');
       setTimeout(() => setEvoSaveMsg(''), 3000);
@@ -1944,23 +1941,8 @@ export default function Admin() {
                     placeholder="5543999999999 ou ID do grupo"
                   />
                   <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
-                    Usado como fallback quando o vendedor não tiver WhatsApp cadastrado.
                     Para número individual use o formato: 55 + DDD + número (ex: 5543999990000).
                     Para grupos, use o ID do grupo com @g.us (ex: 120363XXXXXX@g.us).
-                  </p>
-                </div>
-                <div>
-                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>
-                    Número do Aux Admin (informações técnicas)
-                  </label>
-                  <input
-                    className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
-                    value={evoAuxAdminNumber}
-                    onChange={e => setEvoAuxAdminNumber(e.target.value)}
-                    placeholder="5543999990000"
-                  />
-                  <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
-                    Quando preenchido, os PDFs técnicos das vendas são enviados para este número.
                   </p>
                 </div>
                 <div>
