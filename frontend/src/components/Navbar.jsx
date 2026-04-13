@@ -160,7 +160,7 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setOpen(false)}
-                className={`flex items-center justify-center w-12 h-12 rounded-xl border-2 transition-colors border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-white`}
+                className={`flex items-center justify-center w-12 h-12 rounded-xl border-2 transition-colors border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-orange`}
                 aria-label="Instagram"
               >
                 <i className="ri-instagram-line" style={{ fontSize: 20 }} />
