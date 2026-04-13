@@ -1229,3 +1229,39 @@ export async function updateLeadStatus(id, { status, notas }) {
   if (!res.ok) throw new Error('Erro ao atualizar status.');
   return res.json();
 }
+
+export async function linkLeadProposta(id, payload) {
+  const res = await apiRequest(`/leads/${id}/propostas/link`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao vincular proposta ao lead.');
+  }
+  return res.json();
+}
+
+export async function updateLeadPropostaEtapa(id, linkId, { etapa, observacao }) {
+  const res = await apiRequest(`/leads/${id}/propostas/${linkId}/etapa`, {
+    method: 'PATCH',
+    body: JSON.stringify({ etapa, observacao }),
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao atualizar etapa da proposta vinculada.');
+  }
+  return res.json();
+}
+
+export async function convertLead(id, { link_id, venda_id, notas } = {}) {
+  const res = await apiRequest(`/leads/${id}/converter`, {
+    method: 'POST',
+    body: JSON.stringify({ link_id, venda_id, notas }),
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao converter lead.');
+  }
+  return res.json();
+}

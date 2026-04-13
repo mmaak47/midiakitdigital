@@ -8,9 +8,9 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Search, ChevronDown, ChevronUp, Phone, Building2, Calendar,
   MessageCircle, FileText, Monitor, Eye, Globe, Loader2,
-  Users, UserPlus, UserCheck, UserX, Save
+  Users, UserPlus, UserCheck, UserX, Save, Link2, CheckCircle2
 } from 'lucide-react';
-import { fetchLeads, fetchLeadDetail, updateLeadStatus } from '../../lib/api';
+import { fetchLeads, fetchLeadDetail, updateLeadStatus, linkLeadProposta, updateLeadPropostaEtapa, convertLead } from '../../lib/api';
 
 const STATUS_OPTIONS = [
   { key: '',              label: 'Todos' },
@@ -49,6 +49,16 @@ const EVENT_LABELS = {
   point_detail_view:  'Viu detalhe do ponto',
 };
 
+const LEAD_ETAPA_OPTIONS = ['criada', 'enviada', 'visualizada', 'aprovada', 'convertida', 'perdida'];
+const LEAD_ETAPA_LABELS = {
+  criada: 'Criada',
+  enviada: 'Enviada',
+  visualizada: 'Visualizada',
+  aprovada: 'Aprovada',
+  convertida: 'Convertida',
+  perdida: 'Perdida',
+};
+
 function fmtDate(str) {
   if (!str) return '—';
   const d = new Date(str);
@@ -70,23 +80,67 @@ function Badge({ status, isDark }) {
   );
 }
 
+function LeadLinkEtapaBadge({ etapa, isDark }) {
+  const value = String(etapa || 'enviada');
+  const clsMap = {
+    criada: isDark ? 'bg-neutral-600/30 text-neutral-200 border-neutral-500/40' : 'bg-neutral-100 text-neutral-700 border-neutral-300',
+    enviada: isDark ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' : 'bg-blue-50 text-blue-700 border-blue-200',
+    visualizada: isDark ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' : 'bg-cyan-50 text-cyan-700 border-cyan-200',
+    aprovada: isDark ? 'bg-green-500/20 text-green-300 border-green-500/30' : 'bg-green-50 text-green-700 border-green-200',
+    convertida: isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    perdida: isDark ? 'bg-red-500/20 text-red-300 border-red-500/30' : 'bg-red-50 text-red-700 border-red-200',
+  };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${clsMap[value] || clsMap.enviada}`}>
+      {LEAD_ETAPA_LABELS[value] || value}
+    </span>
+  );
+}
+
 // ── Expandable lead row ────────────────────────────────────────────────────
 function LeadRow({ lead, isDark, onStatusChange }) {
   const [expanded, setExpanded] = useState(false);
   const [events, setEvents] = useState([]);
+  const [links, setLinks] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [editStatus, setEditStatus] = useState(lead.status);
   const [editNotas, setEditNotas] = useState(lead.notas || '');
   const [saving, setSaving] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [savingEtapaId, setSavingEtapaId] = useState(null);
+  const [convertingId, setConvertingId] = useState(null);
+  const [linkTipo, setLinkTipo] = useState('publica');
+  const [linkToken, setLinkToken] = useState('');
+  const [linkPropostaId, setLinkPropostaId] = useState('');
+  const [linkObservacao, setLinkObservacao] = useState('');
 
   useEffect(() => {
     if (!expanded) return;
     setLoadingEvents(true);
     fetchLeadDetail(lead.id)
-      .then(data => setEvents(data.events || []))
-      .catch(() => setEvents([]))
+      .then(data => {
+        setEvents(data.events || []);
+        setLinks(data.links || []);
+      })
+      .catch(() => {
+        setEvents([]);
+        setLinks([]);
+      })
       .finally(() => setLoadingEvents(false));
   }, [expanded, lead.id]);
+
+  async function reloadLeadDetails() {
+    setLoadingEvents(true);
+    try {
+      const data = await fetchLeadDetail(lead.id);
+      setEvents(data.events || []);
+      setLinks(data.links || []);
+    } catch {
+      setEvents([]);
+      setLinks([]);
+    }
+    setLoadingEvents(false);
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -95,6 +149,53 @@ function LeadRow({ lead, isDark, onStatusChange }) {
       onStatusChange();
     } catch { /* silent */ }
     setSaving(false);
+  }
+
+  async function handleLinkProposal() {
+    setLinking(true);
+    try {
+      const payload = {
+        proposta_tipo: linkTipo,
+        etapa: 'enviada',
+        observacao: linkObservacao,
+      };
+      if (linkTipo === 'publica') payload.token = linkToken;
+      if (linkTipo === 'interna') payload.proposta_id = Number(linkPropostaId || 0);
+      await linkLeadProposta(lead.id, payload);
+      setLinkToken('');
+      setLinkPropostaId('');
+      setLinkObservacao('');
+      await reloadLeadDetails();
+      onStatusChange();
+    } catch (error) {
+      alert(error?.message || 'Erro ao vincular proposta.');
+    }
+    setLinking(false);
+  }
+
+  async function handleUpdateEtapa(linkId, etapa) {
+    setSavingEtapaId(linkId);
+    try {
+      await updateLeadPropostaEtapa(lead.id, linkId, { etapa });
+      await reloadLeadDetails();
+      onStatusChange();
+    } catch (error) {
+      alert(error?.message || 'Erro ao atualizar etapa.');
+    }
+    setSavingEtapaId(null);
+  }
+
+  async function handleConvertFromLink(linkId) {
+    setConvertingId(linkId);
+    try {
+      await convertLead(lead.id, { link_id: linkId });
+      setEditStatus('convertido');
+      await reloadLeadDetails();
+      onStatusChange();
+    } catch (error) {
+      alert(error?.message || 'Erro ao converter lead.');
+    }
+    setConvertingId(null);
   }
 
   const rowBg = isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-neutral-50';
@@ -163,10 +264,124 @@ function LeadRow({ lead, isDark, onStatusChange }) {
                   {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
                   Salvar
                 </button>
+
+                <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white'}`} onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Link2 size={14} className="text-brand-orange" />
+                    <p className={`text-xs font-semibold ${cellText}`}>Vincular proposta</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      {['publica', 'interna'].map((tipo) => (
+                        <button
+                          key={tipo}
+                          type="button"
+                          onClick={() => setLinkTipo(tipo)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                            linkTipo === tipo
+                              ? 'bg-brand-orange text-white border-brand-orange'
+                              : isDark
+                                ? 'border-white/10 text-brand-gray-400 hover:border-brand-orange/40'
+                                : 'border-neutral-200 text-neutral-600 hover:border-brand-orange/40'
+                          }`}
+                        >
+                          {tipo === 'publica' ? 'Link público' : 'Proposta interna'}
+                        </button>
+                      ))}
+                    </div>
+
+                    {linkTipo === 'publica' ? (
+                      <input
+                        value={linkToken}
+                        onChange={(e) => setLinkToken(e.target.value.replace(/[^a-fA-F0-9]/g, ''))}
+                        className={`w-full rounded-xl border px-3 py-2 text-xs focus:outline-none focus:ring-2 ${inputCls}`}
+                        placeholder="Token da proposta pública (hex)"
+                      />
+                    ) : (
+                      <input
+                        value={linkPropostaId}
+                        onChange={(e) => setLinkPropostaId(e.target.value.replace(/\D/g, ''))}
+                        className={`w-full rounded-xl border px-3 py-2 text-xs focus:outline-none focus:ring-2 ${inputCls}`}
+                        placeholder="ID da proposta interna"
+                      />
+                    )}
+
+                    <input
+                      value={linkObservacao}
+                      onChange={(e) => setLinkObservacao(e.target.value)}
+                      className={`w-full rounded-xl border px-3 py-2 text-xs focus:outline-none focus:ring-2 ${inputCls}`}
+                      placeholder="Observação (opcional)"
+                    />
+
+                    <button
+                      type="button"
+                      disabled={linking || (linkTipo === 'publica' ? !linkToken : !linkPropostaId)}
+                      onClick={handleLinkProposal}
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-brand-orange text-white hover:bg-brand-orange-hover disabled:opacity-50"
+                    >
+                      {linking ? <Loader2 size={12} className="animate-spin" /> : <Link2 size={12} />}
+                      Vincular
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Right: Navigation timeline */}
-              <div>
+              <div className="space-y-3">
+                <div>
+                  <label className={`text-xs font-medium ${mutedText}`}>Propostas vinculadas</label>
+                  {links.length === 0 ? (
+                    <p className={`text-xs mt-2 ${mutedText}`}>Nenhuma proposta vinculada.</p>
+                  ) : (
+                    <div className="mt-2 space-y-2 max-h-44 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
+                      {links.map((link) => {
+                        const title = link.proposta_tipo === 'publica'
+                          ? `Link /p/${link.proposta_token || link.proposta_token_id || '—'}`
+                          : `#${link.proposta_id} ${link.proposta_titulo || 'Proposta interna'}`;
+
+                        return (
+                          <div key={link.id} className={`rounded-lg border px-2.5 py-2 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white'}`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <p className={`text-xs font-medium truncate ${cellText}`}>{title}</p>
+                              <LeadLinkEtapaBadge etapa={link.etapa} isDark={isDark} />
+                            </div>
+                            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                              {LEAD_ETAPA_OPTIONS.map((etapa) => (
+                                <button
+                                  key={etapa}
+                                  onClick={() => handleUpdateEtapa(link.id, etapa)}
+                                  disabled={savingEtapaId === link.id}
+                                  className={`px-2 py-1 rounded text-[10px] border transition-colors ${
+                                    String(link.etapa) === etapa
+                                      ? 'bg-brand-orange text-white border-brand-orange'
+                                      : isDark
+                                        ? 'border-white/10 text-brand-gray-400 hover:border-brand-orange/40'
+                                        : 'border-neutral-200 text-neutral-600 hover:border-brand-orange/40'
+                                  } disabled:opacity-50`}
+                                >
+                                  {LEAD_ETAPA_LABELS[etapa]}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="mt-2 flex items-center justify-between gap-2">
+                              <span className={`text-[10px] ${mutedText}`}>{fmtDateShort(link.updated_at)}</span>
+                              <button
+                                onClick={() => handleConvertFromLink(link.id)}
+                                disabled={convertingId === link.id}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-green-500/40 text-green-500 hover:bg-green-500/10 disabled:opacity-50"
+                              >
+                                {convertingId === link.id ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
+                                Converter
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div>
                 <label className={`text-xs font-medium ${mutedText}`}>Navegação</label>
                 {loadingEvents ? (
                   <div className="flex items-center gap-2 mt-2">
@@ -193,6 +408,7 @@ function LeadRow({ lead, isDark, onStatusChange }) {
                     })}
                   </div>
                 )}
+              </div>
               </div>
             </div>
           </td>

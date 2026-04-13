@@ -122,8 +122,31 @@ try {
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_proposta_tokens_token ON proposta_tokens(token)`);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lead_proposta_links (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      lead_id            INTEGER NOT NULL,
+      proposta_tipo      TEXT NOT NULL,
+      proposta_id        INTEGER,
+      proposta_token_id  INTEGER,
+      etapa              TEXT NOT NULL DEFAULT 'enviada',
+      observacao         TEXT,
+      created_by         INTEGER,
+      created_at         TEXT DEFAULT (datetime('now')),
+      updated_at         TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_lead_proposta_links_lead ON lead_proposta_links(lead_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_lead_proposta_links_proposta ON lead_proposta_links(proposta_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_lead_proposta_links_token ON lead_proposta_links(proposta_token_id)`);
+
   // Column migrations — safe to ignore if already applied
   try { db.exec(`ALTER TABLE chat_sessions ADD COLUMN lead_captured INTEGER DEFAULT 0`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE leads ADD COLUMN proposta_vencedora_tipo TEXT`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE leads ADD COLUMN proposta_vencedora_id INTEGER`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE leads ADD COLUMN proposta_vencedora_token_id INTEGER`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE leads ADD COLUMN venda_id INTEGER`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE leads ADD COLUMN convertido_em TEXT`); } catch { /* exists */ }
 } catch (e) {
   console.error('[schema bootstrap]', e.message);
 }
@@ -2517,7 +2540,7 @@ app.get('/api/propostas/:id', requireRoles(['admin', 'gerente_comercial', 'vende
 // POST criar nova proposta
 app.post('/api/propostas', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
-    const { titulo, descricao, pontos, desconto_percentual, desconto_tipo, valor_total_original } = req.body;
+    const { titulo, descricao, pontos, desconto_percentual, desconto_tipo, valor_total_original, lead_id } = req.body;
     const usuario_id = req.authUser.id;
 
     if (!usuario_id || !titulo || !Array.isArray(pontos) || !desconto_tipo) {
@@ -2553,6 +2576,24 @@ app.post('/api/propostas', requireRoles(['admin', 'gerente_comercial', 'vendedor
       'rascunho',
       requerAprovacao
     );
+
+    const leadId = Number(lead_id || 0);
+    if (leadId > 0) {
+      const leadExists = db.prepare('SELECT id FROM leads WHERE id = ?').get(leadId);
+      if (leadExists) {
+        db.prepare(`
+          INSERT INTO lead_proposta_links (lead_id, proposta_tipo, proposta_id, etapa, observacao, created_by)
+          VALUES (?, 'interna', ?, 'criada', ?, ?)
+        `).run(leadId, Number(result.lastInsertRowid), 'Vínculo automático na criação da proposta interna.', req.authUser.id);
+
+        db.prepare(`
+          UPDATE leads
+          SET status = CASE WHEN status = 'novo' THEN 'em_atendimento' ELSE status END,
+              updated_at = datetime('now')
+          WHERE id = ?
+        `).run(leadId);
+      }
+    }
 
     const proposta = db.prepare('SELECT id, usuario_id, titulo, status, requer_aprovacao FROM propostas WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(proposta);
@@ -4231,7 +4272,7 @@ app.delete('/api/admin/propostas/:id', requireRoles(['admin', 'gerente_comercial
 // POST /api/proposta-publica — vendedor cria link público da proposta (auth)
 app.post('/api/proposta-publica', resolveAuthenticatedUser, express.json({ limit: '2mb' }), (req, res) => {
   try {
-    const { proposta_data, expires_days = 7 } = req.body || {};
+    const { proposta_data, expires_days = 7, lead_id } = req.body || {};
     if (!proposta_data || typeof proposta_data !== 'object') {
       return res.status(400).json({ error: 'proposta_data é obrigatório.' });
     }
@@ -4245,8 +4286,26 @@ app.post('/api/proposta-publica', resolveAuthenticatedUser, express.json({ limit
       safeData.points = safeData.points.map(({ custo_operacional: _co, ...p }) => p);
     }
 
-    db.prepare(`INSERT INTO proposta_tokens (token, proposta_data, expires_at, created_by)
+    const insertToken = db.prepare(`INSERT INTO proposta_tokens (token, proposta_data, expires_at, created_by)
                 VALUES (?, ?, ?, ?)`).run(token, JSON.stringify(safeData), expiresAt, req.authUser.id);
+
+    const leadId = Number(lead_id || 0);
+    if (leadId > 0) {
+      const leadExists = db.prepare('SELECT id FROM leads WHERE id = ?').get(leadId);
+      if (leadExists) {
+        db.prepare(`
+          INSERT INTO lead_proposta_links (lead_id, proposta_tipo, proposta_token_id, etapa, observacao, created_by)
+          VALUES (?, 'publica', ?, 'enviada', ?, ?)
+        `).run(leadId, Number(insertToken.lastInsertRowid), 'Vínculo automático ao gerar link público da proposta.', req.authUser.id);
+
+        db.prepare(`
+          UPDATE leads
+          SET status = CASE WHEN status = 'novo' THEN 'em_atendimento' ELSE status END,
+              updated_at = datetime('now')
+          WHERE id = ?
+        `).run(leadId);
+      }
+    }
 
     const origin = String(process.env.FRONTEND_ORIGINS || '').split(',')[0].trim()
       || `${req.protocol}://${req.get('host')}`;
@@ -4269,6 +4328,23 @@ app.get('/api/p/:token', (req, res) => {
     if (!row.viewed_at) {
       db.prepare("UPDATE proposta_tokens SET viewed_at = datetime('now') WHERE token = ?").run(token);
     }
+
+    db.prepare(`
+      UPDATE lead_proposta_links
+      SET etapa = CASE WHEN etapa IN ('criada', 'enviada') THEN 'visualizada' ELSE etapa END,
+          updated_at = datetime('now')
+      WHERE proposta_tipo = 'publica' AND proposta_token_id = ?
+    `).run(row.id);
+
+    db.prepare(`
+      UPDATE leads
+      SET status = CASE WHEN status = 'novo' THEN 'em_atendimento' ELSE status END,
+          updated_at = datetime('now')
+      WHERE id IN (
+        SELECT lead_id FROM lead_proposta_links WHERE proposta_tipo = 'publica' AND proposta_token_id = ?
+      )
+    `).run(row.id);
+
     res.json({
       ...JSON.parse(row.proposta_data),
       expires_at: row.expires_at,
@@ -4293,6 +4369,22 @@ app.post('/api/p/:token/aprovar', express.json(), (req, res) => {
     if (row.approved_at) return res.json({ ok: true, already: true });
 
     db.prepare("UPDATE proposta_tokens SET approved_at = datetime('now'), approved_name = ? WHERE token = ?").run(nome, token);
+
+    db.prepare(`
+      UPDATE lead_proposta_links
+      SET etapa = 'aprovada',
+          updated_at = datetime('now')
+      WHERE proposta_tipo = 'publica' AND proposta_token_id = ?
+    `).run(row.id);
+
+    db.prepare(`
+      UPDATE leads
+      SET status = CASE WHEN status IN ('novo', 'em_atendimento') THEN 'em_atendimento' ELSE status END,
+          updated_at = datetime('now')
+      WHERE id IN (
+        SELECT lead_id FROM lead_proposta_links WHERE proposta_tipo = 'publica' AND proposta_token_id = ?
+      )
+    `).run(row.id);
 
     // Notificação WhatsApp para o vendedor
     try {
@@ -4365,6 +4457,209 @@ app.get('/api/leads/check/:sessionId', (req, res) => {
   }
 });
 
+const LEAD_LINK_ETAPAS = new Set(['criada', 'enviada', 'visualizada', 'aprovada', 'convertida', 'perdida']);
+
+app.post('/api/leads/:id/propostas/link', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const leadId = Number(req.params.id);
+    const { proposta_tipo, proposta_id, proposta_token_id, token, etapa = 'enviada', observacao } = req.body || {};
+    if (!['interna', 'publica'].includes(String(proposta_tipo || ''))) {
+      return res.status(400).json({ error: 'proposta_tipo deve ser interna ou publica.' });
+    }
+    if (!LEAD_LINK_ETAPAS.has(String(etapa || ''))) {
+      return res.status(400).json({ error: 'Etapa inválida.' });
+    }
+
+    const lead = db.prepare('SELECT id FROM leads WHERE id = ?').get(leadId);
+    if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+
+    let propostaInternaId = null;
+    let propostaTokenId = null;
+
+    if (proposta_tipo === 'interna') {
+      propostaInternaId = Number(proposta_id || 0);
+      if (!propostaInternaId) return res.status(400).json({ error: 'proposta_id é obrigatório para proposta interna.' });
+      const proposta = db.prepare('SELECT id FROM propostas WHERE id = ?').get(propostaInternaId);
+      if (!proposta) return res.status(404).json({ error: 'Proposta interna não encontrada.' });
+    } else {
+      if (token) {
+        const tokenRow = db.prepare('SELECT id FROM proposta_tokens WHERE token = ?').get(String(token).replace(/[^a-f0-9]/g, ''));
+        if (!tokenRow) return res.status(404).json({ error: 'Token de proposta pública não encontrado.' });
+        propostaTokenId = Number(tokenRow.id);
+      } else {
+        propostaTokenId = Number(proposta_token_id || 0);
+        if (!propostaTokenId) return res.status(400).json({ error: 'proposta_token_id (ou token) é obrigatório para proposta pública.' });
+        const propostaToken = db.prepare('SELECT id FROM proposta_tokens WHERE id = ?').get(propostaTokenId);
+        if (!propostaToken) return res.status(404).json({ error: 'Proposta pública não encontrada.' });
+      }
+    }
+
+    const existing = db.prepare(`
+      SELECT id FROM lead_proposta_links
+      WHERE lead_id = ?
+        AND proposta_tipo = ?
+        AND coalesce(proposta_id, 0) = ?
+        AND coalesce(proposta_token_id, 0) = ?
+      LIMIT 1
+    `).get(leadId, proposta_tipo, Number(propostaInternaId || 0), Number(propostaTokenId || 0));
+
+    let linkId;
+    if (existing?.id) {
+      db.prepare(`
+        UPDATE lead_proposta_links
+        SET etapa = ?, observacao = coalesce(?, observacao), updated_at = datetime('now')
+        WHERE id = ?
+      `).run(etapa, observacao || null, existing.id);
+      linkId = existing.id;
+    } else {
+      const insert = db.prepare(`
+        INSERT INTO lead_proposta_links (lead_id, proposta_tipo, proposta_id, proposta_token_id, etapa, observacao, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        leadId,
+        proposta_tipo,
+        propostaInternaId || null,
+        propostaTokenId || null,
+        etapa,
+        String(observacao || '').trim().slice(0, 500) || null,
+        req.authUser.id
+      );
+      linkId = Number(insert.lastInsertRowid || 0);
+    }
+
+    db.prepare(`
+      UPDATE leads
+      SET status = CASE WHEN status = 'novo' THEN 'em_atendimento' ELSE status END,
+          updated_at = datetime('now')
+      WHERE id = ?
+    `).run(leadId);
+
+    res.status(201).json({ ok: true, id: linkId });
+  } catch (err) {
+    internalError(res, err, 'Erro ao vincular proposta ao lead.');
+  }
+});
+
+app.get('/api/leads/:id/propostas', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const leadId = Number(req.params.id);
+    const lead = db.prepare('SELECT id FROM leads WHERE id = ?').get(leadId);
+    if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+
+    const links = db.prepare(`
+      SELECT
+        lpl.*,
+        p.titulo AS proposta_titulo,
+        p.status AS proposta_status,
+        p.updated_at AS proposta_updated_at,
+        pt.token AS proposta_token,
+        pt.expires_at AS proposta_expires_at,
+        pt.viewed_at AS proposta_viewed_at,
+        pt.approved_at AS proposta_approved_at,
+        pt.approved_name AS proposta_approved_name
+      FROM lead_proposta_links lpl
+      LEFT JOIN propostas p ON p.id = lpl.proposta_id
+      LEFT JOIN proposta_tokens pt ON pt.id = lpl.proposta_token_id
+      WHERE lpl.lead_id = ?
+      ORDER BY lpl.updated_at DESC, lpl.id DESC
+    `).all(leadId);
+
+    res.json({ links });
+  } catch (err) {
+    internalError(res, err, 'Erro ao listar propostas do lead.');
+  }
+});
+
+app.patch('/api/leads/:id/propostas/:linkId/etapa', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const leadId = Number(req.params.id);
+    const linkId = Number(req.params.linkId);
+    const { etapa, observacao } = req.body || {};
+    if (!LEAD_LINK_ETAPAS.has(String(etapa || ''))) {
+      return res.status(400).json({ error: 'Etapa inválida.' });
+    }
+
+    const link = db.prepare('SELECT * FROM lead_proposta_links WHERE id = ? AND lead_id = ?').get(linkId, leadId);
+    if (!link) return res.status(404).json({ error: 'Vínculo não encontrado.' });
+
+    db.prepare(`
+      UPDATE lead_proposta_links
+      SET etapa = ?, observacao = coalesce(?, observacao), updated_at = datetime('now')
+      WHERE id = ?
+    `).run(etapa, observacao || null, linkId);
+
+    if (etapa === 'convertida') {
+      db.prepare(`
+        UPDATE leads
+        SET status = 'convertido',
+            proposta_vencedora_tipo = ?,
+            proposta_vencedora_id = ?,
+            proposta_vencedora_token_id = ?,
+            convertido_em = datetime('now'),
+            updated_at = datetime('now')
+        WHERE id = ?
+      `).run(link.proposta_tipo, link.proposta_id || null, link.proposta_token_id || null, leadId);
+    } else if (['enviada', 'visualizada', 'aprovada'].includes(etapa)) {
+      db.prepare(`
+        UPDATE leads
+        SET status = CASE WHEN status = 'novo' THEN 'em_atendimento' ELSE status END,
+            updated_at = datetime('now')
+        WHERE id = ?
+      `).run(leadId);
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    internalError(res, err, 'Erro ao atualizar etapa do vínculo.');
+  }
+});
+
+app.post('/api/leads/:id/converter', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const leadId = Number(req.params.id);
+    const { link_id, venda_id, notas } = req.body || {};
+    const lead = db.prepare('SELECT id FROM leads WHERE id = ?').get(leadId);
+    if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+
+    let winnerTipo = null;
+    let winnerPropostaId = null;
+    let winnerTokenId = null;
+
+    if (Number(link_id || 0) > 0) {
+      const link = db.prepare('SELECT * FROM lead_proposta_links WHERE id = ? AND lead_id = ?').get(Number(link_id), leadId);
+      if (!link) return res.status(404).json({ error: 'Vínculo não encontrado.' });
+      winnerTipo = link.proposta_tipo;
+      winnerPropostaId = link.proposta_id || null;
+      winnerTokenId = link.proposta_token_id || null;
+      db.prepare("UPDATE lead_proposta_links SET etapa = 'convertida', updated_at = datetime('now') WHERE id = ?").run(link.id);
+    }
+
+    db.prepare(`
+      UPDATE leads
+      SET status = 'convertido',
+          proposta_vencedora_tipo = coalesce(?, proposta_vencedora_tipo),
+          proposta_vencedora_id = coalesce(?, proposta_vencedora_id),
+          proposta_vencedora_token_id = coalesce(?, proposta_vencedora_token_id),
+          venda_id = coalesce(?, venda_id),
+          convertido_em = coalesce(convertido_em, datetime('now')),
+          notas = coalesce(?, notas),
+          updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      winnerTipo,
+      winnerPropostaId,
+      winnerTokenId,
+      Number(venda_id || 0) || null,
+      String(notas || '').trim().slice(0, 1000) || null,
+      leadId
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    internalError(res, err, 'Erro ao converter lead.');
+  }
+});
+
 // ── Leads admin (authenticated) ───────────────────────────────────────────────
 app.get('/api/leads', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
   try {
@@ -4391,7 +4686,24 @@ app.get('/api/leads/:id', requireRoles(['admin', 'gerente_comercial']), (req, re
     const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(req.params.id);
     if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
     const events = db.prepare('SELECT * FROM navigation_events WHERE session_id = ? ORDER BY created_at ASC').all(lead.session_id);
-    res.json({ lead, events });
+    const links = db.prepare(`
+      SELECT
+        lpl.*,
+        p.titulo AS proposta_titulo,
+        p.status AS proposta_status,
+        p.updated_at AS proposta_updated_at,
+        pt.token AS proposta_token,
+        pt.expires_at AS proposta_expires_at,
+        pt.viewed_at AS proposta_viewed_at,
+        pt.approved_at AS proposta_approved_at,
+        pt.approved_name AS proposta_approved_name
+      FROM lead_proposta_links lpl
+      LEFT JOIN propostas p ON p.id = lpl.proposta_id
+      LEFT JOIN proposta_tokens pt ON pt.id = lpl.proposta_token_id
+      WHERE lpl.lead_id = ?
+      ORDER BY lpl.updated_at DESC, lpl.id DESC
+    `).all(req.params.id);
+    res.json({ lead, events, links });
   } catch (err) {
     internalError(res, err, 'Erro ao buscar lead.');
   }
