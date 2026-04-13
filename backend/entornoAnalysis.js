@@ -10,7 +10,11 @@ const MAX_RADIUS = 2000;
 const CACHE_TTL_HOURS = Number(process.env.ENTORNO_CACHE_TTL_HOURS) || 72;
 const FETCH_TIMEOUT_MS = Number(process.env.ENTORNO_FETCH_TIMEOUT_MS) || 12000;
 const PLACES_PROVIDER = String(process.env.ENTORNO_PLACES_PROVIDER || 'auto').toLowerCase();
-const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || '';
+const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY
+  || process.env.GOOGLE_MAPS_API_KEY
+  || process.env.GOOGLE_API_KEY
+  || process.env.GMAPS_API_KEY
+  || '';
 const FOURSQUARE_API_KEY = process.env.FOURSQUARE_API_KEY || '';
 const AUTO_REFRESH_ENABLED = String(process.env.ENTORNO_AUTO_REFRESH_ENABLED || 'true').toLowerCase() !== 'false';
 const AUTO_REFRESH_INTERVAL_MINUTES = Math.max(5, Number(process.env.ENTORNO_AUTO_REFRESH_INTERVAL_MINUTES) || 90);

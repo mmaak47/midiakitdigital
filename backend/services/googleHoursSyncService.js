@@ -2,7 +2,11 @@
 
 const GOOGLE_NEARBY_URL = process.env.GOOGLE_PLACES_NEARBY_URL || 'https://maps.googleapis.com/maps/api/place/nearbysearch/json';
 const GOOGLE_DETAILS_URL = process.env.GOOGLE_PLACES_DETAILS_URL || 'https://maps.googleapis.com/maps/api/place/details/json';
-const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || '';
+const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY
+  || process.env.GOOGLE_MAPS_API_KEY
+  || process.env.GOOGLE_API_KEY
+  || process.env.GMAPS_API_KEY
+  || '';
 const DEFAULT_RADIUS_METERS = Number(process.env.GOOGLE_HOURS_SYNC_RADIUS_METERS) || 220;
 const FETCH_TIMEOUT_MS = Number(process.env.GOOGLE_HOURS_SYNC_TIMEOUT_MS) || 12000;
 
@@ -195,7 +199,7 @@ async function syncPointOperatingHours({ point, radiusMeters, dryRun = true, con
 
 function assertConfigured() {
   if (!GOOGLE_API_KEY) {
-    throw new Error('GOOGLE_PLACES_API_KEY (ou GOOGLE_MAPS_API_KEY) nao configurada no backend/.env');
+    throw new Error('GOOGLE_PLACES_API_KEY, GOOGLE_MAPS_API_KEY, GOOGLE_API_KEY ou GMAPS_API_KEY nao configurada no backend/.env');
   }
 }
 
