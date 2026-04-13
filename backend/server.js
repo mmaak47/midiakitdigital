@@ -1122,6 +1122,8 @@ app.post('/api/admin/pontos/sync-hours/google', requireRoles(['admin', 'gerente_
     const limit = Math.max(1, Math.min(300, Number(body.limit) || 60));
     const radiusMeters = Math.max(80, Math.min(1000, Number(body.radiusMeters) || GOOGLE_HOURS_DEFAULT_RADIUS));
     const confidenceThreshold = Math.max(0.45, Math.min(0.95, Number(body.confidenceThreshold) || 0.56));
+    const sourceRaw = String(body.source || 'auto').toLowerCase();
+    const source = ['auto', 'google', 'osm'].includes(sourceRaw) ? sourceRaw : 'auto';
     const pointIds = Array.isArray(body.pointIds)
       ? body.pointIds.map((value) => Number(value)).filter((value) => Number.isFinite(value))
       : [];
@@ -1155,7 +1157,8 @@ app.post('/api/admin/pontos/sync-hours/google', requireRoles(['admin', 'gerente_
           point,
           radiusMeters,
           dryRun,
-          confidenceThreshold
+          confidenceThreshold,
+          source
         });
 
         if (result.ok && !dryRun) {
@@ -1181,6 +1184,7 @@ app.post('/api/admin/pontos/sync-hours/google', requireRoles(['admin', 'gerente_
     res.json({
       dryRun,
       overwrite,
+      source,
       selected: rows.length,
       matched: withMatch,
       validHours: okCount,

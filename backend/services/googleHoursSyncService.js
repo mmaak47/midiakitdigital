@@ -2,6 +2,7 @@
 
 const GOOGLE_NEARBY_URL = process.env.GOOGLE_PLACES_NEARBY_URL || 'https://maps.googleapis.com/maps/api/place/nearbysearch/json';
 const GOOGLE_DETAILS_URL = process.env.GOOGLE_PLACES_DETAILS_URL || 'https://maps.googleapis.com/maps/api/place/details/json';
+const OVERPASS_URL = process.env.OVERPASS_API_URL || 'https://overpass-api.de/api/interpreter';
 const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY
   || process.env.GOOGLE_MAPS_API_KEY
   || process.env.GOOGLE_API_KEY
@@ -88,6 +89,28 @@ async function fetchJson(url) {
   }
 }
 
+async function postJson(url, body, contentType = 'application/x-www-form-urlencoded; charset=UTF-8') {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': contentType
+      },
+      body
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function findBestPlaceByNameAndCoords({ name, lat, lng, radiusMeters }) {
   const params = new URLSearchParams({
     key: GOOGLE_API_KEY,
@@ -127,6 +150,54 @@ async function findBestPlaceByNameAndCoords({ name, lat, lng, radiusMeters }) {
   return best;
 }
 
+async function findBestOsmByNameAndCoords({ name, lat, lng, radiusMeters }) {
+  const safeRadius = Math.max(80, Math.min(2000, Number(radiusMeters) || DEFAULT_RADIUS_METERS));
+  const query = [
+    '[out:json][timeout:25];',
+    '(',
+    `  node(around:${safeRadius},${lat},${lng})["name"]["opening_hours"];`,
+    `  way(around:${safeRadius},${lat},${lng})["name"]["opening_hours"];`,
+    `  relation(around:${safeRadius},${lat},${lng})["name"]["opening_hours"];`,
+    ');',
+    'out center tags;'
+  ].join('\n');
+
+  const payload = await postJson(OVERPASS_URL, `data=${encodeURIComponent(query)}`);
+  const elements = Array.isArray(payload?.elements) ? payload.elements : [];
+
+  let best = null;
+  elements.forEach((element) => {
+    const tags = element?.tags || {};
+    const placeName = String(tags.name || '').trim();
+    const openingHours = String(tags.opening_hours || '').trim();
+    if (!placeName || !openingHours) return;
+
+    const placeLat = Number(element?.lat ?? element?.center?.lat);
+    const placeLng = Number(element?.lon ?? element?.center?.lon);
+    if (!Number.isFinite(placeLat) || !Number.isFinite(placeLng)) return;
+
+    const distanceMeters = haversineMeters(lat, lng, placeLat, placeLng);
+    const { confidence, nameScore, distanceScore } = buildConfidence(name, placeName, distanceMeters, safeRadius);
+    const candidate = {
+      source: 'osm',
+      osmType: String(element?.type || ''),
+      osmId: Number(element?.id) || null,
+      placeName,
+      openingHours,
+      distanceMeters,
+      confidence,
+      nameScore,
+      distanceScore
+    };
+
+    if (!best || candidate.confidence > best.confidence) {
+      best = candidate;
+    }
+  });
+
+  return best;
+}
+
 async function fetchPlaceOpeningHours(placeId) {
   const params = new URLSearchParams({
     key: GOOGLE_API_KEY,
@@ -145,61 +216,105 @@ function extractGoogleHoursText(details) {
   return weekdayText.join(' | ').trim();
 }
 
-async function syncPointOperatingHours({ point, radiusMeters, dryRun = true, confidenceThreshold = 0.56 }) {
+async function syncPointOperatingHours({ point, radiusMeters, dryRun = true, confidenceThreshold = 0.56, source = 'auto' }) {
   const lat = Number(point?.lat);
   const lng = Number(point?.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return { ok: false, reason: 'missing_coordinates' };
   }
 
-  const best = await findBestPlaceByNameAndCoords({
-    name: point?.nome || '',
-    lat,
-    lng,
-    radiusMeters
-  });
+  const requestedSource = String(source || 'auto').toLowerCase();
+  const tryGoogle = requestedSource === 'google' || requestedSource === 'auto';
+  const tryOsm = requestedSource === 'osm' || requestedSource === 'auto';
 
-  if (!best?.placeId) {
-    return { ok: false, reason: 'no_candidate' };
-  }
+  if (tryGoogle && GOOGLE_API_KEY) {
+    const best = await findBestPlaceByNameAndCoords({
+      name: point?.nome || '',
+      lat,
+      lng,
+      radiusMeters
+    });
 
-  if (best.distanceMeters > radiusMeters || best.confidence < confidenceThreshold) {
-    return {
-      ok: false,
-      reason: 'low_confidence_match',
-      match: best
-    };
-  }
+    if (best?.placeId) {
+      if (best.distanceMeters > radiusMeters || best.confidence < confidenceThreshold) {
+        return {
+          ok: false,
+          reason: 'low_confidence_match',
+          source: 'google',
+          match: best
+        };
+      }
 
-  const details = await fetchPlaceOpeningHours(best.placeId);
-  const hoursText = extractGoogleHoursText(details);
-  if (!hoursText) {
-    return {
-      ok: false,
-      reason: 'no_opening_hours',
-      match: best,
-      placeName: details?.name || best.placeName
-    };
-  }
+      const details = await fetchPlaceOpeningHours(best.placeId);
+      const hoursText = extractGoogleHoursText(details);
+      if (hoursText) {
+        return {
+          ok: true,
+          dryRun,
+          source: 'google',
+          pointId: point.id,
+          pointName: point.nome,
+          previousHours: point.horario || '',
+          newHours: hoursText,
+          match: {
+            ...best,
+            placeName: details?.name || best.placeName,
+            formattedAddress: details?.formatted_address || ''
+          }
+        };
+      }
 
-  return {
-    ok: true,
-    dryRun,
-    pointId: point.id,
-    pointName: point.nome,
-    previousHours: point.horario || '',
-    newHours: hoursText,
-    match: {
-      ...best,
-      placeName: details?.name || best.placeName,
-      formattedAddress: details?.formatted_address || ''
+      if (requestedSource === 'google') {
+        return {
+          ok: false,
+          reason: 'no_opening_hours',
+          source: 'google',
+          match: best,
+          placeName: details?.name || best.placeName
+        };
+      }
+    } else if (requestedSource === 'google') {
+      return { ok: false, reason: 'no_candidate', source: 'google' };
     }
-  };
+  }
+
+  if (tryOsm) {
+    const bestOsm = await findBestOsmByNameAndCoords({
+      name: point?.nome || '',
+      lat,
+      lng,
+      radiusMeters
+    });
+    if (!bestOsm) {
+      return { ok: false, reason: 'no_candidate', source: requestedSource === 'google' ? 'google' : 'osm' };
+    }
+    if (bestOsm.distanceMeters > radiusMeters || bestOsm.confidence < confidenceThreshold) {
+      return {
+        ok: false,
+        reason: 'low_confidence_match',
+        source: 'osm',
+        match: bestOsm
+      };
+    }
+
+    return {
+      ok: true,
+      dryRun,
+      source: 'osm',
+      pointId: point.id,
+      pointName: point.nome,
+      previousHours: point.horario || '',
+      newHours: bestOsm.openingHours,
+      match: bestOsm
+    };
+  }
+
+  return { ok: false, reason: 'provider_not_configured', source: requestedSource };
 }
 
 function assertConfigured() {
-  if (!GOOGLE_API_KEY) {
-    throw new Error('GOOGLE_PLACES_API_KEY, GOOGLE_MAPS_API_KEY, GOOGLE_API_KEY ou GMAPS_API_KEY nao configurada no backend/.env');
+  if (!GOOGLE_API_KEY && !OVERPASS_URL) {
+    throw new Error('Nenhum provedor de horario configurado (Google API key ausente e Overpass indisponivel).');
   }
 }
 

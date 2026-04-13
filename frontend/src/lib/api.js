@@ -572,6 +572,7 @@ export async function testPdfWhatsapp({ phone, pontos_nomes, responsavel_nome, v
 export async function syncGoogleOperatingHours({
   dryRun = true,
   overwrite = false,
+  source = 'auto',
   city = '',
   limit = 60,
   radiusMeters = 220,
@@ -583,6 +584,7 @@ export async function syncGoogleOperatingHours({
     body: JSON.stringify({
       dryRun,
       overwrite,
+      source,
       city,
       limit,
       radiusMeters,
