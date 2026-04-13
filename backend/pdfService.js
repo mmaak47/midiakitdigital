@@ -13,6 +13,9 @@ let _rendersSinceBrowserLaunch = 0;
 const PDF_MAX_QUEUE = Math.max(1, Number(process.env.PDF_MAX_QUEUE || 8));
 const PDF_RENDER_TIMEOUT_MS = Math.max(10_000, Number(process.env.PDF_RENDER_TIMEOUT_MS || 180_000));
 const PDF_BROWSER_RECYCLE_EVERY = Math.max(1, Number(process.env.PDF_BROWSER_RECYCLE_EVERY || 30));
+const PDF_FONT_READY_TIMEOUT_MS = Math.max(500, Number(process.env.PDF_FONT_READY_TIMEOUT_MS || 4000));
+const PDF_IMAGE_WAIT_TIMEOUT_MS = Math.max(1000, Number(process.env.PDF_IMAGE_WAIT_TIMEOUT_MS || 7000));
+const PDF_LAYOUT_SETTLE_MS = Math.max(0, Number(process.env.PDF_LAYOUT_SETTLE_MS || 120));
 const ALLOWED_HOSTS = new Set(
   String(process.env.PDF_ALLOWED_HOSTS || 'localhost,127.0.0.1,REDACTED_VPS_IP,midiakit.redeintermidia.com,www.midiakit.redeintermidia.com')
     .split(',')
@@ -191,33 +194,45 @@ async function renderHtmlToPdf(htmlContent) {
 
       // Wait for fonts when available, but do not fail PDF generation if this step hangs.
       try {
-        await page.evaluateHandle(() => document.fonts.ready);
+        await page.evaluate((fontTimeoutMs) => {
+          if (!document?.fonts?.ready) return Promise.resolve();
+          return Promise.race([
+            document.fonts.ready,
+            new Promise((resolve) => setTimeout(resolve, fontTimeoutMs)),
+          ]);
+        }, PDF_FONT_READY_TIMEOUT_MS);
       } catch (err) {
         console.warn('[pdf/render] font readiness skipped:', err?.message || err);
       }
 
-      // Wait for images without blocking on failures.
       try {
-        await page.evaluate(() => {
+        await page.evaluate((imgTimeoutMs) => {
           const imgs = Array.from(document.images);
           if (!imgs.length) return Promise.resolve();
+
           return Promise.allSettled(
             imgs.map((img) => {
               if (img.complete) return Promise.resolve();
+
+              const src = String(img.currentSrc || img.src || '');
+              const timeoutMs = src.startsWith('data:') ? Math.min(imgTimeoutMs, 1500) : imgTimeoutMs;
+
               return new Promise((resolve) => {
                 img.addEventListener('load', resolve, { once: true });
                 img.addEventListener('error', resolve, { once: true });
-                setTimeout(resolve, 15000);
+                setTimeout(resolve, timeoutMs);
               });
             })
           );
-        });
+        }, PDF_IMAGE_WAIT_TIMEOUT_MS);
       } catch (err) {
-        console.warn('[pdf/render] image wait skipped:', err?.message || err);
+        console.warn('[pdf/render] bounded image wait skipped:', err?.message || err);
       }
 
       // Let layout settle — imagens já chegam como data URLs, o layout estabiliza rápido
-      await new Promise((resolve) => setTimeout(resolve, 350));
+      if (PDF_LAYOUT_SETTLE_MS > 0) {
+        await new Promise((resolve) => setTimeout(resolve, PDF_LAYOUT_SETTLE_MS));
+      }
 
       const pdfBuffer = await page.pdf({
         printBackground: true,
