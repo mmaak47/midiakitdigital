@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, ChevronLeft, ChevronRight, Maximize2, Minimize2, Play, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Maximize2, Minimize2, Pause, Play, X } from 'lucide-react';
 import { FixedSizeList } from 'react-window';
 import CustomSelect from './CustomSelect';
 import SmartMap from './SmartMap';
@@ -109,13 +109,13 @@ function Lobby({
           )}
         </div>
         <div className="flex-1 px-3 py-2.5 min-w-0 overflow-hidden">
-          <div className="text-sm font-semibold line-clamp-1 leading-tight pr-5">
+          <div className={`text-sm font-semibold line-clamp-1 leading-tight pr-5 ${isDark ? '' : 'text-neutral-900'}`}>
             {point.nome}
           </div>
-          <div className="mt-0.5 text-[11px] text-brand-gray-400 line-clamp-1">
+          <div className={`mt-0.5 text-[11px] line-clamp-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
             {point.cidade}
           </div>
-          <div className="mt-1.5 text-[11px] text-brand-gray-300 line-clamp-1">
+          <div className={`mt-1.5 text-[11px] line-clamp-1 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
             Fluxo: {fmtInt(Number(point.fluxo) || 0)} &bull;{' '}
             {fmtMoney(Number(point.preco) || 0)}/mês
           </div>
@@ -136,7 +136,7 @@ function Lobby({
       {/* Cabeçalho */}
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <img src="/logo.png" alt="Intermidia" className="h-7 mb-1.5" />
+          <img src={isDark ? '/logo.png' : '/logo-light.png'} alt="Intermidia" className="h-7 mb-1.5" />
           <h1 className={`text-xl md:text-2xl font-extrabold leading-tight ${isDark ? '' : 'text-neutral-900'}`}>Preparar Apresentação</h1>
           <p className={`mt-0.5 text-sm hidden sm:block ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
             Escolha as praças e formatos, selecione os pontos e inicie.
@@ -176,7 +176,7 @@ function Lobby({
           type="button"
           onClick={toggleAll}
           className={`text-sm font-medium transition-colors ${
-            allSelected ? 'text-brand-gray-400 hover:text-white' : 'text-brand-orange hover:underline'
+            allSelected ? (isDark ? 'text-brand-gray-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900') : 'text-brand-orange hover:underline'
           }`}
         >
           {allSelected ? 'Desmarcar todos' : 'Selecionar todos'}
@@ -458,7 +458,7 @@ function PointSlide({ slide, selectionLabel, typesLabel, isDark = true }) {
         }`}
       >
         <div className={`slide-info-panel-inner h-full rounded-2xl border backdrop-blur-md p-5 flex flex-col ${isDark ? 'border-white/15 bg-black/65' : 'border-neutral-200 bg-white/85'}`}>
-          <img src="/logo.png" alt="Intermidia" className="slide-info-logo h-7 self-start mb-3 opacity-65" />
+          <img src={isDark ? '/logo.png' : '/logo-light.png'} alt="Intermidia" className="slide-info-logo h-7 self-start mb-3 opacity-65" />
           <div className="text-[11px] uppercase tracking-wide text-brand-orange">
             Informações do ponto
           </div>
@@ -798,6 +798,8 @@ export default function MidiaKitSlidesMode({
   const [selectedPointIds, setSelectedPointIds] = useState(new Set());
   const [index, setIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [autoPlay, setAutoPlay] = useState(false);
+  const autoPlayRef = useRef(null);
   const containerRef = useRef(null);
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
@@ -897,13 +899,43 @@ export default function MidiaKitSlidesMode({
   useEffect(() => {
     if (phase !== 'presenting') return;
     const handler = (e) => {
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown')
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        setAutoPlay(false);
         setIndex((i) => Math.min(slides.length - 1, i + 1));
-      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') setIndex((i) => Math.max(0, i - 1));
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        setAutoPlay(false);
+        setIndex((i) => Math.max(0, i - 1));
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [phase, slides.length]);
+
+  // Auto-play: advance slides every 8 seconds (dividers 5s, points 8s)
+  useEffect(() => {
+    if (!autoPlay || phase !== 'presenting' || slides.length === 0) {
+      clearInterval(autoPlayRef.current);
+      autoPlayRef.current = null;
+      return;
+    }
+    const active = slides[index];
+    const delay = active?.type === 'divider' ? 5000 : 8000;
+    autoPlayRef.current = setTimeout(() => {
+      setIndex((i) => {
+        if (i >= slides.length - 1) {
+          setAutoPlay(false);
+          return i;
+        }
+        return i + 1;
+      });
+    }, delay);
+    return () => clearTimeout(autoPlayRef.current);
+  }, [autoPlay, phase, index, slides]);
+
+  // Stop autoplay when leaving presenting mode
+  useEffect(() => {
+    if (phase !== 'presenting') setAutoPlay(false);
+  }, [phase]);
 
   const toggleFullscreen = useCallback(async () => {
     if (!document.fullscreenElement) {
@@ -927,8 +959,10 @@ export default function MidiaKitSlidesMode({
     // Only handle clear horizontal swipes (not scrolling)
     if (Math.abs(deltaX) < 40 || Math.abs(deltaX) < Math.abs(deltaY)) return;
     if (deltaX < 0) {
+      setAutoPlay(false);
       setIndex((i) => Math.min(slides.length - 1, i + 1));
     } else {
+      setAutoPlay(false);
       setIndex((i) => Math.max(0, i - 1));
     }
   }, [slides.length]);
@@ -1019,6 +1053,19 @@ export default function MidiaKitSlidesMode({
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => setPhase('lobby')} className={`rounded-xl border px-3 py-1.5 text-xs ${isDark ? 'border-white/20 bg-black/35 text-white/70 hover:text-white' : 'border-neutral-300 bg-white/80 text-neutral-500 hover:text-neutral-900'}`}>
                   ← Seleção
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAutoPlay((v) => !v)}
+                  className={`rounded-xl border px-3 py-1.5 text-xs flex items-center gap-1.5 transition-all ${
+                    autoPlay
+                      ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange'
+                      : isDark ? 'border-white/20 bg-black/35 text-white/70 hover:text-white' : 'border-neutral-300 bg-white/80 text-neutral-500 hover:text-neutral-900'
+                  }`}
+                  title={autoPlay ? 'Pausar apresentação automática' : 'Iniciar apresentação automática'}
+                >
+                  {autoPlay ? <Pause size={13} /> : <Play size={13} />}
+                  {autoPlay ? 'Pausar' : 'Automático'}
                 </button>
                 <button type="button" onClick={toggleFullscreen} className={`rounded-xl border p-2 ${isDark ? 'border-white/20 bg-black/35 text-white/70 hover:text-white' : 'border-neutral-300 bg-white/80 text-neutral-500 hover:text-neutral-900'}`} title={isFullscreen ? 'Sair do fullscreen' : 'Tela cheia'}>
                   {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
@@ -1114,19 +1161,31 @@ export default function MidiaKitSlidesMode({
               <div className="flex items-center justify-between w-full gap-2">
                 <button
                   type="button"
-                  onClick={() => setIndex((i) => Math.max(0, i - 1))}
+                  onClick={() => { setAutoPlay(false); setIndex((i) => Math.max(0, i - 1)); }}
                   disabled={index === 0}
                   className={`h-11 w-11 flex items-center justify-center rounded-full border disabled:opacity-30 transition ${isDark ? 'border-white/20 bg-black/40 text-white/70 hover:text-white active:bg-white/10' : 'border-neutral-300 bg-white/80 text-neutral-500 hover:text-neutral-900 active:bg-neutral-100'}`}
                   aria-label="Slide anterior"
                 >
                   <ChevronLeft size={20} />
                 </button>
-                <span className={`text-xs uppercase tracking-[0.14em] min-w-[64px] text-center select-none ${isDark ? 'text-white/60' : 'text-neutral-500'}`}>
+                <button
+                  type="button"
+                  onClick={() => setAutoPlay((v) => !v)}
+                  className={`h-9 w-9 flex items-center justify-center rounded-full transition-all ${
+                    autoPlay
+                      ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/30'
+                      : isDark ? 'border border-white/20 bg-black/40 text-white/60 hover:text-white' : 'border border-neutral-300 bg-white/80 text-neutral-500 hover:text-neutral-900'
+                  }`}
+                  title={autoPlay ? 'Pausar automático' : 'Reproduzir automaticamente'}
+                >
+                  {autoPlay ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
+                </button>
+                <span className={`text-xs uppercase tracking-[0.14em] min-w-[52px] text-center select-none ${isDark ? 'text-white/60' : 'text-neutral-500'}`}>
                   {slides.length ? `${index + 1} / ${slides.length}` : '—'}
                 </span>
                 <button
                   type="button"
-                  onClick={() => setIndex((i) => Math.min(slides.length - 1, i + 1))}
+                  onClick={() => { setAutoPlay(false); setIndex((i) => Math.min(slides.length - 1, i + 1)); }}
                   disabled={index >= slides.length - 1}
                   className={`h-11 w-11 flex items-center justify-center rounded-full border disabled:opacity-30 transition ${isDark ? 'border-white/20 bg-black/40 text-white/70 hover:text-white active:bg-white/10' : 'border-neutral-300 bg-white/80 text-neutral-500 hover:text-neutral-900 active:bg-neutral-100'}`}
                   aria-label="Próximo slide"

@@ -366,13 +366,14 @@ export default function InventarioChatBot() {
         )}
       </button>
 
-      {/* Label pill — visible when FAB is closed */}
+      {/* Label pill — visible when FAB is closed, hidden on mobile */}
       {!aberto && (
         <div
           onClick={() => setAberto(true)}
           className={`fixed bottom-[34px] right-[76px] z-[9988] cursor-pointer
             px-3 py-1.5 rounded-full shadow-lg text-xs font-semibold whitespace-nowrap
             transition-all duration-300 animate-fade-in
+            hidden sm:block
             ${isDark
               ? 'bg-brand-gray-900 text-brand-gray-300 border border-white/10'
               : 'bg-white text-gray-700 border border-gray-200 shadow-md'
