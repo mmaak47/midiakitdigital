@@ -66,6 +66,11 @@ const {
 const geoAudience = require('./geoAudienceService');
 const censusAudience = require('./censusAudienceService');
 const audienceIntel = require('./audienceIntelService');
+const {
+  DEFAULT_RADIUS_METERS: GOOGLE_HOURS_DEFAULT_RADIUS,
+  assertConfigured: assertGoogleHoursConfigured,
+  syncPointOperatingHours
+} = require('./services/googleHoursSyncService');
 
 const app = express();
 
@@ -1103,6 +1108,89 @@ app.get('/api/stats', (req, res) => {
     res.json({ total, cidades, telas, fluxo });
   } catch (err) {
     internalError(res, err);
+  }
+});
+
+// Sync operating hours from Google Places (strictly from source data, no invented values)
+app.post('/api/admin/pontos/sync-hours/google', requireRoles(['admin', 'gerente_comercial']), async (req, res) => {
+  try {
+    assertGoogleHoursConfigured();
+
+    const body = req.body || {};
+    const dryRun = String(body.dryRun ?? 'true').toLowerCase() !== 'false';
+    const overwrite = String(body.overwrite ?? 'false').toLowerCase() === 'true';
+    const limit = Math.max(1, Math.min(300, Number(body.limit) || 60));
+    const radiusMeters = Math.max(80, Math.min(1000, Number(body.radiusMeters) || GOOGLE_HOURS_DEFAULT_RADIUS));
+    const confidenceThreshold = Math.max(0.45, Math.min(0.95, Number(body.confidenceThreshold) || 0.56));
+    const pointIds = Array.isArray(body.pointIds)
+      ? body.pointIds.map((value) => Number(value)).filter((value) => Number.isFinite(value))
+      : [];
+    const city = String(body.city || '').trim();
+
+    const sql = ['SELECT * FROM pontos WHERE ativo = 1'];
+    const params = [];
+
+    if (!overwrite) {
+      sql.push(" AND (horario IS NULL OR trim(horario) = '' OR lower(horario) = '24 horas' OR lower(horario) = '06:00 às 22:00')");
+    }
+    if (city) {
+      sql.push(' AND cidade = ?');
+      params.push(city);
+    }
+    if (pointIds.length) {
+      const placeholders = pointIds.map(() => '?').join(', ');
+      sql.push(` AND id IN (${placeholders})`);
+      params.push(...pointIds);
+    }
+    sql.push(' ORDER BY cidade, nome LIMIT ?');
+    params.push(limit);
+
+    const rows = db.prepare(sql.join('')).all(...params);
+    const processed = [];
+    let updated = 0;
+
+    for (const point of rows) {
+      try {
+        const result = await syncPointOperatingHours({
+          point,
+          radiusMeters,
+          dryRun,
+          confidenceThreshold
+        });
+
+        if (result.ok && !dryRun) {
+          db.prepare('UPDATE pontos SET horario = ? WHERE id = ?').run(result.newHours, point.id);
+          updated += 1;
+        }
+
+        processed.push({ id: point.id, nome: point.nome, cidade: point.cidade, ...result });
+      } catch (err) {
+        processed.push({
+          id: point.id,
+          nome: point.nome,
+          cidade: point.cidade,
+          ok: false,
+          reason: 'sync_error',
+          error: err?.message || 'unknown error'
+        });
+      }
+    }
+
+    const okCount = processed.filter((item) => item.ok).length;
+    const withMatch = processed.filter((item) => item.match).length;
+    res.json({
+      dryRun,
+      overwrite,
+      selected: rows.length,
+      matched: withMatch,
+      validHours: okCount,
+      updated,
+      radiusMeters,
+      confidenceThreshold,
+      results: processed
+    });
+  } catch (err) {
+    internalError(res, err, 'Erro ao sincronizar horarios via Google Places.');
   }
 });
 
