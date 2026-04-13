@@ -45,7 +45,7 @@ import {
   normalizeDisplaySettings,
   parseSimulationConfig
 } from '../lib/simulation';
-import { criarPropostaPublica, fetchClientAddressAnalysis, fetchEntornoJobStatus, fetchEntornoScores, gerarTextoProposta } from '../lib/api';
+import { criarPropostaPublica, uploadProposalImage, fetchClientAddressAnalysis, fetchEntornoJobStatus, fetchEntornoScores, gerarTextoProposta } from '../lib/api';
 import { buildSelectionMapDataUrl, downloadSelectionMapPng } from '../lib/mapSnapshot';
 import CustomSelect from './CustomSelect';
 import ArteAIPanel from './ArteAIPanel';
@@ -693,6 +693,24 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         points: proposalPoints.map(({ custo_operacional: _co, ...p }) => p),
         totals, pricingSummary
       };
+
+      // Upload simulation preview images to server (convert blob: URLs to permanent URLs)
+      if (Array.isArray(proposalData.points)) {
+        const uploadTasks = proposalData.points.map(async (point) => {
+          const previewUrl = point.proposalSimulationPreview || '';
+          if (!previewUrl.startsWith('blob:')) return;
+          try {
+            const resp = await fetch(previewUrl);
+            const blob = await resp.blob();
+            const serverUrl = await uploadProposalImage(blob);
+            point.proposalSimulationPreview = serverUrl;
+          } catch (e) {
+            console.warn('[ProposalModal] Failed to upload simulation image for point', point.id, e.message);
+          }
+        });
+        await Promise.all(uploadTasks);
+      }
+
       const result = await criarPropostaPublica(proposalData, 7);
       setShareModal(result);
     } catch (err) {

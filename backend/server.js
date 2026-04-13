@@ -140,6 +140,8 @@ process.on('unhandledRejection', (reason) => {
 });
 
 const uploadsPath = path.join(__dirname, 'uploads');
+const proposalImagesPath = path.join(uploadsPath, 'proposal-images');
+if (!fs.existsSync(proposalImagesPath)) fs.mkdirSync(proposalImagesPath, { recursive: true });
 const pdfCachePath = path.join(__dirname, 'pdf-cache');
 const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
 const ELEVADOR_TIPO = 'Elevador';
@@ -221,7 +223,7 @@ function getMonitorCorsOptions() {
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.API_RATE_LIMIT_MAX || 600),
+  max: Number(process.env.API_RATE_LIMIT_MAX || 1200),
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
@@ -244,6 +246,16 @@ const pdfRenderLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
   message: { error: 'Limite de geração de PDF atingido. Tente novamente em alguns minutos.' }
+});
+
+// Rate limiter mais generoso para rotas públicas (proposta, tracking, census)
+const publicLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.PUBLIC_RATE_LIMIT_MAX || 3000),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
+  message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' }
 });
 
 const loginSchema = z.object({
@@ -428,7 +440,18 @@ app.post('/api/pdf/render', pdfRenderLimiter, express.json({ limit: '120mb' }), 
 
 app.use(express.json({ limit: '1mb' }));
 app.use(compression({ threshold: 1024 }));
-app.use('/api', apiLimiter);
+// Rotas públicas com limiter mais generoso (antes do apiLimiter geral)
+app.use('/api/p', publicLimiter);
+app.use('/api/track', publicLimiter);
+app.use('/api/census/profiles', publicLimiter);
+app.use('/api/leads/check', publicLimiter);
+// apiLimiter geral — skip rotas que já têm publicLimiter
+const PUBLIC_PREFIXES = ['/api/p/', '/api/p', '/api/track', '/api/census/profiles', '/api/leads/check'];
+app.use('/api', (req, res, next) => {
+  const fullPath = req.originalUrl || req.url;
+  if (PUBLIC_PREFIXES.some(prefix => fullPath.startsWith(prefix))) return next();
+  return apiLimiter(req, res, next);
+});
 
 // Responde com erro 500 genérico ao cliente e loga detalhes no servidor
 function internalError(res, err, msg = 'Erro interno no servidor.') {
@@ -4127,6 +4150,84 @@ app.post('/api/gestao/import', requireRoles(['admin']), (req, res) => {
 });
 
 // ── Propostas Públicas ────────────────────────────────────────────────────────
+
+// POST /api/proposta-publica/upload-image — upload de imagem de simulação (auth)
+app.post('/api/proposta-publica/upload-image', resolveAuthenticatedUser, upload.fields([{ name: 'image', maxCount: 1 }]), (req, res) => {
+  try {
+    const file = req.files?.image?.[0];
+    if (!file) return res.status(400).json({ error: 'Nenhuma imagem enviada.' });
+    // Move o arquivo para a pasta proposal-images
+    const ext = path.extname(file.filename) || '.png';
+    const newName = `${randomUUID()}${ext}`;
+    const newPath = path.join(proposalImagesPath, newName);
+    fs.renameSync(file.path, newPath);
+    res.json({ url: `/uploads/proposal-images/${newName}` });
+  } catch (err) {
+    internalError(res, err, 'Erro ao salvar imagem da simulação.');
+  }
+});
+
+// GET /api/admin/propostas — listar todas as propostas públicas (admin/gerente)
+app.get('/api/admin/propostas', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT pt.*, au.first_name, au.last_name, au.username AS creator_username
+      FROM proposta_tokens pt
+      LEFT JOIN admin_users au ON au.id = pt.created_by
+      ORDER BY pt.created_at DESC
+      LIMIT 500
+    `).all();
+    const propostas = rows.map(row => {
+      let data = {};
+      try { data = JSON.parse(row.proposta_data || '{}'); } catch { /* ignore */ }
+      return {
+        id: row.id,
+        token: row.token,
+        clientName: data.clientName || '',
+        segmento: data.segmento || '',
+        pointsCount: Array.isArray(data.points) ? data.points.length : 0,
+        totalValue: data.pricingSummary?.totalComDesconto ?? data.totals?.valorTotal ?? 0,
+        created_by_name: [row.first_name, row.last_name].filter(Boolean).join(' ') || row.creator_username || '',
+        created_at: row.created_at,
+        expires_at: row.expires_at,
+        viewed_at: row.viewed_at,
+        approved_at: row.approved_at,
+        approved_name: row.approved_name
+      };
+    });
+    res.json({ propostas });
+  } catch (err) {
+    internalError(res, err, 'Erro ao listar propostas.');
+  }
+});
+
+// DELETE /api/admin/propostas/:id — excluir proposta (admin/gerente)
+app.delete('/api/admin/propostas/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    // Remover imagens de simulação associadas
+    const row = db.prepare('SELECT proposta_data FROM proposta_tokens WHERE id = ?').get(id);
+    if (row) {
+      try {
+        const data = JSON.parse(row.proposta_data || '{}');
+        if (Array.isArray(data.points)) {
+          for (const p of data.points) {
+            const imgUrl = p.proposalSimulationPreview || '';
+            if (imgUrl.startsWith('/uploads/proposal-images/')) {
+              const filePath = path.join(__dirname, imgUrl);
+              if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            }
+          }
+        }
+      } catch { /* ignore parse errors */ }
+    }
+    db.prepare('DELETE FROM proposta_tokens WHERE id = ?').run(id);
+    res.json({ ok: true });
+  } catch (err) {
+    internalError(res, err, 'Erro ao excluir proposta.');
+  }
+});
+
 // POST /api/proposta-publica — vendedor cria link público da proposta (auth)
 app.post('/api/proposta-publica', resolveAuthenticatedUser, express.json({ limit: '2mb' }), (req, res) => {
   try {

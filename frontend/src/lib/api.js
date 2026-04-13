@@ -129,6 +129,24 @@ export async function logout() {
 }
 
 // ── Proposta Pública (FEAT-1) ────────────────────────────────────────────────
+
+// Upload de imagem de simulação para persistência no servidor
+export async function uploadProposalImage(blob) {
+  const fd = new FormData();
+  fd.append('image', blob, 'simulation.png');
+  const res = await fetch('/api/proposta-publica/upload-image', {
+    method: 'POST',
+    credentials: 'include',
+    body: fd
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Erro ao fazer upload da imagem');
+  }
+  const data = await res.json();
+  return data.url;
+}
+
 export async function criarPropostaPublica(proposalData, expiresDays = 7) {
   const res = await apiRequest('/proposta-publica', {
     method: 'POST',
@@ -160,6 +178,25 @@ export async function aprovarPropostaPublica(token, nome) {
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || 'Erro ao aprovar proposta');
+  }
+  return res.json();
+}
+
+// ── Admin Propostas ──────────────────────────────────────────────────────────
+export async function fetchAdminPropostas() {
+  const res = await apiRequest('/admin/propostas');
+  if (!res.ok) {
+    const msg = await parseErrorResponse(res);
+    throw new Error(msg || 'Erro ao listar propostas');
+  }
+  return res.json();
+}
+
+export async function deleteAdminProposta(id) {
+  const res = await apiRequest(`/admin/propostas/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const msg = await parseErrorResponse(res);
+    throw new Error(msg || 'Erro ao excluir proposta');
   }
   return res.json();
 }
