@@ -208,6 +208,15 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     window.location.assign('/comercial');
   };
 
+  const persistSimulationPreview = async (blobUrl) => {
+    if (!blobUrl || !String(blobUrl).startsWith('blob:')) return blobUrl || '';
+
+    const resp = await fetch(blobUrl);
+    const blob = await resp.blob();
+    const serverUrl = await uploadProposalImage(blob);
+    return serverUrl || '';
+  };
+
   // Auto-save draft whenever form-related state changes
   useEffect(() => {
     saveDraft({ form, discountConfig, analysisMode, pdfSections });
@@ -999,8 +1008,16 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           displaySettings: simulationSettings,
           mediaParams
         });
-        return [point.id, { status: 'Gerada', previewUrl: result.previewUrl }];
+        const persistedPreviewUrl = await persistSimulationPreview(result.previewUrl);
+        return [point.id, { status: 'Gerada', previewUrl: persistedPreviewUrl }];
       } catch (error) {
+        if (handleAuthExpired(error, 'Sua sessão expirou durante o upload da simulação. Faça login novamente para salvar os previews.')) {
+          return [point.id, {
+            status: 'Sessão expirada durante upload da simulação',
+            previewUrl: '',
+            detail: error?.message || 'Sessão expirada'
+          }];
+        }
         return [point.id, {
           status: 'Falha ao gerar',
           previewUrl: '',
@@ -1079,17 +1096,22 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         mediaParams
       });
 
-      console.log('[handleAiArteEscolhida] SUCCESS pontoId=', pontoId, { previewUrl: result.previewUrl?.substring(0, 60) });
+      const persistedPreviewUrl = await persistSimulationPreview(result.previewUrl);
+
+      console.log('[handleAiArteEscolhida] SUCCESS pontoId=', pontoId, { previewUrl: persistedPreviewUrl?.substring(0, 60) });
       setSimulationResults((current) => ({
         ...current,
         [point.id]: {
           status: 'Gerada (IA)',
-          previewUrl: result.previewUrl,
+          previewUrl: persistedPreviewUrl,
           geracaoId,
           variacao
         }
       }));
     } catch (error) {
+      if (handleAuthExpired(error, 'Sua sessão expirou durante o upload da simulação IA. Faça login novamente para salvar os previews.')) {
+        return;
+      }
       console.error('[handleAiArteEscolhida] ERROR pontoId=', pontoId, error?.message || error);
       setSimulationResults((current) => ({
         ...current,
