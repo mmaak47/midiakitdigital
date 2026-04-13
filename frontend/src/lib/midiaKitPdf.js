@@ -1385,15 +1385,15 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
       </div>
 
       <!-- RIGHT COLUMN -->
-      <div style="display:flex;flex-direction:column;gap:16px;height:100%;min-width:0;overflow:hidden;">
+      <div style="display:flex;flex-direction:column;gap:12px;height:100%;min-width:0;overflow:hidden;">
         ${hasImage ? `
         <div style="flex:1;min-height:0;border-radius:24px;overflow:hidden;background:${PROPOSAL_SURFACE_ALT};position:relative;border:1px solid ${PROPOSAL_BORDER};">
-          <img src="${image}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;" />
+          <img src="${image}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(point?.foto_focal_point || 'center 38%')};display:block;" />
         </div>
         ` : ''}
         
         ${hasMap ? `
-        <div style="height:${hasImage ? '240px' : '100%'};flex-shrink:0;border-radius:24px;overflow:hidden;background:${PROPOSAL_SURFACE_ALT};position:relative;border:1px solid ${PROPOSAL_BORDER};">
+        <div style="height:${hasImage ? '170px' : '100%'};flex-shrink:0;border-radius:24px;overflow:hidden;background:${PROPOSAL_SURFACE_ALT};position:relative;border:1px solid ${PROPOSAL_BORDER};">
           <img src="${mapImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;" />
         </div>
         ` : ''}
