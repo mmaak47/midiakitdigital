@@ -27,8 +27,8 @@ export default function Explorer() {
   const filtersInitializedRef = useRef(false);
   const pendingResultsScrollRef = useRef(false);
   const [isDark, setIsDark] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem('intermidia_theme') !== 'light';
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('intermidia_theme') === 'dark';
   });
   const [searchParams] = useSearchParams();
   const initialCidade = searchParams.getAll('cidade');

@@ -130,8 +130,8 @@ export default function Admin() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isDark, setIsDark] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem('intermidia_theme') !== 'light';
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('intermidia_theme') === 'dark';
   });
   const [auth, setAuth] = useState(!!sessionStorage.getItem('admin_token'));
   const [username, setUsername] = useState('');
@@ -2597,7 +2597,7 @@ function RangeField({ label, value, min, max, step = 1, onChange }) {
 }
 
 function FormField({ label, value, onChange, className = '', type = 'text', ...props }) {
-  const dark = typeof window !== 'undefined' && localStorage.getItem('intermidia_theme') !== 'light';
+  const dark = typeof window !== 'undefined' && localStorage.getItem('intermidia_theme') === 'dark';
   return (
     <div className={className}>
       <label className={`block text-xs mb-1.5 ${dark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>{label}</label>
@@ -2889,7 +2889,7 @@ function UsersAdminPanel({
 }
 
 function FormSelect({ label, value, onChange, options }) {
-  const dark = typeof window !== 'undefined' && localStorage.getItem('intermidia_theme') !== 'light';
+  const dark = typeof window !== 'undefined' && localStorage.getItem('intermidia_theme') === 'dark';
   return (
     <div>
       <label className={`block text-xs mb-1.5 ${dark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>{label}</label>

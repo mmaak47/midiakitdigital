@@ -17,8 +17,8 @@ const TABS = [
 export default function GestaoComercial() {
   const navigate = useNavigate();
   const [isDark, setIsDark] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem('intermidia_theme') !== 'light';
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('intermidia_theme') === 'dark';
   });
   const [activeTab, setActiveTab] = useState('vendas');
   const [ano, setAno] = useState(new Date().getFullYear());

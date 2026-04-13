@@ -4,12 +4,12 @@ const THEME_KEY = 'intermidia_theme';
 
 export default function useTheme() {
   const [isDark, setIsDark] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem(THEME_KEY) !== 'light';
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(THEME_KEY) === 'dark';
   });
 
   useEffect(() => {
-    const sync = () => setIsDark(localStorage.getItem(THEME_KEY) !== 'light');
+    const sync = () => setIsDark(localStorage.getItem(THEME_KEY) === 'dark');
     window.addEventListener('storage', sync);
     window.addEventListener('theme-change', sync);
     return () => {

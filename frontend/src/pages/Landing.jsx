@@ -382,7 +382,10 @@ export default function Landing() {
   const [showMapModal, setShowMapModal] = useState(false);
   const [showSlidesMode, setShowSlidesMode] = useState(false);
   const [lightbox, setLightbox] = useState({ ponto: null, imageIndex: 0 });
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('intermidia_theme') === 'dark';
+  });
   const [showCommercialShortcut, setShowCommercialShortcut] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('tipo');

@@ -285,8 +285,8 @@ function StatCard({ label, value, isDark }) {
 
 export default function CampaignPlanner() {
   const [isDark, setIsDark] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem('intermidia_theme') !== 'light';
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('intermidia_theme') === 'dark';
   });
   const [step, setStep] = useState(0);
 
