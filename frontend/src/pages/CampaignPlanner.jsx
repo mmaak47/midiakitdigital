@@ -1573,7 +1573,6 @@ export default function CampaignPlanner() {
                       </div>
                     );
                   })}
-                  ))}
                 </div>
               </div>
             )}
