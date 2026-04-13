@@ -477,6 +477,13 @@ app.post('/api/pdf/render', pdfRenderLimiter, express.json({ limit: '120mb' }), 
     return res.end(pdfBuffer);
   } catch (err) {
     console.error('[pdf/render] Erro:', err.message || err);
+    if (err?.code === 'PDF_QUEUE_FULL') {
+      res.set('Retry-After', '20');
+      return res.status(503).json({ error: 'Fila de geração de PDF cheia. Tente novamente em instantes.' });
+    }
+    if (err?.code === 'PDF_RENDER_TIMEOUT') {
+      return res.status(504).json({ error: 'Tempo limite ao gerar PDF. Tente novamente.' });
+    }
     return res.status(500).json({ error: 'Erro ao gerar PDF.' });
   }
 });

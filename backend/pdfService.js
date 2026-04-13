@@ -9,6 +9,10 @@ const { execFile, execFileSync } = require('child_process');
 let _browser = null;
 let _renderQueue = [];
 let _isRendering = false;
+let _rendersSinceBrowserLaunch = 0;
+const PDF_MAX_QUEUE = Math.max(1, Number(process.env.PDF_MAX_QUEUE || 8));
+const PDF_RENDER_TIMEOUT_MS = Math.max(10_000, Number(process.env.PDF_RENDER_TIMEOUT_MS || 180_000));
+const PDF_BROWSER_RECYCLE_EVERY = Math.max(1, Number(process.env.PDF_BROWSER_RECYCLE_EVERY || 30));
 const ALLOWED_HOSTS = new Set(
   String(process.env.PDF_ALLOWED_HOSTS || 'localhost,127.0.0.1,REDACTED_VPS_IP,midiakit.redeintermidia.com,www.midiakit.redeintermidia.com')
     .split(',')
@@ -75,6 +79,29 @@ async function getBrowser() {
   return _browser;
 }
 
+async function closeBrowser() {
+  if (!_browser) return;
+  const browserRef = _browser;
+  _browser = null;
+  try {
+    await browserRef.close();
+  } catch {
+    // Best effort cleanup.
+  }
+}
+
+function withTimeout(promise, timeoutMs, label) {
+  let timer;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(`${label} timeout after ${timeoutMs}ms`);
+      error.code = 'PDF_RENDER_TIMEOUT';
+      reject(error);
+    }, timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+}
+
 async function _processRenderQueue() {
   if (_isRendering || _renderQueue.length === 0) {
     return;
@@ -101,6 +128,12 @@ async function _processRenderQueue() {
 
 function _queueRender(fn) {
   return new Promise((resolve, reject) => {
+    if (_renderQueue.length >= PDF_MAX_QUEUE) {
+      const err = new Error(`PDF queue is full (${_renderQueue.length}/${PDF_MAX_QUEUE})`);
+      err.code = 'PDF_QUEUE_FULL';
+      reject(err);
+      return;
+    }
     _renderQueue.push({ fn, resolve, reject });
     _processRenderQueue().catch((err) => {
       console.error('[pdf-queue] Error:', err);
@@ -110,6 +143,8 @@ function _queueRender(fn) {
 
 async function renderHtmlToPdf(htmlContent) {
   return _queueRender(async () => {
+    const startedAt = Date.now();
+    const runRender = async () => {
     const browser = await getBrowser();
     const page = await browser.newPage();
 
@@ -191,9 +226,43 @@ async function renderHtmlToPdf(htmlContent) {
         margin: { top: '0', right: '0', bottom: '0', left: '0' },
       });
 
+      _rendersSinceBrowserLaunch += 1;
+      if (_rendersSinceBrowserLaunch >= PDF_BROWSER_RECYCLE_EVERY) {
+        console.log(`[pdf/render] Recycling browser after ${_rendersSinceBrowserLaunch} render(s).`);
+        _rendersSinceBrowserLaunch = 0;
+        await closeBrowser();
+      }
+
       return pdfBuffer;
     } finally {
-      await page.close();
+      try {
+        await page.close();
+      } catch {
+        // Ignore page close race conditions.
+      }
+    }
+
+    };
+
+    try {
+      const buffer = await withTimeout(runRender(), PDF_RENDER_TIMEOUT_MS, 'PDF render');
+      console.log(`[pdf/render] done in ${Date.now() - startedAt}ms`);
+      return buffer;
+    } catch (err) {
+      const message = String(err?.message || err);
+      const isTransient =
+        err?.code === 'PDF_RENDER_TIMEOUT'
+        || /Target closed|Protocol error|Session closed|Connection closed|Page crashed/i.test(message);
+
+      if (!isTransient) throw err;
+
+      console.warn('[pdf/render] transient failure, recycling browser and retrying once:', message);
+      _rendersSinceBrowserLaunch = 0;
+      await closeBrowser();
+
+      const retriedBuffer = await withTimeout(runRender(), PDF_RENDER_TIMEOUT_MS, 'PDF render retry');
+      console.log(`[pdf/render] done on retry in ${Date.now() - startedAt}ms`);
+      return retriedBuffer;
     }
   });
 }
