@@ -145,9 +145,6 @@ export default function InventarioChatBot() {
     return () => observer.disconnect();
   }, []);
 
-  if (location.pathname === '/comercial/gestao') return null;
-  if (slidesActive) return null;
-
   // Auto-scroll
   useEffect(() => {
     if (aberto) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -160,6 +157,9 @@ export default function InventarioChatBot() {
       setUnread(0);
     }
   }, [aberto]);
+
+  // Must be after ALL hooks — React requires consistent hook call order
+  const hidden = location.pathname === '/comercial/gestao' || slidesActive;
 
   const enviarMensagem = useCallback(async (textoForce) => {
     const texto = (textoForce ?? input).trim();
@@ -200,6 +200,8 @@ export default function InventarioChatBot() {
       setCarregando(false);
     }
   }, [input, carregando, aberto, mensagens, sessionId]);
+
+  if (hidden) return null;
 
   function handleKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
