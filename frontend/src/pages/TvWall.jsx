@@ -181,9 +181,9 @@ export default function TvWall() {
         .tv-shell {
           display: grid;
           grid-template-rows: auto 1fr auto;
-          gap: 12px;
+          gap: 8px;
           height: 100%;
-          padding: 10px;
+          padding: 8px;
         }
 
         .tv-header {
@@ -286,12 +286,12 @@ export default function TvWall() {
         .tv-grid {
           min-height: 0;
           display: grid;
-          grid-template-columns: 1.12fr 1fr 1fr;
+          grid-template-columns: 1.35fr 1fr 1fr;
           grid-template-rows: 1fr 1fr;
           grid-template-areas:
             "loop contracts ranking"
-            "postits contracts insights";
-          gap: 12px;
+            "loop postits insights";
+          gap: 10px;
         }
 
         .ga-loop { grid-area: loop; }
@@ -304,8 +304,8 @@ export default function TvWall() {
           min-height: 0;
           display: flex;
           flex-direction: column;
-          padding: 14px;
-          border-radius: 22px;
+          padding: 12px;
+          border-radius: 20px;
           background: linear-gradient(180deg, var(--bg-panel-strong), var(--bg-panel));
           border: 1px solid var(--line);
           box-shadow: 0 14px 34px rgba(64, 45, 33, 0.08);
@@ -316,8 +316,8 @@ export default function TvWall() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 10px;
-          margin-bottom: 10px;
+          gap: 8px;
+          margin-bottom: 8px;
         }
 
         .tv-card-title {
@@ -352,8 +352,8 @@ export default function TvWall() {
 
         .tv-kpi-grid {
           display: grid;
-          gap: 8px;
-          margin-bottom: 10px;
+          gap: 6px;
+          margin-bottom: 8px;
         }
 
         .tv-kpi-grid.loop {
@@ -365,14 +365,14 @@ export default function TvWall() {
         }
 
         .tv-kpi {
-          padding: 12px;
-          border-radius: 18px;
+          padding: 8px 10px;
+          border-radius: 14px;
           background: #fff;
           border: 1px solid var(--line);
         }
 
         .tv-kpi-value {
-          font-size: clamp(24px, 1.8vw, 34px);
+          font-size: clamp(20px, 1.5vw, 28px);
           line-height: 1;
           font-weight: 900;
           letter-spacing: -0.05em;
@@ -380,11 +380,11 @@ export default function TvWall() {
         }
 
         .tv-kpi-label {
-          margin-top: 6px;
-          font-size: 10px;
+          margin-top: 4px;
+          font-size: 9px;
           color: var(--muted);
           text-transform: uppercase;
-          letter-spacing: 0.16em;
+          letter-spacing: 0.14em;
         }
 
         .tv-kpi.brand .tv-kpi-value { color: var(--brand); }
@@ -410,12 +410,12 @@ export default function TvWall() {
         .tv-list {
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 5px;
         }
 
         .tv-row {
-          padding: 12px;
-          border-radius: 18px;
+          padding: 8px 10px;
+          border-radius: 14px;
           background: #fff;
           border: 1px solid var(--line);
           border-left-width: 4px;
@@ -434,7 +434,7 @@ export default function TvWall() {
         }
 
         .tv-row-title {
-          font-size: 16px;
+          font-size: 13px;
           font-weight: 800;
           line-height: 1.15;
           margin: 0;
@@ -442,9 +442,9 @@ export default function TvWall() {
         }
 
         .tv-row-meta {
-          margin-top: 5px;
+          margin-top: 3px;
           color: var(--muted);
-          font-size: 12px;
+          font-size: 11px;
         }
 
         .tv-metric {
@@ -453,16 +453,16 @@ export default function TvWall() {
         }
 
         .tv-metric-value {
-          font-size: 18px;
+          font-size: 16px;
           line-height: 1;
           font-weight: 900;
           color: var(--text);
         }
 
         .tv-metric-label {
-          margin-top: 4px;
+          margin-top: 2px;
           color: var(--muted);
-          font-size: 10px;
+          font-size: 9px;
           text-transform: uppercase;
           letter-spacing: 0.12em;
         }
@@ -852,17 +852,21 @@ export default function TvWall() {
               <div className="tv-list">
                 {(loop.itensCriticos || []).map((item) => {
                   const tone = toneClass(statusTone(item.pct_ocupado));
+                  const isLotado = item.pct_ocupado >= 100;
                   return (
                     <div key={String(item.id)} className={`tv-row ${tone}`}>
                       <div className="tv-row-top">
-                        <div>
-                          <div className="tv-row-title">{item.local || item.nome || 'Monitor'}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <div className="tv-row-title">
+                            {item.local || item.nome || 'Monitor'}
+                            {isLotado && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 900, color: 'var(--danger)', background: '#ffe8e8', padding: '2px 6px', borderRadius: 6, verticalAlign: 'middle' }}>LOTADO</span>}
+                          </div>
                           <div className="tv-row-meta">
-                            {item.cidade || 'Sem cidade'} • {item.insercoes_ativas || 0} inserções ativas
+                            {item.cidade || 'Sem cidade'} · {item.insercoes_ativas || 0} inserções · {item.cotas_livres ?? '?'} cotas livres
                           </div>
                         </div>
                         <div className="tv-metric">
-                          <div className="tv-metric-value">{item.pct_ocupado}%</div>
+                          <div className="tv-metric-value" style={isLotado ? { color: 'var(--danger)' } : undefined}>{item.pct_ocupado}%</div>
                           <div className="tv-metric-label">ocupado</div>
                         </div>
                       </div>

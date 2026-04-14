@@ -2090,9 +2090,9 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
         lotados: mapped.filter((m) => m.pct_ocupado >= 100).length,
         totalCotasLivres: mapped.reduce((sum, m) => sum + (m.cotas_livres || 0), 0),
         itensCriticos: mapped
-          .filter((m) => m.pct_ocupado >= 90)
+          .filter((m) => m.pct_ocupado >= 75)
           .sort((a, b) => b.pct_ocupado - a.pct_ocupado)
-          .slice(0, 8)
+          .slice(0, 20)
       };
     } catch (err) {
       warnings.push(`Loop audit: ${err.message}`);
