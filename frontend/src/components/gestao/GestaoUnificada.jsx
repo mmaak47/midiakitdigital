@@ -309,7 +309,7 @@ export default function GestaoUnificada({ isDark, ano }) {
   const border = isDark ? 'border-white/10' : 'border-neutral-200';
   const text = isDark ? 'text-white' : 'text-neutral-900';
   const textMuted = isDark ? 'text-brand-gray-400' : 'text-neutral-500';
-  const inputBg = isDark ? 'bg-white/5 text-white border-white/10 placeholder:text-brand-gray-500' : 'bg-white text-neutral-900 border-neutral-200 placeholder:text-neutral-400';
+  const inputBg = isDark ? 'bg-white/5 text-white border border-white/10 placeholder:text-brand-gray-500' : 'bg-white text-neutral-900 border border-neutral-300 placeholder:text-neutral-400';
   const hoverBg = isDark ? 'hover:bg-white/5' : 'hover:bg-neutral-50';
 
   /* ═══════ RENDER ═══════ */

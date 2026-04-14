@@ -4766,7 +4766,39 @@ app.post('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vended
       b.previsao_veiculacao || null, b.data_emissao_nf || null, b.vencimento_boletos || null,
       b.contato || null, b.email || null, b.obs || null
     );
-    res.json({ ok: true, id: result.lastInsertRowid });
+    const vcId = result.lastInsertRowid;
+
+    // Auto-create linked vendas entry (skip META rows)
+    const clienteUpper = String(b.cliente).toUpperCase().trim();
+    if (!['META BASE','HIPER META','META MÊS','META MES','CLIENTE'].includes(clienteUpper)) {
+      try {
+        const pontosNomes = b.pontos_contratados
+          ? JSON.stringify(b.pontos_contratados.split(',').map(s => s.trim()).filter(Boolean))
+          : '[]';
+        const parcelas = Number(b.qtde_parcelas || 1);
+        const periodo = parcelas > 1 ? `${parcelas} meses` : null;
+        const vendaResult = db.prepare(`
+          INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal,
+            periodo, vendedor_nome, whatsapp_status, status, obs, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'nao_configurado', 'ativa', ?, COALESCE(?, datetime('now')))
+        `).run(
+          'Nova Venda',
+          b.cliente,
+          b.cnpj || null,
+          pontosNomes,
+          Number(b.valor_mensal || 0),
+          periodo,
+          String(b.vendedor_nome),
+          b.obs || null,
+          b.data_venda || null
+        );
+        db.prepare(`UPDATE vendas_comercial SET venda_id = ? WHERE id = ?`).run(vendaResult.lastInsertRowid, vcId);
+      } catch (linkErr) {
+        console.warn(`[gestão→vendas] auto-link failed for vc.id=${vcId}:`, linkErr.message);
+      }
+    }
+
+    res.json({ ok: true, id: vcId });
   } catch (err) {
     internalError(res, err);
   }
