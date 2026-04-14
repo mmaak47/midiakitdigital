@@ -14,6 +14,29 @@ import {
 
 const POLL_MS = 15000;
 
+const FRASES_MOTIVACIONAIS = [
+  '"O sucesso é a soma de pequenos esforços repetidos dia após dia." — Robert Collier',
+  '"A persistência é o caminho do êxito." — Albert Einstein',
+  '"Nunca é tarde demais para ser o que você poderia ter sido." — George Eliot',
+  '"O sucesso é tropeçar de falha em falha sem perder o entusiasmo." — Winston Churchill',
+  '"É sempre cedo demais para desistir." — Norman Vincent Peale',
+  '"A única maneira de fazer um excelente trabalho é amar o que você faz." — Steve Jobs',
+  '"Foco é dizer não a 1.000 coisas." — Steve Jobs',
+  '"O segredo do sucesso é a constância do propósito." — Benjamin Disraeli',
+  '"Foco no cliente acima de tudo mais. O sucesso virá como consequência natural." — Michael Dell',
+  '"Quanto maior o obstáculo, mais glorioso é superá-lo." — Molière',
+  '"Sozinhos vamos mais rápido, juntos vamos mais longe." — Provérbio Africano',
+  '"O talento vence jogos, mas o trabalho em equipe e a inteligência vencem campeonatos." — Michael Jordan',
+  '"Nenhum de nós é tão bom quanto todos nós juntos." — Ray Kroc',
+  '"A confiança em si mesmo é o primeiro segredo do sucesso." — Ralph Waldo Emerson',
+  '"Não importa o quão devagar você vá, desde que você não pare." — Confúcio',
+  '"Grandes realizações não são feitas por impulso, mas por uma soma de pequenas realizações." — Van Gogh',
+  '"Acredite em si mesmo e em tudo que você é." — Christian D. Larson',
+  '"A determinação é o que transforma o sonho em realidade."',
+  '"O todo é mais do que a soma das partes." — Aristóteles',
+  '"A força de um time está em cada membro. A força de cada membro é o time." — Phil Jackson',
+];
+
 function fmtMoney(value) {
   const amount = Number(value || 0);
   return amount.toLocaleString('pt-BR', {
@@ -56,6 +79,7 @@ export default function TvWall() {
   const loopScrollRef = useRef(null);
   const contractsScrollRef = useRef(null);
   const seenSalesRef = useRef(new Set());
+  const [tickerIdx, setTickerIdx] = useState(0);
   const isFirstLoadRef = useRef(true);
 
   useEffect(() => {
@@ -89,9 +113,32 @@ export default function TvWall() {
   }, []);
 
   const warnings = useMemo(() => data?.warnings || [], [data]);
-  const tickerText =
-    (data?.ticker_message || '').trim() ||
-    'Intermidia ao vivo: acompanhe contratos, auditoria de loop, ranking de vendas e recados da operação em tempo real.';
+
+  // Build rotating ticker messages: last sale info + motivational phrases
+  const tickerMessages = useMemo(() => {
+    const msgs = [];
+    const activities = data?.recent_activity || [];
+    const lastSale = activities.find((a) => a.type === 'venda');
+    if (lastSale) {
+      msgs.push(`🏆 Última venda: dia ${lastSale.data_ref} para o cliente ${lastSale.cliente} pelo vendedor ${lastSale.vendedor}`);
+    }
+    // Add shuffled motivational phrases
+    const shuffled = [...FRASES_MOTIVACIONAIS].sort(() => Math.random() - 0.5);
+    msgs.push(...shuffled);
+    return msgs.length ? msgs : ['Intermidia ao vivo: acompanhe contratos, auditoria de loop, ranking de vendas e recados da operação em tempo real.'];
+  }, [data?.recent_activity]);
+
+  // Rotate ticker message every 12 seconds
+  useEffect(() => {
+    if (tickerMessages.length <= 1) return;
+    const timer = setInterval(() => {
+      setTickerIdx((prev) => (prev + 1) % tickerMessages.length);
+    }, 12000);
+    return () => clearInterval(timer);
+  }, [tickerMessages.length]);
+
+  const currentTickerText = tickerMessages[tickerIdx % tickerMessages.length] || tickerMessages[0];
+
   const loop = data?.loop || {};
   const contracts = data?.contracts || { items: [] };
   const ranking = data?.ranking || [];
@@ -743,17 +790,20 @@ export default function TvWall() {
           color: #7e3a1f;
           font-size: 15px;
           font-weight: 800;
+          padding: 12px 16px;
+          position: relative;
         }
 
-        .tv-ticker-track {
+        .tv-ticker-msg {
           display: inline-block;
-          padding: 12px 0 12px 100%;
-          animation: ticker-move 34s linear infinite;
+          animation: ticker-fade 12s ease-in-out infinite;
         }
 
-        @keyframes ticker-move {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-100%); }
+        @keyframes ticker-fade {
+          0% { opacity: 0; transform: translateY(6px); }
+          8% { opacity: 1; transform: translateY(0); }
+          88% { opacity: 1; transform: translateY(0); }
+          100% { opacity: 0; transform: translateY(-6px); }
         }
 
         .tv-alert {
@@ -1151,7 +1201,7 @@ export default function TvWall() {
               <Newspaper size={16} strokeWidth={2.8} /> Flash Intermidia
             </div>
             <div className="tv-ticker">
-              <div className="tv-ticker-track">{tickerText} • {tickerText} • {tickerText}</div>
+              <div className="tv-ticker-msg" key={tickerIdx}>{currentTickerText}</div>
             </div>
           </div>
         </footer>
