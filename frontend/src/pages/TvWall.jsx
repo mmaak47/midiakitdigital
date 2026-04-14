@@ -189,15 +189,12 @@ export default function TvWall() {
   }, []);
 
   useEffect(() => {
-    const element = loopScrollRef.current;
-    if (!element) return undefined;
-
-    element.scrollTop = 0;
-    if (element.scrollHeight <= element.clientHeight + 6) return undefined;
-
-    let pauseUntil = Date.now() + 1600;
+    let pauseUntil = Date.now() + 2000;
     const timer = setInterval(() => {
+      const element = loopScrollRef.current;
+      if (!element) return;
       const maxScroll = element.scrollHeight - element.clientHeight;
+      if (maxScroll <= 6) return;
       if (Date.now() < pauseUntil) return;
 
       const nextTop = element.scrollTop + 1;
@@ -206,23 +203,18 @@ export default function TvWall() {
         pauseUntil = Date.now() + 1800;
         return;
       }
-
       element.scrollTop = nextTop;
     }, 45);
-
     return () => clearInterval(timer);
-  }, [loop.itensCriticos]);
+  }, []);
 
   useEffect(() => {
-    const element = contractsScrollRef.current;
-    if (!element) return undefined;
-
-    element.scrollTop = 0;
-    if (element.scrollHeight <= element.clientHeight + 6) return undefined;
-
-    let pauseUntil = Date.now() + 1600;
+    let pauseUntil = Date.now() + 2000;
     const timer = setInterval(() => {
+      const element = contractsScrollRef.current;
+      if (!element) return;
       const maxScroll = element.scrollHeight - element.clientHeight;
+      if (maxScroll <= 6) return;
       if (Date.now() < pauseUntil) return;
 
       const nextTop = element.scrollTop + 1;
@@ -231,12 +223,10 @@ export default function TvWall() {
         pauseUntil = Date.now() + 1800;
         return;
       }
-
       element.scrollTop = nextTop;
     }, 45);
-
     return () => clearInterval(timer);
-  }, [contracts.items]);
+  }, []);
 
   return (
     <div className="tv-wall min-h-screen h-screen w-screen overflow-hidden text-slate-900">
