@@ -16,6 +16,9 @@ const PDF_BROWSER_RECYCLE_EVERY = Math.max(1, Number(process.env.PDF_BROWSER_REC
 const PDF_FONT_READY_TIMEOUT_MS = Math.max(500, Number(process.env.PDF_FONT_READY_TIMEOUT_MS || 4000));
 const PDF_IMAGE_WAIT_TIMEOUT_MS = Math.max(1000, Number(process.env.PDF_IMAGE_WAIT_TIMEOUT_MS || 7000));
 const PDF_LAYOUT_SETTLE_MS = Math.max(0, Number(process.env.PDF_LAYOUT_SETTLE_MS || 120));
+const PDF_COMPRESS_TIMEOUT_MS = Math.max(5000, Number(process.env.PDF_COMPRESS_TIMEOUT_MS || 45000));
+const PDF_COMPRESS_SKIP_OVER_MB = Math.max(1, Number(process.env.PDF_COMPRESS_SKIP_OVER_MB || 10));
+const PDF_DISABLE_GS_COMPRESSION = String(process.env.PDF_DISABLE_GS_COMPRESSION || '').toLowerCase() === 'true';
 const ALLOWED_HOSTS = new Set(
   String(process.env.PDF_ALLOWED_HOSTS || 'localhost,127.0.0.1,REDACTED_VPS_IP,midiakit.redeintermidia.com,www.midiakit.redeintermidia.com')
     .split(',')
@@ -303,6 +306,18 @@ function isGsAvailable() {
 }
 
 async function comprimirPdfComGs(inputBuffer) {
+  if (PDF_DISABLE_GS_COMPRESSION) {
+    return inputBuffer;
+  }
+
+  const sizeMb = inputBuffer.length / 1024 / 1024;
+  if (sizeMb > PDF_COMPRESS_SKIP_OVER_MB) {
+    console.log(
+      `[pdf/compress] Skipping Ghostscript for large PDF (${sizeMb.toFixed(1)} MB > ${PDF_COMPRESS_SKIP_OVER_MB} MB).`
+    );
+    return inputBuffer;
+  }
+
   if (!isGsAvailable()) return inputBuffer;
 
   const tmpIn  = path.join(os.tmpdir(), `pdf-in-${Date.now()}.pdf`);
@@ -323,7 +338,7 @@ async function comprimirPdfComGs(inputBuffer) {
         '-dCompressFonts=true',
         `-sOutputFile=${tmpOut}`,
         tmpIn,
-      ], { timeout: 120_000 }, (err) => {
+      ], { timeout: PDF_COMPRESS_TIMEOUT_MS }, (err) => {
         if (err) reject(err); else resolve();
       });
     });
