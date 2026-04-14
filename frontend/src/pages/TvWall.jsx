@@ -3,9 +3,11 @@ import {
   Activity,
   CalendarClock,
   FileWarning,
+  ListOrdered,
   Newspaper,
   Radio,
   StickyNote,
+  Target,
   TrendingUp,
 } from 'lucide-react';
 
@@ -93,6 +95,8 @@ export default function TvWall() {
   const loop = data?.loop || {};
   const contracts = data?.contracts || { items: [] };
   const ranking = data?.ranking || [];
+  const goals = data?.goals || {};
+  const recentActivity = data?.recent_activity || [];
   const postits = data?.postits || [];
 
   useEffect(() => {
@@ -251,13 +255,14 @@ export default function TvWall() {
           grid-template-rows: 1fr 1fr;
           grid-template-areas:
             "loop contracts ranking"
-            "postits contracts ranking";
+            "postits contracts insights";
           gap: 12px;
         }
 
         .ga-loop { grid-area: loop; }
         .ga-contracts { grid-area: contracts; }
         .ga-ranking { grid-area: ranking; }
+        .ga-insights { grid-area: insights; }
         .ga-postits { grid-area: postits; }
 
         .tv-card {
@@ -505,6 +510,88 @@ export default function TvWall() {
           white-space: nowrap;
         }
 
+        .tv-goals-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+
+        .tv-goal {
+          border: 1px solid var(--line);
+          border-radius: 14px;
+          background: #fff;
+          padding: 10px;
+        }
+
+        .tv-goal-title {
+          font-size: 10px;
+          color: var(--muted);
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+          margin-bottom: 6px;
+        }
+
+        .tv-goal-main {
+          font-size: 14px;
+          font-weight: 800;
+          color: var(--text);
+          line-height: 1.2;
+        }
+
+        .tv-goal-meta {
+          margin-top: 4px;
+          font-size: 11px;
+          color: var(--muted);
+        }
+
+        .tv-activity-title {
+          font-size: 11px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.14em;
+          color: var(--muted);
+          margin: 2px 0 8px;
+        }
+
+        .tv-activity-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 10px;
+          padding: 10px;
+          border-radius: 14px;
+          background: #fff;
+          border: 1px solid var(--line);
+        }
+
+        .tv-activity-name {
+          font-size: 13px;
+          font-weight: 800;
+          color: var(--text);
+          line-height: 1.15;
+        }
+
+        .tv-activity-sub {
+          margin-top: 4px;
+          font-size: 11px;
+          color: var(--muted);
+        }
+
+        .tv-activity-value {
+          text-align: right;
+          font-size: 12px;
+          font-weight: 800;
+          color: var(--ok);
+          white-space: nowrap;
+        }
+
+        .tv-activity-date {
+          margin-top: 3px;
+          font-size: 10px;
+          color: var(--muted);
+        }
+
         .tv-postit-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -652,11 +739,12 @@ export default function TvWall() {
 
           .tv-grid {
             grid-template-columns: 1fr 1fr;
-            grid-template-rows: auto auto auto;
+            grid-template-rows: auto auto auto auto;
             grid-template-areas:
               "loop loop"
               "postits postits"
-              "contracts ranking";
+              "contracts ranking"
+              "insights insights";
           }
         }
       `}</style>
@@ -824,6 +912,52 @@ export default function TvWall() {
                 ))}
 
                 {!ranking.length && <div className="tv-empty">Nenhuma venda registrada no mês atual.</div>}
+              </div>
+            </div>
+          </article>
+
+          <article className="tv-card ga-insights">
+            <div className="tv-card-head">
+              <h2 className="tv-card-title">
+                <Target size={20} strokeWidth={2.6} /> Metas e Últimas Vendas
+              </h2>
+              <div className="tv-pill">Gestão Comercial</div>
+            </div>
+
+            <div className="tv-goals-grid">
+              <div className="tv-goal">
+                <div className="tv-goal-title">Meta Mensal</div>
+                <div className="tv-goal-main">{fmtMoney(goals.meta_mensal || 0)}</div>
+                <div className="tv-goal-meta">Realizado: {fmtMoney(goals.realizado_mensal || 0)} • {Number(goals.pct_mensal || 0)}%</div>
+              </div>
+              <div className="tv-goal">
+                <div className="tv-goal-title">Meta Recorrência</div>
+                <div className="tv-goal-main">{fmtMoney(goals.meta_recorrencia || 0)}</div>
+                <div className="tv-goal-meta">Realizado: {fmtMoney(goals.realizado_recorrencia || 0)} • {Number(goals.pct_recorrencia || 0)}%</div>
+              </div>
+            </div>
+
+            <div className="tv-activity-title">
+              <ListOrdered size={14} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: 6 }} />
+              Últimas 5 vendas/renovações
+            </div>
+
+            <div className="tv-scroll">
+              <div className="tv-list">
+                {recentActivity.map((item, idx) => (
+                  <div className="tv-activity-item" key={`${item.type}-${item.cliente}-${idx}`}>
+                    <div>
+                      <div className="tv-activity-name">{item.cliente}</div>
+                      <div className="tv-activity-sub">{item.status} • {item.vendedor}</div>
+                    </div>
+                    <div className="tv-activity-value">
+                      {fmtMoney(item.valor_total || item.valor_mensal || 0)}
+                      <div className="tv-activity-date">{item.data_ref || '--/--'}</div>
+                    </div>
+                  </div>
+                ))}
+
+                {!recentActivity.length && <div className="tv-empty">Nenhuma venda/renovação recente para mostrar.</div>}
               </div>
             </div>
           </article>

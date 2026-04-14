@@ -1722,6 +1722,130 @@ function getMonthlyVendorRanking() {
     }));
 }
 
+function parseFlexibleDateToTimestamp(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return 0;
+
+  const parsed = Date.parse(raw);
+  if (Number.isFinite(parsed)) return parsed;
+
+  const ddmmyyyy = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
+  if (ddmmyyyy) {
+    const day = Number(ddmmyyyy[1]);
+    const month = Number(ddmmyyyy[2]) - 1;
+    const year = Number(ddmmyyyy[3]);
+    const hour = Number(ddmmyyyy[4] || 0);
+    const minute = Number(ddmmyyyy[5] || 0);
+    const dt = new Date(year, month, day, hour, minute, 0);
+    const ts = dt.getTime();
+    return Number.isFinite(ts) ? ts : 0;
+  }
+
+  return 0;
+}
+
+function formatTvShortDate(value) {
+  const ts = parseFlexibleDateToTimestamp(value);
+  if (!ts) return '--/--';
+  return new Date(ts).toLocaleDateString('pt-BR');
+}
+
+function getTvGoalsSnapshot() {
+  const now = new Date();
+  const ano = now.getFullYear();
+  const mes = now.getMonth() + 1;
+
+  const metaRow = db.prepare(`
+    SELECT valor_meta, valor_meta_recorrencia
+    FROM metas_vendedor
+    WHERE vendedor_nome = '__GLOBAL__' AND ano = ? AND mes = ?
+    LIMIT 1
+  `).get(ano, mes) || {};
+
+  const realizedRow = db.prepare(`
+    SELECT
+      COALESCE(SUM(valor_mensal), 0) AS realizado_mensal,
+      COALESCE(SUM(total_contrato), 0) AS realizado_recorrencia,
+      COUNT(*) AS vendas
+    FROM vendas_comercial
+    WHERE ano = ?
+      AND mes = ?
+      AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
+  `).get(ano, mes) || {};
+
+  const metaMensal = Number(metaRow.valor_meta || 0);
+  const metaRecorrencia = Number(metaRow.valor_meta_recorrencia || 0);
+  const realizadoMensal = Number(realizedRow.realizado_mensal || 0);
+  const realizadoRecorrencia = Number(realizedRow.realizado_recorrencia || 0);
+
+  return {
+    ano,
+    mes,
+    meta_mensal: metaMensal,
+    meta_recorrencia: metaRecorrencia,
+    realizado_mensal: realizadoMensal,
+    realizado_recorrencia: realizadoRecorrencia,
+    vendas: Number(realizedRow.vendas || 0),
+    pct_mensal: metaMensal > 0 ? Math.round((realizadoMensal / metaMensal) * 100) : 0,
+    pct_recorrencia: metaRecorrencia > 0 ? Math.round((realizadoRecorrencia / metaRecorrencia) * 100) : 0,
+  };
+}
+
+function getTvRecentActivity(limit = 5) {
+  const max = Math.max(1, Math.min(20, Number(limit) || 5));
+
+  const salesRows = db.prepare(`
+    SELECT vendedor_nome, cliente, valor_mensal, total_contrato, data_venda, created_at
+    FROM vendas_comercial
+    WHERE UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
+    ORDER BY created_at DESC
+    LIMIT 40
+  `).all();
+
+  const renewalRows = db.prepare(`
+    SELECT cliente, vendedor_nome, valor_mensal, status, updated_at, created_at
+    FROM renovacoes
+    ORDER BY COALESCE(updated_at, created_at) DESC
+    LIMIT 40
+  `).all();
+
+  const entries = [];
+
+  for (const row of salesRows) {
+    const dateRef = row.data_venda || row.created_at;
+    entries.push({
+      type: 'venda',
+      cliente: row.cliente || 'Cliente',
+      vendedor: row.vendedor_nome || 'Sem vendedor',
+      valor_mensal: Number(row.valor_mensal || 0),
+      valor_total: Number(row.total_contrato || row.valor_mensal || 0),
+      status: 'Venda',
+      data_ref: formatTvShortDate(dateRef),
+      _ts: parseFlexibleDateToTimestamp(dateRef),
+    });
+  }
+
+  for (const row of renewalRows) {
+    const dateRef = row.updated_at || row.created_at;
+    const status = String(row.status || 'pendente').toLowerCase();
+    entries.push({
+      type: 'renovacao',
+      cliente: row.cliente || 'Cliente',
+      vendedor: row.vendedor_nome || 'Sem vendedor',
+      valor_mensal: Number(row.valor_mensal || 0),
+      valor_total: Number(row.valor_mensal || 0),
+      status: status === 'concluida' ? 'Renovação concluída' : 'Renovação pendente',
+      data_ref: formatTvShortDate(dateRef),
+      _ts: parseFlexibleDateToTimestamp(dateRef),
+    });
+  }
+
+  return entries
+    .sort((a, b) => b._ts - a._ts)
+    .slice(0, max)
+    .map(({ _ts, ...item }) => item);
+}
+
 function getLatestTvPostits(limit = 10) {
   const max = Math.max(1, Math.min(50, Number(limit) || 10));
   return db.prepare(`
@@ -1978,6 +2102,8 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
     const expiring15 = contractsData.items.filter((c) => Number(c.daysRemaining) <= 15 && Number(c.daysRemaining) > 5).length;
 
     const ranking = getMonthlyVendorRanking();
+    const goals = getTvGoalsSnapshot();
+    const recentActivity = getTvRecentActivity(5);
     const tickerMessage = getAppSetting('tv_ticker_message', 'Painel Intermidia: acompanhe contratos, auditoria de loop e ranking de vendas em tempo real.');
     const postits = getLatestTvPostits(12);
 
@@ -1993,6 +2119,8 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
           .slice(0, 14)
       },
       ranking,
+      goals,
+      recent_activity: recentActivity,
       ticker_message: tickerMessage,
       postits,
       warnings
