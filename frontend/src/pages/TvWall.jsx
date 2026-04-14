@@ -1010,7 +1010,7 @@ export default function TvWall() {
           </div>
 
           {(() => {
-            const lotados = (loop.itensCriticos || []).filter(i => i.pct_ocupado >= 100);
+            const lotados = loop.lotadosItems || [];
             if (!lotados.length) return <div />;
             return (
               <div className="tv-lotados">

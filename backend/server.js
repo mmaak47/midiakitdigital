@@ -2126,6 +2126,7 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
         offline: grouped.filter((m) => m.status !== 'online').length,
         lotados: grouped.filter((m) => m.pct_ocupado >= 100).length,
         totalCotasLivres: grouped.reduce((sum, m) => sum + (m.cotas_livres || 0), 0),
+        lotadosItems: grouped.filter((m) => m.pct_ocupado >= 100),
         itensCriticos: grouped
           .sort((a, b) => b.cotas_livres - a.cotas_livres || a.pct_ocupado - b.pct_ocupado)
           .slice(0, 30)
