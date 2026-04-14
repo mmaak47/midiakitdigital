@@ -210,6 +210,7 @@ async function renderHtmlToPdf(htmlContent) {
       }
 
       await page.setContent(htmlReady, { waitUntil: 'domcontentloaded', timeout: 120000 });
+      console.log(`[pdf/render] setContent done (${(htmlReady.length / 1024).toFixed(0)} KB)`);
 
       // Wait for fonts when available, but do not fail PDF generation if this step hangs.
       try {
@@ -252,6 +253,7 @@ async function renderHtmlToPdf(htmlContent) {
       if (PDF_LAYOUT_SETTLE_MS > 0) {
         await new Promise((resolve) => setTimeout(resolve, PDF_LAYOUT_SETTLE_MS));
       }
+      console.log(`[pdf/render] pre-pdf step reached, generating PDF buffer...`);
 
       const pdfBuffer = await page.pdf({
         printBackground: true,
@@ -286,7 +288,7 @@ async function renderHtmlToPdf(htmlContent) {
       const message = String(err?.message || err);
       const isTransient =
         err?.code === 'PDF_RENDER_TIMEOUT'
-        || /Target closed|Protocol error|Session closed|Connection closed|Page crashed/i.test(message);
+        || /Target closed|Protocol error|Session closed|Connection closed|Page crashed|Execution context/i.test(message);
 
       if (!isTransient) throw err;
 
