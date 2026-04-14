@@ -1,16 +1,29 @@
-﻿import { useEffect, useMemo, useState } from 'react';
-import { Activity, BadgeDollarSign, FileWarning, Newspaper, StickyNote, Tv, CalendarClock, TrendingUp } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  BadgeDollarSign,
+  CalendarClock,
+  FileWarning,
+  Newspaper,
+  Radio,
+  StickyNote,
+  TrendingUp,
+} from 'lucide-react';
 
 const POLL_MS = 15000;
 
 function fmtMoney(value) {
-  const num = Number(value || 0);
-  return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+  const amount = Number(value || 0);
+  return amount.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  });
 }
 
-function fmtDateTime(iso) {
-  const d = new Date(iso || Date.now());
-  return d.toLocaleString('pt-BR', { hour12: false });
+function fmtDateTime(value) {
+  const date = new Date(value || Date.now());
+  return date.toLocaleString('pt-BR', { hour12: false });
 }
 
 function statusTone(pct) {
@@ -20,13 +33,11 @@ function statusTone(pct) {
   return 'low';
 }
 
-function toneColors(tone) {
-  switch(tone) {
-    case 'critical': return 'border-red-500 text-red-500 bg-red-500/10';
-    case 'high': return 'border-orange-500 text-orange-500 bg-orange-500/10';
-    case 'medium': return 'border-yellow-500 text-yellow-500 bg-yellow-500/10';
-    default: return 'border-emerald-500 text-emerald-400 bg-emerald-500/10';
-  }
+function toneClass(tone) {
+  if (tone === 'critical') return 'is-critical';
+  if (tone === 'high') return 'is-high';
+  if (tone === 'medium') return 'is-medium';
+  return 'is-low';
 }
 
 export default function TvWall() {
@@ -39,253 +50,875 @@ export default function TvWall() {
 
     async function load() {
       try {
-        const res = await fetch('/api/tv/dashboard', { credentials: 'include' });
-        if (!res.ok) throw new Error(\HTTP \\);
-        const json = await res.json();
+        const response = await fetch('/api/tv/dashboard', { credentials: 'include' });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
         if (!alive) return;
-        setData(json);
-        setUpdatedAt(fmtDateTime(json.generated_at));
+
+        setData(payload);
+        setUpdatedAt(fmtDateTime(payload.generated_at));
         setError('');
       } catch (err) {
         if (!alive) return;
-        setError(err.message || 'Falha ao atualizar painel');
+        setError(err?.message || 'Falha ao atualizar painel');
       }
     }
 
     load();
-    const id = setInterval(load, POLL_MS);
+    const intervalId = setInterval(load, POLL_MS);
+
     return () => {
       alive = false;
-      clearInterval(id);
+      clearInterval(intervalId);
     };
   }, []);
 
   const warnings = useMemo(() => data?.warnings || [], [data]);
-  const tickerText = (data?.ticker_message || '').trim() || 'Painel Intermidia ao vivo. Configure o texto no CRM.';
+  const tickerText =
+    (data?.ticker_message || '').trim() ||
+    'Intermidia ao vivo: acompanhe contratos, auditoria de loop, ranking de vendas e recados da operação em tempo real.';
   const loop = data?.loop || {};
   const contracts = data?.contracts || { items: [] };
   const ranking = data?.ranking || [];
   const postits = data?.postits || [];
 
   return (
-    <div className="relative min-h-screen h-screen w-screen overflow-hidden bg-[#0A0A0A] text-slate-100 font-sans">
-      {/* Background Elements */}
-      <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-[#FE5C2B]/10 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1/3 h-1/3 bg-blue-500/5 rounded-full blur-[150px] pointer-events-none"></div>
-      <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] bg-[#FE5C2B]/5 rounded-full blur-[120px] pointer-events-none"></div>
+    <div className="tv-wall min-h-screen h-screen w-screen overflow-hidden text-white">
+      <style>{`
+        .tv-wall {
+          --bg: #05070b;
+          --bg-soft: #0b1018;
+          --panel: rgba(9, 15, 24, 0.76);
+          --panel-strong: rgba(13, 19, 31, 0.92);
+          --panel-border: rgba(255, 255, 255, 0.1);
+          --brand: #fe5c2b;
+          --brand-2: #ff7d45;
+          --text-soft: #95a0b5;
+          --line: rgba(255, 255, 255, 0.08);
+          --ok: #21c98a;
+          --warn: #ffb11f;
+          --danger: #ff5656;
+          background:
+            radial-gradient(circle at 12% 18%, rgba(254, 92, 43, 0.28), transparent 24%),
+            radial-gradient(circle at 88% 16%, rgba(254, 92, 43, 0.14), transparent 20%),
+            radial-gradient(circle at 50% 120%, rgba(33, 201, 138, 0.1), transparent 26%),
+            linear-gradient(180deg, #071018 0%, var(--bg) 100%);
+          font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        }
 
-      <style>{\
-        .tv-grid {
+        .tv-noise {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          opacity: 0.12;
+          background-image:
+            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+          background-size: 24px 24px;
+          mask-image: radial-gradient(circle at center, black 45%, transparent 100%);
+        }
+
+        .tv-shell {
+          position: relative;
+          z-index: 1;
           display: grid;
-          grid-template-columns: 1.15fr 1fr 1fr;
-          grid-template-rows: 1fr 1.05fr;
+          grid-template-rows: auto 1fr auto;
+          height: 100%;
+          gap: 14px;
+          padding: 12px;
+        }
+
+        .tv-header {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 18px;
+          padding: 18px 22px;
+          border-radius: 22px;
+          background: linear-gradient(180deg, rgba(12, 20, 31, 0.84), rgba(8, 13, 21, 0.94));
+          border: 1px solid rgba(254, 92, 43, 0.2);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.04),
+            0 24px 60px rgba(0, 0, 0, 0.35);
+          backdrop-filter: blur(18px);
+        }
+
+        .tv-brandline {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .tv-brandbadge {
+          width: 54px;
+          height: 54px;
+          display: grid;
+          place-items: center;
+          border-radius: 16px;
+          color: #111;
+          background: linear-gradient(135deg, var(--brand), var(--brand-2));
+          box-shadow: 0 14px 30px rgba(254, 92, 43, 0.35);
+        }
+
+        .tv-kicker {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 11px;
+          line-height: 1;
+          text-transform: uppercase;
+          letter-spacing: 0.28em;
+          color: rgba(255, 255, 255, 0.55);
+          margin-bottom: 8px;
+        }
+
+        .tv-title {
+          font-size: clamp(28px, 2.2vw, 40px);
+          line-height: 1;
+          font-weight: 900;
+          letter-spacing: -0.04em;
+          margin: 0;
+        }
+
+        .tv-title-accent {
+          color: var(--brand);
+          text-shadow: 0 0 24px rgba(254, 92, 43, 0.2);
+        }
+
+        .tv-subtitle {
+          margin-top: 8px;
+          font-size: 14px;
+          color: var(--text-soft);
+          max-width: 760px;
+        }
+
+        .tv-status {
+          min-width: 250px;
+          padding: 14px 16px;
+          border-radius: 18px;
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: flex-end;
+          gap: 6px;
+        }
+
+        .tv-status-label {
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.22em;
+          color: rgba(255, 255, 255, 0.56);
+        }
+
+        .tv-status-value {
+          font-size: clamp(22px, 1.6vw, 28px);
+          font-weight: 900;
+          color: #fff;
+        }
+
+        .tv-status-note {
+          font-size: 12px;
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .tv-grid {
+          min-height: 0;
+          display: grid;
+          grid-template-columns: 1.18fr 1fr 1fr;
+          grid-template-rows: 1fr 1fr;
           grid-template-areas:
             "loop contracts ranking"
             "loop postits ranking";
-          gap: 1.5rem;
-          height: 100%;
-          min-height: 0;
+          gap: 14px;
         }
+
         .ga-loop { grid-area: loop; }
         .ga-contracts { grid-area: contracts; }
         .ga-ranking { grid-area: ranking; }
         .ga-postits { grid-area: postits; }
 
-        .hide-scroll::-webkit-scrollbar { width: 4px; }
-        .hide-scroll::-webkit-scrollbar-track { background: transparent; }
-        .hide-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+        .tv-card {
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          padding: 16px;
+          border-radius: 22px;
+          background:
+            linear-gradient(180deg, rgba(12, 18, 28, 0.92), rgba(8, 12, 20, 0.82));
+          border: 1px solid var(--panel-border);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.04),
+            0 18px 44px rgba(0, 0, 0, 0.28);
+          backdrop-filter: blur(18px);
+          overflow: hidden;
+        }
+
+        .tv-card-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 14px;
+        }
+
+        .tv-card-title {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin: 0;
+          font-size: clamp(20px, 1.35vw, 28px);
+          font-weight: 800;
+          letter-spacing: -0.03em;
+        }
+
+        .tv-card-title svg {
+          color: var(--brand);
+        }
+
+        .tv-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 7px 10px;
+          border-radius: 999px;
+          background: rgba(254, 92, 43, 0.12);
+          color: #ffd2c2;
+          font-size: 11px;
+          line-height: 1;
+          text-transform: uppercase;
+          letter-spacing: 0.18em;
+          border: 1px solid rgba(254, 92, 43, 0.18);
+        }
+
+        .tv-kpi-grid {
+          display: grid;
+          gap: 10px;
+          margin-bottom: 14px;
+        }
+
+        .tv-kpi-grid.loop {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .tv-kpi-grid.contracts {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .tv-kpi {
+          position: relative;
+          overflow: hidden;
+          padding: 14px 14px 12px;
+          border-radius: 18px;
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025));
+          border: 1px solid var(--line);
+        }
+
+        .tv-kpi::after {
+          content: "";
+          position: absolute;
+          inset: auto -16px -26px auto;
+          width: 92px;
+          height: 92px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.03);
+        }
+
+        .tv-kpi-value {
+          position: relative;
+          z-index: 1;
+          font-size: clamp(28px, 2vw, 40px);
+          line-height: 1;
+          font-weight: 900;
+          letter-spacing: -0.05em;
+        }
+
+        .tv-kpi-label {
+          position: relative;
+          z-index: 1;
+          margin-top: 7px;
+          font-size: 11px;
+          color: var(--text-soft);
+          text-transform: uppercase;
+          letter-spacing: 0.18em;
+        }
+
+        .tv-kpi.brand .tv-kpi-value { color: var(--brand); }
+        .tv-kpi.success .tv-kpi-value { color: var(--ok); }
+        .tv-kpi.warning .tv-kpi-value { color: var(--warn); }
+        .tv-kpi.danger .tv-kpi-value { color: var(--danger); }
+
+        .tv-scroll {
+          min-height: 0;
+          overflow: auto;
+          padding-right: 4px;
+        }
+
+        .tv-scroll::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        .tv-scroll::-webkit-scrollbar-thumb {
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.12);
+        }
+
+        .tv-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .tv-row {
+          padding: 14px;
+          border-radius: 18px;
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
+          border: 1px solid var(--line);
+        }
+
+        .tv-row.is-critical {
+          border-left: 4px solid var(--danger);
+          box-shadow: inset 0 0 0 1px rgba(255, 86, 86, 0.12);
+        }
+
+        .tv-row.is-high {
+          border-left: 4px solid var(--brand);
+          box-shadow: inset 0 0 0 1px rgba(254, 92, 43, 0.12);
+        }
+
+        .tv-row.is-medium {
+          border-left: 4px solid var(--warn);
+          box-shadow: inset 0 0 0 1px rgba(255, 177, 31, 0.12);
+        }
+
+        .tv-row.is-low {
+          border-left: 4px solid var(--ok);
+          box-shadow: inset 0 0 0 1px rgba(33, 201, 138, 0.12);
+        }
+
+        .tv-row-top {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 14px;
+        }
+
+        .tv-row-title {
+          font-size: 18px;
+          font-weight: 800;
+          line-height: 1.1;
+          margin: 0;
+        }
+
+        .tv-row-meta {
+          margin-top: 6px;
+          color: var(--text-soft);
+          font-size: 13px;
+        }
+
+        .tv-metric {
+          text-align: right;
+          white-space: nowrap;
+        }
+
+        .tv-metric-value {
+          font-size: 22px;
+          line-height: 1;
+          font-weight: 900;
+        }
+
+        .tv-metric-label {
+          margin-top: 5px;
+          color: var(--text-soft);
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.16em;
+        }
+
+        .tv-contract-chip {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 88px;
+          padding: 8px 10px;
+          border-radius: 999px;
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .tv-contract-chip.critical {
+          background: rgba(255, 86, 86, 0.12);
+          color: #ff9f9f;
+        }
+
+        .tv-contract-chip.warning {
+          background: rgba(255, 177, 31, 0.12);
+          color: #ffd57d;
+        }
+
+        .tv-contract-chip.ok {
+          background: rgba(33, 201, 138, 0.12);
+          color: #86efc1;
+        }
+
+        .tv-ranking-item {
+          position: relative;
+          padding: 16px;
+          border-radius: 18px;
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
+          border: 1px solid var(--line);
+        }
+
+        .tv-ranking-item.leader {
+          background: linear-gradient(135deg, rgba(254, 92, 43, 0.16), rgba(255, 177, 31, 0.08));
+          border-color: rgba(254, 92, 43, 0.24);
+        }
+
+        .tv-ranking-badge {
+          position: absolute;
+          top: -8px;
+          right: 14px;
+          padding: 6px 10px;
+          border-radius: 999px;
+          background: linear-gradient(135deg, var(--brand), var(--brand-2));
+          color: #111;
+          font-size: 10px;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.16em;
+        }
+
+        .tv-ranking-line {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: center;
+        }
+
+        .tv-ranking-name {
+          font-size: 18px;
+          font-weight: 800;
+          line-height: 1.1;
+        }
+
+        .tv-ranking-index {
+          color: rgba(255, 255, 255, 0.45);
+          width: 28px;
+          display: inline-block;
+        }
+
+        .tv-ranking-total {
+          color: #9ef2cb;
+          font-size: 19px;
+          font-weight: 900;
+          white-space: nowrap;
+        }
+
+        .tv-ranking-meta {
+          margin-top: 7px;
+          font-size: 13px;
+          color: var(--text-soft);
+        }
+
+        .tv-postit-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .tv-postit {
+          position: relative;
+          min-height: 160px;
+          padding: 18px 16px 16px;
+          border-radius: 18px;
+          color: #fff9f6;
+          background: linear-gradient(160deg, #ff6d38 0%, #fe5c2b 58%, #d74618 100%);
+          box-shadow:
+            0 20px 40px rgba(0, 0, 0, 0.28),
+            0 8px 18px rgba(254, 92, 43, 0.24);
+        }
+
+        .tv-postit:nth-child(2n) {
+          transform: rotate(-1.2deg);
+        }
+
+        .tv-postit:nth-child(2n+1) {
+          transform: rotate(1deg);
+        }
+
+        .tv-postit::before {
+          content: "";
+          position: absolute;
+          top: 10px;
+          left: 50%;
+          width: 44px;
+          height: 10px;
+          transform: translateX(-50%);
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.28);
+        }
+
+        .tv-postit-author {
+          margin-top: 8px;
+          font-size: 11px;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.22em;
+          color: rgba(24, 8, 2, 0.62);
+        }
+
+        .tv-postit-text {
+          margin-top: 12px;
+          font-size: 18px;
+          font-weight: 800;
+          line-height: 1.3;
+          white-space: pre-wrap;
+          color: #fffdfa;
+          text-shadow: 0 1px 1px rgba(0, 0, 0, 0.16);
+        }
+
+        .tv-empty {
+          min-height: 160px;
+          display: grid;
+          place-items: center;
+          text-align: center;
+          padding: 18px;
+          border-radius: 18px;
+          border: 1px dashed rgba(255, 255, 255, 0.12);
+          color: var(--text-soft);
+          background: rgba(255, 255, 255, 0.02);
+        }
+
+        .tv-footer {
+          overflow: hidden;
+          border-radius: 18px;
+          border: 1px solid rgba(254, 92, 43, 0.24);
+          background: linear-gradient(90deg, rgba(254, 92, 43, 0.98), rgba(255, 129, 71, 0.96));
+          box-shadow: 0 18px 34px rgba(254, 92, 43, 0.24);
+        }
+
+        .tv-footer-inner {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          align-items: center;
+        }
+
+        .tv-footer-label {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          padding: 14px 18px;
+          font-size: 12px;
+          font-weight: 900;
+          color: #151515;
+          text-transform: uppercase;
+          letter-spacing: 0.22em;
+          background: rgba(0, 0, 0, 0.08);
+        }
+
+        .tv-ticker {
+          min-width: 0;
+          overflow: hidden;
+          white-space: nowrap;
+          color: #1d110c;
+          font-size: clamp(16px, 1.1vw, 20px);
+          font-weight: 800;
+        }
 
         .tv-ticker-track {
           display: inline-block;
-          padding-left: 100%;
-          animation: ticker-move 35s linear infinite;
+          padding: 14px 0 14px 100%;
+          animation: ticker-move 34s linear infinite;
         }
+
         @keyframes ticker-move {
           0% { transform: translateX(0); }
           100% { transform: translateX(-100%); }
         }
+
+        .tv-alert {
+          position: absolute;
+          right: 16px;
+          top: 16px;
+          z-index: 3;
+          max-width: 34vw;
+          padding: 12px 14px;
+          border-radius: 16px;
+          background: rgba(86, 12, 18, 0.94);
+          color: #ffd7db;
+          border: 1px solid rgba(255, 86, 86, 0.2);
+          box-shadow: 0 16px 28px rgba(0, 0, 0, 0.3);
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .tv-alert-line + .tv-alert-line {
+          margin-top: 6px;
+        }
+
+        @media (max-width: 1360px) {
+          .tv-title {
+            font-size: 28px;
+          }
+
+          .tv-row-title,
+          .tv-ranking-name,
+          .tv-postit-text {
+            font-size: 16px;
+          }
+        }
+
         @media (max-aspect-ratio: 1/1) {
+          .tv-shell {
+            height: auto;
+            min-height: 100%;
+          }
+
+          .tv-header {
+            grid-template-columns: 1fr;
+          }
+
+          .tv-status {
+            align-items: flex-start;
+          }
+
           .tv-grid {
             grid-template-columns: 1fr 1fr;
-            grid-template-rows: auto auto 1fr;
+            grid-template-rows: auto auto auto;
             grid-template-areas:
               "loop loop"
               "contracts ranking"
-              "postits ranking";
+              "postits postits";
+          }
+
+          .tv-postit-grid {
+            grid-template-columns: 1fr;
           }
         }
-      \}</style>
+      `}</style>
 
-      <div className="relative z-10 flex flex-col h-full p-4 md:p-6 gap-4">
-        {/* HEADER */}
-        <header className="flex items-center justify-between bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl px-6 py-4 shadow-xl shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="bg-[#FE5C2B] text-black p-3 rounded-xl">
-              <Tv size={28} className="stroke-[2.5]" />
+      <div className="tv-noise" />
+
+      <div className="tv-shell">
+        <header className="tv-header">
+          <div>
+            <div className="tv-kicker">
+              <Radio size={14} /> Intermidia Live Dashboard
             </div>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white uppercase flex items-center gap-2">
-                Painel <span className="text-[#FE5C2B] drop-shadow-md">Intermidia</span>
-              </h1>
-              <div className="text-sm text-slate-400 font-medium tracking-wide">
-                OPERAÇÃO TÁTICA E COMERCIAL • AO VIVO
+
+            <div className="tv-brandline">
+              <div className="tv-brandbadge">
+                <BadgeDollarSign size={28} strokeWidth={2.6} />
+              </div>
+
+              <div>
+                <h1 className="tv-title">
+                  Painel <span className="tv-title-accent">Intermidia</span>
+                </h1>
+                <div className="tv-subtitle">
+                  Contratos, auditoria de loop, performance comercial e recados da operação em uma tela com identidade visual da marca.
+                </div>
               </div>
             </div>
           </div>
-          <div className="text-right flex flex-col justify-center">
-            <div className="text-xs text-slate-400 font-semibold tracking-wider uppercase mb-1">Última Atualização</div>
-            <div className="text-lg font-bold text-[#FE5C2B] bg-white/5 px-4 py-1.5 rounded-lg tabular-nums shadow-inner border border-white/5">
-              {updatedAt || '--/--/---- --:--:--'}
-            </div>
+
+          <div className="tv-status">
+            <div className="tv-status-label">Última atualização</div>
+            <div className="tv-status-value">{updatedAt || '--/--/---- --:--:--'}</div>
+            <div className="tv-status-note">Atualização automática a cada 15 segundos</div>
           </div>
         </header>
 
-        {/* MAIN GRID */}
-        <main className="tv-grid flex-1">
-          {/* LOOPS */}
-          <article className="ga-loop flex flex-col bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden p-5">
-            <h2 className="flex items-center gap-3 text-[#FE5C2B] font-bold text-xl mb-5 uppercase tracking-wide">
-              <Activity size={24} className="stroke-[2.5]" /> Auditoria de Loop
-            </h2>
-            <div className="grid grid-cols-4 gap-3 mb-5 shrink-0">
-              <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-center">
-                <div className="text-2xl 2xl:text-3xl font-black text-white">{loop.total || 0}</div>
-                <div className="text-[10px] 2xl:text-xs text-slate-400 font-bold uppercase mt-1">Locais</div>
-              </div>
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
-                <div className="text-2xl 2xl:text-3xl font-black text-emerald-400">{loop.online || 0}</div>
-                <div className="text-[10px] 2xl:text-xs text-emerald-400/70 font-bold uppercase mt-1">Online</div>
-              </div>
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
-                <div className="text-2xl 2xl:text-3xl font-black text-red-500">{loop.lotados || 0}</div>
-                <div className="text-[10px] 2xl:text-xs text-red-500/70 font-bold uppercase mt-1">Lotados</div>
-              </div>
-              <div className="bg-[#FE5C2B]/10 border border-[#FE5C2B]/20 rounded-xl p-3 text-center">
-                <div className="text-2xl 2xl:text-3xl font-black text-[#FE5C2B]">{loop.totalCotasLivres || 0}</div>
-                <div className="text-[10px] 2xl:text-xs text-[#FE5C2B]/70 font-bold uppercase mt-1">Cotas Livres</div>
-              </div>
+        <section className="tv-grid">
+          <article className="tv-card ga-loop">
+            <div className="tv-card-head">
+              <h2 className="tv-card-title">
+                <Activity size={22} strokeWidth={2.6} /> Auditoria de Loop
+              </h2>
+              <div className="tv-pill">Operação em tempo real</div>
             </div>
-            <div className="flex-1 overflow-y-auto hide-scroll pr-2 flex flex-col gap-3">
-              {(loop.itensCriticos || []).map((item) => {
-                const colors = toneColors(statusTone(item.pct_ocupado));
-                return (
-                  <div key={String(item.id)} className={\lex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 border-l-4 \\}>
-                    <div className="min-w-0 pr-2">
-                      <div className="font-bold text-sm 2xl:text-base text-white truncate">{item.local || item.nome || 'Monitor'}</div>
-                      <div className="text-xs 2xl:text-sm text-slate-400 truncate mt-0.5">{item.cidade || 'Sem cidade'}</div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-lg 2xl:text-xl font-black leading-none">{item.pct_ocupado}%</div>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">ocupado</div>
-                    </div>
-                  </div>
-                );
-              })}
-              {!loop.itensCriticos?.length && <div className="text-slate-400 italic text-sm text-center py-8">Nenhum ponto crítico detectado.</div>}
-            </div>
-          </article>
 
-          {/* CONTRACTS */}
-          <article className="ga-contracts flex flex-col bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden p-5">
-            <h2 className="flex items-center gap-3 text-[#FE5C2B] font-bold text-lg 2xl:text-xl mb-4 uppercase tracking-wide">
-              <CalendarClock size={22} className="stroke-[2.5]" /> Vencimento
-            </h2>
-            <div className="grid grid-cols-3 gap-3 mb-4 shrink-0">
-              <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-center">
-                <div className="text-xl 2xl:text-2xl font-black text-white">{contracts.total || 0}</div>
-                <div className="text-[9px] 2xl:text-[10px] text-slate-400 font-bold uppercase mt-1">Total</div>
+            <div className="tv-kpi-grid loop">
+              <div className="tv-kpi">
+                <div className="tv-kpi-value">{loop.total || 0}</div>
+                <div className="tv-kpi-label">Locais</div>
               </div>
-              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 text-center">
-                <div className="text-xl 2xl:text-2xl font-black text-yellow-500">{contracts.expiring_15d || 0}</div>
-                <div className="text-[9px] 2xl:text-[10px] text-yellow-500/70 font-bold uppercase mt-1">15 Dias</div>
+              <div className="tv-kpi success">
+                <div className="tv-kpi-value">{loop.online || 0}</div>
+                <div className="tv-kpi-label">Online</div>
               </div>
-              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-center">
-                <div className="text-xl 2xl:text-2xl font-black text-red-500">{contracts.expiring_5d || 0}</div>
-                <div className="text-[9px] 2xl:text-[10px] text-red-500/70 font-bold uppercase mt-1">5 Dias</div>
+              <div className="tv-kpi danger">
+                <div className="tv-kpi-value">{loop.lotados || 0}</div>
+                <div className="tv-kpi-label">Lotados</div>
+              </div>
+              <div className="tv-kpi brand">
+                <div className="tv-kpi-value">{loop.totalCotasLivres || 0}</div>
+                <div className="tv-kpi-label">Cotas livres</div>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto hide-scroll pr-2 flex flex-col gap-3">
-              {(contracts.items || []).map((c, idx) => {
-                const isCrit = c.daysRemaining <= 5;
-                const isWarn = c.daysRemaining <= 15;
-                return (
-                  <div key={\\-\-\\} className={\p-3.5 rounded-xl bg-white/5 border border-white/5 border-l-4 \\}>
-                    <div className="font-bold text-sm 2xl:text-base text-white truncate">{c.advertiser}</div>
-                    <div className="flex items-center justify-between mt-1.5">
-                      <div className="text-xs text-slate-400 truncate pr-2">{c.vendorName || 'N/A'}</div>
-                      <div className={\	ext-xs font-black px-2.5 py-1 rounded-md \\}>
-                        {c.daysRemaining} dias
+
+            <div className="tv-scroll">
+              <div className="tv-list">
+                {(loop.itensCriticos || []).map((item) => {
+                  const tone = toneClass(statusTone(item.pct_ocupado));
+
+                  return (
+                    <div key={String(item.id)} className={`tv-row ${tone}`}>
+                      <div className="tv-row-top">
+                        <div>
+                          <div className="tv-row-title">{item.local || item.nome || 'Monitor'}</div>
+                          <div className="tv-row-meta">
+                            {item.cidade || 'Sem cidade'} • {item.insercoes_ativas || 0} inserções ativas
+                          </div>
+                        </div>
+
+                        <div className="tv-metric">
+                          <div className="tv-metric-value">{item.pct_ocupado}%</div>
+                          <div className="tv-metric-label">ocupado</div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-              {!contracts.items?.length && <div className="text-slate-400 italic text-sm text-center py-6">Sem dados de contrato.</div>}
+                  );
+                })}
+
+                {!loop.itensCriticos?.length && (
+                  <div className="tv-empty">Nenhum ponto crítico no momento.</div>
+                )}
+              </div>
             </div>
           </article>
 
-          {/* RANKING */}
-          <article className="ga-ranking flex flex-col bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden p-5">
-            <h2 className="flex items-center gap-3 text-[#FE5C2B] font-bold text-lg 2xl:text-xl mb-4 uppercase tracking-wide">
-              <TrendingUp size={22} className="stroke-[2.5]" /> Top Vendas (Mês)
-            </h2>
-            <div className="flex-1 overflow-y-auto hide-scroll pr-2 flex flex-col gap-3">
-              {ranking.map((r, idx) => (
-                <div key={r.vendedor} className={\elative flex flex-col p-4 rounded-xl border \\}>
-                  {idx === 0 && <div className="absolute top-0 right-4 -translate-y-1/2 bg-amber-500 text-black text-[10px] font-black px-3 py-0.5 rounded-full uppercase shadow-lg">Líder</div>}
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className={\ont-bold text-sm 2xl:text-base truncate flex items-center gap-2 \\}>
-                      <span className="opacity-40 text-xs w-4">{r.posicao}º</span> {r.vendedor}
+          <article className="tv-card ga-contracts">
+            <div className="tv-card-head">
+              <h2 className="tv-card-title">
+                <CalendarClock size={22} strokeWidth={2.6} /> Controle de Contratos
+              </h2>
+              <div className="tv-pill">Renovações e risco</div>
+            </div>
+
+            <div className="tv-kpi-grid contracts">
+              <div className="tv-kpi">
+                <div className="tv-kpi-value">{contracts.total || 0}</div>
+                <div className="tv-kpi-label">Total</div>
+              </div>
+              <div className="tv-kpi warning">
+                <div className="tv-kpi-value">{contracts.expiring_15d || 0}</div>
+                <div className="tv-kpi-label">Vencem em 15d</div>
+              </div>
+              <div className="tv-kpi danger">
+                <div className="tv-kpi-value">{contracts.expiring_5d || 0}</div>
+                <div className="tv-kpi-label">Vencem em 5d</div>
+              </div>
+            </div>
+
+            <div className="tv-scroll">
+              <div className="tv-list">
+                {(contracts.items || []).map((contract, index) => {
+                  const chipClass = contract.daysRemaining <= 5 ? 'critical' : contract.daysRemaining <= 15 ? 'warning' : 'ok';
+                  const rowTone = contract.daysRemaining <= 5 ? 'is-critical' : contract.daysRemaining <= 15 ? 'is-high' : 'is-low';
+
+                  return (
+                    <div
+                      key={`${contract.advertiser}-${contract.expirationDate}-${index}`}
+                      className={`tv-row ${rowTone}`}
+                    >
+                      <div className="tv-row-top">
+                        <div>
+                          <div className="tv-row-title">{contract.advertiser}</div>
+                          <div className="tv-row-meta">
+                            {contract.vendorName || 'Sem vendedor'} • {fmtMoney(contract.value)}
+                          </div>
+                        </div>
+
+                        <div className={`tv-contract-chip ${chipClass}`}>
+                          {contract.daysRemaining} dia(s)
+                        </div>
+                      </div>
                     </div>
-                    <div className="font-black text-sm 2xl:text-base text-emerald-400 tracking-tight">{fmtMoney(r.total)}</div>
-                  </div>
-                  <div className="text-xs text-slate-400">{r.vendas} negócio(s) fechado(s)</div>
-                </div>
-              ))}
-              {!ranking.length && <div className="text-slate-400 italic text-sm text-center py-8">Nenhuma venda faturada no mês.</div>}
+                  );
+                })}
+
+                {!contracts.items?.length && (
+                  <div className="tv-empty">Sem contratos carregados no momento.</div>
+                )}
+              </div>
             </div>
           </article>
 
-          {/* POST-ITS */}
-          <article className="ga-postits flex flex-col bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden p-5">
-            <h2 className="flex items-center gap-3 text-[#FE5C2B] font-bold text-lg 2xl:text-xl mb-4 uppercase tracking-wide">
-              <StickyNote size={22} className="stroke-[2.5]" /> Mural
-            </h2>
-            <div className="flex-1 overflow-y-auto hide-scroll pr-2 flex flex-col gap-4">
-              {postits.map((p) => (
-                <div key={p.id} className="relative p-4 rounded-xl bg-gradient-to-br from-[#FE5C2B] to-[#da4e23] border border-[#ff7b52] text-white shadow-xl shadow-brand-orange/10 rotate-[-1deg]">
-                  <div className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-2 bg-white/20 rounded-full"></div>
-                  <div className="font-black text-[10px] uppercase tracking-widest text-black/60 mb-2 truncate mt-1">
-                    {p.author || 'Equipe'}
+          <article className="tv-card ga-ranking">
+            <div className="tv-card-head">
+              <h2 className="tv-card-title">
+                <TrendingUp size={22} strokeWidth={2.6} /> Ranking de Vendas
+              </h2>
+              <div className="tv-pill">Mês atual</div>
+            </div>
+
+            <div className="tv-scroll">
+              <div className="tv-list">
+                {ranking.map((seller, index) => (
+                  <div
+                    key={`${seller.vendedor}-${seller.posicao}`}
+                    className={`tv-ranking-item ${index === 0 ? 'leader' : ''}`}
+                  >
+                    {index === 0 ? <div className="tv-ranking-badge">Líder</div> : null}
+
+                    <div className="tv-ranking-line">
+                      <div className="tv-ranking-name">
+                        <span className="tv-ranking-index">{seller.posicao}º</span>
+                        {seller.vendedor}
+                      </div>
+                      <div className="tv-ranking-total">{fmtMoney(seller.total)}</div>
+                    </div>
+
+                    <div className="tv-ranking-meta">{seller.vendas} venda(s) no mês</div>
                   </div>
-                  <div className="text-sm 2xl:text-base font-semibold leading-snug whitespace-pre-wrap drop-shadow-sm">
-                    {p.text}
-                  </div>
+                ))}
+
+                {!ranking.length && (
+                  <div className="tv-empty">Nenhuma venda registrada no mês atual.</div>
+                )}
+              </div>
+            </div>
+          </article>
+
+          <article className="tv-card ga-postits">
+            <div className="tv-card-head">
+              <h2 className="tv-card-title">
+                <StickyNote size={22} strokeWidth={2.6} /> Mural do Grupo
+              </h2>
+              <div className="tv-pill">WhatsApp sincronizado</div>
+            </div>
+
+            <div className="tv-scroll">
+              {postits.length ? (
+                <div className="tv-postit-grid">
+                  {postits.map((postit) => (
+                    <div key={postit.id} className="tv-postit">
+                      <div className="tv-postit-author">
+                        {postit.author || 'Equipe'} • {postit.source === 'whatsapp' ? 'WhatsApp' : 'Manual'}
+                      </div>
+                      <div className="tv-postit-text">{postit.text}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {!postits.length && (
-                <div className="flex flex-col items-center justify-center h-full text-center opacity-50 p-4">
-                  <StickyNote size={32} className="mb-3 text-slate-500" />
-                  <div className="text-sm font-medium text-slate-400">Mural limpo.<br/>Fixe mensagens enviando no WhatsApp.</div>
-                </div>
+              ) : (
+                <div className="tv-empty">Nenhum post-it ainda. Envie mensagens no grupo configurado.</div>
               )}
             </div>
           </article>
-        </main>
+        </section>
 
-        {/* TICKER DE NOTÍCIAS */}
-        <footer className="bg-[#FE5C2B] rounded-xl overflow-hidden shrink-0 mt-2 relative z-20 shadow-xl shadow-[#FE5C2B]/20">
-          <div className="flex items-center text-black">
-            <div className="bg-black/10 backdrop-blur-md px-5 py-3 z-10 font-black tracking-widest uppercase flex items-center gap-2 border-r border-black/10">
-              <Newspaper size={20} className="stroke-[2.5]" /> Destaque
+        <footer className="tv-footer">
+          <div className="tv-footer-inner">
+            <div className="tv-footer-label">
+              <Newspaper size={18} strokeWidth={2.8} /> Flash Intermidia
             </div>
-            <div className="flex-1 overflow-hidden">
-              <div className="tv-ticker-track whitespace-nowrap py-3 font-bold text-lg tracking-wide text-black/90">
-                <span>{tickerText}</span>
-                <span className="mx-8 opacity-40">•</span>
-                <span>{tickerText}</span>
-                <span className="mx-8 opacity-40">•</span>
-                <span>{tickerText}</span>
+            <div className="tv-ticker">
+              <div className="tv-ticker-track">
+                {tickerText} • {tickerText} • {tickerText}
               </div>
             </div>
           </div>
@@ -293,696 +926,13 @@ export default function TvWall() {
       </div>
 
       {warnings.length > 0 || error ? (
-        <div className="absolute right-6 top-6 z-50 text-xs font-bold text-red-200 bg-red-950/90 border border-red-500/30 rounded-lg px-4 py-3 shadow-2xl backdrop-blur-md flex items-start gap-3">
-          <FileWarning size={16} className="shrink-0 mt-0.5 text-red-500" />
-          <div>
-            {[...(error ? [\ERRO: \Falha na execução do programa 'python.exe': O nome do arquivo ou a extensão é muito grandeNo linha:1 caractere:1
-+ python -c "import codecs; content='''import { useEffect, useMemo, use ...
-+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~. O termo 'EOF' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:1 caractere:1
-+ }
-+ ~
-Token '}' inesperado na expressão ou instrução.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:3
-+   );
-+   ~
-Token ')' inesperado na expressão ou instrução.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:2 caractere:213
-+ ... y-2 max-w-[30vw] shadow-2xl backdrop-blur-md flex items-start gap-2">
-+                                                                          ~
-')' de fechamento ausente na expressão.
-
-No linha:3 caractere:11
-+           <FileWarning size={14} className="shrink-0 mt-0.5 text-red- ...
-+           ~
-Operador '<' reservado para uso futuro.
-
-No linha:5 caractere:15
-+             {[...(error ? [`ERRO: ${error}`] : []), ...warnings].map( ...
-+               ~
-Nome de tipo ausente depois de '['.
-
-No linha:5 caractere:74
-+ ... [...(error ? [`ERRO: ${error}`] : []), ...warnings].map((msg, i) => < ...
-+                                                                 ~
-Argumento ausente na lista de parâmetros.
-
-No linha:5 caractere:82
-+ ... or ? [`ERRO: ${error}`] : []), ...warnings].map((msg, i) => <div key= ...
-+                                                                 ~
-Operador '<' reservado para uso futuro.
-
-No linha:5 caractere:100
-+ ... ror}`] : []), ...warnings].map((msg, i) => <div key={i}>{msg}</div>)}
-+                                                                  ~
-Operador '<' reservado para uso futuro.
-
-No linha:1 caractere:7
-+       {warnings.length > 0 ; error ? (
-+       ~
-'}' de fechamento ausente no bloco de instrução ou na definição de tipo.
-
-No linha:8 caractere:7
-+       ) : null}
-+       ~
-Token ')' inesperado na expressão ou instrução.
-
-No linha:8 caractere:15
-+       ) : null}
-+               ~
-Token '}' inesperado na expressão ou instrução.
-
-No linha:5 caractere:71
-+ ... ..(error ? [`ERRO: ${error}`] : []), ...warnings].map((msg, i) => <di ...
-+                                                            ~~~~~~
-A expressão de atribuição não é válida. A entrada para um operador de atribuição deve ser um objeto que seja capaz de aceitar atribuições, como uma variável ou uma propriedade.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:1 caractere:35
-+                 <span>{tickerText}</span>
-+                                   ~
-Operador '<' reservado para uso futuro.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:1 caractere:35
-+                 <span>{tickerText}</span>
-+                                   ~
-Operador '<' reservado para uso futuro.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:1 caractere:35
-+                 <span>{tickerText}</span>
-+                                   ~
-Operador '<' reservado para uso futuro.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:1 caractere:32
-+               {!postits.length && (
-+                                ~~
-O token '&&' não é um separador de instruções válido nesta versão.
-
-No linha:2 caractere:110
-+ ... x-col items-center justify-center h-full text-center opacity-50 p-4">
-+                                                                          ~
-')' de fechamento ausente na expressão.
-
-No linha:1 caractere:35
-+               {!postits.length && (
-+                                   ~
-Expressões são permitidas apenas como o primeiro elemento de um pipeline.
-
-No linha:3 caractere:19
-+                   <StickyNote size={32} className="mb-2" />
-+                   ~
-Operador '<' reservado para uso futuro.
-
-No linha:3 caractere:31
-+                   <StickyNote size={32} className="mb-2" />
-+                               ~~~~~
-Token 'size=' inesperado na expressão ou instrução.
-
-No linha:1 caractere:15
-+               {!postits.length && (
-+               ~
-'}' de fechamento ausente no bloco de instrução ou na definição de tipo.
-
-No linha:6 caractere:15
-+               )}
-+               ~
-Token ')' inesperado na expressão ou instrução.
-
-No linha:6 caractere:16
-+               )}
-+                ~
-Token '}' inesperado na expressão ou instrução.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:2 caractere:204
-+ ... shadow-brand-orange/20 rotate-[-1deg] hover:rotate-0 transition-all">
-+                                                                          ~
-')' de fechamento ausente na expressão.
-
-No linha:3 caractere:19
-+                   <div className="absolute top-2 left-1/2 -translate- ...
-+                   ~
-Operador '<' reservado para uso futuro.
-
-No linha:3 caractere:129
-+ ... translate-x-1/2 w-8 h-2.5 bg-white/30 rounded-full blur-[1px]"></div>
-+                                                                          ~
-')' de fechamento ausente na expressão.
-
-No linha:4 caractere:19
-+                   <div className="font-black text-xs uppercase tracki ...
-+                   ~
-Operador '<' reservado para uso futuro.
-
-No linha:1 caractere:15
-+               {postits.map((p) => (
-+               ~
-'}' de fechamento ausente no bloco de instrução ou na definição de tipo.
-
-No linha:11 caractere:15
-+               ))}
-+               ~
-Token ')' inesperado na expressão ou instrução.
-
-No linha:11 caractere:16
-+               ))}
-+                ~
-Token ')' inesperado na expressão ou instrução.
-
-No linha:11 caractere:17
-+               ))}
-+                 ~
-Token '}' inesperado na expressão ou instrução.
-
-No linha:1 caractere:29
-+               {postits.map((p) => (
-+                             ~
-A expressão de atribuição não é válida. A entrada para um operador de atribuição deve ser um objeto que seja capaz de aceitar atribuições, como uma variável ou uma propriedade.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:1 caractere:32
-+               {!ranking.length && <div className="text-slate-400 ital ...
-+                                ~~
-O token '&&' não é um separador de instruções válido nesta versão.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:30
-+               {ranking.map((r, idx) => (
-+                              ~
-Argumento ausente na lista de parâmetros.
-
-No linha:3 caractere:30
-+                   {idx === 0 && <div className="absolute top-0 right- ...
-+                              ~~
-O token '&&' não é um separador de instruções válido nesta versão.
-
-No linha:8 caractere:122
-+ ... :text-base text-emerald-400 tracking-tight">{fmtMoney(r.total)}</div>
-+                                                                    ~
-Operador '<' reservado para uso futuro.
-
-No linha:10 caractere:91
-+ ... sName="text-xs text-slate-400">{r.vendas} negócio(s) fechado(s)</div>
-+                                                                    ~
-Operador '<' reservado para uso futuro.
-
-No linha:5 caractere:36
-+                     <div className={`font-bold text-sm 2xl:text-base  ...
-+                                    ~
-'}' de fechamento ausente no bloco de instrução ou na definição de tipo.
-
-No linha:2 caractere:49
-+                 <div key={r.vendedor} className={`relative flex flex- ...
-+                                                 ~
-'}' de fechamento ausente no bloco de instrução ou na definição de tipo.
-
-No linha:1 caractere:29
-+               {ranking.map((r, idx) => (
-+                             ~~~~~~
-A expressão de atribuição não é válida. A entrada para um operador de atribuição deve ser um objeto que seja capaz de aceitar atribuições, como uma variável ou uma propriedade.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:1 caractere:32
-+               {(contracts.items ; []).map((c, idx) => {
-+                                ~
-')' de fechamento ausente na expressão.
-
-No linha:1 caractere:36
-+               {(contracts.items ; []).map((c, idx) => {
-+                                    ~
-Nome de tipo ausente depois de '['.
-
-No linha:1 caractere:15
-+               {(contracts.items ; []).map((c, idx) => {
-+               ~
-'}' de fechamento ausente no bloco de instrução ou na definição de tipo.
-
-No linha:1 caractere:37
-+               {(contracts.items ; []).map((c, idx) => {
-+                                     ~
-Token ')' inesperado na expressão ou instrução.
-
-No linha:1 caractere:45
-+               {(contracts.items ; []).map((c, idx) => {
-+                                             ~
-Argumento ausente na lista de parâmetros.
-
-No linha:2 caractere:48
-+                 const isCrit = c.daysRemaining <= 5;
-+                                                ~
-Operador '<' reservado para uso futuro.
-
-No linha:3 caractere:48
-+                 const isWarn = c.daysRemaining <= 15;
-+                                                ~
-Operador '<' reservado para uso futuro.
-
-No linha:6 caractere:104
-+ ... -bold text-sm 2xl:text-base text-white truncate">{c.advertiser}</div>
-+                                                                    ~
-Operador '<' reservado para uso futuro.
-
-No linha:8 caractere:94
-+ ... ssName="text-xs text-slate-400 truncate">{c.vendorName ; 'N/A'}</div>
-+                                                                    ~
-Operador '<' reservado para uso futuro.
-
-No linha:10 caractere:42
-+                         {c.daysRemaining}d
-+                                          ~
-Token 'd' inesperado na expressão ou instrução.
-
-Nem todos os erros de análise foram indicados.  Corrija os erros indicados e tente de novo.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:1 caractere:106
-+ ... l:text-2xl font-black text-red-500">{contracts.expiring_5d ; 0}</div>
-+                                                                    ~
-Operador '<' reservado para uso futuro.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:1 caractere:110
-+ ... xt-2xl font-black text-yellow-500">{contracts.expiring_15d ; 0}</div>
-+                                                                    ~
-Operador '<' reservado para uso futuro.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:1 caractere:98
-+ ... xt-xl 2xl:text-2xl font-black text-white">{contracts.total ; 0}</div>
-+                                                                    ~
-Operador '<' reservado para uso futuro.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:36 caractere:20
-+         @keyframes ticker-move {
-+                    ~~~~~~~~~~~
-Token 'ticker-move' inesperado na expressão ou instrução.
-
-No linha:38 caractere:45
-+           100% { transform: translateX(-100%); }
-+                                             ~
-É necessário fornecer uma expressão de valor após o operador '%'.
-
-No linha:41 caractere:16
-+         @media (max-aspect-ratio: 1/1) {
-+                ~
-Token '(' inesperado na expressão ou instrução.
-
-No linha:41 caractere:40
-+         @media (max-aspect-ratio: 1/1) {
-+                                        ~
-Token '{' inesperado na expressão ou instrução.
-
-No linha:62 caractere:24
-+                 Painel <span className="text-brand-orange drop-shadow ...
-+                        ~
-Operador '<' reservado para uso futuro.
-
-No linha:86 caractere:90
-+ ... ="text-2xl 2xl:text-3xl font-black text-white">{loop.total || 0}</div ...
-+                                                                ~~
-O token '||' não é um separador de instruções válido nesta versão.
-
-No linha:86 caractere:93
-+ ... "text-2xl 2xl:text-3xl font-black text-white">{loop.total || 0}</div>
-+                                                                  ~
-Expressões são permitidas apenas como o primeiro elemento de um pipeline.
-
-No linha:86 caractere:95
-+ ... "text-2xl 2xl:text-3xl font-black text-white">{loop.total || 0}</div>
-+                                                                    ~
-Operador '<' reservado para uso futuro.
-
-No linha:91 caractere:110
-+ ... 2xl 2xl:text-3xl font-black text-emerald-400">{loop.online ; 0}</div>
-+                                                                    ~
-Operador '<' reservado para uso futuro.
-
-No linha:96 caractere:103
-+ ... xt-2xl 2xl:text-3xl font-black text-red-500">{loop.lotados || 0}</div ...
-+                                                                ~~
-O token '||' não é um separador de instruções válido nesta versão.
-
-Nem todos os erros de análise foram indicados.  Corrija os erros indicados e tente de novo.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '<' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:2 caractere:117
-+ ... een w-screen overflow-hidden bg-brand-dark text-slate-100 font-sans">
-+                                                                          ~
-')' de fechamento ausente na expressão.
-
-No linha:3 caractere:7
-+       {/* Background Orbs */}
-+       ~
-Token '{' inesperado na expressão ou instrução.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:36
-+   const postits = data?.postits ; [];
-+                                    ~
-Nome de tipo ausente depois de '['.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:36
-+   const ranking = data?.ranking ; [];
-+                                    ~
-Nome de tipo ausente depois de '['.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo 'const' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:1 caractere:27
-+   const loop = data?.loop || {};
-+                           ~~
-O token '||' não é um separador de instruções válido nesta versão.
-
-No linha:1 caractere:30
-+   const loop = data?.loop || {};
-+                              ~~
-Expressões são permitidas apenas como o primeiro elemento de um pipeline.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:43
-+   const tickerText = (data?.ticker_message ; '').trim() ; 'Painel Int ...
-+                                           ~
-')' de fechamento ausente na expressão.
-
-No linha:1 caractere:48
-+   const tickerText = (data?.ticker_message ; '').trim() ; 'Painel Int ...
-+                                                ~
-Token ')' inesperado na expressão ou instrução.
-
-No linha:1 caractere:55
-+   const tickerText = (data?.ticker_message ; '').trim() ; 'Painel Int ...
-+                                                       ~
-Uma expressão era esperada após '('.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:29
-+   const warnings = useMemo(() => data?.warnings ; [], [data]);
-+                             ~
-Uma expressão era esperada após '('.
-
-No linha:1 caractere:48
-+   const warnings = useMemo(() => data?.warnings ; [], [data]);
-+                                                ~
-')' de fechamento ausente na expressão.
-
-No linha:1 caractere:52
-+   const warnings = useMemo(() => data?.warnings ; [], [data]);
-+                                                    ~
-Nome de tipo ausente depois de '['.
-
-No linha:1 caractere:53
-+   const warnings = useMemo(() => data?.warnings ; [], [data]);
-+                                                     ~
-Argumento ausente na lista de parâmetros.
-
-No linha:1 caractere:61
-+   const warnings = useMemo(() => data?.warnings ; [], [data]);
-+                                                             ~
-Token ')' inesperado na expressão ou instrução.
-
-No linha:1 caractere:29
-+   const warnings = useMemo(() => data?.warnings ; [], [data]);
-+                             ~
-A expressão de atribuição não é válida. A entrada para um operador de atribuição deve ser um objeto que seja capaz de aceitar atribuições, como uma variável ou uma propriedade.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:3
-+   }, []);
-+   ~
-Token '}' inesperado na expressão ou instrução.
-
-No linha:1 caractere:7
-+   }, []);
-+       ~
-Nome de tipo ausente depois de '['.
-
-No linha:1 caractere:5
-+   }, []);
-+     ~
-Expressão ausente após operador unário ','.
-
-No linha:1 caractere:6
-+   }, []);
-+      ~~
-Token '[]' inesperado na expressão ou instrução.
-
-No linha:1 caractere:8
-+   }, []);
-+        ~
-Token ')' inesperado na expressão ou instrução.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:13
-+     return () => {
-+             ~
-Uma expressão era esperada após '('.
-
-No linha:1 caractere:13
-+     return () => {
-+             ~
-A expressão de atribuição não é válida. A entrada para um operador de atribuição deve ser um objeto que seja capaz de aceitar atribuições, como uma variável ou uma propriedade.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:32
-+     const id = setInterval(load, POLL_MS);
-+                                ~
-Argumento ausente na lista de parâmetros.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:10
-+     load();
-+          ~
-Uma expressão era esperada após '('.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:5
-+     }
-+     ~
-Token '}' inesperado na expressão ou instrução.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:32
-+ export default function TvWall() {
-+                                ~
-Uma expressão era esperada após '('.
-
-No linha:6 caractere:14
-+   useEffect(() => {
-+              ~
-Uma expressão era esperada após '('.
-
-No linha:9 caractere:25
-+     async function load() {
-+                         ~
-Uma expressão era esperada após '('.
-
-No linha:12 caractere:20
-+         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-+                    ~
-Bloco de instrução ausente após if ( condição ).
-
-No linha:12 caractere:59
-+         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-+                                                           ~
-')' de fechamento ausente na expressão.
-
-No linha:13 caractere:37
-+         const json = await res.json();
-+                                     ~
-Uma expressão era esperada após '('.
-
-No linha:14 caractere:19
-+         if (!alive) return;
-+                   ~
-Bloco de instrução ausente após if ( condição ).
-
-No linha:18 caractere:14
-+       } catch (err) {
-+              ~
-Bloco de instrução ausente no bloco Catch.
-
-No linha:18 caractere:21
-+       } catch (err) {
-+                     ~
-Token '{' inesperado na expressão ou instrução.
-
-No linha:19 caractere:19
-+         if (!alive) return;
-+                   ~
-Bloco de instrução ausente após if ( condição ).
-
-Nem todos os erros de análise foram indicados.  Corrija os erros indicados e tente de novo.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:21
-+ function toneColors(tone) {
-+                     ~
-')' ausente na lista de parâmetros da função.
-
-No linha:1 caractere:25
-+ function toneColors(tone) {
-+                         ~
-Token ')' inesperado na expressão ou instrução.
-
-No linha:3 caractere:9
-+     case 'critical': return 'border-red-500 text-red-400';
-+         ~
-Bloco de instrução ausente na cláusula de instrução switch.
-
-No linha:3 caractere:20
-+     case 'critical': return 'border-red-500 text-red-400';
-+                    ~
-Bloco de instrução ausente na cláusula de instrução switch.
-
-No linha:3 caractere:21
-+     case 'critical': return 'border-red-500 text-red-400';
-+                     ~
-Bloco de instrução ausente na cláusula de instrução switch.
-
-No linha:3 caractere:28
-+     case 'critical': return 'border-red-500 text-red-400';
-+                            ~
-Bloco de instrução ausente na cláusula de instrução switch.
-
-No linha:3 caractere:58
-+     case 'critical': return 'border-red-500 text-red-400';
-+                                                          ~
-Bloco de instrução ausente na cláusula de instrução switch.
-
-No linha:4 caractere:9
-+     case 'high': return 'border-orange-500 text-orange-400';
-+         ~
-Bloco de instrução ausente na cláusula de instrução switch.
-
-No linha:4 caractere:16
-+     case 'high': return 'border-orange-500 text-orange-400';
-+                ~
-Bloco de instrução ausente na cláusula de instrução switch.
-
-No linha:4 caractere:17
-+     case 'high': return 'border-orange-500 text-orange-400';
-+                 ~
-Bloco de instrução ausente na cláusula de instrução switch.
-
-Nem todos os erros de análise foram indicados.  Corrija os erros indicados e tente de novo.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:21
-+ function statusTone(pct) {
-+                     ~
-')' ausente na lista de parâmetros da função.
-
-No linha:1 caractere:24
-+ function statusTone(pct) {
-+                        ~
-Token ')' inesperado na expressão ou instrução.
-
-No linha:2 caractere:17
-+   if (pct >= 100) return 'critical';
-+                 ~
-Bloco de instrução ausente após if ( condição ).
-
-No linha:3 caractere:16
-+   if (pct >= 90) return 'high';
-+                ~
-Bloco de instrução ausente após if ( condição ).
-
-No linha:4 caractere:16
-+   if (pct >= 75) return 'medium';
-+                ~
-Bloco de instrução ausente após if ( condição ).
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:22
-+ function fmtDateTime(iso) {
-+                      ~
-')' ausente na lista de parâmetros da função.
-
-No linha:1 caractere:25
-+ function fmtDateTime(iso) {
-+                         ~
-Token ')' inesperado na expressão ou instrução.
-
-No linha:2 caractere:26
-+   const d = new Date(iso || Date.now());
-+                          ~~
-O token '||' não é um separador de instruções válido nesta versão.
-
-No linha:2 caractere:38
-+   const d = new Date(iso || Date.now());
-+                                      ~
-Uma expressão era esperada após '('.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:1
-+ }
-+ ~
-Token '}' inesperado na expressão ou instrução.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo 'num.toLocaleString' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:1 caractere:19
-+ function fmtMoney(value) {
-+                   ~
-')' ausente na lista de parâmetros da função.
-
-No linha:1 caractere:24
-+ function fmtMoney(value) {
-+                        ~
-Token ')' inesperado na expressão ou instrução.
-
-No linha:2 caractere:27
-+   const num = Number(value ; 0);
-+                           ~
-')' de fechamento ausente na expressão.
-
-No linha:1 caractere:26
-+ function fmtMoney(value) {
-+                          ~
-'}' de fechamento ausente no bloco de instrução ou na definição de tipo.
-
-No linha:2 caractere:31
-+   const num = Number(value ; 0);
-+                               ~
-Token ')' inesperado na expressão ou instrução.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo 'const' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. System.Management.Automation.ParseException: No linha:1 caractere:18
-+ import { Activity, BadgeDollarSign, FileWarning, Newspaper, StickyNot ...
-+                  ~
-Argumento ausente na lista de parâmetros.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:19
-+ import { useEffect, useMemo, useState } from 'react';
-+                   ~
-Argumento ausente na lista de parâmetros.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: No linha:1 caractere:6
-+ cat << 'EOF' > "frontend/src/pages/TvWall.jsx"
-+      ~
-Especificação de arquivo ausente após o operador de redirecionamento.
-
-No linha:1 caractere:5
-+ cat << 'EOF' > "frontend/src/pages/TvWall.jsx"
-+     ~
-Operador '<' reservado para uso futuro.
-
-No linha:1 caractere:6
-+ cat << 'EOF' > "frontend/src/pages/TvWall.jsx"
-+      ~
-Operador '<' reservado para uso futuro.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) {"error":"Falha ao montar painel TV."} {"error":"Token de autenticação obrigatório."} System.Management.Automation.ParseException: No linha:7 caractere:135
-+ ... idiakit_prod -h 127.0.0.1 -c \"INSERT INTO app_settings (key, value,  ...
-+                                                                 ~
-Argumento ausente na lista de parâmetros.
-
-No linha:7 caractere:200
-+ ... lue, updated_at) VALUES ('evolution_pdf_instance', 'aux adm', now())  ...
-+                                                                  ~
-Expressão ausente após ','.
-
-No linha:7 caractere:201
-+ ...  updated_at) VALUES ('evolution_pdf_instance', 'aux adm', now()) ON C ...
-+                                                               ~~~
-Token 'now' inesperado na expressão ou instrução.
-
-No linha:7 caractere:200
-+ ... lue, updated_at) VALUES ('evolution_pdf_instance', 'aux adm', now())  ...
-+                                                                  ~
-')' de fechamento ausente na expressão.
-
-No linha:7 caractere:205
-+ ... updated_at) VALUES ('evolution_pdf_instance', 'aux adm', now()) ON CO ...
-+                                                                  ~
-Uma expressão era esperada após '('.
-
-No linha:7 caractere:206
-+ ... dated_at) VALUES ('evolution_pdf_instance', 'aux adm', now()) ON CONF ...
-+                                                                 ~
-Token ')' inesperado na expressão ou instrução.
-
-No linha:7 caractere:281
-+ ... T (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()\"'''
-+                                                                    ~
-Uma expressão era esperada após '('.
-   em System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   em Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) O termo '\' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo 'r.key' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. O termo '\\\SELECT key, value FROM settings WHERE key LIKE 'evolution%'\\\' não é reconhecido como nome de cmdlet, função, arquivo de script ou programa operável. Verifique a grafia do nome ou, se um caminho tiver sido incluído, veja se o caminho está correto e tente novamente. Não é possível localizar um parâmetro que coincida com o nome de parâmetro 'Chord'. Não é possível localizar um parâmetro que coincida com o nome de parâmetro 'Chord'. Não é possível localizar um parâmetro que coincida com o nome de parâmetro 'Chord'. Não é possível localizar um parâmetro que coincida com o nome de parâmetro 'Chord'.\] : []), ...warnings].map((msg, i) => <div key={i}>{msg}</div>)}
-          </div>
+        <div className="tv-alert">
+          {[...(error ? [`Erro de atualização: ${error}`] : []), ...warnings].map((message, index) => (
+            <div key={`${message}-${index}`} className="tv-alert-line">
+              <FileWarning size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'text-bottom' }} />
+              {message}
+            </div>
+          ))}
         </div>
       ) : null}
     </div>
