@@ -2066,7 +2066,12 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
       const CICLO_PADRAO = 180;
       const filtered = monitors.filter((m) => !EXCLUDE_RE.test(m?.nome || ''));
 
-      const mapped = filtered.map((m) => {
+      // Respeitar monitores ocultos (mesma lógica do /api/loop-audit)
+      const excludedRows = db.prepare('SELECT origin_id FROM loop_audit_exclusions').all();
+      const excludedIds = new Set(excludedRows.map(r => r.origin_id));
+      const visible = filtered.filter(m => !excludedIds.has(m.id));
+
+      const mapped = visible.map((m) => {
         const ocupadoSeg = Number(m?.ciclo_segundos || 0);
         const livreSeg = Math.max(0, CICLO_PADRAO - ocupadoSeg);
         const cotasLivres = Math.floor(livreSeg / DURACAO_INSERCAO);
@@ -2085,13 +2090,43 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
         };
       });
 
+      // Agrupar por local: um item por local, expandir somente quando houver divergência de ciclo
+      const byLocal = new Map();
+      for (const item of mapped) {
+        const key = item.local || item.nome;
+        if (!byLocal.has(key)) byLocal.set(key, []);
+        byLocal.get(key).push(item);
+      }
+      const grouped = [];
+      for (const [, group] of byLocal) {
+        if (group.length === 1) {
+          grouped.push({ ...group[0], telas: 1, divergente: false });
+        } else {
+          const cotasSet = new Set(group.map(g => g.cotas_livres));
+          if (cotasSet.size === 1) {
+            const rep = group[0];
+            const onlineCount = group.filter(g => g.status === 'online').length;
+            grouped.push({
+              ...rep,
+              status: onlineCount > 0 ? 'online' : rep.status,
+              telas: group.length,
+              divergente: false,
+            });
+          } else {
+            for (const g of group) {
+              grouped.push({ ...g, telas: group.length, divergente: true });
+            }
+          }
+        }
+      }
+
       loopSummary = {
-        total: mapped.length,
-        online: mapped.filter((m) => m.status === 'online').length,
-        offline: mapped.filter((m) => m.status !== 'online').length,
-        lotados: mapped.filter((m) => m.pct_ocupado >= 100).length,
-        totalCotasLivres: mapped.reduce((sum, m) => sum + (m.cotas_livres || 0), 0),
-        itensCriticos: mapped
+        total: grouped.length,
+        online: grouped.filter((m) => m.status === 'online').length,
+        offline: grouped.filter((m) => m.status !== 'online').length,
+        lotados: grouped.filter((m) => m.pct_ocupado >= 100).length,
+        totalCotasLivres: grouped.reduce((sum, m) => sum + (m.cotas_livres || 0), 0),
+        itensCriticos: grouped
           .sort((a, b) => b.cotas_livres - a.cotas_livres || a.pct_ocupado - b.pct_ocupado)
           .slice(0, 30)
       };

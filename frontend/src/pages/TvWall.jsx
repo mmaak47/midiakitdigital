@@ -953,12 +953,16 @@ export default function TvWall() {
                   const cicloMin = Math.floor((item.ciclo_ocupado_seg || 0) / 60);
                   const cicloSec = (item.ciclo_ocupado_seg || 0) % 60;
                   const cicloTotalMin = Math.floor((item.ciclo_total_seg || 180) / 60);
+                  const telas = item.telas || 1;
+                  const diverge = item.divergente;
                   return (
                     <div key={String(item.id)} className={`tv-row ${tone}`}>
                       <div className="tv-row-top">
                         <div style={{ minWidth: 0 }}>
                           <div className="tv-row-title">
                             {item.local || item.nome || 'Monitor'}
+                            {telas > 1 && !diverge && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, color: '#fe5c2b', background: 'rgba(254,92,43,0.13)', padding: '2px 7px', borderRadius: 6, verticalAlign: 'middle' }}>{telas} telas</span>}
+                            {diverge && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, color: '#eab308', background: 'rgba(234,179,8,0.13)', padding: '2px 7px', borderRadius: 6, verticalAlign: 'middle' }}>⚠ divergente</span>}
                             {isLotado && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 900, color: 'var(--danger)', background: '#ffe8e8', padding: '2px 6px', borderRadius: 6, verticalAlign: 'middle' }}>LOTADO</span>}
                           </div>
                           <div className="tv-row-meta">
