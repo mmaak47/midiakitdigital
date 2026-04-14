@@ -251,7 +251,7 @@ export default function TvWall() {
           grid-template-rows: 1fr 1fr;
           grid-template-areas:
             "loop contracts ranking"
-            "loop postits ranking";
+            "postits contracts ranking";
           gap: 12px;
         }
 
@@ -655,8 +655,8 @@ export default function TvWall() {
             grid-template-rows: auto auto auto;
             grid-template-areas:
               "loop loop"
-              "contracts ranking"
-              "postits postits";
+              "postits postits"
+              "contracts ranking";
           }
         }
       `}</style>
