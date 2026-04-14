@@ -2495,7 +2495,7 @@ app.post('/api/entorno/auto/run-now', requireRoles(['admin', 'gerente_comercial'
   }
 });
 
-// Read cached entorno scores and optionally auto-queue refresh
+// Read cached entorno scores. New jobs are queued only on explicit force=true.
 app.get('/api/entorno/scores', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
     const segmento = normalizeSegment(req.query.segmento);
@@ -2506,7 +2506,7 @@ app.get('/api/entorno/scores', requireRoles(['admin', 'gerente_comercial', 'vend
     const scores = getScoresWithCoverage({ segment: segmento, radius: raio, city: cidade });
     let job = null;
 
-    if (force || scores.coverage < 0.85) {
+    if (force) {
       job = enqueueJob({ segment: segmento, radius: raio, city: cidade });
     }
 

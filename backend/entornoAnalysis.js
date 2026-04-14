@@ -16,7 +16,7 @@ const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY
   || process.env.GMAPS_API_KEY
   || '';
 const FOURSQUARE_API_KEY = process.env.FOURSQUARE_API_KEY || '';
-const AUTO_REFRESH_ENABLED = String(process.env.ENTORNO_AUTO_REFRESH_ENABLED || 'true').toLowerCase() !== 'false';
+const AUTO_REFRESH_ENABLED = String(process.env.ENTORNO_AUTO_REFRESH_ENABLED || 'false').toLowerCase() === 'true';
 const AUTO_REFRESH_INTERVAL_MINUTES = Math.max(5, Number(process.env.ENTORNO_AUTO_REFRESH_INTERVAL_MINUTES) || 90);
 const AUTO_REFRESH_RADIUS_RAW = process.env.ENTORNO_AUTO_REFRESH_RADIUS || DEFAULT_RADIUS;
 const ALL_SEGMENTS_DEFAULT = 'clinica,hospital,educacao,escola,faculdade,automotivo,varejo,restaurante,imobiliaria,construtora,contabilidade,advocacia,industria,fitness,beleza,pet,farmacia,supermercado,financeiro,turismo,coworking,tecnologia';

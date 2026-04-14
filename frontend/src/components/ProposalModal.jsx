@@ -45,7 +45,7 @@ import {
   normalizeDisplaySettings,
   parseSimulationConfig
 } from '../lib/simulation';
-import { criarPropostaPublica, uploadProposalImage, fetchClientAddressAnalysis, fetchEntornoJobStatus, fetchEntornoScores, gerarTextoProposta } from '../lib/api';
+import { criarPropostaPublica, uploadProposalImage, fetchClientAddressAnalysis, fetchEntornoScores, gerarTextoProposta } from '../lib/api';
 import { buildSelectionMapDataUrl, downloadSelectionMapPng } from '../lib/mapSnapshot';
 import CustomSelect from './CustomSelect';
 import ArteAIPanel from './ArteAIPanel';
@@ -167,6 +167,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [connectMapPoints, setConnectMapPoints] = useState(true);
   const [mapBusy, setMapBusy] = useState(false);
   const [mapStatus, setMapStatus] = useState('');
+  const [entornoRefreshKey, setEntornoRefreshKey] = useState(0);
   const [entorno, setEntorno] = useState({
     loading: false,
     jobId: null,
@@ -220,42 +221,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   };
 
   const ensurePointsWithEntorno = async (points) => {
-    let enriched = mergeEntornoMetrics(points, entorno.scoresByPoint || {});
-    const countWithoutEntorno = enriched.filter((point) => !point?.entornoMetrics).length;
-    if (!enriched.length || countWithoutEntorno === 0) return enriched;
+    return mergeEntornoMetrics(points, entorno.scoresByPoint || {});
+  };
 
-    const fetchScores = async (force) => {
-      const response = await fetchEntornoScores({
-        segmento: form.segmento,
-        cidade: activeCities.length === 1 ? activeCities[0] : '',
-        raio: DEFAULT_ENTORNO_RADIUS,
-        force
-      });
-      return response?.byPoint || {};
-    };
-
-    try {
-      const byPoint = await fetchScores(false);
-      enriched = mergeEntornoMetrics(enriched, byPoint);
-    } catch (err) {
-      if (handleAuthExpired(err, 'Sua sessão expirou durante a leitura da análise de entorno. Faça login novamente.')) {
-        return enriched;
-      }
-    }
-
-    const missingAfterFirstTry = enriched.filter((point) => !point?.entornoMetrics).length;
-    if (missingAfterFirstTry === 0) return enriched;
-
-    try {
-      const byPointForced = await fetchScores(true);
-      enriched = mergeEntornoMetrics(enriched, byPointForced);
-    } catch (err) {
-      if (handleAuthExpired(err, 'Sua sessão expirou durante a atualização da análise de entorno. Faça login novamente.')) {
-        return enriched;
-      }
-    }
-
-    return enriched;
+  const handleRefreshEntorno = () => {
+    setEntornoRefreshKey((current) => current + 1);
   };
 
   const persistSimulationPreview = async (previewBlob, previewUrl = '') => {
@@ -426,7 +396,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         }));
 
         if (response.job?.jobId) {
-          pollJob(response.job.jobId);
+          pollTimer = window.setTimeout(() => {
+            if (!active) return;
+            setEntornoRefreshKey((current) => current + 1);
+          }, 4000);
         }
       } catch (err) {
         if (!active) return;
@@ -442,37 +415,15 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       }
     };
 
-    const pollJob = (jobId) => {
-      const poll = async () => {
-        try {
-          const job = await fetchEntornoJobStatus(jobId);
-          if (!active) return;
-
-          if (job.status === 'completed' || job.status === 'failed') {
-            await loadScores(false);
-            return;
-          }
-
-          pollTimer = window.setTimeout(poll, 3500);
-        } catch (err) {
-          if (!active) return;
-          if (handleAuthExpired(err, 'Sua sessão expirou durante o processamento da análise. Faça login novamente.')) {
-            return;
-          }
-          pollTimer = window.setTimeout(poll, 5000);
-        }
-      };
-
-      poll();
-    };
-
-    loadScores(false);
+    if (entornoRefreshKey > 0) {
+      loadScores(true);
+    }
 
     return () => {
       active = false;
       if (pollTimer) window.clearTimeout(pollTimer);
     };
-  }, [proposalSourcePoints, form.segmento, activeCities]);
+  }, [entornoRefreshKey]);
 
   useEffect(() => {
     if (analysisMode !== 'client-address') {
@@ -1333,12 +1284,21 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <ScopeButton isDark={isDark} active={analysisMode === 'segmento'} onClick={() => setAnalysisMode('segmento')}>Entorno padrão</ScopeButton>
                       <ScopeButton isDark={isDark} active={analysisMode === 'client-address'} onClick={() => setAnalysisMode('client-address')}>Entorno personalizado</ScopeButton>
+                      <button
+                        type="button"
+                        onClick={handleRefreshEntorno}
+                        disabled={entorno.loading}
+                        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium disabled:opacity-50 ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+                      >
+                        {entorno.loading ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+                        {entorno.loading ? 'Atualizando...' : 'Atualizar agora'}
+                      </button>
                       {entorno.loading && <span className="text-xs text-brand-orange">Atualizando...</span>}
                     </div>
 
                     {analysisMode === 'segmento' && (
                       <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
-                        Score de entorno por segmento · Cache {(entorno.coverage * 100).toFixed(0)}%
+                        Atualização manual · Score por segmento · Cache {(entorno.coverage * 100).toFixed(0)}%
                         {entorno.updatedAt ? ` · ${new Date(entorno.updatedAt).toLocaleString('pt-BR')}` : ''}
                       </p>
                     )}

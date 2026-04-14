@@ -8,7 +8,7 @@ import {
   getAvailabilityPresetOptions,
   suggestIdealPlan
 } from '../lib/strategy';
-import { fetchEntornoJobStatus, fetchEntornoScores } from '../lib/api';
+import { fetchEntornoScores } from '../lib/api';
 import { getMunicipioCode, getPIBPerCapita, getPopulacao } from '../services/ibgeService';
 
 // AUDITORIA IBGE (consumo)
@@ -61,6 +61,7 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
     updatedAt: null,
     error: ''
   });
+  const [entornoRefreshKey, setEntornoRefreshKey] = useState(0);
   const [cityContext, setCityContext] = useState({
     loading: false,
     cityName: '',
@@ -70,7 +71,6 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
 
   useEffect(() => {
     let active = true;
-    let pollTimer = null;
 
     const loadScores = async (force = false) => {
       try {
@@ -94,10 +94,6 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
           jobId: response.job?.jobId || null,
           error: ''
         }));
-
-        if (response.job?.jobId) {
-          pollJob(response.job.jobId);
-        }
       } catch (err) {
         if (!active) return;
         setEntorno((prev) => ({
@@ -108,34 +104,14 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
       }
     };
 
-    const pollJob = (jobId) => {
-      const poll = async () => {
-        try {
-          const job = await fetchEntornoJobStatus(jobId);
-          if (!active) return;
-
-          if (job.status === 'completed' || job.status === 'failed') {
-            await loadScores(false);
-            return;
-          }
-
-          pollTimer = setTimeout(poll, 3500);
-        } catch {
-          if (!active) return;
-          pollTimer = setTimeout(poll, 5000);
-        }
-      };
-
-      poll();
-    };
-
-    loadScores(false);
+    if (entornoRefreshKey > 0) {
+      loadScores(true);
+    }
 
     return () => {
       active = false;
-      if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [form.segmento, form.cidade]);
+  }, [entornoRefreshKey]);
 
   useEffect(() => {
     let active = true;
@@ -282,6 +258,14 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
             <div className={`mb-4 rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-400' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>Inteligência regional</span>
+                <button
+                  type="button"
+                  onClick={() => setEntornoRefreshKey((current) => current + 1)}
+                  disabled={entorno.loading}
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold ${isDark ? 'border-brand-orange/30 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'} disabled:opacity-50`}
+                >
+                  Atualizar análise
+                </button>
                 {entorno.loading ? (
                   <span className="inline-flex items-center gap-1 text-brand-orange">
                     <Loader2 size={12} className="animate-spin" />
