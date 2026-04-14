@@ -4,7 +4,6 @@ import {
   CalendarClock,
   Clock3,
   FileWarning,
-  ListOrdered,
   Newspaper,
   Radio,
   StickyNote,
@@ -93,7 +92,6 @@ export default function TvWall() {
   const contracts = data?.contracts || { items: [] };
   const ranking = data?.ranking || [];
   const goals = data?.goals || {};
-  const recentActivity = data?.recent_activity || [];
   const postits = data?.postits || [];
 
   useEffect(() => {
@@ -189,10 +187,10 @@ export default function TvWall() {
         .tv-header {
           display: grid;
           grid-template-columns: 1fr auto;
-          gap: 14px;
+          gap: 10px;
           align-items: center;
-          padding: 10px 16px;
-          border-radius: 22px;
+          padding: 6px 14px;
+          border-radius: 18px;
           background: linear-gradient(180deg, rgba(255,255,255,0.97), rgba(255,255,255,0.92));
           border: 1px solid rgba(254, 92, 43, 0.16);
           box-shadow: 0 14px 40px rgba(141, 98, 61, 0.09);
@@ -209,14 +207,14 @@ export default function TvWall() {
           flex: 0 0 auto;
           display: grid;
           place-items: center;
-          padding: 8px 12px;
-          border-radius: 18px;
+          padding: 6px 10px;
+          border-radius: 14px;
           background: linear-gradient(180deg, #fff9f5, #fff2ea);
           border: 1px solid rgba(254, 92, 43, 0.16);
         }
 
         .tv-logo {
-          height: 32px;
+          height: 26px;
           width: auto;
           display: block;
         }
@@ -233,18 +231,12 @@ export default function TvWall() {
         }
 
         .tv-title {
-          margin: 2px 0 0;
-          font-size: clamp(22px, 1.6vw, 30px);
-          line-height: 1.02;
+          margin: 1px 0 0;
+          font-size: clamp(18px, 1.3vw, 24px);
+          line-height: 1.05;
           font-weight: 900;
           letter-spacing: -0.04em;
           color: var(--text);
-        }
-
-        .tv-subtitle {
-          margin-top: 4px;
-          font-size: 12px;
-          color: var(--muted);
         }
 
         .tv-status {
@@ -255,8 +247,8 @@ export default function TvWall() {
         }
 
         .tv-status-card {
-          padding: 10px 12px;
-          border-radius: 18px;
+          padding: 6px 10px;
+          border-radius: 14px;
           background: linear-gradient(180deg, #fff9f7, #fff2ec);
           border: 1px solid rgba(254, 92, 43, 0.14);
           text-align: right;
@@ -270,15 +262,15 @@ export default function TvWall() {
         }
 
         .tv-status-value {
-          font-size: 18px;
+          font-size: 16px;
           font-weight: 900;
           color: var(--brand);
           line-height: 1;
-          margin-top: 4px;
+          margin-top: 2px;
         }
 
         .tv-status-note {
-          margin-top: 4px;
+          margin-top: 2px;
           font-size: 10px;
           color: var(--muted);
         }
@@ -287,7 +279,7 @@ export default function TvWall() {
           min-height: 0;
           display: grid;
           grid-template-columns: 1.35fr 1fr 1fr;
-          grid-template-rows: 1fr 1fr;
+          grid-template-rows: 1.3fr 0.7fr;
           grid-template-areas:
             "loop contracts ranking"
             "loop postits insights";
@@ -580,53 +572,6 @@ export default function TvWall() {
           color: var(--muted);
         }
 
-        .tv-activity-title {
-          font-size: 11px;
-          font-weight: 800;
-          text-transform: uppercase;
-          letter-spacing: 0.14em;
-          color: var(--muted);
-          margin: 2px 0 8px;
-        }
-
-        .tv-activity-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 10px;
-          padding: 10px;
-          border-radius: 14px;
-          background: #fff;
-          border: 1px solid var(--line);
-        }
-
-        .tv-activity-name {
-          font-size: 13px;
-          font-weight: 800;
-          color: var(--text);
-          line-height: 1.15;
-        }
-
-        .tv-activity-sub {
-          margin-top: 4px;
-          font-size: 11px;
-          color: var(--muted);
-        }
-
-        .tv-activity-value {
-          text-align: right;
-          font-size: 12px;
-          font-weight: 800;
-          color: var(--ok);
-          white-space: nowrap;
-        }
-
-        .tv-activity-date {
-          margin-top: 3px;
-          font-size: 10px;
-          color: var(--muted);
-        }
-
         .tv-postit-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -800,9 +745,6 @@ export default function TvWall() {
                 <Radio size={12} strokeWidth={2.6} /> Painel Operacional
               </div>
               <h1 className="tv-title">Painel Comercial Intermidia</h1>
-              <div className="tv-subtitle">
-                Resultados do time, visão de contratos e recados da operação em um só lugar.
-              </div>
             </div>
           </div>
 
@@ -969,45 +911,31 @@ export default function TvWall() {
           <article className="tv-card ga-insights">
             <div className="tv-card-head">
               <h2 className="tv-card-title">
-                <Target size={20} strokeWidth={2.6} /> Metas e Últimas Vendas
+                <Target size={20} strokeWidth={2.6} /> Metas do Mês
               </h2>
-              <div className="tv-pill">Gestão Comercial</div>
+              <div className="tv-pill">Progresso</div>
             </div>
 
             <div className="tv-goals-grid">
               <div className="tv-goal">
                 <div className="tv-goal-title">Meta Mensal</div>
                 <div className="tv-goal-main">{fmtMoney(goals.meta_mensal || 0)}</div>
-                <div className="tv-goal-meta">Realizado: {fmtMoney(goals.realizado_mensal || 0)} • {Number(goals.pct_mensal || 0)}%</div>
+                <div className="tv-goal-meta">
+                  Realizado: {fmtMoney(goals.realizado_mensal || 0)} • {Number(goals.pct_mensal || 0)}%
+                </div>
+                <div className="tv-goal-meta" style={{ color: Number(goals.pct_mensal || 0) >= 100 ? 'var(--ok)' : 'var(--danger)', fontWeight: 800 }}>
+                  {Number(goals.pct_mensal || 0) >= 100 ? '✓ Meta batida!' : `Falta: ${fmtMoney(Math.max(0, (goals.meta_mensal || 0) - (goals.realizado_mensal || 0)))}`}
+                </div>
               </div>
               <div className="tv-goal">
                 <div className="tv-goal-title">Meta Recorrência</div>
                 <div className="tv-goal-main">{fmtMoney(goals.meta_recorrencia || 0)}</div>
-                <div className="tv-goal-meta">Realizado: {fmtMoney(goals.realizado_recorrencia || 0)} • {Number(goals.pct_recorrencia || 0)}%</div>
-              </div>
-            </div>
-
-            <div className="tv-activity-title">
-              <ListOrdered size={14} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: 6 }} />
-              Últimas 5 vendas/renovações
-            </div>
-
-            <div className="tv-scroll">
-              <div className="tv-list">
-                {recentActivity.map((item, idx) => (
-                  <div className="tv-activity-item" key={`${item.type}-${item.cliente}-${idx}`}>
-                    <div>
-                      <div className="tv-activity-name">{item.cliente}</div>
-                      <div className="tv-activity-sub">{item.status} • {item.vendedor}</div>
-                    </div>
-                    <div className="tv-activity-value">
-                      {fmtMoney(item.valor_total || item.valor_mensal || 0)}
-                      <div className="tv-activity-date">{item.data_ref || '--/--'}</div>
-                    </div>
-                  </div>
-                ))}
-
-                {!recentActivity.length && <div className="tv-empty">Nenhuma venda/renovação recente para mostrar.</div>}
+                <div className="tv-goal-meta">
+                  Realizado: {fmtMoney(goals.realizado_recorrencia || 0)} • {Number(goals.pct_recorrencia || 0)}%
+                </div>
+                <div className="tv-goal-meta" style={{ color: Number(goals.pct_recorrencia || 0) >= 100 ? 'var(--ok)' : 'var(--danger)', fontWeight: 800 }}>
+                  {Number(goals.pct_recorrencia || 0) >= 100 ? '✓ Meta batida!' : `Falta: ${fmtMoney(Math.max(0, (goals.meta_recorrencia || 0) - (goals.realizado_recorrencia || 0)))}`}
+                </div>
               </div>
             </div>
           </article>
