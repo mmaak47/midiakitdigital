@@ -213,6 +213,7 @@ async function renderHtmlToPdf(htmlContent) {
       console.log(`[pdf/render] setContent done (${(htmlReady.length / 1024).toFixed(0)} KB)`);
 
       // Wait for fonts when available, but do not fail PDF generation if this step hangs.
+      console.log('[pdf/render] step: font wait start');
       try {
         await page.evaluate((fontTimeoutMs) => {
           if (!document?.fonts?.ready) return Promise.resolve();
@@ -221,10 +222,12 @@ async function renderHtmlToPdf(htmlContent) {
             new Promise((resolve) => setTimeout(resolve, fontTimeoutMs)),
           ]);
         }, PDF_FONT_READY_TIMEOUT_MS);
+        console.log('[pdf/render] step: font wait done');
       } catch (err) {
         console.warn('[pdf/render] font readiness skipped:', err?.message || err);
       }
 
+      console.log('[pdf/render] step: image wait start');
       try {
         await page.evaluate((imgTimeoutMs) => {
           const imgs = Array.from(document.images);
@@ -245,6 +248,7 @@ async function renderHtmlToPdf(htmlContent) {
             })
           );
         }, PDF_IMAGE_WAIT_TIMEOUT_MS);
+        console.log('[pdf/render] step: image wait done');
       } catch (err) {
         console.warn('[pdf/render] bounded image wait skipped:', err?.message || err);
       }
