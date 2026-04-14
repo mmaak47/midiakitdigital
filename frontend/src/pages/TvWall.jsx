@@ -52,7 +52,10 @@ export default function TvWall() {
   const [error, setError] = useState('');
   const [nowTime, setNowTime] = useState(() => new Date());
   const [temperature, setTemperature] = useState(null);
+  const [salePopup, setSalePopup] = useState(null);
   const contractsScrollRef = useRef(null);
+  const seenSalesRef = useRef(new Set());
+  const isFirstLoadRef = useRef(true);
 
   useEffect(() => {
     let alive = true;
@@ -93,6 +96,63 @@ export default function TvWall() {
   const ranking = data?.ranking || [];
   const goals = data?.goals || {};
   const postits = data?.postits || [];
+
+  // Detect new sales and show popup
+  useEffect(() => {
+    if (!data?.recent_activity?.length) return;
+    const activities = data.recent_activity;
+
+    if (isFirstLoadRef.current) {
+      // On first load, just record existing sales without popping up
+      activities.forEach((item) => {
+        const key = `${item.type}-${item.cliente}-${item.data_ref}-${item.vendedor}`;
+        seenSalesRef.current.add(key);
+      });
+      isFirstLoadRef.current = false;
+      return;
+    }
+
+    for (const item of activities) {
+      const key = `${item.type}-${item.cliente}-${item.data_ref}-${item.vendedor}`;
+      if (!seenSalesRef.current.has(key) && item.type === 'venda') {
+        seenSalesRef.current.add(key);
+        setSalePopup({
+          vendedor: item.vendedor || 'Vendedor',
+          cliente: item.cliente || 'Cliente',
+          valor: item.valor_total || item.valor_mensal || 0,
+          status: item.status || 'Venda'
+        });
+        // Play bell sound
+        try {
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const playTone = (freq, start, dur) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime + start);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + start + dur);
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start(audioCtx.currentTime + start);
+            osc.stop(audioCtx.currentTime + start + dur);
+          };
+          playTone(830, 0, 0.3);
+          playTone(1050, 0.15, 0.3);
+          playTone(1320, 0.35, 0.5);
+        } catch { /* audio not available */ }
+        break; // show one popup at a time
+      }
+      // Also track non-venda items so they don't re-trigger if type changes
+      seenSalesRef.current.add(key);
+    }
+  }, [data?.recent_activity]);
+
+  // Auto-dismiss popup after 8 seconds
+  useEffect(() => {
+    if (!salePopup) return;
+    const timer = setTimeout(() => setSalePopup(null), 8000);
+    return () => clearTimeout(timer);
+  }, [salePopup]);
 
   useEffect(() => {
     const timer = setInterval(() => setNowTime(new Date()), 1000);
@@ -698,6 +758,101 @@ export default function TvWall() {
 
         .tv-alert-line + .tv-alert-line { margin-top: 6px; }
 
+        .tv-sale-popup {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          z-index: 100;
+          min-width: 420px;
+          max-width: 560px;
+          padding: 32px 36px;
+          border-radius: 28px;
+          background: linear-gradient(160deg, #fff8f4 0%, #fff0e6 100%);
+          border: 2px solid rgba(254, 92, 43, 0.3);
+          box-shadow: 0 40px 120px rgba(0, 0, 0, 0.25), 0 0 0 6px rgba(254, 92, 43, 0.08);
+          text-align: center;
+          animation: sale-popup-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .tv-sale-popup-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 99;
+          background: rgba(0, 0, 0, 0.35);
+          backdrop-filter: blur(4px);
+          animation: sale-fade-in 0.3s ease;
+        }
+
+        @keyframes sale-popup-in {
+          0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+          100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        @keyframes sale-fade-in {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+
+        .tv-sale-bell {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 64px;
+          height: 64px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #fe5c2b, #ff8c5a);
+          box-shadow: 0 12px 32px rgba(254, 92, 43, 0.35);
+          margin-bottom: 16px;
+          animation: sale-bell-ring 0.6s ease 0.3s;
+        }
+
+        @keyframes sale-bell-ring {
+          0%, 100% { transform: rotate(0); }
+          15% { transform: rotate(14deg); }
+          30% { transform: rotate(-12deg); }
+          45% { transform: rotate(8deg); }
+          60% { transform: rotate(-6deg); }
+          75% { transform: rotate(3deg); }
+        }
+
+        .tv-sale-title {
+          font-size: 14px;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.2em;
+          color: var(--brand);
+          margin-bottom: 8px;
+        }
+
+        .tv-sale-vendedor {
+          font-size: 28px;
+          font-weight: 900;
+          color: var(--text);
+          line-height: 1.12;
+          letter-spacing: -0.03em;
+        }
+
+        .tv-sale-detail {
+          margin-top: 10px;
+          font-size: 15px;
+          color: var(--muted);
+          font-weight: 600;
+        }
+
+        .tv-sale-valor {
+          margin-top: 14px;
+          display: inline-block;
+          padding: 8px 20px;
+          border-radius: 999px;
+          background: linear-gradient(135deg, #e7faf2, #d0f5e4);
+          color: var(--ok);
+          font-size: 22px;
+          font-weight: 900;
+          letter-spacing: -0.02em;
+          border: 1px solid rgba(23, 154, 109, 0.18);
+        }
+
         @media (max-width: 1360px) {
           .tv-kpi-grid.loop {
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -795,6 +950,9 @@ export default function TvWall() {
                 {(loop.itensCriticos || []).map((item) => {
                   const tone = toneClass(statusTone(item.pct_ocupado));
                   const isLotado = item.pct_ocupado >= 100;
+                  const cicloMin = Math.floor((item.ciclo_ocupado_seg || 0) / 60);
+                  const cicloSec = (item.ciclo_ocupado_seg || 0) % 60;
+                  const cicloTotalMin = Math.floor((item.ciclo_total_seg || 180) / 60);
                   return (
                     <div key={String(item.id)} className={`tv-row ${tone}`}>
                       <div className="tv-row-top">
@@ -804,7 +962,7 @@ export default function TvWall() {
                             {isLotado && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 900, color: 'var(--danger)', background: '#ffe8e8', padding: '2px 6px', borderRadius: 6, verticalAlign: 'middle' }}>LOTADO</span>}
                           </div>
                           <div className="tv-row-meta">
-                            {item.cidade || 'Sem cidade'} · {item.insercoes_ativas || 0} inserções · {item.cotas_livres ?? '?'} cotas livres
+                            {item.cidade || 'Sem cidade'} · {item.insercoes_ativas || 0} cotas ocupadas · {item.cotas_livres ?? '?'} livres · ciclo {cicloMin}:{String(cicloSec).padStart(2, '0')}/{cicloTotalMin}:00
                           </div>
                         </div>
                         <div className="tv-metric">
@@ -989,6 +1147,23 @@ export default function TvWall() {
           ))}
         </div>
       ) : null}
+
+      {salePopup && (
+        <>
+          <div className="tv-sale-popup-backdrop" onClick={() => setSalePopup(null)} />
+          <div className="tv-sale-popup">
+            <div className="tv-sale-bell">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+              </svg>
+            </div>
+            <div className="tv-sale-title">Nova Venda Registrada!</div>
+            <div className="tv-sale-vendedor">{salePopup.vendedor}</div>
+            <div className="tv-sale-detail">Cliente: {salePopup.cliente}</div>
+            <div className="tv-sale-valor">{fmtMoney(salePopup.valor)}</div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

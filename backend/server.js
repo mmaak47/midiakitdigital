@@ -2079,7 +2079,9 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
           status: m?.status || 'unknown',
           pct_ocupado: pctOcupado,
           cotas_livres: cotasLivres,
-          insercoes_ativas: Number(m?.total_insercoes_ativas || 0)
+          insercoes_ativas: Number(m?.total_insercoes_ativas || 0),
+          ciclo_ocupado_seg: ocupadoSeg,
+          ciclo_total_seg: CICLO_PADRAO
         };
       });
 
@@ -2090,9 +2092,8 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
         lotados: mapped.filter((m) => m.pct_ocupado >= 100).length,
         totalCotasLivres: mapped.reduce((sum, m) => sum + (m.cotas_livres || 0), 0),
         itensCriticos: mapped
-          .filter((m) => m.pct_ocupado >= 75)
-          .sort((a, b) => b.pct_ocupado - a.pct_ocupado)
-          .slice(0, 20)
+          .sort((a, b) => b.cotas_livres - a.cotas_livres || a.pct_ocupado - b.pct_ocupado)
+          .slice(0, 30)
       };
     } catch (err) {
       warnings.push(`Loop audit: ${err.message}`);
