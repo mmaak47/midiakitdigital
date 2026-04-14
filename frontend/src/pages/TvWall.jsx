@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
-  BadgeDollarSign,
   CalendarClock,
   FileWarning,
   Newspaper,
@@ -40,10 +39,21 @@ function toneClass(tone) {
   return 'is-low';
 }
 
+function getInitials(name) {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+  if (!parts.length) return 'IC';
+  return parts.map((part) => part.charAt(0).toUpperCase()).join('');
+}
+
 export default function TvWall() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [updatedAt, setUpdatedAt] = useState('');
+  const contractsScrollRef = useRef(null);
 
   useEffect(() => {
     let alive = true;
@@ -85,155 +95,164 @@ export default function TvWall() {
   const ranking = data?.ranking || [];
   const postits = data?.postits || [];
 
+  useEffect(() => {
+    const element = contractsScrollRef.current;
+    if (!element) return undefined;
+
+    element.scrollTop = 0;
+    if (element.scrollHeight <= element.clientHeight + 6) return undefined;
+
+    let pauseUntil = Date.now() + 1600;
+    const timer = setInterval(() => {
+      const maxScroll = element.scrollHeight - element.clientHeight;
+      if (Date.now() < pauseUntil) return;
+
+      const nextTop = element.scrollTop + 1;
+      if (nextTop >= maxScroll) {
+        element.scrollTop = 0;
+        pauseUntil = Date.now() + 1800;
+        return;
+      }
+
+      element.scrollTop = nextTop;
+    }, 45);
+
+    return () => clearInterval(timer);
+  }, [contracts.items]);
+
   return (
-    <div className="tv-wall min-h-screen h-screen w-screen overflow-hidden text-white">
+    <div className="tv-wall min-h-screen h-screen w-screen overflow-hidden text-slate-900">
       <style>{`
         .tv-wall {
-          --bg: #05070b;
-          --bg-soft: #0b1018;
-          --panel: rgba(9, 15, 24, 0.76);
-          --panel-strong: rgba(13, 19, 31, 0.92);
-          --panel-border: rgba(255, 255, 255, 0.1);
+          --bg: #f7f4ef;
+          --bg-soft: #fffdfa;
+          --bg-panel: rgba(255, 255, 255, 0.88);
+          --bg-panel-strong: rgba(255, 255, 255, 0.96);
+          --line: rgba(32, 24, 21, 0.08);
+          --line-strong: rgba(32, 24, 21, 0.14);
+          --text: #161311;
+          --muted: #6e635c;
           --brand: #fe5c2b;
-          --brand-2: #ff7d45;
-          --text-soft: #95a0b5;
-          --line: rgba(255, 255, 255, 0.08);
-          --ok: #21c98a;
-          --warn: #ffb11f;
-          --danger: #ff5656;
+          --brand-soft: #fff0e8;
+          --ok: #179a6d;
+          --warn: #c98509;
+          --danger: #d84f4f;
           background:
-            radial-gradient(circle at 12% 18%, rgba(254, 92, 43, 0.28), transparent 24%),
-            radial-gradient(circle at 88% 16%, rgba(254, 92, 43, 0.14), transparent 20%),
-            radial-gradient(circle at 50% 120%, rgba(33, 201, 138, 0.1), transparent 26%),
-            linear-gradient(180deg, #071018 0%, var(--bg) 100%);
+            radial-gradient(circle at top left, rgba(254, 92, 43, 0.14), transparent 22%),
+            radial-gradient(circle at right 16%, rgba(254, 92, 43, 0.08), transparent 18%),
+            linear-gradient(180deg, #fcfaf7 0%, var(--bg) 100%);
           font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         }
 
-        .tv-noise {
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-          opacity: 0.12;
-          background-image:
-            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-          background-size: 24px 24px;
-          mask-image: radial-gradient(circle at center, black 45%, transparent 100%);
-        }
-
         .tv-shell {
-          position: relative;
-          z-index: 1;
           display: grid;
           grid-template-rows: auto 1fr auto;
+          gap: 12px;
           height: 100%;
-          gap: 14px;
-          padding: 12px;
+          padding: 10px;
         }
 
         .tv-header {
           display: grid;
           grid-template-columns: 1fr auto;
-          gap: 18px;
-          padding: 18px 22px;
+          gap: 14px;
+          align-items: center;
+          padding: 10px 16px;
           border-radius: 22px;
-          background: linear-gradient(180deg, rgba(12, 20, 31, 0.84), rgba(8, 13, 21, 0.94));
-          border: 1px solid rgba(254, 92, 43, 0.2);
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.04),
-            0 24px 60px rgba(0, 0, 0, 0.35);
-          backdrop-filter: blur(18px);
+          background: linear-gradient(180deg, rgba(255,255,255,0.97), rgba(255,255,255,0.92));
+          border: 1px solid rgba(254, 92, 43, 0.16);
+          box-shadow: 0 14px 40px rgba(141, 98, 61, 0.09);
         }
 
-        .tv-brandline {
+        .tv-brand {
           display: flex;
           align-items: center;
-          gap: 16px;
+          gap: 14px;
+          min-width: 0;
         }
 
-        .tv-brandbadge {
-          width: 54px;
-          height: 54px;
+        .tv-logo-wrap {
+          flex: 0 0 auto;
           display: grid;
           place-items: center;
-          border-radius: 16px;
-          color: #111;
-          background: linear-gradient(135deg, var(--brand), var(--brand-2));
-          box-shadow: 0 14px 30px rgba(254, 92, 43, 0.35);
+          padding: 8px 12px;
+          border-radius: 18px;
+          background: linear-gradient(180deg, #fff9f5, #fff2ea);
+          border: 1px solid rgba(254, 92, 43, 0.16);
+        }
+
+        .tv-logo {
+          height: 32px;
+          width: auto;
+          display: block;
         }
 
         .tv-kicker {
           display: inline-flex;
           align-items: center;
-          gap: 8px;
-          font-size: 11px;
-          line-height: 1;
+          gap: 6px;
+          font-size: 10px;
+          font-weight: 800;
           text-transform: uppercase;
-          letter-spacing: 0.28em;
-          color: rgba(255, 255, 255, 0.55);
-          margin-bottom: 8px;
+          letter-spacing: 0.18em;
+          color: var(--brand);
         }
 
         .tv-title {
-          font-size: clamp(28px, 2.2vw, 40px);
-          line-height: 1;
+          margin: 2px 0 0;
+          font-size: clamp(22px, 1.6vw, 30px);
+          line-height: 1.02;
           font-weight: 900;
           letter-spacing: -0.04em;
-          margin: 0;
-        }
-
-        .tv-title-accent {
-          color: var(--brand);
-          text-shadow: 0 0 24px rgba(254, 92, 43, 0.2);
+          color: var(--text);
         }
 
         .tv-subtitle {
-          margin-top: 8px;
-          font-size: 14px;
-          color: var(--text-soft);
-          max-width: 760px;
+          margin-top: 4px;
+          font-size: 12px;
+          color: var(--muted);
         }
 
         .tv-status {
-          min-width: 250px;
-          padding: 14px 16px;
-          border-radius: 18px;
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
-          border: 1px solid rgba(255, 255, 255, 0.08);
           display: flex;
           flex-direction: column;
-          justify-content: center;
           align-items: flex-end;
-          gap: 6px;
+          gap: 2px;
+          padding: 10px 12px;
+          min-width: 220px;
+          border-radius: 18px;
+          background: linear-gradient(180deg, #fff9f7, #fff2ec);
+          border: 1px solid rgba(254, 92, 43, 0.14);
         }
 
         .tv-status-label {
-          font-size: 11px;
+          font-size: 10px;
           text-transform: uppercase;
-          letter-spacing: 0.22em;
-          color: rgba(255, 255, 255, 0.56);
+          letter-spacing: 0.16em;
+          color: var(--muted);
         }
 
         .tv-status-value {
-          font-size: clamp(22px, 1.6vw, 28px);
+          font-size: 20px;
           font-weight: 900;
-          color: #fff;
+          color: var(--brand);
+          line-height: 1;
         }
 
         .tv-status-note {
-          font-size: 12px;
-          color: rgba(255, 255, 255, 0.5);
+          font-size: 11px;
+          color: var(--muted);
         }
 
         .tv-grid {
           min-height: 0;
           display: grid;
-          grid-template-columns: 1.18fr 1fr 1fr;
+          grid-template-columns: 1.12fr 1fr 1fr;
           grid-template-rows: 1fr 1fr;
           grid-template-areas:
             "loop contracts ranking"
             "loop postits ranking";
-          gap: 14px;
+          gap: 12px;
         }
 
         .ga-loop { grid-area: loop; }
@@ -245,15 +264,11 @@ export default function TvWall() {
           min-height: 0;
           display: flex;
           flex-direction: column;
-          padding: 16px;
+          padding: 14px;
           border-radius: 22px;
-          background:
-            linear-gradient(180deg, rgba(12, 18, 28, 0.92), rgba(8, 12, 20, 0.82));
-          border: 1px solid var(--panel-border);
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.04),
-            0 18px 44px rgba(0, 0, 0, 0.28);
-          backdrop-filter: blur(18px);
+          background: linear-gradient(180deg, var(--bg-panel-strong), var(--bg-panel));
+          border: 1px solid var(--line);
+          box-shadow: 0 14px 34px rgba(64, 45, 33, 0.08);
           overflow: hidden;
         }
 
@@ -261,18 +276,19 @@ export default function TvWall() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 12px;
-          margin-bottom: 14px;
+          gap: 10px;
+          margin-bottom: 10px;
         }
 
         .tv-card-title {
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 8px;
           margin: 0;
-          font-size: clamp(20px, 1.35vw, 28px);
-          font-weight: 800;
+          font-size: clamp(18px, 1.1vw, 24px);
+          font-weight: 900;
           letter-spacing: -0.03em;
+          color: var(--text);
         }
 
         .tv-card-title svg {
@@ -283,21 +299,21 @@ export default function TvWall() {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          padding: 7px 10px;
+          padding: 6px 10px;
           border-radius: 999px;
-          background: rgba(254, 92, 43, 0.12);
-          color: #ffd2c2;
-          font-size: 11px;
-          line-height: 1;
+          background: var(--brand-soft);
+          color: var(--brand);
+          font-size: 10px;
+          font-weight: 800;
           text-transform: uppercase;
-          letter-spacing: 0.18em;
-          border: 1px solid rgba(254, 92, 43, 0.18);
+          letter-spacing: 0.16em;
+          border: 1px solid rgba(254, 92, 43, 0.12);
         }
 
         .tv-kpi-grid {
           display: grid;
-          gap: 10px;
-          margin-bottom: 14px;
+          gap: 8px;
+          margin-bottom: 10px;
         }
 
         .tv-kpi-grid.loop {
@@ -309,41 +325,26 @@ export default function TvWall() {
         }
 
         .tv-kpi {
-          position: relative;
-          overflow: hidden;
-          padding: 14px 14px 12px;
+          padding: 12px;
           border-radius: 18px;
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025));
+          background: #fff;
           border: 1px solid var(--line);
         }
 
-        .tv-kpi::after {
-          content: "";
-          position: absolute;
-          inset: auto -16px -26px auto;
-          width: 92px;
-          height: 92px;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.03);
-        }
-
         .tv-kpi-value {
-          position: relative;
-          z-index: 1;
-          font-size: clamp(28px, 2vw, 40px);
+          font-size: clamp(24px, 1.8vw, 34px);
           line-height: 1;
           font-weight: 900;
           letter-spacing: -0.05em;
+          color: var(--text);
         }
 
         .tv-kpi-label {
-          position: relative;
-          z-index: 1;
-          margin-top: 7px;
-          font-size: 11px;
-          color: var(--text-soft);
+          margin-top: 6px;
+          font-size: 10px;
+          color: var(--muted);
           text-transform: uppercase;
-          letter-spacing: 0.18em;
+          letter-spacing: 0.16em;
         }
 
         .tv-kpi.brand .tv-kpi-value { color: var(--brand); }
@@ -362,61 +363,48 @@ export default function TvWall() {
         }
 
         .tv-scroll::-webkit-scrollbar-thumb {
+          background: rgba(0, 0, 0, 0.12);
           border-radius: 999px;
-          background: rgba(255, 255, 255, 0.12);
         }
 
         .tv-list {
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 8px;
         }
 
         .tv-row {
-          padding: 14px;
+          padding: 12px;
           border-radius: 18px;
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
+          background: #fff;
           border: 1px solid var(--line);
+          border-left-width: 4px;
         }
 
-        .tv-row.is-critical {
-          border-left: 4px solid var(--danger);
-          box-shadow: inset 0 0 0 1px rgba(255, 86, 86, 0.12);
-        }
-
-        .tv-row.is-high {
-          border-left: 4px solid var(--brand);
-          box-shadow: inset 0 0 0 1px rgba(254, 92, 43, 0.12);
-        }
-
-        .tv-row.is-medium {
-          border-left: 4px solid var(--warn);
-          box-shadow: inset 0 0 0 1px rgba(255, 177, 31, 0.12);
-        }
-
-        .tv-row.is-low {
-          border-left: 4px solid var(--ok);
-          box-shadow: inset 0 0 0 1px rgba(33, 201, 138, 0.12);
-        }
+        .tv-row.is-critical { border-left-color: var(--danger); }
+        .tv-row.is-high { border-left-color: var(--brand); }
+        .tv-row.is-medium { border-left-color: var(--warn); }
+        .tv-row.is-low { border-left-color: var(--ok); }
 
         .tv-row-top {
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
-          gap: 14px;
+          gap: 10px;
         }
 
         .tv-row-title {
-          font-size: 18px;
+          font-size: 16px;
           font-weight: 800;
-          line-height: 1.1;
+          line-height: 1.15;
           margin: 0;
+          color: var(--text);
         }
 
         .tv-row-meta {
-          margin-top: 6px;
-          color: var(--text-soft);
-          font-size: 13px;
+          margin-top: 5px;
+          color: var(--muted);
+          font-size: 12px;
         }
 
         .tv-metric {
@@ -425,179 +413,165 @@ export default function TvWall() {
         }
 
         .tv-metric-value {
-          font-size: 22px;
+          font-size: 18px;
           line-height: 1;
           font-weight: 900;
+          color: var(--text);
         }
 
         .tv-metric-label {
-          margin-top: 5px;
-          color: var(--text-soft);
-          font-size: 11px;
+          margin-top: 4px;
+          color: var(--muted);
+          font-size: 10px;
           text-transform: uppercase;
-          letter-spacing: 0.16em;
+          letter-spacing: 0.12em;
         }
 
         .tv-contract-chip {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-width: 88px;
-          padding: 8px 10px;
+          min-width: 84px;
+          padding: 7px 10px;
           border-radius: 999px;
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 800;
         }
 
-        .tv-contract-chip.critical {
-          background: rgba(255, 86, 86, 0.12);
-          color: #ff9f9f;
-        }
-
-        .tv-contract-chip.warning {
-          background: rgba(255, 177, 31, 0.12);
-          color: #ffd57d;
-        }
-
-        .tv-contract-chip.ok {
-          background: rgba(33, 201, 138, 0.12);
-          color: #86efc1;
-        }
+        .tv-contract-chip.critical { background: #ffe8e8; color: var(--danger); }
+        .tv-contract-chip.warning { background: #fff3dc; color: var(--warn); }
+        .tv-contract-chip.ok { background: #e7faf2; color: var(--ok); }
 
         .tv-ranking-item {
-          position: relative;
-          padding: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 12px;
           border-radius: 18px;
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
+          background: #fff;
           border: 1px solid var(--line);
         }
 
         .tv-ranking-item.leader {
-          background: linear-gradient(135deg, rgba(254, 92, 43, 0.16), rgba(255, 177, 31, 0.08));
-          border-color: rgba(254, 92, 43, 0.24);
+          background: linear-gradient(135deg, #fff5ef, #fffaf7);
+          border-color: rgba(254, 92, 43, 0.18);
         }
 
-        .tv-ranking-badge {
-          position: absolute;
-          top: -8px;
-          right: 14px;
-          padding: 6px 10px;
-          border-radius: 999px;
-          background: linear-gradient(135deg, var(--brand), var(--brand-2));
-          color: #111;
-          font-size: 10px;
-          font-weight: 900;
-          text-transform: uppercase;
-          letter-spacing: 0.16em;
-        }
-
-        .tv-ranking-line {
+        .tv-ranking-left {
           display: flex;
-          justify-content: space-between;
-          gap: 12px;
           align-items: center;
+          gap: 10px;
+          min-width: 0;
+        }
+
+        .tv-avatar,
+        .tv-avatar-fallback {
+          width: 44px;
+          height: 44px;
+          flex: 0 0 44px;
+          border-radius: 999px;
+          object-fit: cover;
+          border: 2px solid rgba(254, 92, 43, 0.16);
+          box-shadow: 0 8px 18px rgba(254, 92, 43, 0.12);
+        }
+
+        .tv-avatar-fallback {
+          display: grid;
+          place-items: center;
+          background: linear-gradient(135deg, #ffd8ca, #fff0e8);
+          color: var(--brand);
+          font-size: 14px;
+          font-weight: 900;
         }
 
         .tv-ranking-name {
-          font-size: 18px;
+          font-size: 15px;
           font-weight: 800;
           line-height: 1.1;
-        }
-
-        .tv-ranking-index {
-          color: rgba(255, 255, 255, 0.45);
-          width: 28px;
-          display: inline-block;
-        }
-
-        .tv-ranking-total {
-          color: #9ef2cb;
-          font-size: 19px;
-          font-weight: 900;
-          white-space: nowrap;
+          color: var(--text);
         }
 
         .tv-ranking-meta {
-          margin-top: 7px;
-          font-size: 13px;
-          color: var(--text-soft);
+          margin-top: 5px;
+          font-size: 12px;
+          color: var(--muted);
+        }
+
+        .tv-ranking-total {
+          font-size: 17px;
+          font-weight: 900;
+          color: var(--ok);
+          white-space: nowrap;
         }
 
         .tv-postit-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 14px;
+          gap: 10px;
         }
 
         .tv-postit {
           position: relative;
-          min-height: 160px;
-          padding: 18px 16px 16px;
+          min-height: 152px;
+          padding: 16px 14px 14px;
           border-radius: 18px;
-          color: #fff9f6;
-          background: linear-gradient(160deg, #ff6d38 0%, #fe5c2b 58%, #d74618 100%);
-          box-shadow:
-            0 20px 40px rgba(0, 0, 0, 0.28),
-            0 8px 18px rgba(254, 92, 43, 0.24);
+          background: linear-gradient(160deg, #fff7d8 0%, #fff0b4 100%);
+          color: #403010;
+          box-shadow: 0 10px 24px rgba(168, 124, 42, 0.12);
+          border: 1px solid rgba(201, 133, 9, 0.12);
         }
 
-        .tv-postit:nth-child(2n) {
-          transform: rotate(-1.2deg);
-        }
-
-        .tv-postit:nth-child(2n+1) {
-          transform: rotate(1deg);
-        }
+        .tv-postit:nth-child(2n) { transform: rotate(-1deg); }
+        .tv-postit:nth-child(2n+1) { transform: rotate(1deg); }
 
         .tv-postit::before {
           content: "";
           position: absolute;
-          top: 10px;
+          top: 9px;
           left: 50%;
-          width: 44px;
-          height: 10px;
           transform: translateX(-50%);
+          width: 40px;
+          height: 10px;
           border-radius: 999px;
-          background: rgba(255, 255, 255, 0.28);
+          background: rgba(255, 255, 255, 0.7);
         }
 
         .tv-postit-author {
           margin-top: 8px;
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 900;
           text-transform: uppercase;
-          letter-spacing: 0.22em;
-          color: rgba(24, 8, 2, 0.62);
+          letter-spacing: 0.18em;
+          color: rgba(64, 48, 16, 0.62);
         }
 
         .tv-postit-text {
-          margin-top: 12px;
-          font-size: 18px;
+          margin-top: 10px;
+          font-size: 16px;
           font-weight: 800;
-          line-height: 1.3;
+          line-height: 1.28;
           white-space: pre-wrap;
-          color: #fffdfa;
-          text-shadow: 0 1px 1px rgba(0, 0, 0, 0.16);
         }
 
         .tv-empty {
-          min-height: 160px;
+          min-height: 140px;
           display: grid;
           place-items: center;
           text-align: center;
           padding: 18px;
           border-radius: 18px;
-          border: 1px dashed rgba(255, 255, 255, 0.12);
-          color: var(--text-soft);
-          background: rgba(255, 255, 255, 0.02);
+          color: var(--muted);
+          background: rgba(255,255,255,0.65);
+          border: 1px dashed var(--line-strong);
         }
 
         .tv-footer {
           overflow: hidden;
           border-radius: 18px;
-          border: 1px solid rgba(254, 92, 43, 0.24);
-          background: linear-gradient(90deg, rgba(254, 92, 43, 0.98), rgba(255, 129, 71, 0.96));
-          box-shadow: 0 18px 34px rgba(254, 92, 43, 0.24);
+          background: linear-gradient(90deg, #ffe4d7, #fff1ea);
+          border: 1px solid rgba(254, 92, 43, 0.14);
+          box-shadow: 0 12px 28px rgba(128, 87, 54, 0.08);
         }
 
         .tv-footer-inner {
@@ -609,28 +583,28 @@ export default function TvWall() {
         .tv-footer-label {
           display: inline-flex;
           align-items: center;
-          gap: 10px;
-          padding: 14px 18px;
-          font-size: 12px;
+          gap: 8px;
+          padding: 12px 14px;
+          font-size: 11px;
           font-weight: 900;
-          color: #151515;
+          color: var(--brand);
           text-transform: uppercase;
-          letter-spacing: 0.22em;
-          background: rgba(0, 0, 0, 0.08);
+          letter-spacing: 0.18em;
+          background: rgba(254, 92, 43, 0.08);
         }
 
         .tv-ticker {
           min-width: 0;
           overflow: hidden;
           white-space: nowrap;
-          color: #1d110c;
-          font-size: clamp(16px, 1.1vw, 20px);
+          color: #7e3a1f;
+          font-size: 15px;
           font-weight: 800;
         }
 
         .tv-ticker-track {
           display: inline-block;
-          padding: 14px 0 14px 100%;
+          padding: 12px 0 12px 100%;
           animation: ticker-move 34s linear infinite;
         }
 
@@ -641,42 +615,33 @@ export default function TvWall() {
 
         .tv-alert {
           position: absolute;
-          right: 16px;
-          top: 16px;
+          right: 12px;
+          top: 12px;
           z-index: 3;
           max-width: 34vw;
           padding: 12px 14px;
           border-radius: 16px;
-          background: rgba(86, 12, 18, 0.94);
-          color: #ffd7db;
-          border: 1px solid rgba(255, 86, 86, 0.2);
-          box-shadow: 0 16px 28px rgba(0, 0, 0, 0.3);
+          background: rgba(112, 35, 35, 0.95);
+          color: #fff2f2;
+          border: 1px solid rgba(216, 79, 79, 0.2);
+          box-shadow: 0 14px 28px rgba(0, 0, 0, 0.15);
           font-size: 12px;
           font-weight: 700;
         }
 
-        .tv-alert-line + .tv-alert-line {
-          margin-top: 6px;
-        }
+        .tv-alert-line + .tv-alert-line { margin-top: 6px; }
 
         @media (max-width: 1360px) {
-          .tv-title {
-            font-size: 28px;
+          .tv-kpi-grid.loop {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
           }
 
-          .tv-row-title,
-          .tv-ranking-name,
-          .tv-postit-text {
-            font-size: 16px;
+          .tv-postit-grid {
+            grid-template-columns: 1fr;
           }
         }
 
         @media (max-aspect-ratio: 1/1) {
-          .tv-shell {
-            height: auto;
-            min-height: 100%;
-          }
-
           .tv-header {
             grid-template-columns: 1fr;
           }
@@ -693,34 +658,23 @@ export default function TvWall() {
               "contracts ranking"
               "postits postits";
           }
-
-          .tv-postit-grid {
-            grid-template-columns: 1fr;
-          }
         }
       `}</style>
 
-      <div className="tv-noise" />
-
       <div className="tv-shell">
         <header className="tv-header">
-          <div>
-            <div className="tv-kicker">
-              <Radio size={14} /> Intermidia Live Dashboard
+          <div className="tv-brand">
+            <div className="tv-logo-wrap">
+              <img src="/logo-light.png" alt="Intermidia" className="tv-logo" />
             </div>
 
-            <div className="tv-brandline">
-              <div className="tv-brandbadge">
-                <BadgeDollarSign size={28} strokeWidth={2.6} />
+            <div>
+              <div className="tv-kicker">
+                <Radio size={12} strokeWidth={2.6} /> Painel Operacional
               </div>
-
-              <div>
-                <h1 className="tv-title">
-                  Painel <span className="tv-title-accent">Intermidia</span>
-                </h1>
-                <div className="tv-subtitle">
-                  Contratos, auditoria de loop, performance comercial e recados da operação em uma tela com identidade visual da marca.
-                </div>
+              <h1 className="tv-title">Painel Comercial Intermidia</h1>
+              <div className="tv-subtitle">
+                Mais compacto, claro e com leitura rápida para TV corporativa.
               </div>
             </div>
           </div>
@@ -736,9 +690,9 @@ export default function TvWall() {
           <article className="tv-card ga-loop">
             <div className="tv-card-head">
               <h2 className="tv-card-title">
-                <Activity size={22} strokeWidth={2.6} /> Auditoria de Loop
+                <Activity size={20} strokeWidth={2.6} /> Auditoria de Loop
               </h2>
-              <div className="tv-pill">Operação em tempo real</div>
+              <div className="tv-pill">Tempo real</div>
             </div>
 
             <div className="tv-kpi-grid loop">
@@ -764,7 +718,6 @@ export default function TvWall() {
               <div className="tv-list">
                 {(loop.itensCriticos || []).map((item) => {
                   const tone = toneClass(statusTone(item.pct_ocupado));
-
                   return (
                     <div key={String(item.id)} className={`tv-row ${tone}`}>
                       <div className="tv-row-top">
@@ -774,7 +727,6 @@ export default function TvWall() {
                             {item.cidade || 'Sem cidade'} • {item.insercoes_ativas || 0} inserções ativas
                           </div>
                         </div>
-
                         <div className="tv-metric">
                           <div className="tv-metric-value">{item.pct_ocupado}%</div>
                           <div className="tv-metric-label">ocupado</div>
@@ -784,9 +736,7 @@ export default function TvWall() {
                   );
                 })}
 
-                {!loop.itensCriticos?.length && (
-                  <div className="tv-empty">Nenhum ponto crítico no momento.</div>
-                )}
+                {!loop.itensCriticos?.length && <div className="tv-empty">Nenhum ponto crítico no momento.</div>}
               </div>
             </div>
           </article>
@@ -794,9 +744,9 @@ export default function TvWall() {
           <article className="tv-card ga-contracts">
             <div className="tv-card-head">
               <h2 className="tv-card-title">
-                <CalendarClock size={22} strokeWidth={2.6} /> Controle de Contratos
+                <CalendarClock size={20} strokeWidth={2.6} /> Controle de Contratos
               </h2>
-              <div className="tv-pill">Renovações e risco</div>
+              <div className="tv-pill">Auto-scroll</div>
             </div>
 
             <div className="tv-kpi-grid contracts">
@@ -814,12 +764,11 @@ export default function TvWall() {
               </div>
             </div>
 
-            <div className="tv-scroll">
+            <div className="tv-scroll" ref={contractsScrollRef}>
               <div className="tv-list">
                 {(contracts.items || []).map((contract, index) => {
                   const chipClass = contract.daysRemaining <= 5 ? 'critical' : contract.daysRemaining <= 15 ? 'warning' : 'ok';
                   const rowTone = contract.daysRemaining <= 5 ? 'is-critical' : contract.daysRemaining <= 15 ? 'is-high' : 'is-low';
-
                   return (
                     <div
                       key={`${contract.advertiser}-${contract.expirationDate}-${index}`}
@@ -832,7 +781,6 @@ export default function TvWall() {
                             {contract.vendorName || 'Sem vendedor'} • {fmtMoney(contract.value)}
                           </div>
                         </div>
-
                         <div className={`tv-contract-chip ${chipClass}`}>
                           {contract.daysRemaining} dia(s)
                         </div>
@@ -841,9 +789,7 @@ export default function TvWall() {
                   );
                 })}
 
-                {!contracts.items?.length && (
-                  <div className="tv-empty">Sem contratos carregados no momento.</div>
-                )}
+                {!contracts.items?.length && <div className="tv-empty">Sem contratos carregados no momento.</div>}
               </div>
             </div>
           </article>
@@ -851,35 +797,33 @@ export default function TvWall() {
           <article className="tv-card ga-ranking">
             <div className="tv-card-head">
               <h2 className="tv-card-title">
-                <TrendingUp size={22} strokeWidth={2.6} /> Ranking de Vendas
+                <TrendingUp size={20} strokeWidth={2.6} /> Ranking de Vendas
               </h2>
-              <div className="tv-pill">Mês atual</div>
+              <div className="tv-pill">Fotos + nomes normalizados</div>
             </div>
 
             <div className="tv-scroll">
               <div className="tv-list">
                 {ranking.map((seller, index) => (
-                  <div
-                    key={`${seller.vendedor}-${seller.posicao}`}
-                    className={`tv-ranking-item ${index === 0 ? 'leader' : ''}`}
-                  >
-                    {index === 0 ? <div className="tv-ranking-badge">Líder</div> : null}
+                  <div key={`${seller.vendedor}-${seller.posicao}`} className={`tv-ranking-item ${index === 0 ? 'leader' : ''}`}>
+                    <div className="tv-ranking-left">
+                      {seller.photo_url ? (
+                        <img src={seller.photo_url} alt={seller.vendedor} className="tv-avatar" />
+                      ) : (
+                        <div className="tv-avatar-fallback">{getInitials(seller.vendedor)}</div>
+                      )}
 
-                    <div className="tv-ranking-line">
-                      <div className="tv-ranking-name">
-                        <span className="tv-ranking-index">{seller.posicao}º</span>
-                        {seller.vendedor}
+                      <div>
+                        <div className="tv-ranking-name">{seller.posicao}. {seller.vendedor}</div>
+                        <div className="tv-ranking-meta">{seller.vendas} venda(s) no mês</div>
                       </div>
-                      <div className="tv-ranking-total">{fmtMoney(seller.total)}</div>
                     </div>
 
-                    <div className="tv-ranking-meta">{seller.vendas} venda(s) no mês</div>
+                    <div className="tv-ranking-total">{fmtMoney(seller.total)}</div>
                   </div>
                 ))}
 
-                {!ranking.length && (
-                  <div className="tv-empty">Nenhuma venda registrada no mês atual.</div>
-                )}
+                {!ranking.length && <div className="tv-empty">Nenhuma venda registrada no mês atual.</div>}
               </div>
             </div>
           </article>
@@ -887,9 +831,9 @@ export default function TvWall() {
           <article className="tv-card ga-postits">
             <div className="tv-card-head">
               <h2 className="tv-card-title">
-                <StickyNote size={22} strokeWidth={2.6} /> Mural do Grupo
+                <StickyNote size={20} strokeWidth={2.6} /> Mural do Grupo
               </h2>
-              <div className="tv-pill">WhatsApp sincronizado</div>
+              <div className="tv-pill">WhatsApp</div>
             </div>
 
             <div className="tv-scroll">
@@ -914,12 +858,10 @@ export default function TvWall() {
         <footer className="tv-footer">
           <div className="tv-footer-inner">
             <div className="tv-footer-label">
-              <Newspaper size={18} strokeWidth={2.8} /> Flash Intermidia
+              <Newspaper size={16} strokeWidth={2.8} /> Flash Intermidia
             </div>
             <div className="tv-ticker">
-              <div className="tv-ticker-track">
-                {tickerText} • {tickerText} • {tickerText}
-              </div>
+              <div className="tv-ticker-track">{tickerText} • {tickerText} • {tickerText}</div>
             </div>
           </div>
         </footer>

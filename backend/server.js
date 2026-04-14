@@ -1608,10 +1608,66 @@ function parseCurrencyLike(value) {
   return Number.isFinite(num) ? num : 0;
 }
 
+function normalizeSellerName(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[._-]+/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function formatSellerDisplayName(value) {
+  const cleaned = String(value || '')
+    .replace(/[._-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned) return 'Equipe Comercial';
+
+  return cleaned
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function getTvSellerDirectory() {
+  const rows = db.prepare(`
+    SELECT username, first_name, last_name, photo_url
+    FROM admin_users
+    WHERE is_vendedor = 1
+  `).all();
+
+  const directory = new Map();
+  for (const row of rows) {
+    const fullName = [row.first_name, row.last_name].filter(Boolean).join(' ').trim();
+    const displayName = fullName || formatSellerDisplayName(row.username);
+    const canonicalKey = normalizeSellerName(displayName) || normalizeSellerName(row.username);
+    const info = {
+      canonicalKey,
+      displayName,
+      photo_url: row.photo_url || null,
+    };
+
+    [row.username, fullName, displayName]
+      .map((alias) => normalizeSellerName(alias))
+      .filter(Boolean)
+      .forEach((alias) => {
+        directory.set(alias, info);
+      });
+  }
+
+  return directory;
+}
+
 function getMonthlyVendorRanking() {
   const now = new Date();
   const month = now.getMonth();
   const year = now.getFullYear();
+  const sellerDirectory = getTvSellerDirectory();
 
   const rows = db.prepare(`
     SELECT vendedor_nome, valor_mensal, created_at
@@ -1625,14 +1681,31 @@ function getMonthlyVendorRanking() {
     if (Number.isNaN(createdAt.getTime())) continue;
     if (createdAt.getMonth() !== month || createdAt.getFullYear() !== year) continue;
 
-    const seller = String(row.vendedor_nome || '').trim();
-    if (!seller) continue;
+    const sellerRaw = String(row.vendedor_nome || '').trim();
+    const normalizedSeller = normalizeSellerName(sellerRaw);
+    if (!normalizedSeller) continue;
+
+    const sellerInfo = sellerDirectory.get(normalizedSeller);
+    const sellerKey = sellerInfo?.canonicalKey || normalizedSeller;
+    const sellerDisplayName = sellerInfo?.displayName || formatSellerDisplayName(sellerRaw);
 
     const val = parseCurrencyLike(row.valor_mensal);
-    if (!map.has(seller)) {
-      map.set(seller, { vendedor: seller, total: 0, vendas: 0 });
+    if (!map.has(sellerKey)) {
+      map.set(sellerKey, {
+        vendedor: sellerDisplayName,
+        total: 0,
+        vendas: 0,
+        photo_url: sellerInfo?.photo_url || null,
+      });
     }
-    const entry = map.get(seller);
+
+    const entry = map.get(sellerKey);
+    if (!entry.photo_url && sellerInfo?.photo_url) {
+      entry.photo_url = sellerInfo.photo_url;
+    }
+    if (sellerInfo?.displayName) {
+      entry.vendedor = sellerInfo.displayName;
+    }
     entry.total += val;
     entry.vendas += 1;
   }
@@ -1644,7 +1717,8 @@ function getMonthlyVendorRanking() {
       posicao: idx + 1,
       vendedor: item.vendedor,
       total: Number(item.total.toFixed(2)),
-      vendas: item.vendas
+      vendas: item.vendas,
+      photo_url: item.photo_url || null,
     }));
 }
 
