@@ -309,7 +309,7 @@ export default function TvWall() {
 
         .tv-header {
           display: grid;
-          grid-template-columns: 1fr auto;
+          grid-template-columns: auto 1fr auto;
           gap: 10px;
           align-items: center;
           padding: 6px 14px;
@@ -317,6 +317,49 @@ export default function TvWall() {
           background: linear-gradient(180deg, rgba(255,255,255,0.97), rgba(255,255,255,0.92));
           border: 1px solid rgba(254, 92, 43, 0.16);
           box-shadow: 0 14px 40px rgba(141, 98, 61, 0.09);
+        }
+
+        .tv-lotados {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          min-width: 0;
+          overflow: hidden;
+        }
+
+        .tv-lotados-label {
+          flex: 0 0 auto;
+          font-size: 9px;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.14em;
+          color: var(--danger);
+          background: #fff0f0;
+          border: 1px solid rgba(216,79,79,0.18);
+          padding: 3px 8px;
+          border-radius: 8px;
+          white-space: nowrap;
+        }
+
+        .tv-lotados-list {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          min-width: 0;
+          overflow: hidden;
+          flex-wrap: nowrap;
+        }
+
+        .tv-lotados-chip {
+          flex: 0 0 auto;
+          font-size: 10px;
+          font-weight: 700;
+          color: #b33;
+          background: #fff5f5;
+          border: 1px solid rgba(216,79,79,0.12);
+          padding: 2px 8px;
+          border-radius: 8px;
+          white-space: nowrap;
         }
 
         .tv-brand {
@@ -965,6 +1008,21 @@ export default function TvWall() {
               <h1 className="tv-title">Painel Comercial Intermidia</h1>
             </div>
           </div>
+
+          {(() => {
+            const lotados = (loop.itensCriticos || []).filter(i => i.pct_ocupado >= 100);
+            if (!lotados.length) return <div />;
+            return (
+              <div className="tv-lotados">
+                <div className="tv-lotados-label">Lotados ({lotados.length})</div>
+                <div className="tv-lotados-list">
+                  {lotados.map(i => (
+                    <div key={i.id} className="tv-lotados-chip">{i.local || i.nome}</div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="tv-status">
             <div className="tv-status-card">
