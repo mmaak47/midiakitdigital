@@ -196,16 +196,30 @@ export default function GestaoUnificada({ isDark, ano }) {
     return map;
   }, [vendedores]);
 
+  // Map display names back to usernames (case-insensitive)
+  const resolveToUsername = useMemo(() => {
+    const displayToUser = {};
+    vendedores.forEach(v => {
+      const display = [v.first_name, v.last_name].filter(Boolean).join(' ').toLowerCase();
+      if (display) displayToUser[display] = v.username;
+    });
+    return (name) => {
+      if (!name) return name;
+      if (vendedorUsernames.includes(name)) return name;
+      return displayToUser[name.toLowerCase()] || name;
+    };
+  }, [vendedores, vendedorUsernames]);
+
   const vendasByVendedor = useMemo(() => {
     const map = {};
     vendedorUsernames.forEach(v => { map[v] = []; });
     vendas.forEach(v => {
-      const key = v.vendedor_nome || '';
+      const key = resolveToUsername(v.vendedor_nome || '');
       if (!map[key]) map[key] = [];
       map[key].push(v);
     });
     return map;
-  }, [vendas, vendedorUsernames]);
+  }, [vendas, vendedorUsernames, resolveToUsername]);
 
   // Global meta for selected month
   const globalMeta = useMemo(() => ({
@@ -260,7 +274,8 @@ export default function GestaoUnificada({ isDark, ano }) {
   };
 
   const handleEdit = (v) => {
-    setShowForm(v.vendedor_nome); setEditingId(v.id);
+    const resolved = resolveToUsername(v.vendedor_nome);
+    setShowForm(resolved); setEditingId(v.id);
     setFormData({
       data_venda: v.data_venda || '', cliente: v.cliente || '', cnpj: v.cnpj || '',
       pontos_contratados: v.pontos_contratados || '', valor_mensal: v.valor_mensal || '',
@@ -269,7 +284,7 @@ export default function GestaoUnificada({ isDark, ano }) {
       vencimento_boletos: v.vencimento_boletos || '', contato: v.contato || '',
       email: v.email || '', obs: v.obs || '',
     });
-    setExpandedVendedor(v.vendedor_nome);
+    setExpandedVendedor(resolved);
   };
 
   const handleDelete = async (id) => {
