@@ -252,7 +252,7 @@ async function renderHtmlToPdf(htmlContent) {
       const message = String(err?.message || err);
       const isTransient =
         err?.code === 'PDF_RENDER_TIMEOUT'
-        || /Target closed|Protocol error|Session closed|Connection closed|Page crashed|Execution context/i.test(message);
+        || /Target closed|Protocol error|Session closed|Connection closed|Page crashed|Execution context|frame was detached/i.test(message);
 
       if (!isTransient) throw err;
 
