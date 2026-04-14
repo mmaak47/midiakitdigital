@@ -209,55 +209,15 @@ async function renderHtmlToPdf(htmlContent) {
         htmlReady = htmlReady.replace('<head>', `<head>${_fontCssInjection}`);
       }
 
-      await page.setContent(htmlReady, { waitUntil: 'domcontentloaded', timeout: 120000 });
-      console.log(`[pdf/render] setContent done (${(htmlReady.length / 1024).toFixed(0)} KB)`);
+      // Use networkidle0 to wait for all resources (images, fonts) to finish loading.
+      // This replaces manual page.evaluate() waits which hang when JS is disabled on the page.
+      await page.setContent(htmlReady, { waitUntil: 'networkidle0', timeout: 120000 });
+      console.log(`[pdf/render] setContent+networkidle done (${(htmlReady.length / 1024).toFixed(0)} KB)`);
 
-      // Wait for fonts when available, but do not fail PDF generation if this step hangs.
-      console.log('[pdf/render] step: font wait start');
-      try {
-        await page.evaluate((fontTimeoutMs) => {
-          if (!document?.fonts?.ready) return Promise.resolve();
-          return Promise.race([
-            document.fonts.ready,
-            new Promise((resolve) => setTimeout(resolve, fontTimeoutMs)),
-          ]);
-        }, PDF_FONT_READY_TIMEOUT_MS);
-        console.log('[pdf/render] step: font wait done');
-      } catch (err) {
-        console.warn('[pdf/render] font readiness skipped:', err?.message || err);
-      }
-
-      console.log('[pdf/render] step: image wait start');
-      try {
-        await page.evaluate((imgTimeoutMs) => {
-          const imgs = Array.from(document.images);
-          if (!imgs.length) return Promise.resolve();
-
-          return Promise.allSettled(
-            imgs.map((img) => {
-              if (img.complete) return Promise.resolve();
-
-              const src = String(img.currentSrc || img.src || '');
-              const timeoutMs = src.startsWith('data:') ? Math.min(imgTimeoutMs, 1500) : imgTimeoutMs;
-
-              return new Promise((resolve) => {
-                img.addEventListener('load', resolve, { once: true });
-                img.addEventListener('error', resolve, { once: true });
-                setTimeout(resolve, timeoutMs);
-              });
-            })
-          );
-        }, PDF_IMAGE_WAIT_TIMEOUT_MS);
-        console.log('[pdf/render] step: image wait done');
-      } catch (err) {
-        console.warn('[pdf/render] bounded image wait skipped:', err?.message || err);
-      }
-
-      // Let layout settle — imagens já chegam como data URLs, o layout estabiliza rápido
+      // Let layout settle after all resources loaded
       if (PDF_LAYOUT_SETTLE_MS > 0) {
         await new Promise((resolve) => setTimeout(resolve, PDF_LAYOUT_SETTLE_MS));
       }
-      console.log(`[pdf/render] pre-pdf step reached, generating PDF buffer...`);
 
       const pdfBuffer = await page.pdf({
         printBackground: true,
