@@ -53,6 +53,7 @@ export default function TvWall() {
   const [nowTime, setNowTime] = useState(() => new Date());
   const [temperature, setTemperature] = useState(null);
   const [salePopup, setSalePopup] = useState(null);
+  const loopScrollRef = useRef(null);
   const contractsScrollRef = useRef(null);
   const seenSalesRef = useRef(new Set());
   const isFirstLoadRef = useRef(true);
@@ -186,6 +187,31 @@ export default function TvWall() {
       clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    const element = loopScrollRef.current;
+    if (!element) return undefined;
+
+    element.scrollTop = 0;
+    if (element.scrollHeight <= element.clientHeight + 6) return undefined;
+
+    let pauseUntil = Date.now() + 1600;
+    const timer = setInterval(() => {
+      const maxScroll = element.scrollHeight - element.clientHeight;
+      if (Date.now() < pauseUntil) return;
+
+      const nextTop = element.scrollTop + 1;
+      if (nextTop >= maxScroll) {
+        element.scrollTop = 0;
+        pauseUntil = Date.now() + 1800;
+        return;
+      }
+
+      element.scrollTop = nextTop;
+    }, 45);
+
+    return () => clearInterval(timer);
+  }, [loop.itensCriticos]);
 
   useEffect(() => {
     const element = contractsScrollRef.current;
@@ -945,7 +971,7 @@ export default function TvWall() {
               </div>
             </div>
 
-            <div className="tv-scroll">
+            <div className="tv-scroll" ref={loopScrollRef}>
               <div className="tv-list">
                 {(loop.itensCriticos || []).map((item) => {
                   const tone = toneClass(statusTone(item.pct_ocupado));
