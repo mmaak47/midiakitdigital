@@ -2,12 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   CalendarClock,
+  Clock3,
   FileWarning,
   ListOrdered,
   Newspaper,
   Radio,
   StickyNote,
   Target,
+  Thermometer,
   TrendingUp,
 } from 'lucide-react';
 
@@ -20,11 +22,6 @@ function fmtMoney(value) {
     currency: 'BRL',
     maximumFractionDigits: 0,
   });
-}
-
-function fmtDateTime(value) {
-  const date = new Date(value || Date.now());
-  return date.toLocaleString('pt-BR', { hour12: false });
 }
 
 function statusTone(pct) {
@@ -54,7 +51,8 @@ function getInitials(name) {
 export default function TvWall() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
-  const [updatedAt, setUpdatedAt] = useState('');
+  const [nowTime, setNowTime] = useState(() => new Date());
+  const [temperature, setTemperature] = useState(null);
   const contractsScrollRef = useRef(null);
 
   useEffect(() => {
@@ -71,7 +69,6 @@ export default function TvWall() {
         if (!alive) return;
 
         setData(payload);
-        setUpdatedAt(fmtDateTime(payload.generated_at));
         setError('');
       } catch (err) {
         if (!alive) return;
@@ -98,6 +95,39 @@ export default function TvWall() {
   const goals = data?.goals || {};
   const recentActivity = data?.recent_activity || [];
   const postits = data?.postits || [];
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+
+    async function loadTemp() {
+      try {
+        const response = await fetch(
+          'https://api.open-meteo.com/v1/forecast?latitude=-23.3045&longitude=-51.1696&current=temperature_2m'
+        );
+        if (!response.ok) return;
+        const json = await response.json();
+        const value = Number(json?.current?.temperature_2m);
+        if (!alive) return;
+        if (Number.isFinite(value)) {
+          setTemperature(Math.round(value));
+        }
+      } catch {
+        // Sem temperatura não bloqueia o painel
+      }
+    }
+
+    loadTemp();
+    const interval = setInterval(loadTemp, 10 * 60 * 1000);
+    return () => {
+      alive = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     const element = contractsScrollRef.current;
@@ -218,15 +248,18 @@ export default function TvWall() {
         }
 
         .tv-status {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 2px;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+          min-width: 250px;
+        }
+
+        .tv-status-card {
           padding: 10px 12px;
-          min-width: 220px;
           border-radius: 18px;
           background: linear-gradient(180deg, #fff9f7, #fff2ec);
           border: 1px solid rgba(254, 92, 43, 0.14);
+          text-align: right;
         }
 
         .tv-status-label {
@@ -237,14 +270,16 @@ export default function TvWall() {
         }
 
         .tv-status-value {
-          font-size: 20px;
+          font-size: 18px;
           font-weight: 900;
           color: var(--brand);
           line-height: 1;
+          margin-top: 4px;
         }
 
         .tv-status-note {
-          font-size: 11px;
+          margin-top: 4px;
+          font-size: 10px;
           color: var(--muted);
         }
 
@@ -734,7 +769,11 @@ export default function TvWall() {
           }
 
           .tv-status {
-            align-items: flex-start;
+            grid-template-columns: 1fr;
+          }
+
+          .tv-status-card {
+            text-align: left;
           }
 
           .tv-grid {
@@ -762,15 +801,22 @@ export default function TvWall() {
               </div>
               <h1 className="tv-title">Painel Comercial Intermidia</h1>
               <div className="tv-subtitle">
-                Mais compacto, claro e com leitura rápida para TV corporativa.
+                Resultados do time, visão de contratos e recados da operação em um só lugar.
               </div>
             </div>
           </div>
 
           <div className="tv-status">
-            <div className="tv-status-label">Última atualização</div>
-            <div className="tv-status-value">{updatedAt || '--/--/---- --:--:--'}</div>
-            <div className="tv-status-note">Atualização automática a cada 15 segundos</div>
+            <div className="tv-status-card">
+              <div className="tv-status-label"><Clock3 size={11} style={{ display: 'inline', verticalAlign: 'text-top', marginRight: 4 }} /> Horário</div>
+              <div className="tv-status-value">{nowTime.toLocaleTimeString('pt-BR', { hour12: false })}</div>
+              <div className="tv-status-note">{nowTime.toLocaleDateString('pt-BR')}</div>
+            </div>
+            <div className="tv-status-card">
+              <div className="tv-status-label"><Thermometer size={11} style={{ display: 'inline', verticalAlign: 'text-top', marginRight: 4 }} /> Temperatura</div>
+              <div className="tv-status-value">{temperature != null ? `${temperature}°C` : '--°C'}</div>
+              <div className="tv-status-note">Londrina</div>
+            </div>
           </div>
         </header>
 
@@ -887,7 +933,7 @@ export default function TvWall() {
               <h2 className="tv-card-title">
                 <TrendingUp size={20} strokeWidth={2.6} /> Ranking de Vendas
               </h2>
-              <div className="tv-pill">Fotos + nomes normalizados</div>
+              <div className="tv-pill">Top performance do mês</div>
             </div>
 
             <div className="tv-scroll">

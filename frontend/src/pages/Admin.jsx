@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
   Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings,
-  Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap, ClipboardList, Activity,
+  Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap, ClipboardList, Activity, Newspaper,
   LogOut, Camera, Info
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
@@ -81,6 +81,7 @@ const ADMIN_TABS = [
   { key: 'auditoria_loop',   label: 'Auditoria de Loop', icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'] },
   { key: 'leads',             label: 'Leads',             icon: UserPlus,      roles: ['admin', 'gerente_comercial'] },
   { key: 'propostas',          label: 'Propostas',          icon: FileText,      roles: ['admin', 'gerente_comercial'] },
+  { key: 'painel_tv',         label: 'Painel TV',         icon: Newspaper,     roles: ['admin', 'gerente_comercial'] },
   { key: 'configuracoes',    label: 'Configurações',      icon: Settings,      roles: ['admin', 'gerente_comercial'] },
 ];
 
@@ -191,6 +192,8 @@ export default function Admin() {
   const [evoFinanceiroNumber, setEvoFinanceiroNumber] = useState('');
   const [tvTickerMessage, setTvTickerMessage] = useState('');
   const [tvPostitGroupJid, setTvPostitGroupJid] = useState('');
+  const [tvSaving, setTvSaving] = useState(false);
+  const [tvSaveMsg, setTvSaveMsg] = useState('');
   const [evoSaving, setEvoSaving] = useState(false);
   const [evoSaveMsg, setEvoSaveMsg] = useState('');
   const [evoTestLoading, setEvoTestLoading] = useState(false);
@@ -701,9 +704,7 @@ export default function Admin() {
         evolution_pdf_instance: evoPdfInstance.trim(),
         evolution_api_key: evoApiKey.trim(),
         evolution_dest_number: evoDestNumber.trim(),
-        evolution_financeiro_number: evoFinanceiroNumber.trim(),
-        tv_ticker_message: tvTickerMessage.trim(),
-        tv_postit_group_jid: tvPostitGroupJid.trim()
+        evolution_financeiro_number: evoFinanceiroNumber.trim()
       });
       setEvoSaveMsg('Configurações salvas!');
       setTimeout(() => setEvoSaveMsg(''), 3000);
@@ -711,6 +712,24 @@ export default function Admin() {
       setEvoSaveMsg(`Erro: ${err.message}`);
     } finally {
       setEvoSaving(false);
+    }
+  };
+
+  const handleSaveTvSettings = async (e) => {
+    e.preventDefault();
+    setTvSaving(true);
+    setTvSaveMsg('');
+    try {
+      await updateAdminSettings({
+        tv_ticker_message: tvTickerMessage.trim(),
+        tv_postit_group_jid: tvPostitGroupJid.trim()
+      });
+      setTvSaveMsg('Configurações do Painel TV salvas!');
+      setTimeout(() => setTvSaveMsg(''), 3000);
+    } catch (err) {
+      setTvSaveMsg(`Erro: ${err.message}`);
+    } finally {
+      setTvSaving(false);
     }
   };
 
@@ -1478,6 +1497,63 @@ export default function Admin() {
           <PropostasTab isDark={isDark} />
         ) : null}
 
+        {activeTab === 'painel_tv' ? (
+          <section className={`rounded-2xl border p-4 sm:p-5 ${th.card}`}>
+            <div>
+              <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Painel TV</h3>
+              <p className={`text-xs mt-1 ${th.sectionDesc}`}>Configure o Flash Intermidia e o grupo do WhatsApp que alimenta o mural do painel.</p>
+            </div>
+
+            <form onSubmit={handleSaveTvSettings} className="mt-5 space-y-4 max-w-3xl">
+              <div>
+                <label className={`block text-xs mb-1.5 ${th.lbl}`}>
+                  Flash Intermidia (texto da faixa)
+                </label>
+                <input
+                  className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
+                  value={tvTickerMessage}
+                  onChange={e => setTvTickerMessage(e.target.value)}
+                  placeholder="Texto exibido na faixa inferior do /painel-tv"
+                />
+              </div>
+
+              <div>
+                <label className={`block text-xs mb-1.5 ${th.lbl}`}>
+                  Grupo WhatsApp do mural (JID)
+                </label>
+                <input
+                  className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
+                  value={tvPostitGroupJid}
+                  onChange={e => setTvPostitGroupJid(e.target.value)}
+                  placeholder="120363XXXXXX@g.us"
+                />
+                <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
+                  Mensagens recebidas nesse grupo viram post-its automaticamente no Painel TV.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={tvSaving}
+                className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 transition-colors ${isDark ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange hover:bg-brand-orange/25' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+              >
+                {tvSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                {tvSaving ? 'Salvando...' : 'Salvar Painel TV'}
+              </button>
+
+              {tvSaveMsg && (
+                <p className={`text-xs mt-2 px-3 py-2 rounded-lg ${
+                  tvSaveMsg.startsWith('Configurações')
+                    ? `text-green-300 bg-green-500/10 border border-green-500/20`
+                    : `text-red-300 bg-red-500/10 border border-red-500/20`
+                }`}>
+                  {tvSaveMsg}
+                </p>
+              )}
+            </form>
+          </section>
+        ) : null}
+
         {activeTab === 'configuracoes' ? (
           <div className="space-y-5">
             <CidadeFotosAdmin />
@@ -1979,31 +2055,6 @@ export default function Admin() {
                   />
                   <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
                     Toda segunda-feira às 08:30 será enviado um lembrete com os contratos pendentes de assinatura.
-                  </p>
-                </div>
-                <div>
-                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>
-                    Mensagem do ticker (Painel TV)
-                  </label>
-                  <input
-                    className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
-                    value={tvTickerMessage}
-                    onChange={e => setTvTickerMessage(e.target.value)}
-                    placeholder="Mensagem tipo jornal para /painel-tv"
-                  />
-                </div>
-                <div>
-                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>
-                    Grupo WhatsApp para Post-its (JID)
-                  </label>
-                  <input
-                    className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
-                    value={tvPostitGroupJid}
-                    onChange={e => setTvPostitGroupJid(e.target.value)}
-                    placeholder="120363XXXXXX@g.us"
-                  />
-                  <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
-                    Mensagens recebidas nesse grupo viram post-its automaticamente no Painel TV.
                   </p>
                 </div>
                 <button
