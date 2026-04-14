@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
 const { z } = require('zod');
 const { randomUUID } = require('crypto');
 const db = require('./database');
@@ -218,6 +219,16 @@ function corsOriginValidator(origin, callback) {
   callback(new Error('Origem não permitida pelo CORS'));
 }
 
+function getClientIp(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const ip = forwarded || req.ip || req.connection?.remoteAddress || 'unknown';
+  return ip.replace(/^::ffff:/, '');
+}
+
+function getRateLimitKey(req) {
+  return ipKeyGenerator(getClientIp(req));
+}
+
 // Origens permitidas para endpoints públicos de monitores (players de tela).
 // Configure via MONITOR_ORIGINS=https://player1.com,https://player2.com no .env
 // Se não configurado, aceita mesmas origens que o frontend.
@@ -254,11 +265,7 @@ const apiLimiter = rateLimit({
   max: Number(process.env.API_RATE_LIMIT_MAX || 1200),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-    const ip = forwarded || req.ip || req.connection?.remoteAddress || 'unknown';
-    return ip.replace(/^::ffff:/, '');
-  },
+  keyGenerator: (req) => getRateLimitKey(req),
   message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' }
 });
 
@@ -270,8 +277,7 @@ const loginLimiter = rateLimit({
   // Count only failed attempts and partition by IP + login identifier.
   skipSuccessfulRequests: true,
   keyGenerator: (req) => {
-    const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-    const ip = (forwarded || req.ip || req.connection?.remoteAddress || 'unknown').replace(/^::ffff:/, '');
+    const ip = getRateLimitKey(req);
     const identifier = String(req.body?.username || req.body?.email || '').trim().toLowerCase();
     return identifier ? `${ip}:${identifier}` : ip;
   },
@@ -283,7 +289,7 @@ const pdfRenderLimiter = rateLimit({
   max: Number(process.env.PDF_RENDER_RATE_LIMIT_MAX || 50),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
+  keyGenerator: (req) => getRateLimitKey(req),
   message: { error: 'Limite de geração de PDF atingido. Tente novamente em alguns minutos.' }
 });
 
@@ -293,11 +299,7 @@ const publicLimiter = rateLimit({
   max: Number(process.env.PUBLIC_RATE_LIMIT_MAX || 3000),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-    const ip = forwarded || req.ip || req.connection?.remoteAddress || 'unknown';
-    return ip.replace(/^::ffff:/, '');
-  },
+  keyGenerator: (req) => getRateLimitKey(req),
   message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' }
 });
 
@@ -1223,7 +1225,7 @@ const monitorLimiter = rateLimit({
   max: Number(process.env.MONITOR_RATE_LIMIT_MAX || 120),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
+  keyGenerator: (req) => getRateLimitKey(req),
   message: { error: 'Muitas requisições ao monitor. Tente novamente em breve.' }
 });
 
@@ -2262,7 +2264,7 @@ app.post('/api/pontos', upload.fields([
 
     const stmt = db.prepare(`
       INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, midia_largura_m, midia_altura_m, tipo_fluxo, audience_tags, availability_calendar, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom, foto_focal_point, pdf_image_source)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
