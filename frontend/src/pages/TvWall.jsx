@@ -790,20 +790,17 @@ export default function TvWall() {
           color: #7e3a1f;
           font-size: 15px;
           font-weight: 800;
-          padding: 12px 16px;
-          position: relative;
         }
 
-        .tv-ticker-msg {
+        .tv-ticker-track {
           display: inline-block;
-          animation: ticker-fade 12s ease-in-out infinite;
+          padding: 12px 0 12px 100%;
+          animation: ticker-move var(--ticker-dur, 34s) linear infinite;
         }
 
-        @keyframes ticker-fade {
-          0% { opacity: 0; transform: translateY(6px); }
-          8% { opacity: 1; transform: translateY(0); }
-          88% { opacity: 1; transform: translateY(0); }
-          100% { opacity: 0; transform: translateY(-6px); }
+        @keyframes ticker-move {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-100%); }
         }
 
         .tv-alert {
@@ -1201,7 +1198,7 @@ export default function TvWall() {
               <Newspaper size={16} strokeWidth={2.8} /> Flash Intermidia
             </div>
             <div className="tv-ticker">
-              <div className="tv-ticker-msg" key={tickerIdx}>{currentTickerText}</div>
+              <div className="tv-ticker-track" style={{ '--ticker-dur': `${Math.max(20, currentTickerText.length * 0.35)}s` }}>{currentTickerText}&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;{currentTickerText}&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;{currentTickerText}</div>
             </div>
           </div>
         </footer>

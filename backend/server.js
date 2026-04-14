@@ -4572,7 +4572,7 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
     const event = payload?.event;
 
     // Só processa votos em poll (messages.update) e mensagens normais
-    const HANDLED = ['messages.upsert', 'message', 'messages.update', 'MESSAGES_UPDATE'];
+    const HANDLED = ['messages.upsert', 'message', 'messages.update', 'MESSAGES_UPDATE', 'MESSAGES_UPSERT'];
     if (!HANDLED.includes(event)) {
       return res.json({ ok: true, ignored: 'event-not-handled' });
     }
