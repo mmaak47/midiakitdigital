@@ -185,9 +185,12 @@ export default function Admin() {
   // Evolution API
   const [evoApiUrl, setEvoApiUrl] = useState('');
   const [evoInstance, setEvoInstance] = useState('');
+  const [evoPdfInstance, setEvoPdfInstance] = useState('');
   const [evoApiKey, setEvoApiKey] = useState('');
   const [evoDestNumber, setEvoDestNumber] = useState('');
   const [evoFinanceiroNumber, setEvoFinanceiroNumber] = useState('');
+  const [tvTickerMessage, setTvTickerMessage] = useState('');
+  const [tvPostitGroupJid, setTvPostitGroupJid] = useState('');
   const [evoSaving, setEvoSaving] = useState(false);
   const [evoSaveMsg, setEvoSaveMsg] = useState('');
   const [evoTestLoading, setEvoTestLoading] = useState(false);
@@ -658,9 +661,12 @@ export default function Admin() {
       // Evolution API settings
       setEvoApiUrl(data.evolution_api_url || '');
       setEvoInstance(data.evolution_instance || '');
+      setEvoPdfInstance(data.evolution_pdf_instance || '');
       setEvoApiKey(data.evolution_api_key || '');
       setEvoDestNumber(data.evolution_dest_number || '');
       setEvoFinanceiroNumber(data.evolution_financeiro_number || '');
+      setTvTickerMessage(data.tv_ticker_message || '');
+      setTvPostitGroupJid(data.tv_postit_group_jid || '');
     } catch (err) {
       if (!handleSessionError(err)) {
         setSettingsError(err.message || 'Falha ao carregar configurações');
@@ -692,9 +698,12 @@ export default function Admin() {
       await updateAdminSettings({
         evolution_api_url: evoApiUrl.trim(),
         evolution_instance: evoInstance.trim(),
+        evolution_pdf_instance: evoPdfInstance.trim(),
         evolution_api_key: evoApiKey.trim(),
         evolution_dest_number: evoDestNumber.trim(),
-        evolution_financeiro_number: evoFinanceiroNumber.trim()
+        evolution_financeiro_number: evoFinanceiroNumber.trim(),
+        tv_ticker_message: tvTickerMessage.trim(),
+        tv_postit_group_jid: tvPostitGroupJid.trim()
       });
       setEvoSaveMsg('Configurações salvas!');
       setTimeout(() => setEvoSaveMsg(''), 3000);
@@ -1911,13 +1920,14 @@ export default function Admin() {
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className={`block text-xs mb-1.5 ${th.lbl}`}>Nome da Instância</label>
+                    <label className={`block text-xs mb-1.5 ${th.lbl}`}>Instância (vendas / avisos)</label>
                     <input
                       className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                       value={evoInstance}
                       onChange={e => setEvoInstance(e.target.value)}
-                      placeholder="default (não alterar)"
+                      placeholder="intermidia"
                     />
+                    <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>Usada para notificações de vendas e grupos internos.</p>
                   </div>
                   <div>
                     <label className={`block text-xs mb-1.5 ${th.lbl}`}>API Key</label>
@@ -1929,6 +1939,18 @@ export default function Admin() {
                       placeholder="••••••••••••"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>Instância — Envio de PDF Técnico</label>
+                  <input
+                    className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
+                    value={evoPdfInstance}
+                    onChange={e => setEvoPdfInstance(e.target.value)}
+                    placeholder="aux adm"
+                  />
+                  <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
+                    Instância usada para disparar os PDFs técnicos ao cliente após a venda. Se vazio, usa a instância principal acima.
+                  </p>
                 </div>
                 <div>
                   <label className={`block text-xs mb-1.5 ${th.lbl}`}>
@@ -1957,6 +1979,31 @@ export default function Admin() {
                   />
                   <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
                     Toda segunda-feira às 08:30 será enviado um lembrete com os contratos pendentes de assinatura.
+                  </p>
+                </div>
+                <div>
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>
+                    Mensagem do ticker (Painel TV)
+                  </label>
+                  <input
+                    className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
+                    value={tvTickerMessage}
+                    onChange={e => setTvTickerMessage(e.target.value)}
+                    placeholder="Mensagem tipo jornal para /painel-tv"
+                  />
+                </div>
+                <div>
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>
+                    Grupo WhatsApp para Post-its (JID)
+                  </label>
+                  <input
+                    className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
+                    value={tvPostitGroupJid}
+                    onChange={e => setTvPostitGroupJid(e.target.value)}
+                    placeholder="120363XXXXXX@g.us"
+                  />
+                  <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
+                    Mensagens recebidas nesse grupo viram post-its automaticamente no Painel TV.
                   </p>
                 </div>
                 <button

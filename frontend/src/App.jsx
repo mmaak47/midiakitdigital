@@ -9,6 +9,7 @@ const Admin = lazy(() => import('./pages/Admin'));
 const CampaignPlanner = lazy(() => import('./pages/CampaignPlanner'));
 const GestaoComercial = lazy(() => import('./pages/GestaoComercial'));
 const PropostaPublica = lazy(() => import('./pages/PropostaPublica'));
+const TvWall = lazy(() => import('./pages/TvWall'));
 
 function hasAuthHintCookie() {
   if (typeof document === 'undefined') return false;
@@ -19,6 +20,11 @@ function RequireCommercialAuth({ children }) {
   const hasToken = typeof window !== 'undefined' &&
     (!!sessionStorage.getItem('admin_token') || hasAuthHintCookie());
   return hasToken ? children : <Navigate to="/comercial" replace />;
+}
+
+function shouldShowInventoryChat() {
+  if (typeof window === 'undefined') return true;
+  return window.location.pathname !== '/painel-tv';
 }
 
 export default function App() {
@@ -33,13 +39,14 @@ export default function App() {
             <Route path="/comercial/admin" element={<Admin />} />
             <Route path="/comercial/gestao" element={<RequireCommercialAuth><GestaoComercial /></RequireCommercialAuth>} />
             <Route path="/comercial/explorar" element={<RequireCommercialAuth><Explorer /></RequireCommercialAuth>} />
+            <Route path="/painel-tv" element={<TvWall />} />
             <Route path="/p/:token" element={<PropostaPublica />} />
             <Route path="/explorar" element={<Navigate to="/" replace />} />
             <Route path="/admin" element={<Navigate to="/comercial/admin" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
-        <InventarioChatBot />
+        {shouldShowInventoryChat() ? <InventarioChatBot /> : null}
       </BrowserRouter>
     </FavoritesProvider>
   );

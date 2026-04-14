@@ -503,17 +503,30 @@ ${customPageCss}
 </head>
 <body>${pageHtmlParts}</body></html>`;
 
-  const res = await fetch('/api/pdf/render', {
+  const payload = JSON.stringify({
+    html: fullHtml,
+    fileName,
+    citySlugs: Array.isArray(options.citySlugs) ? options.citySlugs : [],
+    noCache: options.noCache === true
+  });
+
+  let res = await fetch('/api/pdf/render', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      html: fullHtml,
-      fileName,
-      citySlugs: Array.isArray(options.citySlugs) ? options.citySlugs : [],
-      noCache: options.noCache === true
-    }),
+    body: payload,
     credentials: 'same-origin',
   });
+
+  // Retry once on transient gateway/service errors.
+  if (!res.ok && [502, 503, 504].includes(res.status)) {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    res = await fetch('/api/pdf/render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: payload,
+      credentials: 'same-origin',
+    });
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

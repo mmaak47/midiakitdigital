@@ -586,6 +586,7 @@ function authenticateSensitiveApi(req, res, next) {
     '/audience-intel/profiles',
     '/monitors',
     '/loop-audit',
+    '/tv',
     '/geo',
     '/ai/health',
     '/ai/stats',
@@ -1391,6 +1392,265 @@ function classifyRisk(pctOcupado) {
   return                         { level: 'low',      msg: 'Saudável',           color: 'green' };
 }
 
+const ORIGIN_CONTRACT_DEFAULT_BASE = 'https://sistema.redeintermidia.com';
+const CONTRACT_SCRAPE_MONTH_OFFSETS = [0, 1, 2, -1];
+const CONTRACT_CACHE_TTL_MS = 5 * 60 * 1000;
+let _originContractCookie = '';
+let _originContractCache = null;
+let _originContractCacheAt = 0;
+
+function getAppSetting(key, fallback = '') {
+  const row = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(String(key || ''));
+  const value = row?.value;
+  return value == null || value === '' ? fallback : String(value);
+}
+
+function parseSetCookieHeader(setCookieRaw) {
+  if (!setCookieRaw) return '';
+  if (Array.isArray(setCookieRaw)) {
+    return setCookieRaw.map((v) => String(v).split(';')[0]).join('; ');
+  }
+  const first = String(setCookieRaw).split(',').map((v) => v.trim())[0] || '';
+  return first.split(';')[0] || '';
+}
+
+function resolveOriginContractConfig() {
+  const base = getAppSetting('origin_base', process.env.ORIGIN_BASE || ORIGIN_CONTRACT_DEFAULT_BASE);
+  const user = getAppSetting('origin_user', process.env.ORIGIN_USER || '');
+  const pass = getAppSetting('origin_pass', process.env.ORIGIN_PASS || '');
+  let normalizedBase = String(base || ORIGIN_CONTRACT_DEFAULT_BASE).trim();
+  if (!/^https?:\/\//i.test(normalizedBase)) {
+    normalizedBase = `https://${normalizedBase}`;
+  }
+  normalizedBase = normalizedBase.replace(/\/+$/, '');
+  if (/\/premium$/i.test(normalizedBase)) {
+    normalizedBase = normalizedBase.replace(/\/premium$/i, '');
+  }
+  return {
+    base: normalizedBase || ORIGIN_CONTRACT_DEFAULT_BASE,
+    user: String(user || '').trim(),
+    pass: String(pass || '').trim()
+  };
+}
+
+async function originContractLogin() {
+  const cfg = resolveOriginContractConfig();
+  if (!cfg.base || !cfg.user || !cfg.pass) {
+    return { ok: false, reason: 'Credenciais ORIGIN não configuradas.' };
+  }
+
+  const loginPageResp = await fetch(`${cfg.base}/login`, {
+    method: 'GET',
+    redirect: 'manual',
+    headers: { Accept: 'text/html,*/*' }
+  });
+  if (!loginPageResp.ok && loginPageResp.status !== 302) {
+    return { ok: false, reason: `Falha ao abrir login origem: HTTP ${loginPageResp.status}` };
+  }
+
+  const sessionCookie = parseSetCookieHeader(loginPageResp.headers.get('set-cookie'));
+  if (!sessionCookie) {
+    return { ok: false, reason: 'Origem não retornou cookie de sessão.' };
+  }
+
+  const body = new URLSearchParams();
+  body.set('login', cfg.user);
+  body.set('senha', cfg.pass);
+
+  await fetch(`${cfg.base}/login/verifica`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Cookie: sessionCookie,
+      Accept: 'text/html,*/*'
+    },
+    body: body.toString()
+  });
+
+  _originContractCookie = sessionCookie;
+  return { ok: true };
+}
+
+function parseContractDateToIso(value) {
+  if (!value) return '';
+  const text = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const br = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toISOString().slice(0, 10);
+}
+
+function parseContractPayload(payload) {
+  if (!payload || typeof payload !== 'object') return [];
+  const raw = payload?.contratos_vencer?.lista || payload?.contratos_vencer || payload?.lista || payload?.data?.lista || [];
+  if (!Array.isArray(raw)) return [];
+
+  return raw.map((item) => {
+    const expirationDate = parseContractDateToIso(item?.data_final || item?.vencimento || item?.expirationDate);
+    if (!expirationDate) return null;
+    return {
+      advertiser: String(item?.cliente || item?.anunciante || '').trim(),
+      expirationDate,
+      value: Number.parseFloat(item?.valor_parcela || item?.valor || item?.value || 0) || 0,
+      vendorName: String(item?.vendedor || item?.vendorName || 'N/A').trim() || 'N/A',
+      daysRemaining: Number.parseInt(item?.dias, 10) || 0
+    };
+  }).filter((item) => item && item.advertiser);
+}
+
+async function fetchContractsFromOrigin({ force = false } = {}) {
+  const now = Date.now();
+  if (!force && _originContractCache && (now - _originContractCacheAt) < CONTRACT_CACHE_TTL_MS) {
+    return _originContractCache;
+  }
+
+  const cfg = resolveOriginContractConfig();
+  if (!cfg.base || !cfg.user || !cfg.pass) {
+    const empty = { items: [], warning: 'Credenciais ORIGIN não configuradas.' };
+    _originContractCache = empty;
+    _originContractCacheAt = Date.now();
+    return empty;
+  }
+
+  if (!_originContractCookie) {
+    const login = await originContractLogin();
+    if (!login.ok) {
+      const empty = { items: [], warning: login.reason || 'Falha no login da origem.' };
+      _originContractCache = empty;
+      _originContractCacheAt = Date.now();
+      return empty;
+    }
+  }
+
+  const unique = new Map();
+  for (const offset of CONTRACT_SCRAPE_MONTH_OFFSETS) {
+    const ref = new Date();
+    ref.setDate(1);
+    ref.setMonth(ref.getMonth() + offset);
+    const mes = ref.getMonth() + 1;
+    const ano = ref.getFullYear();
+    const url = `${cfg.base}/premium/ajax-dashboard-data?mes=${mes}&ano=${ano}`;
+
+    let resp = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json,text/plain,*/*',
+        Cookie: _originContractCookie
+      }
+    });
+
+    let payload = null;
+    try { payload = await resp.json(); } catch { payload = null; }
+
+    if (!payload || typeof payload !== 'object' || payload?.success === false) {
+      const relog = await originContractLogin();
+      if (!relog.ok) continue;
+
+      resp = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json,text/plain,*/*',
+          Cookie: _originContractCookie
+        }
+      });
+      try { payload = await resp.json(); } catch { payload = null; }
+    }
+
+    const parsed = parseContractPayload(payload);
+    for (const item of parsed) {
+      unique.set(`${item.advertiser}|${item.expirationDate}`, item);
+    }
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const items = Array.from(unique.values()).map((item) => {
+    const exp = new Date(`${item.expirationDate}T00:00:00`);
+    const daysRemaining = Number.isFinite(item.daysRemaining) && item.daysRemaining
+      ? item.daysRemaining
+      : Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
+    return {
+      ...item,
+      daysRemaining
+    };
+  });
+
+  const result = {
+    items,
+    warning: items.length ? '' : 'Nenhum contrato retornado no scraping da origem.'
+  };
+  _originContractCache = result;
+  _originContractCacheAt = Date.now();
+  return result;
+}
+
+function parseCurrencyLike(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const raw = String(value || '').trim();
+  if (!raw) return 0;
+  const normalized = raw
+    .replace(/R\$\s*/gi, '')
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .replace(/[^0-9.-]/g, '');
+  const num = Number.parseFloat(normalized);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function getMonthlyVendorRanking() {
+  const now = new Date();
+  const month = now.getMonth();
+  const year = now.getFullYear();
+
+  const rows = db.prepare(`
+    SELECT vendedor_nome, valor_mensal, created_at
+    FROM vendas
+    WHERE vendedor_nome IS NOT NULL AND TRIM(vendedor_nome) <> ''
+  `).all();
+
+  const map = new Map();
+  for (const row of rows) {
+    const createdAt = new Date(String(row.created_at || ''));
+    if (Number.isNaN(createdAt.getTime())) continue;
+    if (createdAt.getMonth() !== month || createdAt.getFullYear() !== year) continue;
+
+    const seller = String(row.vendedor_nome || '').trim();
+    if (!seller) continue;
+
+    const val = parseCurrencyLike(row.valor_mensal);
+    if (!map.has(seller)) {
+      map.set(seller, { vendedor: seller, total: 0, vendas: 0 });
+    }
+    const entry = map.get(seller);
+    entry.total += val;
+    entry.vendas += 1;
+  }
+
+  return Array.from(map.values())
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 10)
+    .map((item, idx) => ({
+      posicao: idx + 1,
+      vendedor: item.vendedor,
+      total: Number(item.total.toFixed(2)),
+      vendas: item.vendas
+    }));
+}
+
+function getLatestTvPostits(limit = 10) {
+  const max = Math.max(1, Math.min(50, Number(limit) || 10));
+  return db.prepare(`
+    SELECT id, text, author, source, created_at
+    FROM tv_postits
+    ORDER BY created_at DESC, id DESC
+    LIMIT ?
+  `).all(max);
+}
+
 // ── Tabela de propostas públicas (link para o cliente) ──
 try {
   db.prepare(`CREATE TABLE IF NOT EXISTS proposta_tokens (
@@ -1413,6 +1673,18 @@ try {
     nome TEXT,
     motivo TEXT,
     excluido_em TEXT DEFAULT (datetime('now'))
+  )`).run();
+} catch (e) { /* já existe */ }
+
+// ── Tabela de post-its do painel TV ──
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS tv_postits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    text TEXT NOT NULL,
+    author TEXT,
+    source TEXT DEFAULT 'manual',
+    external_message_id TEXT UNIQUE,
+    created_at TEXT DEFAULT (datetime('now'))
   )`).run();
 } catch (e) { /* já existe */ }
 
@@ -1564,6 +1836,137 @@ app.delete('/api/loop-audit/exclusions/:id', (req, res) => {
   if (!id) return res.status(400).json({ error: 'id inválido' });
   db.prepare('DELETE FROM loop_audit_exclusions WHERE origin_id = ?').run(id);
   res.json({ ok: true });
+});
+
+// ── Painel TV (público) ─────────────────────────────────────────────────────
+app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
+  try {
+    const warnings = [];
+
+    let loopSummary = {
+      total: 0,
+      online: 0,
+      offline: 0,
+      lotados: 0,
+      totalCotasLivres: 0,
+      itensCriticos: []
+    };
+
+    try {
+      const monitors = await fetchOriginMonitors();
+      const EXCLUDE_RE = /\bbacklight\b|\bfrontlight\b/i;
+      const DURACAO_INSERCAO = 10;
+      const CICLO_PADRAO = 180;
+      const filtered = monitors.filter((m) => !EXCLUDE_RE.test(m?.nome || ''));
+
+      const mapped = filtered.map((m) => {
+        const ocupadoSeg = Number(m?.ciclo_segundos || 0);
+        const livreSeg = Math.max(0, CICLO_PADRAO - ocupadoSeg);
+        const cotasLivres = Math.floor(livreSeg / DURACAO_INSERCAO);
+        const pctOcupado = Math.min(100, Math.round((ocupadoSeg / CICLO_PADRAO) * 100));
+        return {
+          id: m?.id,
+          nome: String(m?.nome || '').trim(),
+          local: String(m?.local || '').trim(),
+          cidade: m?.cidade || '',
+          status: m?.status || 'unknown',
+          pct_ocupado: pctOcupado,
+          cotas_livres: cotasLivres,
+          insercoes_ativas: Number(m?.total_insercoes_ativas || 0)
+        };
+      });
+
+      loopSummary = {
+        total: mapped.length,
+        online: mapped.filter((m) => m.status === 'online').length,
+        offline: mapped.filter((m) => m.status !== 'online').length,
+        lotados: mapped.filter((m) => m.pct_ocupado >= 100).length,
+        totalCotasLivres: mapped.reduce((sum, m) => sum + (m.cotas_livres || 0), 0),
+        itensCriticos: mapped
+          .filter((m) => m.pct_ocupado >= 90)
+          .sort((a, b) => b.pct_ocupado - a.pct_ocupado)
+          .slice(0, 8)
+      };
+    } catch (err) {
+      warnings.push(`Loop audit: ${err.message}`);
+    }
+
+    const contractsData = await fetchContractsFromOrigin();
+    if (contractsData.warning) warnings.push(contractsData.warning);
+    const expiring5 = contractsData.items.filter((c) => Number(c.daysRemaining) <= 5 && Number(c.daysRemaining) >= 0).length;
+    const expiring15 = contractsData.items.filter((c) => Number(c.daysRemaining) <= 15 && Number(c.daysRemaining) > 5).length;
+
+    const ranking = getMonthlyVendorRanking();
+    const tickerMessage = getAppSetting('tv_ticker_message', 'Painel Intermidia: acompanhe contratos, auditoria de loop e ranking de vendas em tempo real.');
+    const postits = getLatestTvPostits(12);
+
+    res.json({
+      generated_at: new Date().toISOString(),
+      loop: loopSummary,
+      contracts: {
+        total: contractsData.items.length,
+        expiring_5d: expiring5,
+        expiring_15d: expiring15,
+        items: contractsData.items
+          .sort((a, b) => Number(a.daysRemaining || 0) - Number(b.daysRemaining || 0))
+          .slice(0, 14)
+      },
+      ranking,
+      ticker_message: tickerMessage,
+      postits,
+      warnings
+    });
+  } catch (err) {
+    console.error('[tv/dashboard]', err.message);
+    res.status(500).json({ error: 'Falha ao montar painel TV.' });
+  }
+});
+
+app.get('/api/admin/tv/postits', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const limit = Number(req.query.limit || 50);
+    res.json(getLatestTvPostits(limit));
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+app.post('/api/admin/tv/postits', requireRoles(['admin', 'gerente_comercial']), express.json(), (req, res) => {
+  try {
+    const text = String(req.body?.text || '').trim();
+    const author = String(req.body?.author || req.authUser?.username || 'admin').trim();
+    if (!text) return res.status(400).json({ error: 'text é obrigatório' });
+
+    const info = db.prepare(`
+      INSERT INTO tv_postits (text, author, source)
+      VALUES (?, ?, 'manual')
+    `).run(text.slice(0, 500), author.slice(0, 120));
+
+    const row = db.prepare('SELECT id, text, author, source, created_at FROM tv_postits WHERE id = ?').get(info.lastInsertRowid);
+    res.status(201).json(row);
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+app.delete('/api/admin/tv/postits/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: 'id inválido' });
+    db.prepare('DELETE FROM tv_postits WHERE id = ?').run(id);
+    res.json({ ok: true });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+app.post('/api/admin/tv/contracts/sync', requireRoles(['admin', 'gerente_comercial']), async (req, res) => {
+  try {
+    const data = await fetchContractsFromOrigin({ force: true });
+    res.json({ ok: true, total: data.items.length, warning: data.warning || '' });
+  } catch (err) {
+    internalError(res, err);
+  }
 });
 
 // Admin auth
@@ -2482,9 +2885,12 @@ app.put('/api/admin/settings', requireRoles(['admin']), (req, res) => {
       lucro_minimo_percentual,
       evolution_api_url,
       evolution_instance,
+      evolution_pdf_instance,
       evolution_api_key,
       evolution_dest_number,
-      evolution_financeiro_number
+      evolution_financeiro_number,
+      tv_ticker_message,
+      tv_postit_group_jid
     } = req.body;
 
     if (lucro_minimo_percentual !== undefined) {
@@ -2499,7 +2905,16 @@ app.put('/api/admin/settings', requireRoles(['admin']), (req, res) => {
     }
 
     // Evolution API settings (string values — salva independente do valor)
-    const evoFields = { evolution_api_url, evolution_instance, evolution_api_key, evolution_dest_number, evolution_financeiro_number };
+    const evoFields = {
+      evolution_api_url,
+      evolution_instance,
+      evolution_pdf_instance,
+      evolution_api_key,
+      evolution_dest_number,
+      evolution_financeiro_number,
+      tv_ticker_message,
+      tv_postit_group_jid
+    };
     Object.entries(evoFields).forEach(([key, val]) => {
       if (val !== undefined) {
         db.prepare("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))").run(
@@ -2938,7 +3353,9 @@ const uploadPi = multer({
     }
     cb(null, true);
   },
-  limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 20 }
+  // O formulário de venda pode enviar muitos campos (arrays/JSON extras), então
+  // evitamos bloquear com LIMIT_FIELD_COUNT ao anexar o P.I.
+  limits: { fileSize: 50 * 1024 * 1024, files: 1, fields: 200 }
 });
 
 // Inicializa tabela de vendas (se não existir)
@@ -3159,6 +3576,7 @@ function getEvolutionSettings() {
   const keys = [
     'evolution_api_url',
     'evolution_instance',
+    'evolution_pdf_instance',
     'evolution_api_key',
     'evolution_dest_number',
     'evolution_financeiro_number'
@@ -3424,6 +3842,7 @@ app.post(
       let whatsappError = null;
 
       if (evo.evolution_api_url && evo.evolution_instance && evo.evolution_api_key && evo.evolution_dest_number) {
+        let waMsgId = null;
         try {
           const mensagem = buildVendaWhatsappMessage({
             tipo,
@@ -3446,7 +3865,6 @@ app.post(
             obs: obs || ''
           });
 
-          let waMsgId = null;
           if (piPath) {
             // Envia o PDF com a mensagem como caption
             const evoResp = await sendEvolutionDocument({
@@ -3600,7 +4018,7 @@ app.post(
             require('fs').writeFileSync(tmpDesktop, desktop);
             await sendEvolutionDocument({
               apiUrl:   evoClient.evolution_api_url,
-              instance: evoClient.evolution_instance,
+              instance: evoClient.evolution_pdf_instance || evoClient.evolution_instance,
               apiKey:   evoClient.evolution_api_key,
               number:   clientPhone,
               caption,
@@ -3619,7 +4037,7 @@ app.post(
             require('fs').writeFileSync(tmpMobile, mobile);
             await sendEvolutionDocument({
               apiUrl:   evoClient.evolution_api_url,
-              instance: evoClient.evolution_instance,
+              instance: evoClient.evolution_pdf_instance || evoClient.evolution_instance,
               apiKey:   evoClient.evolution_api_key,
               number:   clientPhone,
               caption:  '📱 Versão mobile da proposta técnica:',
@@ -3695,7 +4113,7 @@ app.post('/api/vendas/test-pdf', requireRoles(['admin', 'gerente_comercial']), a
     require('fs').writeFileSync(tmpD, desktop);
     try {
       await sendEvolutionDocument({
-        apiUrl: evo.evolution_api_url, instance: evo.evolution_instance, apiKey: evo.evolution_api_key,
+        apiUrl: evo.evolution_api_url, instance: evo.evolution_pdf_instance || evo.evolution_instance, apiKey: evo.evolution_api_key,
         number: destPhone, caption, filePath: tmpD, fileName: 'Informações Técnicas.pdf'
       });
       log.push(`PDF desktop enviado para ${destPhone}.`);
@@ -3708,7 +4126,7 @@ app.post('/api/vendas/test-pdf', requireRoles(['admin', 'gerente_comercial']), a
     require('fs').writeFileSync(tmpM, mobile);
     try {
       await sendEvolutionDocument({
-        apiUrl: evo.evolution_api_url, instance: evo.evolution_instance, apiKey: evo.evolution_api_key,
+        apiUrl: evo.evolution_api_url, instance: evo.evolution_pdf_instance || evo.evolution_instance, apiKey: evo.evolution_api_key,
         number: destPhone, caption: '📱 Versão mobile da proposta técnica:', filePath: tmpM,
         fileName: 'Informações Técnicas Mobile.pdf'
       });
@@ -3878,6 +4296,28 @@ app.get('/api/vendas/:id/etapas', requireRoles(['admin', 'gerente_comercial', 'v
   }
 });
 
+function extractEvolutionIncomingMessage(payload) {
+  const data = payload?.data;
+  if (Array.isArray(data?.messages) && data.messages.length) return data.messages[0];
+  if (Array.isArray(data) && data.length) return data[0];
+  return data || null;
+}
+
+function extractEvolutionText(message) {
+  if (!message || typeof message !== 'object') return '';
+  const msg = message.message || message;
+  return String(
+    msg?.conversation
+    || msg?.extendedTextMessage?.text
+    || msg?.imageMessage?.caption
+    || msg?.videoMessage?.caption
+    || msg?.documentMessage?.caption
+    || msg?.buttonsResponseMessage?.selectedDisplayText
+    || msg?.listResponseMessage?.title
+    || ''
+  ).trim();
+}
+
 // ─── Webhook Evolution API — reações emoji pós-venda ─────────────────────────
 app.post('/api/webhooks/whatsapp', (req, res) => {
   try {
@@ -3927,6 +4367,41 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
       }
 
       return res.json({ ok: true, processed: 'poll-vote' });
+    }
+
+    // ── Mensagem de grupo -> post-it do painel TV ───────────────────────────
+    const incoming = extractEvolutionIncomingMessage(payload);
+    const key = incoming?.key || data?.key || payload?.data?.key || {};
+    const remoteJid = String(key?.remoteJid || '').trim();
+    const messageId = String(key?.id || '').trim();
+    const fromMe = Boolean(key?.fromMe);
+    const text = extractEvolutionText(incoming || data);
+    const groupJid = getAppSetting('tv_postit_group_jid', '').trim();
+
+    if (groupJid && remoteJid === groupJid && !fromMe && text) {
+      const author = String(
+        incoming?.pushName
+        || data?.pushName
+        || payload?.sender?.pushName
+        || payload?.senderName
+        || key?.participant
+        || 'vendedor'
+      ).trim();
+
+      if (messageId) {
+        db.prepare(`
+          INSERT INTO tv_postits (text, author, source, external_message_id)
+          VALUES (?, ?, 'whatsapp', ?)
+          ON CONFLICT (external_message_id) DO NOTHING
+        `).run(text.slice(0, 500), author.slice(0, 120), messageId);
+      } else {
+        db.prepare(`
+          INSERT INTO tv_postits (text, author, source)
+          VALUES (?, ?, 'whatsapp')
+        `).run(text.slice(0, 500), author.slice(0, 120));
+      }
+
+      return res.json({ ok: true, processed: 'tv-postit' });
     }
 
     res.json({ ok: true, ignored: 'no-handler' });
@@ -4848,6 +5323,9 @@ app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: 'Arquivo excede o limite de 50MB.' });
+    }
+    if (err.code === 'LIMIT_FIELD_COUNT') {
+      return res.status(400).json({ error: 'Muitos campos enviados no formulário.' });
     }
     console.error('[upload]', err.message);
     return res.status(400).json({ error: 'Erro de upload.' });
