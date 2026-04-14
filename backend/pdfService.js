@@ -19,6 +19,9 @@ const PDF_LAYOUT_SETTLE_MS = Math.max(0, Number(process.env.PDF_LAYOUT_SETTLE_MS
 const PDF_COMPRESS_TIMEOUT_MS = Math.max(5000, Number(process.env.PDF_COMPRESS_TIMEOUT_MS || 45000));
 const PDF_COMPRESS_SKIP_OVER_MB = Math.max(1, Number(process.env.PDF_COMPRESS_SKIP_OVER_MB || 10));
 const PDF_DISABLE_GS_COMPRESSION = String(process.env.PDF_DISABLE_GS_COMPRESSION || '').toLowerCase() === 'true';
+const PDF_QUEUE_MAX_WAIT_MS = Math.max(5000, Number(process.env.PDF_QUEUE_MAX_WAIT_MS || 120_000));
+const PDF_RETRY_TIMEOUT_MS = Math.max(10_000, Number(process.env.PDF_RETRY_TIMEOUT_MS || 90_000));
+const LOCAL_ORIGIN = `http://127.0.0.1:${process.env.PORT || 3002}`;
 const ALLOWED_HOSTS = new Set(
   String(process.env.PDF_ALLOWED_HOSTS || 'localhost,127.0.0.1,REDACTED_VPS_IP,midiakit.redeintermidia.com,www.midiakit.redeintermidia.com')
     .split(',')
@@ -59,7 +62,7 @@ async function getBrowser() {
 
   _browser = await puppeteer.launch({
     headless: true,
-    protocolTimeout: 180000,
+    protocolTimeout: Math.max(240_000, PDF_RENDER_TIMEOUT_MS + 60_000),
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -118,6 +121,14 @@ async function _processRenderQueue() {
   try {
     while (_renderQueue.length > 0) {
       const task = _renderQueue.shift();
+      // Reject tasks that have been waiting too long in the queue
+      const waitedMs = Date.now() - (task.enqueuedAt || Date.now());
+      if (waitedMs > PDF_QUEUE_MAX_WAIT_MS) {
+        const err = new Error(`PDF queue wait exceeded ${Math.round(waitedMs / 1000)}s`);
+        err.code = 'PDF_RENDER_TIMEOUT';
+        task.reject(err);
+        continue;
+      }
       try {
         const result = await task.fn();
         task.resolve(result);
@@ -140,7 +151,7 @@ function _queueRender(fn) {
       reject(err);
       return;
     }
-    _renderQueue.push({ fn, resolve, reject });
+    _renderQueue.push({ fn, resolve, reject, enqueuedAt: Date.now() });
     _processRenderQueue().catch((err) => {
       console.error('[pdf-queue] Error:', err);
     });
@@ -189,11 +200,16 @@ async function renderHtmlToPdf(htmlContent) {
         request.abort();
       });
 
-      const htmlWithFonts = _fontCssInjection
-        ? htmlContent.replace('<head>', `<head>${_fontCssInjection}`)
-        : htmlContent;
+      // Rewrite <base href> to localhost to avoid HTTPS loopback through public DNS/nginx
+      let htmlReady = htmlContent.replace(
+        /<base\s+href="[^"]*"/i,
+        `<base href="${LOCAL_ORIGIN}"`
+      );
+      if (_fontCssInjection) {
+        htmlReady = htmlReady.replace('<head>', `<head>${_fontCssInjection}`);
+      }
 
-      await page.setContent(htmlWithFonts, { waitUntil: 'domcontentloaded', timeout: 120000 });
+      await page.setContent(htmlReady, { waitUntil: 'domcontentloaded', timeout: 120000 });
 
       // Wait for fonts when available, but do not fail PDF generation if this step hangs.
       try {
@@ -278,7 +294,7 @@ async function renderHtmlToPdf(htmlContent) {
       _rendersSinceBrowserLaunch = 0;
       await closeBrowser();
 
-      const retriedBuffer = await withTimeout(runRender(), PDF_RENDER_TIMEOUT_MS, 'PDF render retry');
+      const retriedBuffer = await withTimeout(runRender(), PDF_RETRY_TIMEOUT_MS, 'PDF render retry');
       console.log(`[pdf/render] done on retry in ${Date.now() - startedAt}ms`);
       return retriedBuffer;
     }

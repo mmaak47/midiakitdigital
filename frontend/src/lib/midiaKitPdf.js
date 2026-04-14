@@ -517,9 +517,9 @@ ${customPageCss}
     credentials: 'same-origin',
   });
 
-  // Retry once on transient gateway/service errors.
-  if (!res.ok && [502, 503, 504].includes(res.status)) {
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+  // Retry once on transient gateway/service errors (only 502/503 — 504 means backend already retried).
+  if (!res.ok && [502, 503].includes(res.status)) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
     res = await fetch('/api/pdf/render', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1736,7 +1736,7 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
 }
 
 export async function loadPdfAssets(cidade = '') {
-  const citySlug = slugify(cidade || '');
+  const citySlug = cidade ? slugify(cidade) : '';
   const cacheKey = citySlug || '__default__';
   if (pdfAssetsPromiseByCity.has(cacheKey)) {
     return pdfAssetsPromiseByCity.get(cacheKey);
