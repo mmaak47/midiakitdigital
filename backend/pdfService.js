@@ -209,10 +209,11 @@ async function renderHtmlToPdf(htmlContent) {
         htmlReady = htmlReady.replace('<head>', `<head>${_fontCssInjection}`);
       }
 
-      // Use networkidle0 to wait for all resources (images, fonts) to finish loading.
-      // This replaces manual page.evaluate() waits which hang when JS is disabled on the page.
-      await page.setContent(htmlReady, { waitUntil: 'networkidle0', timeout: 120000 });
-      console.log(`[pdf/render] setContent+networkidle done (${(htmlReady.length / 1024).toFixed(0)} KB)`);
+      // Use 'load' to wait for all sub-resources (images, fonts, stylesheets).
+      // 'networkidle0' is too strict for large HTML with many inline base64 images and
+      // can cause the frame to detach on documents > ~5 MB.
+      await page.setContent(htmlReady, { waitUntil: 'load', timeout: 120000 });
+      console.log(`[pdf/render] setContent+load done (${(htmlReady.length / 1024).toFixed(0)} KB)`);
 
       // Let layout settle after all resources loaded
       if (PDF_LAYOUT_SETTLE_MS > 0) {
