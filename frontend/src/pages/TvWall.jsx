@@ -413,14 +413,30 @@ export default function TvWall() {
           align-items: center;
           gap: 5px;
           min-width: 0;
-          overflow-x: auto;
-          overflow-y: hidden;
+          overflow: hidden;
           flex-wrap: nowrap;
           scrollbar-width: none;
           -ms-overflow-style: none;
         }
 
         .tv-lotados-list::-webkit-scrollbar { display: none; }
+
+        .tv-lotados-track {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          animation: lotados-scroll 18s linear infinite;
+          will-change: transform;
+        }
+
+        .tv-lotados-list:hover .tv-lotados-track {
+          animation-play-state: paused;
+        }
+
+        @keyframes lotados-scroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
 
         .tv-lotados-chip {
           flex: 0 0 auto;
@@ -741,8 +757,8 @@ export default function TvWall() {
 
         .tv-crown {
           position: absolute;
-          top: -10px;
-          left: 46px;
+          top: -16px;
+          left: 32px;
           font-size: 0;
           animation: crown-bounce 2s ease-in-out infinite;
           filter: drop-shadow(0 2px 6px rgba(234, 179, 8, 0.5));
@@ -1275,9 +1291,11 @@ export default function TvWall() {
                   <div className="tv-lotados" style={{ marginRight: 4 }}>
                     <div className="tv-lotados-label">Lotados ({(loop.lotadosItems || []).length})</div>
                     <div className="tv-lotados-list">
-                      {(loop.lotadosItems || []).map(i => (
-                        <div key={i.id} className="tv-lotados-chip">{i.local || i.nome}</div>
-                      ))}
+                      <div className="tv-lotados-track">
+                        {[...(loop.lotadosItems || []), ...(loop.lotadosItems || [])].map((i, idx) => (
+                          <div key={`${i.id}-${idx}`} className="tv-lotados-chip">{i.local || i.nome}</div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
