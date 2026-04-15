@@ -6,6 +6,7 @@ import {
   FileWarning,
   Newspaper,
   Radio,
+  Repeat,
   StickyNote,
   Target,
   Thermometer,
@@ -68,6 +69,20 @@ function getInitials(name) {
     .slice(0, 2);
   if (!parts.length) return 'IC';
   return parts.map((part) => part.charAt(0).toUpperCase()).join('');
+}
+
+function goalPctColorClass(pct) {
+  if (pct >= 100) return 'tv-goal-pct-ok';
+  if (pct >= 75) return 'tv-goal-pct-high';
+  if (pct >= 50) return 'tv-goal-pct-medium';
+  return 'tv-goal-pct-low';
+}
+
+function goalPctBarClass(pct) {
+  if (pct >= 100) return 'tv-goal-bar-ok';
+  if (pct >= 75) return 'tv-goal-bar-high';
+  if (pct >= 50) return 'tv-goal-bar-medium';
+  return 'tv-goal-bar-low';
 }
 
 export default function TvWall() {
@@ -712,31 +727,133 @@ export default function TvWall() {
 
         .tv-goal {
           border: 1px solid var(--line);
-          border-radius: 14px;
+          border-radius: 18px;
           background: #fff;
-          padding: 10px;
+          padding: 14px;
         }
 
-        .tv-goal-title {
-          font-size: 10px;
-          color: var(--muted);
-          text-transform: uppercase;
-          letter-spacing: 0.12em;
-          margin-bottom: 6px;
+        .tv-goal.is-recorrencia {
+          border-color: rgba(168, 85, 247, 0.55);
         }
 
-        .tv-goal-main {
-          font-size: 14px;
-          font-weight: 800;
-          color: var(--text);
-          line-height: 1.2;
+        .tv-goal.is-parcela {
+          border-color: rgba(245, 158, 11, 0.6);
         }
 
-        .tv-goal-meta {
-          margin-top: 4px;
+        .tv-goal-head {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+
+        .tv-goal-head svg {
+          flex: 0 0 auto;
+        }
+
+        .tv-goal-name {
+          font-size: 24px;
+          font-weight: 900;
+          line-height: 1;
+          letter-spacing: -0.02em;
+          color: #0f172a;
+        }
+
+        .tv-goal-subtitle {
           font-size: 11px;
           color: var(--muted);
         }
+
+        .tv-goal-top {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          gap: 10px;
+          margin-bottom: 8px;
+        }
+
+        .tv-goal-label {
+          font-size: 11px;
+          color: var(--muted);
+        }
+
+        .tv-goal-main {
+          margin-top: 2px;
+          font-size: 40px;
+          font-weight: 800;
+          color: var(--text);
+          line-height: 1;
+          letter-spacing: -0.03em;
+        }
+
+        .tv-goal-pct {
+          font-size: 40px;
+          line-height: 1;
+          font-weight: 900;
+        }
+
+        .tv-goal-pct.tv-goal-pct-ok { color: #22c55e; }
+        .tv-goal-pct.tv-goal-pct-high { color: #fe5c2b; }
+        .tv-goal-pct.tv-goal-pct-medium { color: #f59e0b; }
+        .tv-goal-pct.tv-goal-pct-low { color: #ef4444; }
+
+        .tv-goal-progress {
+          width: 100%;
+          height: 16px;
+          border-radius: 999px;
+          background: #e5e7eb;
+          margin-bottom: 10px;
+          overflow: hidden;
+        }
+
+        .tv-goal-progress-fill {
+          height: 100%;
+          border-radius: 999px;
+          transition: width 400ms ease;
+        }
+
+        .tv-goal-progress-fill.tv-goal-bar-ok { background: #22c55e; }
+        .tv-goal-progress-fill.tv-goal-bar-high { background: #3b82f6; }
+        .tv-goal-progress-fill.tv-goal-bar-medium { background: #f59e0b; }
+        .tv-goal-progress-fill.tv-goal-bar-low { background: #ef4444; }
+
+        .tv-goal-foot {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .tv-goal-meta {
+          font-size: 11px;
+          color: var(--muted);
+        }
+
+        .tv-goal-real {
+          margin-top: 2px;
+          font-size: 32px;
+          line-height: 1;
+          font-weight: 800;
+          color: var(--text);
+          letter-spacing: -0.03em;
+        }
+
+        .tv-goal-real.is-hit { color: #22c55e; }
+
+        .tv-goal-diff {
+          text-align: right;
+        }
+
+        .tv-goal-diff-value {
+          margin-top: 2px;
+          font-size: 28px;
+          line-height: 1;
+          font-weight: 700;
+          letter-spacing: -0.02em;
+        }
+
+        .tv-goal-diff-value.is-ok { color: #22c55e; }
+        .tv-goal-diff-value.is-miss { color: #ef4444; }
 
         .tv-postit-grid {
           display: grid;
@@ -1010,7 +1127,7 @@ export default function TvWall() {
           </div>
 
           {(() => {
-            const lotados = (loop.itensCriticos || []).filter(i => i.pct_ocupado >= 100);
+            const lotados = loop.lotadosItems || [];
             if (!lotados.length) return <div />;
             return (
               <div className="tv-lotados">
@@ -1200,26 +1317,78 @@ export default function TvWall() {
             </div>
 
             <div className="tv-goals-grid">
-              <div className="tv-goal">
-                <div className="tv-goal-title">Meta Mensal</div>
-                <div className="tv-goal-main">{fmtMoney(goals.meta_mensal || 0)}</div>
-                <div className="tv-goal-meta">
-                  Realizado: {fmtMoney(goals.realizado_mensal || 0)} • {Number(goals.pct_mensal || 0)}%
-                </div>
-                <div className="tv-goal-meta" style={{ color: Number(goals.pct_mensal || 0) >= 100 ? 'var(--ok)' : 'var(--danger)', fontWeight: 800 }}>
-                  {Number(goals.pct_mensal || 0) >= 100 ? '✓ Meta batida!' : `Falta: ${fmtMoney(Math.max(0, (goals.meta_mensal || 0) - (goals.realizado_mensal || 0)))}`}
-                </div>
-              </div>
-              <div className="tv-goal">
-                <div className="tv-goal-title">Meta Recorrência</div>
-                <div className="tv-goal-main">{fmtMoney(goals.meta_recorrencia || 0)}</div>
-                <div className="tv-goal-meta">
-                  Realizado: {fmtMoney(goals.realizado_recorrencia || 0)} • {Number(goals.pct_recorrencia || 0)}%
-                </div>
-                <div className="tv-goal-meta" style={{ color: Number(goals.pct_recorrencia || 0) >= 100 ? 'var(--ok)' : 'var(--danger)', fontWeight: 800 }}>
-                  {Number(goals.pct_recorrencia || 0) >= 100 ? '✓ Meta batida!' : `Falta: ${fmtMoney(Math.max(0, (goals.meta_recorrencia || 0) - (goals.realizado_recorrencia || 0)))}`}
-                </div>
-              </div>
+              {(() => {
+                const cards = [
+                  {
+                    key: 'recorrencia',
+                    title: 'Recorrência',
+                    subtitle: 'Total de contratos',
+                    icon: <Repeat size={22} color="#a855f7" />,
+                    cardClass: 'is-recorrencia',
+                    meta: Number(goals.meta_recorrencia || 0),
+                    real: Number(goals.realizado_recorrencia || 0),
+                    pct: Number(goals.pct_recorrencia || 0),
+                  },
+                  {
+                    key: 'parcela',
+                    title: '1ª Parcela',
+                    subtitle: 'Valor mensal vendido',
+                    icon: <Target size={22} color="#f59e0b" />,
+                    cardClass: 'is-parcela',
+                    meta: Number(goals.meta_mensal || 0),
+                    real: Number(goals.realizado_mensal || 0),
+                    pct: Number(goals.pct_mensal || 0),
+                  },
+                ];
+
+                return cards.map((card) => {
+                  const diff = card.real - card.meta;
+                  const hasMeta = card.meta > 0;
+                  return (
+                    <div key={card.key} className={`tv-goal ${card.cardClass}`}>
+                      <div className="tv-goal-head">
+                        {card.icon}
+                        <div>
+                          <div className="tv-goal-name">{card.title}</div>
+                          <div className="tv-goal-subtitle">{card.subtitle}</div>
+                        </div>
+                      </div>
+
+                      {hasMeta ? (
+                        <>
+                          <div className="tv-goal-top">
+                            <div>
+                              <div className="tv-goal-label">Meta</div>
+                              <div className="tv-goal-main">{fmtMoney(card.meta)}</div>
+                            </div>
+                            <div className={`tv-goal-pct ${goalPctColorClass(card.pct)}`}>{Math.max(0, Math.round(card.pct))}%</div>
+                          </div>
+
+                          <div className="tv-goal-progress">
+                            <div
+                              className={`tv-goal-progress-fill ${goalPctBarClass(card.pct)}`}
+                              style={{ width: `${Math.min(Math.max(card.pct, 0), 100)}%` }}
+                            />
+                          </div>
+
+                          <div className="tv-goal-foot">
+                            <div>
+                              <div className="tv-goal-label">Realizado</div>
+                              <div className={`tv-goal-real ${card.real >= card.meta ? 'is-hit' : ''}`}>{fmtMoney(card.real)}</div>
+                            </div>
+                            <div className="tv-goal-diff">
+                              <div className="tv-goal-label">Diferença</div>
+                              <div className={`tv-goal-diff-value ${diff >= 0 ? 'is-ok' : 'is-miss'}`}>{diff >= 0 ? '+' : ''}{fmtMoney(diff)}</div>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="tv-goal-meta">Meta não definida</div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </article>
 

@@ -103,10 +103,14 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
               href="https://www.instagram.com/intermidiadigitalooh/"
               target="_blank"
               rel="noopener noreferrer"
-              className={`flex items-center justify-center w-9 h-9 rounded-lg border-2 transition-all duration-200 border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-white`}
+              className="flex items-center justify-center w-9 h-9 rounded-lg border-2 transition-all duration-200 border-brand-orange text-brand-orange bg-white hover:bg-brand-orange hover:text-white"
               aria-label="Instagram"
             >
-              <i className="ri-instagram-line" style={{ fontSize: 18 }} />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4" aria-hidden="true">
+                <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
+                <circle cx="12" cy="12" r="4" />
+                <circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none" />
+              </svg>
             </a>
           </div>
         )}
@@ -160,10 +164,14 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setOpen(false)}
-                className={`flex items-center justify-center w-12 h-12 rounded-xl border-2 transition-colors border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-orange`}
+                className="flex items-center justify-center w-12 h-12 rounded-xl border-2 transition-colors border-brand-orange text-brand-orange bg-white hover:bg-brand-orange hover:text-white"
                 aria-label="Instagram"
               >
-                <i className="ri-instagram-line" style={{ fontSize: 20 }} />
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5" aria-hidden="true">
+                  <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
+                  <circle cx="12" cy="12" r="4" />
+                  <circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none" />
+                </svg>
               </a>
             </div>
           )}
