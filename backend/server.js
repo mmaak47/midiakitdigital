@@ -3759,6 +3759,29 @@ try {
   if (toFix.length > 0) console.log(`[gestao] repaired ${toFix.length} auto-synced vendas_comercial rows`);
 } catch (e) { console.error('[gestao] repair auto-sync failed:', e.message); }
 
+// Repair vendas_comercial rows where valor_mensal is null/0 but linked vendas has data
+try {
+  const nullRows = db.prepare(`
+    SELECT vc.id, v.valor_mensal AS v_valor, v.periodo, v.responsavel_nome, v.responsavel_whatsapp
+    FROM vendas_comercial vc
+    JOIN vendas v ON v.id = vc.venda_id
+    WHERE vc.venda_id IS NOT NULL
+      AND (vc.valor_mensal IS NULL OR vc.valor_mensal = 0)
+      AND v.valor_mensal IS NOT NULL AND v.valor_mensal != ''
+  `).all();
+  const stmtFixNull = db.prepare(`
+    UPDATE vendas_comercial SET valor_mensal = ?, total_contrato = ?, qtde_parcelas = ?, contato = COALESCE(?, contato), updated_at = datetime('now') WHERE id = ?
+  `);
+  for (const row of nullRows) {
+    const valorNum = parseBRLCurrency(row.v_valor);
+    const match = String(row.periodo || '').match(/^(\d+)\s+mes/i);
+    const meses = match ? Number(match[1]) : 1;
+    const contato = [row.responsavel_nome, row.responsavel_whatsapp].filter(Boolean).join(' · ') || null;
+    stmtFixNull.run(valorNum, valorNum * meses, meses, contato, row.id);
+  }
+  if (nullRows.length > 0) console.log(`[gestao] repaired ${nullRows.length} null-value vendas_comercial rows`);
+} catch (e) { console.error('[gestao] repair null-value sync failed:', e.message); }
+
 // Migration: add data_primeira_parcela column to vendas table
 try { db.prepare("ALTER TABLE vendas ADD COLUMN data_primeira_parcela TEXT").run(); } catch {}
 // Migration: add dia_pagamento_dia column to vendas (integer day only)
