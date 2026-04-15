@@ -757,8 +757,9 @@ export default function TvWall() {
 
         .tv-crown {
           position: absolute;
-          top: -16px;
-          left: 32px;
+          top: -14px;
+          left: 50%;
+          transform: translateX(-50%);
           font-size: 0;
           animation: crown-bounce 2s ease-in-out infinite;
           filter: drop-shadow(0 2px 6px rgba(234, 179, 8, 0.5));
@@ -1425,23 +1426,25 @@ export default function TvWall() {
               <div className="tv-list">
                 {ranking.map((seller, index) => (
                   <div key={`${seller.vendedor}-${seller.posicao}`} className={`tv-ranking-item ${index === 0 ? 'leader' : ''}`}>
-                    {index === 0 && (
-                      <div className="tv-crown">
-                        <svg width="28" height="22" viewBox="0 0 28 22" fill="none">
-                          <path d="M2 18L5 6L10 12L14 2L18 12L23 6L26 18H2Z" fill="#facc15" stroke="#eab308" strokeWidth="1.5" strokeLinejoin="round"/>
-                          <rect x="2" y="18" width="24" height="3" rx="1.5" fill="#eab308"/>
-                          <circle cx="5" cy="6" r="2" fill="#fde047"/>
-                          <circle cx="14" cy="2" r="2" fill="#fde047"/>
-                          <circle cx="23" cy="6" r="2" fill="#fde047"/>
-                        </svg>
-                      </div>
-                    )}
                     <div className="tv-ranking-left">
-                      {seller.photo_url ? (
-                        <img src={seller.photo_url} alt={seller.vendedor} className="tv-avatar" />
-                      ) : (
-                        <div className="tv-avatar-fallback">{getInitials(seller.vendedor)}</div>
-                      )}
+                      <div style={{ position: 'relative' }}>
+                        {index === 0 && (
+                          <div className="tv-crown">
+                            <svg width="28" height="22" viewBox="0 0 28 22" fill="none">
+                              <path d="M2 18L5 6L10 12L14 2L18 12L23 6L26 18H2Z" fill="#facc15" stroke="#eab308" strokeWidth="1.5" strokeLinejoin="round"/>
+                              <rect x="2" y="18" width="24" height="3" rx="1.5" fill="#eab308"/>
+                              <circle cx="5" cy="6" r="2" fill="#fde047"/>
+                              <circle cx="14" cy="2" r="2" fill="#fde047"/>
+                              <circle cx="23" cy="6" r="2" fill="#fde047"/>
+                            </svg>
+                          </div>
+                        )}
+                        {seller.photo_url ? (
+                          <img src={seller.photo_url} alt={seller.vendedor} className="tv-avatar" />
+                        ) : (
+                          <div className="tv-avatar-fallback">{getInitials(seller.vendedor)}</div>
+                        )}
+                      </div>
 
                       <div>
                         <div className="tv-ranking-name">{seller.posicao}. {seller.vendedor}</div>
