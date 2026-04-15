@@ -108,7 +108,8 @@ const emptyForm = {
   custo_operacional: '', tipo_fluxo: 'pessoas',
   imagem_foco_x: '50', imagem_foco_y: '50', imagem_foco_zoom: '100',
   foto_focal_point: 'center center',
-  pdf_image_source: 'imagem2'
+  pdf_image_source: 'imagem2',
+  disponibilidade: 'disponivel'
 };
 
 function enforceElevadorDimensions(nextForm) {
@@ -528,7 +529,8 @@ export default function Admin() {
       imagem_foco_y: (Number.isFinite(Number(ponto.imagem_foco_y)) ? Number(ponto.imagem_foco_y) : 50).toString(),
       imagem_foco_zoom: (Number.isFinite(Number(ponto.imagem_foco_zoom)) ? Number(ponto.imagem_foco_zoom) : 100).toString(),
       foto_focal_point: ponto.foto_focal_point || 'center center',
-      pdf_image_source: ponto.pdf_image_source || 'imagem2'
+      pdf_image_source: ponto.pdf_image_source || 'imagem2',
+      disponibilidade: ponto.disponibilidade || 'disponivel'
     }));
     setImageFile(null);
     setImagem2File(null);
@@ -1273,6 +1275,15 @@ export default function Admin() {
                         <td className={`px-4 py-3 ${th.tableCell} hidden md:table-cell`}>{p.cidade}</td>
                         <td className={`px-4 py-3 ${th.tableCell} hidden md:table-cell`}>
                           {p.tipo}{p.tipo === ELEVADOR_TIPO && p.elevador_categoria ? ` - ${p.elevador_categoria}` : ''}
+                          {(p.tipo === 'Frontlight' || p.tipo === 'Backlight') && (
+                            <span className={`ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                              p.disponibilidade === 'indisponivel'
+                                ? 'bg-red-500/15 text-red-400'
+                                : 'bg-emerald-500/15 text-emerald-400'
+                            }`}>
+                              {p.disponibilidade === 'indisponivel' ? 'Indisp.' : 'Disp.'}
+                            </span>
+                          )}
                         </td>
                         <td className={`px-4 py-3 ${th.tableCell} hidden lg:table-cell`}>{p.telas}</td>
                         <td className={`px-4 py-3 ${th.tableCell} hidden lg:table-cell`}>{formatRatio(p.arte_largura, p.arte_altura) || '-'}</td>
@@ -2252,6 +2263,33 @@ export default function Admin() {
                     <>
                       <FormField label="Largura fisica (m)" value={form.midia_largura_m} onChange={v => updateField('midia_largura_m', v)} type="number" step="0.01" min="0" />
                       <FormField label="Altura fisica (m)" value={form.midia_altura_m} onChange={v => updateField('midia_altura_m', v)} type="number" step="0.01" min="0" />
+                      <div className="md:col-span-2">
+                        <label className={`block text-xs mb-1.5 ${th.lbl}`}>Disponibilidade</label>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => updateField('disponibilidade', 'disponivel')}
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                              form.disponibilidade === 'disponivel'
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                : isDark ? 'bg-white/5 text-brand-gray-500 border border-white/10' : 'bg-neutral-100 text-neutral-400 border border-neutral-200'
+                            }`}
+                          >
+                            <Check size={14} /> Disponível
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateField('disponibilidade', 'indisponivel')}
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                              form.disponibilidade === 'indisponivel'
+                                ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                                : isDark ? 'bg-white/5 text-brand-gray-500 border border-white/10' : 'bg-neutral-100 text-neutral-400 border border-neutral-200'
+                            }`}
+                          >
+                            <X size={14} /> Indisponível
+                          </button>
+                        </div>
+                      </div>
                     </>
                   ) : null}
                 </div>

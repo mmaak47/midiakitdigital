@@ -1304,6 +1304,15 @@ export default function Landing() {
                                 <span className={`text-[11px] uppercase tracking-wide rounded-md px-2 py-1 border ${t.chipGray}`}>
                                   Público {ponto.publico || 'N/I'}
                                 </span>
+                                {(ponto.tipo === 'Frontlight' || ponto.tipo === 'Backlight') && (
+                                  <span className={`text-[11px] uppercase tracking-wide rounded-md px-2 py-1 border font-bold ${
+                                    ponto.disponibilidade === 'indisponivel'
+                                      ? 'bg-red-500/10 text-red-500 border-red-500/30'
+                                      : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
+                                  }`}>
+                                    {ponto.disponibilidade === 'indisponivel' ? 'Indisponível' : 'Disponível'}
+                                  </span>
+                                )}
                               </div>
                               <h4 className="text-xl font-semibold leading-tight">{ponto.nome}</h4>
                               <p className={`text-sm mt-1 ${t.textMuted}`}>{ponto.cidade}</p>

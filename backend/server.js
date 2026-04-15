@@ -2386,9 +2386,13 @@ app.post('/api/pontos', upload.fields([
     const fotoFocalPoint = normalizeFotoFocalPoint(data.foto_focal_point);
     const pdfImageSource = normalizePdfImageSource(data.pdf_image_source);
 
+    const disponibilidade = isBackOrFrontLight
+      ? (['disponivel', 'indisponivel'].includes(data.disponibilidade) ? data.disponibilidade : 'disponivel')
+      : null;
+
     const stmt = db.prepare(`
-      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, midia_largura_m, midia_altura_m, tipo_fluxo, audience_tags, availability_calendar, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom, foto_focal_point, pdf_image_source)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, midia_largura_m, midia_altura_m, tipo_fluxo, audience_tags, availability_calendar, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom, foto_focal_point, pdf_image_source, disponibilidade)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -2401,7 +2405,7 @@ app.post('/api/pontos', upload.fields([
       arteLargura, arteAltura, midiaLarguraM, midiaAlturaM, tipoFluxo,
       JSON.stringify(audienceTags), JSON.stringify(availabilityCalendar), elevadorCategoria,
       imagemFocoX, imagemFocoY, imagemFocoZoom,
-      fotoFocalPoint, pdfImageSource
+      fotoFocalPoint, pdfImageSource, disponibilidade
     );
 
     const ponto = db.prepare('SELECT * FROM pontos WHERE id = ?').get(result.lastInsertRowid);
@@ -2471,6 +2475,10 @@ app.put('/api/pontos/:id', upload.fields([
     const fotoFocalPoint = normalizeFotoFocalPoint(data.foto_focal_point || existing.foto_focal_point);
     const pdfImageSource = normalizePdfImageSource(data.pdf_image_source || existing.pdf_image_source);
 
+    const disponibilidade = isBackOrFrontLight
+      ? (['disponivel', 'indisponivel'].includes(data.disponibilidade) ? data.disponibilidade : (existing.disponibilidade || 'disponivel'))
+      : null;
+
     const stmt = db.prepare(`
       UPDATE pontos SET
         nome = ?, cidade = ?, tipo = ?, endereco = ?, lat = ?, lng = ?,
@@ -2481,6 +2489,7 @@ app.put('/api/pontos/:id', upload.fields([
         imagem_foco_x = ?, imagem_foco_y = ?, imagem_foco_zoom = ?,
         foto_focal_point = ?,
         pdf_image_source = ?,
+        disponibilidade = ?,
         updated_at = datetime('now')
       WHERE id = ?
     `);
@@ -2499,6 +2508,7 @@ app.put('/api/pontos/:id', upload.fields([
       arteLargura, arteAltura, midiaLarguraM, midiaAlturaM, tipoFluxo,
       JSON.stringify(audienceTags), JSON.stringify(availabilityCalendar), elevadorCategoria,
       imagemFocoX, imagemFocoY, imagemFocoZoom, fotoFocalPoint, pdfImageSource,
+      disponibilidade,
       req.params.id
     );
 
@@ -3745,6 +3755,7 @@ try {
   'ALTER TABLE admin_users ADD COLUMN is_vendedor INTEGER DEFAULT 0',
   'ALTER TABLE admin_users ADD COLUMN photo_url TEXT DEFAULT NULL',
   'ALTER TABLE vendas ADD COLUMN email TEXT',
+  "ALTER TABLE pontos ADD COLUMN disponibilidade TEXT DEFAULT 'disponivel'",
 ].forEach(sql => {
   try { db.prepare(sql).run(); } catch { /* coluna já existe */ }
 });

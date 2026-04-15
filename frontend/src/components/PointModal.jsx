@@ -218,6 +218,15 @@ export default function PointModal({ ponto, onClose, isDark = true, geoProfile, 
                   <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-medium mb-3 ${isDark ? 'bg-brand-orange/10 text-brand-orange' : 'bg-orange-50 text-orange-700'}`}>
                     {getPointTypeLabel(ponto)}
                   </span>
+                  {(ponto.tipo === 'Frontlight' || ponto.tipo === 'Backlight') && (
+                    <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-bold ml-2 mb-3 ${
+                      ponto.disponibilidade === 'indisponivel'
+                        ? isDark ? 'bg-red-500/15 text-red-400' : 'bg-red-50 text-red-500'
+                        : isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-600'
+                    }`}>
+                      {ponto.disponibilidade === 'indisponivel' ? 'Indisponível' : 'Disponível'}
+                    </span>
+                  )}
                   <h2 className={`text-2xl lg:text-3xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
                     {ponto.nome}
                   </h2>

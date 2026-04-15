@@ -134,10 +134,19 @@ function PointCard({ point, index, total }) {
 
           {/* Type badge */}
           {tipo && (
-            <div className="mb-2 md:pl-3">
+            <div className="mb-2 md:pl-3 flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center h-7 px-3 rounded-lg text-[11px] font-bold text-white uppercase tracking-wide" style={{ background: ORANGE }}>
                 {tipo}
               </span>
+              {(tipo === 'Frontlight' || tipo === 'Backlight') && (
+                <span className={`inline-flex items-center h-7 px-3 rounded-lg text-[11px] font-bold uppercase tracking-wide ${
+                  point.disponibilidade === 'indisponivel'
+                    ? 'bg-red-50 text-red-500 border border-red-200'
+                    : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                }`}>
+                  {point.disponibilidade === 'indisponivel' ? 'Indisponível' : 'Disponível'}
+                </span>
+              )}
             </div>
           )}
 
