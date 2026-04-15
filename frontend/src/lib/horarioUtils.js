@@ -181,8 +181,10 @@ export function normalizeHorarioForPdf(horario, fallback = '-') {
       }
       // Single day entry
       for (const [pattern, dayKey] of Object.entries(PT_DAY_MAP)) {
-        if (line.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(pattern)) {
-          const afterDay = line.replace(new RegExp(pattern.replace(/[-]/g, '\\-'), 'i'), '').replace(/^[\s:,\-–—]+/, '').trim();
+        const normalizedLine = line.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const normalizedPattern = pattern.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (normalizedLine.includes(normalizedPattern)) {
+          const afterDay = normalizedLine.replace(normalizedPattern, '').replace(/^[\s:,\-–—]+/, '').trim();
           if (afterDay && /\d/.test(afterDay) && !dayHoursMap[dayKey]) {
             dayHoursMap[dayKey] = cleanTime(afterDay);
           }
