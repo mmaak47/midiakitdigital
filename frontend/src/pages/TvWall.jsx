@@ -729,15 +729,15 @@ export default function TvWall() {
         .tv-goals-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 8px;
-          margin-bottom: 10px;
+          gap: 6px;
+          margin-bottom: 8px;
         }
 
         .tv-goal {
           border: 1px solid var(--line);
           border-radius: 18px;
           background: #fff;
-          padding: 12px;
+          padding: 10px;
         }
 
         .tv-goal.is-recorrencia {
@@ -751,8 +751,8 @@ export default function TvWall() {
         .tv-goal-head {
           display: flex;
           align-items: center;
-          gap: 8px;
-          margin-bottom: 8px;
+          gap: 7px;
+          margin-bottom: 6px;
         }
 
         .tv-goal-head svg {
@@ -760,7 +760,7 @@ export default function TvWall() {
         }
 
         .tv-goal-name {
-          font-size: 21px;
+          font-size: 19px;
           font-weight: 900;
           line-height: 1;
           letter-spacing: -0.02em;
@@ -768,7 +768,7 @@ export default function TvWall() {
         }
 
         .tv-goal-subtitle {
-          font-size: 11px;
+          font-size: 10px;
           color: var(--muted);
         }
 
@@ -776,18 +776,18 @@ export default function TvWall() {
           display: flex;
           justify-content: space-between;
           align-items: flex-end;
-          gap: 10px;
-          margin-bottom: 6px;
+          gap: 8px;
+          margin-bottom: 5px;
         }
 
         .tv-goal-label {
-          font-size: 11px;
+          font-size: 10px;
           color: var(--muted);
         }
 
         .tv-goal-main {
           margin-top: 2px;
-          font-size: 32px;
+          font-size: 28px;
           font-weight: 800;
           color: var(--text);
           line-height: 1;
@@ -795,7 +795,7 @@ export default function TvWall() {
         }
 
         .tv-goal-pct {
-          font-size: 32px;
+          font-size: 28px;
           line-height: 1;
           font-weight: 900;
         }
@@ -807,10 +807,10 @@ export default function TvWall() {
 
         .tv-goal-progress {
           width: 100%;
-          height: 14px;
+          height: 12px;
           border-radius: 999px;
           background: #e5e7eb;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
           overflow: hidden;
         }
 
@@ -833,13 +833,13 @@ export default function TvWall() {
         }
 
         .tv-goal-meta {
-          font-size: 11px;
+          font-size: 10px;
           color: var(--muted);
         }
 
         .tv-goal-real {
           margin-top: 2px;
-          font-size: 26px;
+          font-size: 23px;
           line-height: 1;
           font-weight: 800;
           color: var(--text);
@@ -854,7 +854,7 @@ export default function TvWall() {
 
         .tv-goal-diff-value {
           margin-top: 2px;
-          font-size: 22px;
+          font-size: 19px;
           line-height: 1;
           font-weight: 700;
           letter-spacing: -0.02em;
