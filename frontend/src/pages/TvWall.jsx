@@ -759,7 +759,7 @@ export default function TvWall() {
           position: absolute;
           top: -14px;
           left: 50%;
-          transform: translateX(-50%);
+          transform: translateX(-60%);
           font-size: 0;
           animation: crown-bounce 2s ease-in-out infinite;
           filter: drop-shadow(0 2px 6px rgba(234, 179, 8, 0.5));
