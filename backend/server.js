@@ -4551,9 +4551,31 @@ function extractEvolutionIncomingMessage(payload) {
   return data || null;
 }
 
+function normalizeJid(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function unwrapEvolutionMessage(message) {
+  let current = message;
+  // Evolution/WA payloads may wrap real content in nested message containers.
+  for (let i = 0; i < 6; i += 1) {
+    if (!current || typeof current !== 'object') break;
+    const nested =
+      current?.ephemeralMessage?.message
+      || current?.viewOnceMessage?.message
+      || current?.viewOnceMessageV2?.message
+      || current?.viewOnceMessageV2Extension?.message
+      || current?.documentWithCaptionMessage?.message
+      || current?.editedMessage?.message;
+    if (!nested || nested === current) break;
+    current = nested;
+  }
+  return current || message;
+}
+
 function extractEvolutionText(message) {
   if (!message || typeof message !== 'object') return '';
-  const msg = message.message || message;
+  const msg = unwrapEvolutionMessage(message.message || message);
   return String(
     msg?.conversation
     || msg?.extendedTextMessage?.text
@@ -4561,7 +4583,12 @@ function extractEvolutionText(message) {
     || msg?.videoMessage?.caption
     || msg?.documentMessage?.caption
     || msg?.buttonsResponseMessage?.selectedDisplayText
+    || msg?.buttonsResponseMessage?.selectedButtonId
     || msg?.listResponseMessage?.title
+    || msg?.listResponseMessage?.singleSelectReply?.selectedRowId
+    || msg?.templateButtonReplyMessage?.selectedDisplayText
+    || msg?.templateButtonReplyMessage?.selectedId
+    || msg?.reactionMessage?.text
     || ''
   ).trim();
 }
@@ -4620,11 +4647,11 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
     // ── Mensagem de grupo -> post-it do painel TV ───────────────────────────
     const incoming = extractEvolutionIncomingMessage(payload);
     const key = incoming?.key || data?.key || payload?.data?.key || {};
-    const remoteJid = String(key?.remoteJid || '').trim();
+    const remoteJid = normalizeJid(key?.remoteJid);
     const messageId = String(key?.id || '').trim();
     const fromMe = Boolean(key?.fromMe);
     const text = extractEvolutionText(incoming || data);
-    const groupJid = getAppSetting('tv_postit_group_jid', '').trim();
+    const groupJid = normalizeJid(getAppSetting('tv_postit_group_jid', ''));
 
     if (groupJid && remoteJid === groupJid && !fromMe && text) {
       const author = String(
