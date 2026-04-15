@@ -8,6 +8,7 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
   const location = useLocation();
   const logoSrc = isDark ? '/logo.png' : '/logo-light.png';
   const WA_HREF = `https://wa.me/554398450480?text=${encodeURIComponent('Olá! Vim pelo Mídia Kit Digital da Intermidia e gostaria de receber uma proposta.')}`;
+  const INSTAGRAM_PATH = 'M7.75 2h8.5A5.75 5.75 0 0 1 22 7.75v8.5A5.75 5.75 0 0 1 16.25 22h-8.5A5.75 5.75 0 0 1 2 16.25v-8.5A5.75 5.75 0 0 1 7.75 2Zm8.5 1.9h-8.5A3.85 3.85 0 0 0 3.9 7.75v8.5a3.85 3.85 0 0 0 3.85 3.85h8.5a3.85 3.85 0 0 0 3.85-3.85v-8.5a3.85 3.85 0 0 0-3.85-3.85Zm-4.25 2.6a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Zm0 1.9a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2Zm5.9-2.05a1.35 1.35 0 1 1 0 2.7 1.35 1.35 0 0 1 0-2.7Z';
 
   const links = commercial
     ? [
@@ -103,13 +104,11 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
               href="https://www.instagram.com/intermidiadigitalooh/"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center w-9 h-9 rounded-lg border-2 transition-all duration-200 border-brand-orange text-brand-orange bg-white hover:bg-brand-orange hover:text-white"
+              className="flex items-center justify-center w-9 h-9 rounded-lg border-2 transition-all duration-200 border-brand-orange bg-white hover:bg-[#fff3ed]"
               aria-label="Instagram"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4" aria-hidden="true">
-                <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
-                <circle cx="12" cy="12" r="4" />
-                <circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none" />
+              <svg viewBox="0 0 24 24" className="w-4 h-4" aria-hidden="true">
+                <path d={INSTAGRAM_PATH} fill="#fe5c2b" />
               </svg>
             </a>
           </div>
@@ -164,13 +163,11 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setOpen(false)}
-                className="flex items-center justify-center w-12 h-12 rounded-xl border-2 transition-colors border-brand-orange text-brand-orange bg-white hover:bg-brand-orange hover:text-white"
+                className="flex items-center justify-center w-12 h-12 rounded-xl border-2 transition-colors border-brand-orange bg-white hover:bg-[#fff3ed]"
                 aria-label="Instagram"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5" aria-hidden="true">
-                  <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
-                  <circle cx="12" cy="12" r="4" />
-                  <circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none" />
+                <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden="true">
+                  <path d={INSTAGRAM_PATH} fill="#fe5c2b" />
                 </svg>
               </a>
             </div>

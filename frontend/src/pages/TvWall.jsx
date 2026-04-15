@@ -459,7 +459,7 @@ export default function TvWall() {
         .tv-grid {
           min-height: 0;
           display: grid;
-          grid-template-columns: 1.35fr 1fr 1fr;
+          grid-template-columns: 1.22fr 1fr 1.12fr;
           grid-template-rows: 1.3fr 0.7fr;
           grid-template-areas:
             "loop contracts ranking"
@@ -469,9 +469,17 @@ export default function TvWall() {
 
         .ga-loop { grid-area: loop; }
         .ga-contracts { grid-area: contracts; }
-        .ga-ranking { grid-area: ranking; }
+        .ga-ranking {
+          grid-area: ranking;
+          align-self: start;
+        }
         .ga-insights { grid-area: insights; }
         .ga-postits { grid-area: postits; }
+
+        .ga-ranking .tv-scroll {
+          overflow: visible;
+          padding-right: 0;
+        }
 
         .tv-card {
           min-height: 0;
@@ -729,7 +737,7 @@ export default function TvWall() {
           border: 1px solid var(--line);
           border-radius: 18px;
           background: #fff;
-          padding: 14px;
+          padding: 12px;
         }
 
         .tv-goal.is-recorrencia {
@@ -744,7 +752,7 @@ export default function TvWall() {
           display: flex;
           align-items: center;
           gap: 8px;
-          margin-bottom: 10px;
+          margin-bottom: 8px;
         }
 
         .tv-goal-head svg {
@@ -752,7 +760,7 @@ export default function TvWall() {
         }
 
         .tv-goal-name {
-          font-size: 24px;
+          font-size: 21px;
           font-weight: 900;
           line-height: 1;
           letter-spacing: -0.02em;
@@ -769,7 +777,7 @@ export default function TvWall() {
           justify-content: space-between;
           align-items: flex-end;
           gap: 10px;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
         }
 
         .tv-goal-label {
@@ -779,7 +787,7 @@ export default function TvWall() {
 
         .tv-goal-main {
           margin-top: 2px;
-          font-size: 40px;
+          font-size: 32px;
           font-weight: 800;
           color: var(--text);
           line-height: 1;
@@ -787,7 +795,7 @@ export default function TvWall() {
         }
 
         .tv-goal-pct {
-          font-size: 40px;
+          font-size: 32px;
           line-height: 1;
           font-weight: 900;
         }
@@ -799,10 +807,10 @@ export default function TvWall() {
 
         .tv-goal-progress {
           width: 100%;
-          height: 16px;
+          height: 14px;
           border-radius: 999px;
           background: #e5e7eb;
-          margin-bottom: 10px;
+          margin-bottom: 8px;
           overflow: hidden;
         }
 
@@ -831,7 +839,7 @@ export default function TvWall() {
 
         .tv-goal-real {
           margin-top: 2px;
-          font-size: 32px;
+          font-size: 26px;
           line-height: 1;
           font-weight: 800;
           color: var(--text);
@@ -846,7 +854,7 @@ export default function TvWall() {
 
         .tv-goal-diff-value {
           margin-top: 2px;
-          font-size: 28px;
+          font-size: 22px;
           line-height: 1;
           font-weight: 700;
           letter-spacing: -0.02em;
