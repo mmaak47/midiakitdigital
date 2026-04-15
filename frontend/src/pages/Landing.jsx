@@ -1494,7 +1494,7 @@ export default function Landing() {
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Falar com o comercial pelo WhatsApp"
-        onClick={() => trackEvent('whatsapp_click')}
+        onClick={() => trackEvent('whatsapp_click', { source: 'landing_floating_whatsapp' })}
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 1.4, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
