@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { normalizeHorarioForPdf } from '../lib/horarioUtils';
 
 /** Converte **texto** em <strong> dentro de um parágrafo */
 function RichText({ text, className }) {
@@ -138,7 +139,7 @@ export default function PointModal({ ponto, onClose, isDark = true, geoProfile, 
   const details = [
     { icon: Building2, label: 'Formato', value: getPointTypeLabel(ponto) },
     { icon: MapPin, label: 'Endereço', value: ponto.endereco },
-    { icon: Clock, label: 'Horário', value: ponto.horario },
+    { icon: Clock, label: 'Horário', value: normalizeHorarioForPdf(ponto.horario, '') },
     { icon: Users, label: 'Fluxo mensal', value: formatNumber(ponto.fluxo) + ` ${fluxoUnit}` },
     { icon: Hash, label: 'Inserções mensais', value: `Mínimo de ${formatNumber(ponto.insercoes)}` },
     { icon: Play, label: 'Tempo do anúncio', value: ponto.tempo },

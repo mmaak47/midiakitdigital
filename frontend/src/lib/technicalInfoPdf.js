@@ -7,6 +7,8 @@ const BRAND_PANEL = '#141414';
 const BRAND_BORDER = 'rgba(255,255,255,0.12)';
 const BRAND_MUTED = 'rgba(255,255,255,0.72)';
 
+import { normalizeHorarioForPdf } from './horarioUtils';
+
 const FILE_NAME = 'Informações Técnicas.pdf';
 
 function escapeHtml(value) {
@@ -359,7 +361,7 @@ function buildPointPage(point, index, total) {
             </div>
             
             <div style="grid-column: 1 / -1; display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;">
-              ${buildSpecItem('Funcionamento', escapeHtml(point?.horario && point.horario !== '' ? point.horario : '6h às 23h'), icons.sun)}
+              ${buildSpecItem('Funcionamento', escapeHtml(point?.horario && point.horario !== '' ? normalizeHorarioForPdf(point.horario) : '6h às 23h'), icons.sun)}
             </div>
             
             <div style="grid-column: 1 / -1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;margin-top:12px;">

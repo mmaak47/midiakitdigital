@@ -8,6 +8,7 @@ import SmartMap from '../components/SmartMap';
 import { fetchPontos } from '../lib/api';
 import { getPointDisplayImages, getPrimaryPointMediaKitImage } from '../lib/pointImages';
 import { campaignTotals, sortFormatos, estimateReachFrequency } from '../lib/strategy';
+import { normalizeHorarioForPdf } from '../lib/horarioUtils';
 import { captureContactLead, trackEvent } from '../lib/tracking';
 
 const MidiaKitSlidesMode = lazy(() => import('../components/MidiaKitSlidesMode'));
@@ -1342,7 +1343,7 @@ export default function Landing() {
                             </div>
                             <div className={t.miniCell}>
                               <div className={`text-[11px] uppercase tracking-wide flex items-center gap-1 ${t.miniLabel}`}><i className="ri-time-line" style={{ fontSize: 12 }} /> Horário</div>
-                              <div className="font-medium">{ponto.horario || 'N/I'}</div>
+                              <div className="font-medium">{normalizeHorarioForPdf(ponto.horario, 'N/I')}</div>
                             </div>
                             <div className={t.miniCell}>
                               <div className={`text-[11px] uppercase tracking-wide flex items-center gap-1 ${t.miniLabel}`}><i className="ri-play-line" style={{ fontSize: 12 }} /> Tempo</div>
