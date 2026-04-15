@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
-import { trackEvent } from '../lib/tracking';
+import { captureContactLead, trackEvent } from '../lib/tracking';
 
 export default function Navbar({ transparent = false, showNav = true, showCta = false, commercial = false, plannerMode = false, isDark = true, onToggleTheme }) {
   const [open, setOpen] = useState(false);
@@ -13,6 +13,7 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
 
   const markContactClick = (eventType, source) => {
     trackEvent(eventType, { source });
+    captureContactLead(source);
   };
 
   const links = commercial

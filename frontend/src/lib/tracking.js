@@ -26,3 +26,26 @@ export function trackEvent(eventType, eventData) {
     }
   } catch { /* fire and forget */ }
 }
+
+export function captureContactLead(source) {
+  try {
+    const sessionId = getOrCreateSessionId();
+    if (!sessionId) return;
+
+    const body = JSON.stringify({
+      sessionId,
+      source: source || 'contact_click',
+      pageUrl: window.location.pathname,
+    });
+
+    fetch('/api/leads/capture-contact', {
+      method: 'POST',
+      body,
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
+      credentials: 'include',
+    }).catch(() => {});
+  } catch {
+    // fire and forget
+  }
+}

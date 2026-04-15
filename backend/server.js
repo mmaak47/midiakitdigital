@@ -608,7 +608,7 @@ function authenticateSensitiveApi(req, res, next) {
   }
 
   // AI campaign analysis + recommendation — public for /planejar
-  const publicPostPaths = ['/ai/campaign', '/ai/recommend', '/ai/plan-decision', '/inventory-chat', '/ai/proposta-texto', '/track', '/leads/capture'];
+  const publicPostPaths = ['/ai/campaign', '/ai/recommend', '/ai/plan-decision', '/inventory-chat', '/ai/proposta-texto', '/track', '/leads/capture', '/leads/capture-contact'];
   if (method === 'POST' && publicPostPaths.includes(routePath)) {
     return next();
   }
@@ -5367,6 +5367,36 @@ app.post('/api/leads/capture', (req, res) => {
     res.json({ ok: true, leadId: result.lastInsertRowid || null });
   } catch (err) {
     internalError(res, err, 'Erro ao capturar lead.');
+  }
+});
+
+app.post('/api/leads/capture-contact', (req, res) => {
+  try {
+    const { sessionId, source, pageUrl } = req.body || {};
+    if (!sessionId || typeof sessionId !== 'string') {
+      return res.status(400).json({ error: 'sessionId é obrigatório.' });
+    }
+
+    const sourceTag = String(source || 'contact_click').slice(0, 120);
+    const page = String(pageUrl || '').slice(0, 200);
+    const empresa = `Lead via ${sourceTag}`.slice(0, 200);
+    const notas = `Capturado por clique em CTA (${sourceTag})${page ? ` em ${page}` : ''}`.slice(0, 500);
+
+    db.prepare(
+      `INSERT INTO leads (session_id, telefone, empresa, status, notas)
+       VALUES (?, ?, ?, 'novo', ?)
+       ON CONFLICT(session_id) DO NOTHING`
+    ).run(sessionId.slice(0, 64), 'nao-informado', empresa, notas);
+
+    try {
+      db.prepare('UPDATE chat_sessions SET lead_captured = 1 WHERE id = ?').run(sessionId);
+    } catch {
+      // session may not exist yet
+    }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    return internalError(res, err, 'Erro ao capturar lead por contato.');
   }
 });
 
