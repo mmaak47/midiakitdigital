@@ -40,7 +40,7 @@ function normDay(raw) {
 }
 
 function cleanTime(t) {
-  return String(t || '').replace(/\./g, ':').replace(/\s+/g, ' ').replace(/\s*[-–—]\s*/g, '–').replace(/\s*às\s*/gi, '–').trim();
+  return String(t || '').replace(/(\d{1,2})h(\d{2})/gi, '$1:$2').replace(/(\d{1,2})h(?!\d)/gi, '$1:00').replace(/\./g, ':').replace(/\s+/g, ' ').replace(/\s*[-–—]\s*/g, '–').replace(/\s*às\s*/gi, '–').trim();
 }
 
 /* Parse a single "day: time" entry from Google weekday_text */
@@ -132,8 +132,8 @@ export function normalizeHorarioForPdf(horario, fallback = '-') {
   // Pass through simple formats
   if (/^24\s*h/i.test(raw) || raw === '24/7') return '24 horas';
 
-  // Simple time range without days (e.g. "06:00 às 22:00")
-  if (/^\d{1,2}[:.]\d{2}\s*(às|–|-|a)\s*\d{1,2}[:.]\d{2}$/i.test(raw)) {
+  // Simple time range without days (e.g. "06:00 às 22:00", "7h30 às 19h30", "7h às 19h")
+  if (/^\d{1,2}([:.h]\d{2}|h(?!\d))\s*(às|–|-|a)\s*\d{1,2}([:.h]\d{2}|h(?!\d))$/i.test(raw)) {
     return cleanTime(raw);
   }
 
