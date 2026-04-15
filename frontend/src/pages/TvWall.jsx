@@ -332,6 +332,57 @@ export default function TvWall() {
           background: linear-gradient(180deg, rgba(255,255,255,0.97), rgba(255,255,255,0.92));
           border: 1px solid rgba(254, 92, 43, 0.16);
           box-shadow: 0 14px 40px rgba(141, 98, 61, 0.09);
+          max-height: 64px;
+          overflow: hidden;
+        }
+
+        .tv-header-msgs {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 0;
+          overflow: hidden;
+        }
+
+        .tv-header-msgs-label {
+          flex: 0 0 auto;
+          font-size: 9px;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+          color: #22c55e;
+          background: #e7faf2;
+          border: 1px solid rgba(34,197,94,0.18);
+          padding: 3px 8px;
+          border-radius: 8px;
+          white-space: nowrap;
+        }
+
+        .tv-header-msgs-track {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+          overflow: hidden;
+          flex: 1;
+        }
+
+        .tv-header-msg {
+          flex: 0 0 auto;
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--text);
+          white-space: nowrap;
+          max-width: 260px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .tv-header-msg-author {
+          font-weight: 800;
+          color: var(--brand);
+          margin-right: 4px;
+          font-size: 10px;
         }
 
         .tv-lotados {
@@ -460,7 +511,7 @@ export default function TvWall() {
           min-height: 0;
           display: grid;
           grid-template-columns: 1fr 1.3fr 1fr;
-          grid-template-rows: 1fr 1fr;
+          grid-template-rows: auto 1fr;
           grid-template-areas:
             "loop goals contracts"
             "loop ranking contracts";
@@ -684,8 +735,8 @@ export default function TvWall() {
 
         .tv-crown {
           position: absolute;
-          top: -14px;
-          left: 16px;
+          top: -10px;
+          left: 46px;
           font-size: 0;
           animation: crown-bounce 2s ease-in-out infinite;
           filter: drop-shadow(0 2px 6px rgba(234, 179, 8, 0.5));
@@ -886,11 +937,9 @@ export default function TvWall() {
           font-size: 17px;
           line-height: 1;
           font-weight: 800;
-          color: var(--text);
+          color: #22c55e;
           letter-spacing: -0.03em;
         }
-
-        .tv-goal-real.is-hit { color: #22c55e; }
 
         .tv-goal-diff {
           text-align: right;
@@ -1179,14 +1228,16 @@ export default function TvWall() {
           </div>
 
           {(() => {
-            const lotados = loop.lotadosItems || [];
-            if (!lotados.length) return <div />;
+            if (!postits.length) return <div />;
             return (
-              <div className="tv-lotados">
-                <div className="tv-lotados-label">Lotados ({lotados.length})</div>
-                <div className="tv-lotados-list">
-                  {lotados.map(i => (
-                    <div key={i.id} className="tv-lotados-chip">{i.local || i.nome}</div>
+              <div className="tv-header-msgs">
+                <div className="tv-header-msgs-label">Grupo</div>
+                <div className="tv-header-msgs-track">
+                  {postits.slice(0, 4).map(p => (
+                    <div key={p.id} className="tv-header-msg">
+                      <span className="tv-header-msg-author">{(p.author || 'Equipe').split(' ')[0]}:</span>
+                      {p.text?.length > 40 ? p.text.slice(0, 40) + '…' : p.text}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -1213,7 +1264,19 @@ export default function TvWall() {
               <h2 className="tv-card-title">
                 <Activity size={20} strokeWidth={2.6} /> Auditoria de Loop
               </h2>
-              <div className="tv-pill">Tempo real</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {(loop.lotadosItems || []).length > 0 && (
+                  <div className="tv-lotados" style={{ marginRight: 4 }}>
+                    <div className="tv-lotados-label">Lotados ({(loop.lotadosItems || []).length})</div>
+                    <div className="tv-lotados-list">
+                      {(loop.lotadosItems || []).map(i => (
+                        <div key={i.id} className="tv-lotados-chip">{i.local || i.nome}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="tv-pill">Tempo real</div>
+              </div>
             </div>
 
             <div className="tv-kpi-grid loop">
