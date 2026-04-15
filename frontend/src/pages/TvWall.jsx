@@ -318,10 +318,8 @@ export default function TvWall() {
           display: grid;
           grid-template-rows: auto 1fr auto;
           gap: 8px;
-          height: 100vh;
+          height: 100%;
           padding: 8px;
-          box-sizing: border-box;
-          overflow: hidden;
         }
 
         .tv-header {
