@@ -3963,6 +3963,11 @@ function getEvolutionSettings() {
   return result;
 }
 
+function getTvEvolutionInstance(settings = null) {
+  const evo = settings || getEvolutionSettings();
+  return String(evo.evolution_tv_instance || 'aux adm').trim() || 'aux adm';
+}
+
 // Etapas pós-venda (usadas no sendList e no webhook)
 const ETAPAS_VENDA = [
   { key: 'contrato_enviado',   label: 'Contrato Enviado',   emoji: '📤' },
@@ -4949,12 +4954,13 @@ app.post('/api/webhooks/whatsapp', async (req, res) => {
           // Reply confirmation in group
           try {
             const evo = getEvolutionSettings();
-            if (evo.evolution_api_url && evo.evolution_instance && evo.evolution_api_key) {
+            const tvInstance = getTvEvolutionInstance(evo);
+            if (evo.evolution_api_url && tvInstance && evo.evolution_api_key) {
               const emoji = action === 'renovou' ? '🔄' : '❌';
               const label = action === 'renovou' ? 'RENOVADO' : 'CANCELADO';
               await sendEvolutionText({
                 apiUrl: evo.evolution_api_url,
-                instance: evo.evolution_instance,
+                instance: tvInstance,
                 apiKey: evo.evolution_api_key,
                 number: remoteJid,
                 text: `${emoji} *${label}*: ${clientName}\n✅ Registrado por ${author.split(' ')[0]}. O contrato será atualizado no painel.`
