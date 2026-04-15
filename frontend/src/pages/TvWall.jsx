@@ -460,7 +460,7 @@ export default function TvWall() {
           min-height: 0;
           display: grid;
           grid-template-columns: 1fr 1.3fr 1fr;
-          grid-template-rows: auto 1fr;
+          grid-template-rows: 1fr 1fr;
           grid-template-areas:
             "loop goals contracts"
             "loop ranking contracts";
@@ -1466,7 +1466,8 @@ export default function TvWall() {
             </div>
           </article>
 
-          <article className="tv-card ga-postits">
+          {/* Mural do Grupo - temporariamente oculto */}
+          {false && <article className="tv-card ga-postits">
             <div className="tv-card-head">
               <h2 className="tv-card-title">
                 <StickyNote size={20} strokeWidth={2.6} /> Mural do Grupo
@@ -1490,7 +1491,7 @@ export default function TvWall() {
                 <div className="tv-empty">Nenhum post-it ainda. Envie mensagens no grupo configurado.</div>
               )}
             </div>
-          </article>
+          </article>}
         </section>
 
         <footer className="tv-footer">
