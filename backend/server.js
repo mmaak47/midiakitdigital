@@ -2194,11 +2194,16 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
     if (contractsData.warning) warnings.push(contractsData.warning);
 
     // Filter out contracts dismissed via WhatsApp commands (/renovou, /cancelou)
-    const dismissedRows = db.prepare(`
-      SELECT LOWER(client_name) as name, action FROM contract_actions
-      WHERE created_at > NOW() - INTERVAL '60 days'
-    `).all();
-    const dismissedNames = dismissedRows.map(r => r.name);
+    let dismissedNames = [];
+    try {
+      const dismissedRows = db.prepare(`
+        SELECT LOWER(client_name) as name, action FROM contract_actions
+        WHERE created_at::timestamp > NOW() - INTERVAL '60 days'
+      `).all();
+      dismissedNames = dismissedRows.map(r => r.name);
+    } catch (dErr) {
+      console.error('[tv/dashboard] contract_actions query failed (non-fatal):', dErr.message);
+    }
     const filteredContracts = contractsData.items.filter(c => {
       const nameNorm = (c.advertiser || '').toLowerCase().trim();
       return !dismissedNames.some(d => nameNorm.includes(d) || d.includes(nameNorm));
