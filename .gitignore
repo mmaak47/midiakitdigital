@@ -29,6 +29,7 @@ deploy.tar.gz
 
 # Credentials / config with secrets
 ecosystem.config.js
+secrets.py
 
 # Build artifacts accidentally committed with credentials in path
 "frontend/sshpass*"
