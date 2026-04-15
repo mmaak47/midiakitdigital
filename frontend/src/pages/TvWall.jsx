@@ -460,7 +460,7 @@ export default function TvWall() {
           min-height: 0;
           display: grid;
           grid-template-columns: 1fr 1.3fr 1fr;
-          grid-template-rows: 1fr 1fr;
+          grid-template-rows: auto 1fr;
           grid-template-areas:
             "loop goals contracts"
             "postits postits ranking";
@@ -472,7 +472,11 @@ export default function TvWall() {
         .ga-ranking {
           grid-area: ranking;
         }
-        .ga-insights { grid-area: goals; }
+        .ga-insights {
+          grid-area: goals;
+          max-height: 45vh;
+          overflow: hidden;
+        }
         .ga-postits { grid-area: postits; }
 
         .ga-ranking .tv-scroll {
