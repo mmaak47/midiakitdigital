@@ -459,11 +459,11 @@ export default function TvWall() {
         .tv-grid {
           min-height: 0;
           display: grid;
-          grid-template-columns: 1.22fr 1fr 1.12fr;
-          grid-template-rows: 1.15fr 0.85fr;
+          grid-template-columns: 1fr 1.3fr 1fr;
+          grid-template-rows: auto 1fr;
           grid-template-areas:
-            "loop contracts ranking"
-            "loop postits insights";
+            "loop goals contracts"
+            "ranking postits postits";
           gap: 10px;
         }
 
@@ -471,14 +471,13 @@ export default function TvWall() {
         .ga-contracts { grid-area: contracts; }
         .ga-ranking {
           grid-area: ranking;
-          align-self: start;
         }
-        .ga-insights { grid-area: insights; }
+        .ga-insights { grid-area: goals; }
         .ga-postits { grid-area: postits; }
 
         .ga-ranking .tv-scroll {
-          overflow: visible;
-          padding-right: 0;
+          overflow: auto;
+          padding-right: 4px;
         }
 
         .tv-card {
@@ -672,11 +671,33 @@ export default function TvWall() {
           border-radius: 18px;
           background: #fff;
           border: 1px solid var(--line);
+          position: relative;
         }
 
         .tv-ranking-item.leader {
           background: linear-gradient(135deg, #fff5ef, #fffaf7);
-          border-color: rgba(254, 92, 43, 0.18);
+          border-color: rgba(254, 92, 43, 0.24);
+          box-shadow: 0 8px 24px rgba(254, 92, 43, 0.12);
+        }
+
+        .tv-crown {
+          position: absolute;
+          top: -14px;
+          left: 16px;
+          font-size: 0;
+          animation: crown-bounce 2s ease-in-out infinite;
+          filter: drop-shadow(0 2px 6px rgba(234, 179, 8, 0.5));
+          z-index: 2;
+        }
+
+        @keyframes crown-bounce {
+          0%, 100% { transform: translateY(0) rotate(-6deg); }
+          50% { transform: translateY(-3px) rotate(-6deg); }
+        }
+
+        @keyframes crown-glow {
+          0%, 100% { filter: drop-shadow(0 2px 6px rgba(234, 179, 8, 0.5)); }
+          50% { filter: drop-shadow(0 4px 14px rgba(234, 179, 8, 0.8)); }
         }
 
         .tv-ranking-left {
@@ -720,10 +741,29 @@ export default function TvWall() {
         }
 
         .tv-ranking-total {
-          font-size: 17px;
-          font-weight: 900;
-          color: var(--ok);
+          text-align: right;
           white-space: nowrap;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 2px;
+        }
+
+        .tv-ranking-val {
+          font-size: 15px;
+          line-height: 1;
+          font-weight: 900;
+          white-space: nowrap;
+        }
+
+        .tv-ranking-val.parcela { color: var(--ok); }
+        .tv-ranking-val.contratos { color: #a855f7; }
+
+        .tv-ranking-val-label {
+          font-size: 9px;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--muted);
         }
 
         .tv-goals-grid {
@@ -1111,10 +1151,10 @@ export default function TvWall() {
             grid-template-columns: 1fr 1fr;
             grid-template-rows: auto auto auto auto;
             grid-template-areas:
+              "goals goals"
               "loop loop"
-              "postits postits"
               "contracts ranking"
-              "insights insights";
+              "postits postits";
           }
         }
       `}</style>
@@ -1294,6 +1334,17 @@ export default function TvWall() {
               <div className="tv-list">
                 {ranking.map((seller, index) => (
                   <div key={`${seller.vendedor}-${seller.posicao}`} className={`tv-ranking-item ${index === 0 ? 'leader' : ''}`}>
+                    {index === 0 && (
+                      <div className="tv-crown">
+                        <svg width="28" height="22" viewBox="0 0 28 22" fill="none">
+                          <path d="M2 18L5 6L10 12L14 2L18 12L23 6L26 18H2Z" fill="#facc15" stroke="#eab308" strokeWidth="1.5" strokeLinejoin="round"/>
+                          <rect x="2" y="18" width="24" height="3" rx="1.5" fill="#eab308"/>
+                          <circle cx="5" cy="6" r="2" fill="#fde047"/>
+                          <circle cx="14" cy="2" r="2" fill="#fde047"/>
+                          <circle cx="23" cy="6" r="2" fill="#fde047"/>
+                        </svg>
+                      </div>
+                    )}
                     <div className="tv-ranking-left">
                       {seller.photo_url ? (
                         <img src={seller.photo_url} alt={seller.vendedor} className="tv-avatar" />
@@ -1307,7 +1358,16 @@ export default function TvWall() {
                       </div>
                     </div>
 
-                    <div className="tv-ranking-total">{fmtMoney(seller.total)}</div>
+                    <div className="tv-ranking-total">
+                      <div>
+                        <span className="tv-ranking-val-label">1ª Parcela</span>
+                        <div className="tv-ranking-val parcela">{fmtMoney(seller.total)}</div>
+                      </div>
+                      <div>
+                        <span className="tv-ranking-val-label">Contratos</span>
+                        <div className="tv-ranking-val contratos">{fmtMoney(seller.total_contratos)}</div>
+                      </div>
+                    </div>
                   </div>
                 ))}
 

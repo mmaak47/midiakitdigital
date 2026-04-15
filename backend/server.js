@@ -1669,20 +1669,19 @@ function getMonthlyVendorRanking() {
   const now = new Date();
   const month = now.getMonth();
   const year = now.getFullYear();
+  const mes = month + 1;
   const sellerDirectory = getTvSellerDirectory();
 
-  const rows = db.prepare(`
-    SELECT vendedor_nome, valor_mensal, created_at
-    FROM vendas
-    WHERE vendedor_nome IS NOT NULL AND TRIM(vendedor_nome) <> ''
-  `).all();
+  // Primary source: vendas_comercial (same source as GestaoComercial)
+  const vcRows = db.prepare(`
+    SELECT vendedor_nome, valor_mensal, total_contrato
+    FROM vendas_comercial
+    WHERE ano = ? AND mes = ?
+      AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
+  `).all(year, mes);
 
   const map = new Map();
-  for (const row of rows) {
-    const createdAt = new Date(String(row.created_at || ''));
-    if (Number.isNaN(createdAt.getTime())) continue;
-    if (createdAt.getMonth() !== month || createdAt.getFullYear() !== year) continue;
-
+  for (const row of vcRows) {
     const sellerRaw = String(row.vendedor_nome || '').trim();
     const normalizedSeller = normalizeSellerName(sellerRaw);
     if (!normalizedSeller) continue;
@@ -1691,11 +1690,14 @@ function getMonthlyVendorRanking() {
     const sellerKey = sellerInfo?.canonicalKey || normalizedSeller;
     const sellerDisplayName = sellerInfo?.displayName || formatSellerDisplayName(sellerRaw);
 
-    const val = parseCurrencyLike(row.valor_mensal);
+    const valMensal = Number(row.valor_mensal || 0);
+    const valContrato = Number(row.total_contrato || 0);
+
     if (!map.has(sellerKey)) {
       map.set(sellerKey, {
         vendedor: sellerDisplayName,
         total: 0,
+        total_contratos: 0,
         vendas: 0,
         photo_url: sellerInfo?.photo_url || null,
       });
@@ -1708,6 +1710,47 @@ function getMonthlyVendorRanking() {
     if (sellerInfo?.displayName) {
       entry.vendedor = sellerInfo.displayName;
     }
+    entry.total += valMensal;
+    entry.total_contratos += valContrato;
+    entry.vendas += 1;
+  }
+
+  // Fallback: also check vendas table for any sellers not in vendas_comercial
+  const vRows = db.prepare(`
+    SELECT vendedor_nome, valor_mensal, created_at
+    FROM vendas
+    WHERE vendedor_nome IS NOT NULL AND TRIM(vendedor_nome) <> ''
+  `).all();
+
+  for (const row of vRows) {
+    const createdAt = new Date(String(row.created_at || ''));
+    if (Number.isNaN(createdAt.getTime())) continue;
+    if (createdAt.getMonth() !== month || createdAt.getFullYear() !== year) continue;
+
+    const sellerRaw = String(row.vendedor_nome || '').trim();
+    const normalizedSeller = normalizeSellerName(sellerRaw);
+    if (!normalizedSeller) continue;
+
+    const sellerInfo = sellerDirectory.get(normalizedSeller);
+    const sellerKey = sellerInfo?.canonicalKey || normalizedSeller;
+
+    // If already tracked from vendas_comercial, skip
+    if (map.has(sellerKey)) continue;
+
+    const sellerDisplayName = sellerInfo?.displayName || formatSellerDisplayName(sellerRaw);
+    const val = parseCurrencyLike(row.valor_mensal);
+
+    if (!map.has(sellerKey)) {
+      map.set(sellerKey, {
+        vendedor: sellerDisplayName,
+        total: 0,
+        total_contratos: 0,
+        vendas: 0,
+        photo_url: sellerInfo?.photo_url || null,
+      });
+    }
+
+    const entry = map.get(sellerKey);
     entry.total += val;
     entry.vendas += 1;
   }
@@ -1719,6 +1762,7 @@ function getMonthlyVendorRanking() {
       posicao: idx + 1,
       vendedor: item.vendedor,
       total: Number(item.total.toFixed(2)),
+      total_contratos: Number(item.total_contratos.toFixed(2)),
       vendas: item.vendas,
       photo_url: item.photo_url || null,
     }));
