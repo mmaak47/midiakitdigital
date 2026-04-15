@@ -8,7 +8,8 @@
     "dev": "node --watch server.js",
     "db:pull": "prisma db pull",
     "db:generate": "prisma generate",
-    "db:migrate:sqlite-to-postgres": "node scripts/migrate_sqlite_to_postgres.js"
+    "db:migrate:sqlite-to-postgres": "node scripts/migrate_sqlite_to_postgres.js",
+    "scrape:google-hours": "node scripts/scrape_google_hours.js"
   },
   "dependencies": {
     "@prisma/client": "^7.6.0",
