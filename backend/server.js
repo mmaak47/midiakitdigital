@@ -4679,10 +4679,25 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
     let data = payload?.data;
     if (Array.isArray(data)) data = data[0];
 
+    // Log full payload for poll-group messages to diagnose enquete issue
+    const debugJid = String(data?.key?.remoteJid || data?.remoteJid || '').toLowerCase();
+    const pollGroupJid = '120363424339314067@g.us';
+    if (debugJid.includes(pollGroupJid) || event === 'messages.update') {
+      console.log(`[webhook][debug] event=${event} FULL data=${JSON.stringify(data).slice(0, 1500)}`);
+    }
+
     console.log(`[webhook] data keys=${JSON.stringify(Object.keys(data || {}))} pollUpdates=${!!data?.pollUpdates} update.pollUpdates=${!!data?.update?.pollUpdates}`);
 
     // ── Voto em enquete (poll vote) ──────────────────────────────────────────
+    // Evolution v2 sends poll votes in different places depending on version:
+    // - data.pollUpdates (newer)
+    // - data.update.pollUpdates (older)
+    // - data.message.pollUpdateMessage (Baileys raw)
     const pollUpdate = data?.pollUpdates?.[0] || data?.update?.pollUpdates?.[0];
+    const pollUpdateMsg = data?.message?.pollUpdateMessage || data?.message?.pollUpdateMessageV1;
+    if (pollUpdate || pollUpdateMsg) {
+      console.log(`[webhook] poll vote detected: pollUpdate=${JSON.stringify(pollUpdate)} pollUpdateMsg=${JSON.stringify(pollUpdateMsg)}`);
+    }
     if (pollUpdate) {
       const pollId = data?.key?.id || data?.update?.key?.id;
       console.log(`[webhook] poll vote detected: pollId=${pollId} options=${JSON.stringify(pollUpdate.vote?.selectedOptions)} vote=${JSON.stringify(pollUpdate.vote)}`);
