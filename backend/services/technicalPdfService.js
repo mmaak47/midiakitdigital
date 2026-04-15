@@ -257,11 +257,19 @@ function buildDesktopPointPage(point, index, total) {
   const widthPx  = Math.max(1, Math.round(normalizeNumber(point?.arte_largura, 1080) || 1080));
   const heightPx = Math.max(1, Math.round(normalizeNumber(point?.arte_altura, 1920) || 1920));
   const isVertical = heightPx >= widthPx;
-  const formatAspect = isVertical ? 'Vertical 9:16' : 'Horizontal 16:9';
+  const formatAspect = (() => {
+    const g = (a, b) => { let x = Math.abs(a), y = Math.abs(b); while (y) { const t = y; y = x % y; x = t; } return x || 1; };
+    const d = g(widthPx, heightPx);
+    const rw = Math.round(widthPx / d), rh = Math.round(heightPx / d);
+    const orientation = isVertical ? 'Vertical' : 'Horizontal';
+    return `${orientation} ${rw}:${rh}`;
+  })();
 
   const icons = buildIcons();
 
-  const ambiente = escapeHtml(point?.ambiente || 'Indoor');
+  const OUTDOOR_TIPOS = ['painel led', 'backlight', 'frontlight', 'led posto', 'totem digital'];
+  const tipoLower = String(point?.tipo || '').toLowerCase().trim();
+  const ambiente = OUTDOOR_TIPOS.includes(tipoLower) ? 'Outdoor' : 'Indoor';
   const perfil   = escapeHtml(point?.perfil_publico || point?.publico || 'A/B');
   const coords   = (point?.lat && point?.lng && point.lat !== '0' && point.lng !== '0')
     ? `${point.lat}, ${point.lng}`

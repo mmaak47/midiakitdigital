@@ -269,13 +269,20 @@ function buildPointPage(point, index, total) {
   const widthPx = Math.max(1, Math.round(normalizeNumber(point?.arte_largura, 1080) || 1080));
   const heightPx = Math.max(1, Math.round(normalizeNumber(point?.arte_altura, 1920) || 1920));
   const isVertical = heightPx >= widthPx;
-  const formatAspect = isVertical ? 'Vertical 9:16' : 'Horizontal 16:9';
+  const formatAspect = (() => {
+    const g = (a, b) => { let x = Math.abs(a), y = Math.abs(b); while (y) { const t = y; y = x % y; x = t; } return x || 1; };
+    const d = g(widthPx, heightPx);
+    const rw = Math.round(widthPx / d), rh = Math.round(heightPx / d);
+    const orientation = isVertical ? 'Vertical' : 'Horizontal';
+    return `${orientation} ${rw}:${rh}`;
+  })();
 
   const icons = buildIcons();
 
   // Dados do ponto
-  const p_ambiente = point?.ambiente ? String(point.ambiente).trim() : 'Indoor';
-  const ambiente = escapeHtml(p_ambiente !== '' ? p_ambiente : 'Indoor');
+  const OUTDOOR_TIPOS = ['painel led', 'backlight', 'frontlight', 'led posto', 'totem digital'];
+  const tipoLower = String(point?.tipo || '').toLowerCase().trim();
+  const ambiente = OUTDOOR_TIPOS.includes(tipoLower) ? 'Outdoor' : 'Indoor';
   
   const p_perfil = point?.perfil_publico ? String(point.perfil_publico).trim() : 'A/B';
   const perfil = escapeHtml(p_perfil !== '' ? p_perfil : 'A/B');
