@@ -368,12 +368,12 @@ export default function TvWall() {
         }
 
         .tv-header-msg {
-          flex: 0 0 auto;
-          font-size: 11px;
-          font-weight: 600;
+          flex: 0 1 auto;
+          font-size: 15px;
+          font-weight: 700;
           color: var(--text);
           white-space: nowrap;
-          max-width: 260px;
+          max-width: 480px;
           overflow: hidden;
           text-overflow: ellipsis;
         }
@@ -381,8 +381,8 @@ export default function TvWall() {
         .tv-header-msg-author {
           font-weight: 800;
           color: var(--brand);
-          margin-right: 4px;
-          font-size: 10px;
+          margin-right: 5px;
+          font-size: 13px;
         }
 
         .tv-lotados {
@@ -1256,10 +1256,10 @@ export default function TvWall() {
               <div className="tv-header-msgs">
                 <div className="tv-header-msgs-label">Grupo</div>
                 <div className="tv-header-msgs-track">
-                  {postits.slice(0, 4).map(p => (
+                  {postits.slice(0, 1).map(p => (
                     <div key={p.id} className="tv-header-msg">
                       <span className="tv-header-msg-author">{(p.author || 'Equipe').split(' ')[0]}:</span>
-                      {p.text?.length > 40 ? p.text.slice(0, 40) + '…' : p.text}
+                      {p.text?.length > 80 ? p.text.slice(0, 80) + '…' : p.text}
                     </div>
                   ))}
                 </div>
