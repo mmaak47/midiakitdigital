@@ -4661,6 +4661,105 @@ function extractEvolutionText(message) {
   ).trim();
 }
 
+// ─── Sync missed poll votes from Evolution API ──────────────────────────────
+const ETAPAS_MAP_GLOBAL = {
+  '📤 Contrato Enviado':    { key: 'contrato_enviado',  label: 'Contrato Enviado'    },
+  '✅ Contrato Assinado':   { key: 'contrato_assinado', label: 'Contrato Assinado'   },
+  '📦 Cobrança de Material':{ key: 'cobranca_material', label: 'Cobrança de Material' },
+  '🎨 Material Recebido':   { key: 'material_recebido', label: 'Material Recebido'   },
+  '📡 Veiculando':          { key: 'veiculando',        label: 'Veiculando'          },
+};
+
+async function syncMissedPollVotes() {
+  const evo = getEvolutionSettings();
+  if (!evo.evolution_api_url || !evo.evolution_instance || !evo.evolution_api_key) {
+    console.log('[poll-sync] Evolution API not configured, skipping.');
+    return;
+  }
+
+  // Get vendas with poll IDs that have fewer than 5 confirmed etapas
+  const vendas = db.prepare(`
+    SELECT v.id, v.whatsapp_poll_id
+    FROM vendas v
+    WHERE v.whatsapp_poll_id IS NOT NULL AND v.whatsapp_poll_id != ''
+  `).all();
+
+  if (!vendas.length) {
+    console.log('[poll-sync] No vendas with poll IDs.');
+    return;
+  }
+
+  const destGroup = evo.evolution_dest_number;
+  if (!destGroup) return;
+
+  console.log(`[poll-sync] Checking ${vendas.length} vendas with poll IDs...`);
+
+  try {
+    const base = evo.evolution_api_url.replace(/\/+$/, '');
+    const inst = encodeURIComponent(evo.evolution_instance);
+
+    // Fetch recent messages from the group (poll votes)
+    const resp = await fetch(`${base}/chat/findMessages/${inst}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: evo.evolution_api_key,
+      },
+      body: JSON.stringify({
+        where: { key: { remoteJid: destGroup } },
+        limit: 200,
+      }),
+    });
+
+    if (!resp.ok) {
+      console.log(`[poll-sync] findMessages failed: HTTP ${resp.status}`);
+      return;
+    }
+
+    const result = await resp.json();
+    const messages = result?.messages?.records || result?.records || (Array.isArray(result) ? result : []);
+
+    // Build map of pollId -> venda
+    const pollMap = {};
+    for (const v of vendas) {
+      pollMap[v.whatsapp_poll_id] = v.id;
+    }
+
+    let totalSynced = 0;
+
+    for (const msg of messages) {
+      const pum = msg?.message?.pollUpdateMessage || msg?.message?.pollUpdateMessageV1;
+      if (!pum?.vote?.selectedOptions?.length) continue;
+
+      const creationKey = pum.pollCreationMessageKey?.id;
+      if (!creationKey || !pollMap[creationKey]) continue;
+
+      const vendaId = pollMap[creationKey];
+
+      for (const option of pum.vote.selectedOptions) {
+        const etapa = ETAPAS_MAP_GLOBAL[option];
+        if (!etapa) continue;
+        try {
+          const r = db.prepare(`
+            INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_at, confirmado_por)
+            VALUES (?, ?, ?, '', NOW(), 'webhook-sync')
+            ON CONFLICT (venda_id, etapa_key) DO NOTHING
+          `).run(vendaId, etapa.key, etapa.label);
+          if (r.changes > 0) totalSynced++;
+        } catch { /* ignore */ }
+      }
+    }
+
+    if (totalSynced > 0) {
+      console.log(`[poll-sync] Recovered ${totalSynced} missed etapas from Evolution API.`);
+    } else {
+      console.log('[poll-sync] No missed votes to recover.');
+    }
+  } catch (err) {
+    console.error('[poll-sync] Error:', err.message);
+  }
+}
+
 // ─── Webhook Evolution API — reações emoji pós-venda ─────────────────────────
 app.post('/api/webhooks/whatsapp', (req, res) => {
   try {
@@ -4679,46 +4778,46 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
     let data = payload?.data;
     if (Array.isArray(data)) data = data[0];
 
-    // Log full payload for poll-group messages to diagnose enquete issue
+    // Log poll group messages for debugging
     const debugJid = String(data?.key?.remoteJid || data?.remoteJid || '').toLowerCase();
-    const pollGroupJid = '120363424339314067@g.us';
-    if (debugJid.includes(pollGroupJid) || event === 'messages.update') {
-      console.log(`[webhook][debug] event=${event} FULL data=${JSON.stringify(data).slice(0, 1500)}`);
+    if (data?.messageType === 'pollUpdateMessage' || data?.message?.pollUpdateMessage) {
+      console.log(`[webhook] pollUpdateMessage detected: keys=${JSON.stringify(Object.keys(data?.message || {}))}`);
     }
 
-    console.log(`[webhook] data keys=${JSON.stringify(Object.keys(data || {}))} pollUpdates=${!!data?.pollUpdates} update.pollUpdates=${!!data?.update?.pollUpdates}`);
+    console.log(`[webhook] data keys=${JSON.stringify(Object.keys(data || {}))}`);
 
     // ── Voto em enquete (poll vote) ──────────────────────────────────────────
-    // Evolution v2 sends poll votes in different places depending on version:
-    // - data.pollUpdates (newer)
-    // - data.update.pollUpdates (older)
-    // - data.message.pollUpdateMessage (Baileys raw)
-    const pollUpdate = data?.pollUpdates?.[0] || data?.update?.pollUpdates?.[0];
+    // Evolution v2 sends poll votes as messages.upsert with messageType="pollUpdateMessage"
+    // Structure: data.message.pollUpdateMessage.vote.selectedOptions = [...]
+    //            data.message.pollUpdateMessage.pollCreationMessageKey.id = <original poll message id>
+    // Also handle legacy: data.pollUpdates[0] or data.update.pollUpdates[0]
     const pollUpdateMsg = data?.message?.pollUpdateMessage || data?.message?.pollUpdateMessageV1;
-    if (pollUpdate || pollUpdateMsg) {
-      console.log(`[webhook] poll vote detected: pollUpdate=${JSON.stringify(pollUpdate)} pollUpdateMsg=${JSON.stringify(pollUpdateMsg)}`);
-    }
-    if (pollUpdate) {
-      const pollId = data?.key?.id || data?.update?.key?.id;
-      console.log(`[webhook] poll vote detected: pollId=${pollId} options=${JSON.stringify(pollUpdate.vote?.selectedOptions)} vote=${JSON.stringify(pollUpdate.vote)}`);
-      if (!pollUpdate.vote?.selectedOptions?.length || !pollId) {
-        return res.json({ ok: true, ignored: 'empty-vote' });
+    const pollUpdateLegacy = data?.pollUpdates?.[0] || data?.update?.pollUpdates?.[0];
+    const pollVote = pollUpdateMsg?.vote || pollUpdateLegacy?.vote;
+
+    if (pollVote?.selectedOptions?.length) {
+      // Poll ID = original poll creation message ID
+      const pollId = pollUpdateMsg?.pollCreationMessageKey?.id
+        || pollUpdateLegacy?.pollCreationMessageKey?.id
+        || data?.key?.id
+        || data?.update?.key?.id;
+
+      console.log(`[webhook] poll vote: pollId=${pollId} options=${JSON.stringify(pollVote.selectedOptions)}`);
+
+      if (!pollId) {
+        return res.json({ ok: true, ignored: 'empty-vote-no-pollId' });
       }
 
       const venda = db.prepare(`SELECT id FROM vendas WHERE whatsapp_poll_id = ?`).get(pollId);
       if (!venda) {
+        console.log(`[webhook] poll-not-found for pollId=${pollId}`);
         return res.json({ ok: true, ignored: 'poll-not-found', pollId });
       }
 
-      const ETAPAS_MAP = {
-        '📤 Contrato Enviado':    { key: 'contrato_enviado',  label: 'Contrato Enviado'    },
-        '✅ Contrato Assinado':   { key: 'contrato_assinado', label: 'Contrato Assinado'   },
-        '📦 Cobrança de Material':{ key: 'cobranca_material', label: 'Cobrança de Material' },
-        '🎨 Material Recebido':   { key: 'material_recebido', label: 'Material Recebido'   },
-        '📡 Veiculando':          { key: 'veiculando',        label: 'Veiculando'          },
-      };
+      const ETAPAS_MAP = ETAPAS_MAP_GLOBAL;
 
-      for (const option of pollUpdate.vote.selectedOptions) {
+      let processed = 0;
+      for (const option of pollVote.selectedOptions) {
         const etapa = ETAPAS_MAP[option];
         if (!etapa) continue;
         try {
@@ -4727,9 +4826,11 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
             VALUES (?, ?, ?, '', NOW(), 'webhook')
             ON CONFLICT (venda_id, etapa_key) DO NOTHING
           `).run(venda.id, etapa.key, etapa.label);
+          processed++;
         } catch { /* ignore */ }
       }
 
+      console.log(`[webhook] poll-vote processed: vendaId=${venda.id} etapas=${processed}`);
       return res.json({ ok: true, processed: 'poll-vote' });
     }
 
@@ -5837,4 +5938,7 @@ app.listen(PORT, () => {
 
   // Agendador de mensagens (lembrete financeiro toda segunda 08:30)
   startScheduledMessages({ db, sendEvolutionText, getEvolutionSettings });
+
+  // Sync missed poll votes from Evolution API on startup
+  syncMissedPollVotes().catch(err => console.error('[poll-sync] startup error:', err.message));
 });
