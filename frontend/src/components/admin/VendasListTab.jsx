@@ -37,6 +37,25 @@ function parsePontos(str) {
   try { return JSON.parse(str); } catch { return [str]; }
 }
 
+function fmtPhone(v) {
+  const d = v.replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : '';
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+function fmtCurrency(v) {
+  let d = v.replace(/\D/g, '');
+  if (!d) return '';
+  d = d.replace(/^0+/, '') || '0';
+  d = d.padStart(3, '0');
+  const intPart = d.slice(0, -2);
+  const decPart = d.slice(-2);
+  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${formatted},${decPart}`;
+}
+
 function StatusBadge({ status, isDark }) {
   const cfg = STATUS_CONFIG[status] || { label: status, light: 'bg-neutral-100 text-neutral-600 border-neutral-200', dark: 'bg-white/10 text-brand-gray-400 border-white/10' };
   return (
@@ -63,6 +82,7 @@ function EditVendaModal({ venda, isDark, onClose, onSaved, pontos = [] }) {
     troca_material: venda.troca_material == 1,
     responsavel_nome: venda.responsavel_nome || '',
     responsavel_whatsapp: venda.responsavel_whatsapp || '',
+    email: venda.email || '',
     vendedor_nome: venda.vendedor_nome || '',
     obs: venda.obs || '',
     status: venda.status || 'ativa',
@@ -168,7 +188,7 @@ function EditVendaModal({ venda, isDark, onClose, onSaved, pontos = [] }) {
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className={lbl}>Valor Mensal</label>
-            <input className={inp} value={form.valor_mensal} onChange={e => set('valor_mensal', e.target.value)} placeholder="5.000,00" />
+            <input className={inp} value={form.valor_mensal} onChange={e => set('valor_mensal', fmtCurrency(e.target.value))} placeholder="0,00" />
           </div>
           <div>
             <label className={lbl}>Tipo do Valor</label>
@@ -233,8 +253,14 @@ function EditVendaModal({ venda, isDark, onClose, onSaved, pontos = [] }) {
           </div>
           <div>
             <label className={lbl}>Responsável (WhatsApp)</label>
-            <input className={inp} value={form.responsavel_whatsapp} onChange={e => set('responsavel_whatsapp', e.target.value)} />
+            <input className={inp} value={form.responsavel_whatsapp} onChange={e => set('responsavel_whatsapp', fmtPhone(e.target.value))} />
           </div>
+        </div>
+
+        {/* Email */}
+        <div>
+          <label className={lbl}>Email</label>
+          <input type="email" className={inp} value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@empresa.com.br" />
         </div>
 
         {/* Pontos vendidos */}
@@ -375,6 +401,7 @@ function VendaRow({ venda, isDark, onEdit, onDelete }) {
                 ['Dia de pagamento', venda.dia_pagamento_dia ? `Dia ${venda.dia_pagamento_dia} de cada mês` : (venda.dia_pagamento || '—')],
                 ['Forma de pagamento', venda.forma_pagamento || '—'],
                 ['Responsável', [venda.responsavel_nome, venda.responsavel_whatsapp].filter(Boolean).join(' · ')],
+                ['Email', venda.email || '—'],
               ].map(([label, val]) => (
                 <div key={label}>
                   <span className={`font-medium ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{label}: </span>

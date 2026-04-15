@@ -3582,6 +3582,14 @@ app.post('/api/admin/users/:id/photo', requireRoles(['admin']), upload.fields([{
 
 // ==================== VENDAS ====================
 
+// Helper: parse BRL currency string "5.000,00" → 5000.00
+function parseBRLCurrency(v) {
+  if (!v) return 0;
+  const cleaned = String(v).replace(/\./g, '').replace(',', '.');
+  const n = Number(cleaned);
+  return isNaN(n) ? 0 : n;
+}
+
 // Multer config para PDFs do P.I. (pedido de inserção)
 const piStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -3649,6 +3657,7 @@ try {
   'ALTER TABLE pontos ADD COLUMN monitor_last_seen TEXT DEFAULT NULL',
   'ALTER TABLE admin_users ADD COLUMN is_vendedor INTEGER DEFAULT 0',
   'ALTER TABLE admin_users ADD COLUMN photo_url TEXT DEFAULT NULL',
+  'ALTER TABLE vendas ADD COLUMN email TEXT',
 ].forEach(sql => {
   try { db.prepare(sql).run(); } catch { /* coluna já existe */ }
 });
@@ -4029,6 +4038,7 @@ app.post(
         dia_pagamento_dia,
         responsavel_nome,
         responsavel_whatsapp,
+        email,
         obs,
         pontos_nomes,
         vendedor_nome
@@ -4054,9 +4064,9 @@ app.post(
         INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal, tipo_valor,
           via_agencia, agencia_nome, comissao_pct, troca_material,
           periodo, dia_pagamento, data_primeira_parcela, dia_pagamento_dia,
-          responsavel_nome, responsavel_whatsapp,
+          responsavel_nome, responsavel_whatsapp, email,
           obs, pi_path, vendedor_id, vendedor_nome, whatsapp_status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
       `);
 
       const dbResult = stmt.run(
@@ -4076,6 +4086,7 @@ app.post(
         dia_pagamento_dia ? Number(dia_pagamento_dia) : null,
         responsavel_nome || null,
         responsavel_whatsapp || null,
+        email || null,
         obs || null,
         piPath || null,
         req.authUser?.id || null,
@@ -4182,7 +4193,7 @@ app.post(
         const vNome = vendedor_nome || req.authUser?.username || null;
         // Calcular qtde_parcelas e total_contrato corretamente
         const qtdeParcelas = (periodo_tipo === 'meses' && periodo_meses) ? Number(periodo_meses) : 1;
-        const valorMensalNum = Number(valor_mensal || 0);
+        const valorMensalNum = parseBRLCurrency(valor_mensal);
         const totalContrato = valorMensalNum * qtdeParcelas;
         // Converter pontos_nomes de JSON para string legível
         let pontosStr = null;
@@ -4190,11 +4201,13 @@ app.post(
           const nomes = Array.isArray(pontos_nomes) ? pontos_nomes : JSON.parse(pontos_nomes || '[]');
           pontosStr = nomes.length > 0 ? nomes.join(', ') : null;
         } catch { pontosStr = pontos_nomes || null; }
+        // Build contato string from responsável data
+        const contatoStr = [responsavel_nome, responsavel_whatsapp].filter(Boolean).join(' · ') || null;
         db.prepare(`
           INSERT INTO vendas_comercial
             (vendedor_nome, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
-             valor_mensal, total_contrato, qtde_parcelas, obs, venda_id)
-          VALUES (?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+             valor_mensal, total_contrato, qtde_parcelas, contato, email, obs, venda_id)
+          VALUES (?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           vNome,
           now.getFullYear(),
@@ -4205,6 +4218,8 @@ app.post(
           valorMensalNum,
           totalContrato,
           qtdeParcelas,
+          contatoStr,
+          email || null,
           obs || null,
           vendaId
         );
@@ -4432,7 +4447,7 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
       tipo, razao_social, cnpj, pontos_nomes, valor_mensal, tipo_valor,
       via_agencia, agencia_nome, comissao_pct, troca_material,
       periodo, dia_pagamento, data_primeira_parcela, dia_pagamento_dia,
-      responsavel_nome, responsavel_whatsapp, obs, status, vendedor_nome
+      responsavel_nome, responsavel_whatsapp, email, obs, status, vendedor_nome
     } = req.body;
 
     db.prepare(`
@@ -4440,7 +4455,7 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
         tipo = ?, razao_social = ?, cnpj = ?, pontos_nomes = ?, valor_mensal = ?, tipo_valor = ?,
         via_agencia = ?, agencia_nome = ?, comissao_pct = ?, troca_material = ?,
         periodo = ?, dia_pagamento = ?, data_primeira_parcela = ?, dia_pagamento_dia = ?,
-        responsavel_nome = ?, responsavel_whatsapp = ?, obs = ?, status = ?, vendedor_nome = ?,
+        responsavel_nome = ?, responsavel_whatsapp = ?, email = ?, obs = ?, status = ?, vendedor_nome = ?,
         updated_at = datetime('now')
       WHERE id = ?
     `).run(
@@ -4460,6 +4475,7 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
       dia_pagamento_dia ? Number(dia_pagamento_dia) : null,
       responsavel_nome || null,
       responsavel_whatsapp || null,
+      email || null,
       obs || null,
       status || 'ativa',
       vendedor_nome || null,
@@ -4468,15 +4484,44 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
 
     const updated = db.prepare('SELECT * FROM vendas WHERE id = ?').get(id);
 
-    // Sync pontos_contratados in the linked vendas_comercial record
-    if (pontos_nomes) {
-      try {
-        const parsedNomes = JSON.parse(pontos_nomes);
-        if (Array.isArray(parsedNomes)) {
-          const commaList = parsedNomes.join(', ');
-          db.prepare(`UPDATE vendas_comercial SET pontos_contratados = ?, updated_at = datetime('now') WHERE venda_id = ?`).run(commaList, id);
-        }
-      } catch {}
+    // Sync ALL relevant fields to the linked vendas_comercial record
+    try {
+      let pontosStr = null;
+      if (pontos_nomes) {
+        try {
+          const parsedNomes = JSON.parse(pontos_nomes);
+          if (Array.isArray(parsedNomes)) pontosStr = parsedNomes.join(', ');
+        } catch {}
+      }
+      const valorNum = parseBRLCurrency(valor_mensal);
+      // Parse qtde_parcelas from periodo (e.g. "12 meses")
+      const periodoMatch = String(periodo || '').match(/^(\d+)\s+mes/i);
+      const qtde = periodoMatch ? Number(periodoMatch[1]) : 1;
+      const totalContrato = valorNum * qtde;
+      const contatoStr = [responsavel_nome, responsavel_whatsapp].filter(Boolean).join(' · ') || null;
+
+      db.prepare(`
+        UPDATE vendas_comercial SET
+          cliente = ?, cnpj = ?, pontos_contratados = COALESCE(?, pontos_contratados),
+          valor_mensal = ?, total_contrato = ?, qtde_parcelas = ?,
+          contato = ?, email = ?, vendedor_nome = ?, obs = ?,
+          updated_at = datetime('now')
+        WHERE venda_id = ?
+      `).run(
+        razao_social || '',
+        cnpj || null,
+        pontosStr,
+        valorNum,
+        totalContrato,
+        qtde,
+        contatoStr,
+        email || null,
+        vendedor_nome || null,
+        obs || null,
+        id
+      );
+    } catch (syncErr) {
+      console.warn('[vendas] PUT sync vendas_comercial falhou:', syncErr.message);
     }
 
     res.json(updated);
@@ -4790,7 +4835,7 @@ app.post('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vended
     `).run(
       String(b.vendedor_nome), Number(b.ano), Number(b.mes),
       b.data_venda || null, b.cliente, b.cnpj || null, b.pontos_contratados || null,
-      Number(b.valor_mensal || 0), Number(b.total_contrato || 0), Number(b.qtde_parcelas || 1),
+      parseBRLCurrency(b.valor_mensal), parseBRLCurrency(b.total_contrato), Number(b.qtde_parcelas || 1),
       b.previsao_veiculacao || null, b.data_emissao_nf || null, b.vencimento_boletos || null,
       b.contato || null, b.email || null, b.obs || null
     );
@@ -4850,8 +4895,8 @@ app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','ven
     `).run(
       String(b.vendedor_nome || ''),
       b.data_venda || null, b.cliente || '', b.cnpj || null,
-      b.pontos_contratados || null, Number(b.valor_mensal || 0),
-      Number(b.total_contrato || 0), Number(b.qtde_parcelas || 1),
+      b.pontos_contratados || null, parseBRLCurrency(b.valor_mensal),
+      parseBRLCurrency(b.total_contrato), Number(b.qtde_parcelas || 1),
       b.previsao_veiculacao || null, b.data_emissao_nf || null,
       b.vencimento_boletos || null, b.contato || null, b.email || null,
       b.status_contrato ? 1 : 0, b.status_contrato_assinado ? 1 : 0,
@@ -4859,6 +4904,30 @@ app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','ven
       b.status_faturado ? 1 : 0, b.status_excel_pastas ? 1 : 0,
       b.obs || null, id
     );
+
+    // Reverse-sync: update linked vendas record if exists
+    try {
+      const vc = db.prepare('SELECT venda_id FROM vendas_comercial WHERE id = ?').get(id);
+      if (vc && vc.venda_id) {
+        const pontosNomes = b.pontos_contratados
+          ? JSON.stringify(b.pontos_contratados.split(',').map(s => s.trim()).filter(Boolean))
+          : '[]';
+        db.prepare(`
+          UPDATE vendas SET
+            razao_social = ?, cnpj = ?, pontos_nomes = ?,
+            valor_mensal = ?, vendedor_nome = ?, email = ?, obs = ?,
+            updated_at = datetime('now')
+          WHERE id = ?
+        `).run(
+          b.cliente || '', b.cnpj || null, pontosNomes,
+          b.valor_mensal || null, String(b.vendedor_nome || ''),
+          b.email || null, b.obs || null, vc.venda_id
+        );
+      }
+    } catch (syncErr) {
+      console.warn('[gestao] reverse-sync to vendas falhou:', syncErr.message);
+    }
+
     res.json({ ok: true });
   } catch (err) {
     internalError(res, err);

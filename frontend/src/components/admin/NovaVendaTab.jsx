@@ -23,6 +23,7 @@ const emptyForm = {
   dia_pagamento_dia: '',
   responsavel_nome: '',
   responsavel_whatsapp: '',
+  email: '',
   obs: '',
 };
 
@@ -41,6 +42,24 @@ function fmtPhone(v) {
   if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
   if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+function validatePhone(v) {
+  const d = v.replace(/\D/g, '');
+  if (d.length !== 11) return 'Telefone deve ter 11 dígitos (DDD + 9 dígitos).';
+  if (d[2] !== '9') return 'Celular deve iniciar com 9 após o DDD. Formato: (DDD) 9XXXX-XXXX';
+  return null;
+}
+
+function fmtCurrency(v) {
+  let d = v.replace(/\D/g, '');
+  if (!d) return '';
+  d = d.replace(/^0+/, '') || '0';
+  d = d.padStart(3, '0');
+  const intPart = d.slice(0, -2);
+  const decPart = d.slice(-2);
+  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${formatted},${decPart}`;
 }
 
 export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }) {
@@ -82,6 +101,8 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
     if (selectedPontos.length === 0) return setErr('Selecione ao menos um ponto contratado.');
     if (!form.responsavel_nome.trim()) return setErr('Preencha o nome do Responsável pela compra.');
     if (!form.responsavel_whatsapp.trim()) return setErr('Preencha o WhatsApp do Responsável.');
+    const phoneErr = validatePhone(form.responsavel_whatsapp);
+    if (phoneErr) return setErr(phoneErr);
 
     setBusy(true);
     try {
@@ -107,6 +128,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       fd.append('dia_pagamento', form.dia_pagamento_dia ? `Dia ${form.dia_pagamento_dia} de cada mês` : '');
       fd.append('responsavel_nome', form.responsavel_nome.trim());
       fd.append('responsavel_whatsapp', form.responsavel_whatsapp.trim());
+      fd.append('email', form.email.trim());
       fd.append('obs', form.obs.trim());
       fd.append('pontos_nomes', JSON.stringify(selectedPontos.map(p => p.nome)));
       fd.append('vendedor_nome', currentUser
@@ -320,8 +342,8 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
               <input
                 className={inp}
                 value={form.valor_mensal}
-                onChange={e => set('valor_mensal', e.target.value)}
-                placeholder="R$ 0.000,00"
+                onChange={e => set('valor_mensal', fmtCurrency(e.target.value))}
+                placeholder="0,00"
               />
             </div>
             <div>
@@ -487,6 +509,16 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
                 placeholder="(43) 99999-9999"
               />
             </div>
+          </div>
+          <div>
+            <label className={lbl}>Email</label>
+            <input
+              type="email"
+              className={inp}
+              value={form.email}
+              onChange={e => set('email', e.target.value)}
+              placeholder="email@empresa.com.br"
+            />
           </div>
         </section>
 

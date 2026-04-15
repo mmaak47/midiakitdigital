@@ -47,6 +47,18 @@ const fmtCurrency = (v) => {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
+// Format currency as user types: "5000,00" → "5.000,00"
+const fmtCurrencyInput = (v) => {
+  let d = String(v).replace(/\D/g, '');
+  if (!d) return '';
+  d = d.replace(/^0+/, '') || '0';
+  d = d.padStart(3, '0');
+  const intPart = d.slice(0, -2);
+  const decPart = d.slice(-2);
+  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${formatted},${decPart}`;
+};
+
 const pctColor = (pct) => {
   if (pct >= 100) return 'text-green-500';
   if (pct >= 75) return 'text-brand-orange';
@@ -276,10 +288,17 @@ export default function GestaoUnificada({ isDark, ano }) {
   const handleEdit = (v) => {
     const resolved = resolveToUsername(v.vendedor_nome);
     setShowForm(resolved); setEditingId(v.id);
+    // Format currency values for display in input
+    const fmtVal = (n) => {
+      if (!n && n !== 0) return '';
+      const num = Number(n);
+      if (isNaN(num)) return String(n);
+      return num.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    };
     setFormData({
       data_venda: v.data_venda || '', cliente: v.cliente || '', cnpj: v.cnpj || '',
-      pontos_contratados: v.pontos_contratados || '', valor_mensal: v.valor_mensal || '',
-      total_contrato: v.total_contrato || '', qtde_parcelas: v.qtde_parcelas || 1,
+      pontos_contratados: v.pontos_contratados || '', valor_mensal: fmtVal(v.valor_mensal),
+      total_contrato: fmtVal(v.total_contrato), qtde_parcelas: v.qtde_parcelas || 1,
       previsao_veiculacao: v.previsao_veiculacao || '', data_emissao_nf: v.data_emissao_nf || '',
       vencimento_boletos: v.vencimento_boletos || '', contato: v.contato || '',
       email: v.email || '', obs: v.obs || '',
@@ -668,8 +687,8 @@ function VendaForm({
     { key: 'data_venda', label: 'Data da Venda', type: 'date' },
     { key: 'cliente', label: 'Cliente', required: true },
     { key: 'cnpj', label: 'CNPJ' },
-    { key: 'valor_mensal', label: 'Valor Mensal (R$)', type: 'number' },
-    { key: 'total_contrato', label: 'Total Contrato (R$)', type: 'number' },
+    { key: 'valor_mensal', label: 'Valor Mensal (R$)', fmtCurr: true },
+    { key: 'total_contrato', label: 'Total Contrato (R$)', fmtCurr: true },
     { key: 'qtde_parcelas', label: 'Parcelas', type: 'number' },
     { key: 'previsao_veiculacao', label: 'Previsão Veiculação' },
     { key: 'data_emissao_nf', label: 'Data Emissão NF', type: 'date' },
@@ -735,8 +754,12 @@ function VendaForm({
         {fields.map(f => (
           <div key={f.key}>
             <label className={`block text-xs font-semibold mb-1 ${textMuted}`}>{f.label}{f.required ? ' *' : ''}</label>
-            <input type={f.type || 'text'} value={formData[f.key]}
-              onChange={e => setFormData(prev => ({ ...prev, [f.key]: e.target.value }))}
+            <input type={f.fmtCurr ? 'text' : (f.type || 'text')} value={formData[f.key]}
+              onChange={e => {
+                const val = f.fmtCurr ? fmtCurrencyInput(e.target.value) : e.target.value;
+                setFormData(prev => ({ ...prev, [f.key]: val }));
+              }}
+              placeholder={f.fmtCurr ? '0,00' : undefined}
               className={`w-full px-3 py-2 rounded-lg text-sm ${inputBg} focus:ring-2 focus:ring-brand-orange/40 focus:outline-none`}
             />
           </div>
