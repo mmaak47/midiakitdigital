@@ -460,7 +460,7 @@ export default function TvWall() {
           min-height: 0;
           display: grid;
           grid-template-columns: 1fr 1.3fr 1fr;
-          grid-template-rows: auto 1fr;
+          grid-template-rows: 1fr 1fr;
           grid-template-areas:
             "loop goals contracts"
             "postits postits ranking";
@@ -771,6 +771,8 @@ export default function TvWall() {
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 6px;
           margin-bottom: 0;
+          min-height: 0;
+          overflow: auto;
         }
 
         .tv-goal {
@@ -1385,6 +1387,7 @@ export default function TvWall() {
               <div className="tv-pill">Progresso</div>
             </div>
 
+            <div className="tv-scroll">
             <div className="tv-goals-grid">
               {(() => {
                 const cards = [
@@ -1458,6 +1461,7 @@ export default function TvWall() {
                   );
                 });
               })()}
+            </div>
             </div>
           </article>
 
