@@ -5305,7 +5305,30 @@ app.post('/api/p/:token/aprovar', express.json(), (req, res) => {
 });
 
 // ── Navigation tracking (public) ──────────────────────────────────────────────
-const VALID_EVENT_TYPES = new Set(['page_view', 'pdf_generate', 'slides_open', 'chatbot_open', 'chatbot_message', 'whatsapp_click', 'proposal_view', 'point_detail_view']);
+const VALID_EVENT_TYPES = new Set(['page_view', 'pdf_generate', 'slides_open', 'chatbot_open', 'chatbot_message', 'whatsapp_click', 'instagram_click', 'contact_click', 'proposal_view', 'point_detail_view']);
+
+function seedLeadFromContactEvent({ sessionId, eventType, eventData, pageUrl }) {
+  if (!['whatsapp_click', 'instagram_click', 'contact_click'].includes(String(eventType || ''))) {
+    return;
+  }
+
+  const source = String(eventData?.source || eventType || 'contato').slice(0, 120);
+  const page = String(pageUrl || '').slice(0, 200);
+  const empresa = `Lead via ${source}`.slice(0, 200);
+  const notas = `Capturado por clique em CTA (${eventType})${page ? ` em ${page}` : ''}`.slice(0, 500);
+
+  db.prepare(
+    `INSERT INTO leads (session_id, telefone, empresa, status, notas)
+     VALUES (?, ?, ?, 'novo', ?)
+     ON CONFLICT(session_id) DO NOTHING`
+  ).run(sessionId.slice(0, 64), 'nao-informado', empresa, notas);
+
+  try {
+    db.prepare('UPDATE chat_sessions SET lead_captured = 1 WHERE id = ?').run(sessionId);
+  } catch {
+    // session may not exist yet
+  }
+}
 
 app.post('/api/track', (req, res) => {
   try {
@@ -5316,6 +5339,7 @@ app.post('/api/track', (req, res) => {
     db.prepare('INSERT INTO navigation_events (session_id, event_type, event_data, page_url) VALUES (?, ?, ?, ?)').run(
       sessionId.slice(0, 64), eventType, eventData ? JSON.stringify(eventData).slice(0, 2000) : null, (pageUrl || '').slice(0, 500)
     );
+    seedLeadFromContactEvent({ sessionId, eventType, eventData, pageUrl });
     res.json({ ok: true });
   } catch (err) {
     internalError(res, err, 'Erro ao registrar evento.');
