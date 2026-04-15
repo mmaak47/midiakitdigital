@@ -460,10 +460,11 @@ export default function TvWall() {
           min-height: 0;
           display: grid;
           grid-template-columns: 1fr 1.3fr 1fr;
-          grid-template-rows: auto 1fr;
+          grid-template-rows: auto 1fr auto;
           grid-template-areas:
             "loop goals contracts"
-            "postits postits ranking";
+            "loop ranking contracts"
+            "postits postits postits";
           gap: 10px;
         }
 
@@ -474,8 +475,6 @@ export default function TvWall() {
         }
         .ga-insights {
           grid-area: goals;
-          max-height: 45vh;
-          overflow: hidden;
         }
         .ga-postits { grid-area: postits; }
 
@@ -1154,14 +1153,14 @@ export default function TvWall() {
           }
 
           .tv-grid {
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: auto auto auto auto auto;
+            grid-template-columns: 1fr;
+            grid-template-rows: auto auto auto auto auto auto;
             grid-template-areas:
-              "goals goals"
-              "loop loop"
-              "contracts contracts"
-              "postits postits"
-              "ranking ranking";
+              "goals"
+              "ranking"
+              "loop"
+              "contracts"
+              "postits";
           }
         }
       `}</style>
