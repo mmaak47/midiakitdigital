@@ -2126,7 +2126,6 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
         offline: grouped.filter((m) => m.status !== 'online').length,
         lotados: grouped.filter((m) => m.pct_ocupado >= 100).length,
         totalCotasLivres: grouped.reduce((sum, m) => sum + (m.cotas_livres || 0), 0),
-        lotadosItems: grouped.filter((m) => m.pct_ocupado >= 100),
         itensCriticos: grouped
           .sort((a, b) => b.cotas_livres - a.cotas_livres || a.pct_ocupado - b.pct_ocupado)
           .slice(0, 30)
@@ -4551,31 +4550,9 @@ function extractEvolutionIncomingMessage(payload) {
   return data || null;
 }
 
-function normalizeJid(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function unwrapEvolutionMessage(message) {
-  let current = message;
-  // Evolution/WA payloads may wrap real content in nested message containers.
-  for (let i = 0; i < 6; i += 1) {
-    if (!current || typeof current !== 'object') break;
-    const nested =
-      current?.ephemeralMessage?.message
-      || current?.viewOnceMessage?.message
-      || current?.viewOnceMessageV2?.message
-      || current?.viewOnceMessageV2Extension?.message
-      || current?.documentWithCaptionMessage?.message
-      || current?.editedMessage?.message;
-    if (!nested || nested === current) break;
-    current = nested;
-  }
-  return current || message;
-}
-
 function extractEvolutionText(message) {
   if (!message || typeof message !== 'object') return '';
-  const msg = unwrapEvolutionMessage(message.message || message);
+  const msg = message.message || message;
   return String(
     msg?.conversation
     || msg?.extendedTextMessage?.text
@@ -4583,12 +4560,7 @@ function extractEvolutionText(message) {
     || msg?.videoMessage?.caption
     || msg?.documentMessage?.caption
     || msg?.buttonsResponseMessage?.selectedDisplayText
-    || msg?.buttonsResponseMessage?.selectedButtonId
     || msg?.listResponseMessage?.title
-    || msg?.listResponseMessage?.singleSelectReply?.selectedRowId
-    || msg?.templateButtonReplyMessage?.selectedDisplayText
-    || msg?.templateButtonReplyMessage?.selectedId
-    || msg?.reactionMessage?.text
     || ''
   ).trim();
 }
@@ -4647,11 +4619,11 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
     // ── Mensagem de grupo -> post-it do painel TV ───────────────────────────
     const incoming = extractEvolutionIncomingMessage(payload);
     const key = incoming?.key || data?.key || payload?.data?.key || {};
-    const remoteJid = normalizeJid(key?.remoteJid);
+    const remoteJid = String(key?.remoteJid || '').trim();
     const messageId = String(key?.id || '').trim();
     const fromMe = Boolean(key?.fromMe);
     const text = extractEvolutionText(incoming || data);
-    const groupJid = normalizeJid(getAppSetting('tv_postit_group_jid', ''));
+    const groupJid = getAppSetting('tv_postit_group_jid', '').trim();
 
     if (groupJid && remoteJid === groupJid && !fromMe && text) {
       const author = String(
