@@ -158,9 +158,11 @@ export function normalizeHorarioForPdf(horario, fallback = '-') {
     Object.assign(dayHoursMap, parseOsmHours(raw));
   }
 
-  // Try generic day-time pattern parsing
+  // Try generic day-time pattern parsing (with multi-line / split-hours support)
   if (Object.keys(dayHoursMap).length === 0) {
     const lines = raw.split(/[|\n]/).map((s) => s.trim()).filter(Boolean);
+    let lastDay = null;
+
     for (const line of lines) {
       // "Segunda a Sexta: 08:00-18:00" range pattern
       const rangeMatch = line.match(/([\wçãáà-]+)\s*(?:a|à|até)\s*([\wçãáà-]+)\s*[:,-]?\s*(.+)/i);
@@ -175,21 +177,53 @@ export function normalizeHorarioForPdf(horario, fallback = '-') {
             for (let i = si; i <= ei; i++) {
               if (!dayHoursMap[DAY_ORDER[i]]) dayHoursMap[DAY_ORDER[i]] = time;
             }
+            lastDay = null;
             continue;
           }
         }
       }
-      // Single day entry
-      for (const [pattern, dayKey] of Object.entries(PT_DAY_MAP)) {
-        const normalizedLine = line.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        const normalizedPattern = pattern.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        if (normalizedLine.includes(normalizedPattern)) {
-          const afterDay = normalizedLine.replace(normalizedPattern, '').replace(/^[\s:,\-–—]+/, '').trim();
-          if (afterDay && /\d/.test(afterDay) && !dayHoursMap[dayKey]) {
-            dayHoursMap[dayKey] = cleanTime(afterDay);
-          }
-          break;
+
+      // Try to find a day name in the line
+      let foundDay = null;
+      let timeStr = '';
+
+      // Handle tab-separated: "quarta-feira\t11:30–15:00"
+      const tabParts = line.split(/\t/);
+      if (tabParts.length >= 2) {
+        const d = normDay(tabParts[0]);
+        if (d) {
+          foundDay = d;
+          timeStr = tabParts.slice(1).join(' ').trim();
         }
+      }
+
+      // Fallback: match day name anywhere in the line
+      if (!foundDay) {
+        const normalizedLine = line.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        for (const [pattern, dayKey] of Object.entries(PT_DAY_MAP)) {
+          const normalizedPattern = pattern.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          if (normalizedLine.includes(normalizedPattern)) {
+            foundDay = dayKey;
+            timeStr = normalizedLine.replace(normalizedPattern, '').replace(/^[\s:,\-–—\t]+/, '').trim();
+            break;
+          }
+        }
+      }
+
+      if (foundDay) {
+        lastDay = foundDay;
+        if (timeStr && /\d/.test(timeStr)) {
+          const time = cleanTime(timeStr);
+          dayHoursMap[foundDay] = dayHoursMap[foundDay]
+            ? dayHoursMap[foundDay] + ' e ' + time
+            : time;
+        }
+      } else if (lastDay && /\d{1,2}[:.]\d{2}/.test(line)) {
+        // Continuation line: time-only line belongs to the previous day
+        const time = cleanTime(line);
+        dayHoursMap[lastDay] = dayHoursMap[lastDay]
+          ? dayHoursMap[lastDay] + ' e ' + time
+          : time;
       }
     }
   }
