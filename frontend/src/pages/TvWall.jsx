@@ -1494,7 +1494,8 @@ export default function TvWall() {
           </article>}
         </section>
 
-        <footer className="tv-footer">
+        {/* Flash Intermidia - temporariamente oculto */}
+        {false && <footer className="tv-footer">
           <div className="tv-footer-inner">
             <div className="tv-footer-label">
               <Newspaper size={16} strokeWidth={2.8} /> Flash Intermidia
@@ -1503,7 +1504,7 @@ export default function TvWall() {
               <div className="tv-ticker-track" style={{ '--ticker-dur': `${Math.max(20, currentTickerText.length * 0.35)}s` }}>{currentTickerText}&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;{currentTickerText}&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;{currentTickerText}</div>
             </div>
           </div>
-        </footer>
+        </footer>}
       </div>
 
       {warnings.length > 0 || error ? (
