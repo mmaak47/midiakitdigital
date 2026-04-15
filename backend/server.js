@@ -4766,25 +4766,15 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
     const payload = req.body;
     const event = payload?.event;
 
-    console.log(`[webhook] event=${event} keys=${JSON.stringify(Object.keys(payload || {}))}`);
-
     // Só processa votos em poll (messages.update) e mensagens normais
     const HANDLED = ['messages.upsert', 'message', 'messages.update', 'MESSAGES_UPDATE', 'MESSAGES_UPSERT'];
     if (!HANDLED.includes(event)) {
-      console.log(`[webhook] ignored event: ${event}`);
       return res.json({ ok: true, ignored: 'event-not-handled' });
     }
 
     let data = payload?.data;
     if (Array.isArray(data)) data = data[0];
 
-    // Log poll group messages for debugging
-    const debugJid = String(data?.key?.remoteJid || data?.remoteJid || '').toLowerCase();
-    if (data?.messageType === 'pollUpdateMessage' || data?.message?.pollUpdateMessage) {
-      console.log(`[webhook] pollUpdateMessage detected: keys=${JSON.stringify(Object.keys(data?.message || {}))}`);
-    }
-
-    console.log(`[webhook] data keys=${JSON.stringify(Object.keys(data || {}))}`);
 
     // ── Voto em enquete (poll vote) ──────────────────────────────────────────
     // Evolution v2 sends poll votes as messages.upsert with messageType="pollUpdateMessage"
@@ -4842,8 +4832,6 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
     const fromMe = Boolean(key?.fromMe);
     const text = extractEvolutionText(incoming || data);
     const groupJid = normalizeJid(getAppSetting('tv_postit_group_jid', ''));
-
-    console.log(`[webhook] msg: remoteJid=${remoteJid} groupJid=${groupJid} fromMe=${fromMe} text=${(text||'').slice(0,60)} msgId=${messageId}`);
 
     if (groupJid && remoteJid === groupJid && !fromMe && text) {
       const author = String(
