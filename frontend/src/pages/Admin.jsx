@@ -8,6 +8,7 @@ import {
   LogOut, Camera, Info
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import { normalizeHorarioForPdf } from '../lib/horarioUtils';
 import {
   login,
   logout,
@@ -2219,7 +2220,24 @@ export default function Admin() {
                   </div>
                   <FormField label="Latitude" value={form.lat} onChange={v => updateField('lat', v)} type="number" step="any" />
                   <FormField label="Longitude" value={form.lng} onChange={v => updateField('lng', v)} type="number" step="any" />
-                  <FormField label="Horário" value={form.horario} onChange={v => updateField('horario', v)} />
+                  <div className="md:col-span-2">
+                    <label className={`block text-xs mb-1.5 ${th.lbl}`}>Horário</label>
+                    <textarea
+                      value={form.horario}
+                      onChange={e => updateField('horario', e.target.value)}
+                      rows={2}
+                      placeholder="Ex: 09h às 21h de sexta a terça-feira - Às quintas-feiras, o horário é reduzido, iniciando às 14h e encerrando às 21h"
+                      className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors resize-y ${th.inp}`}
+                    />
+                    {form.horario && (
+                      <div className={`mt-1.5 flex items-start gap-2 text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                        <span className="shrink-0 font-semibold mt-px">Preview PDF:</span>
+                        <span className={`font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                          {normalizeHorarioForPdf(form.horario)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                   <FormField label="Fluxo mensal" value={form.fluxo} onChange={v => updateField('fluxo', v)} type="number" />
                   <FormField label="Inserções mensais" value={form.insercoes} onChange={v => updateField('insercoes', v)} type="number" />
                   <FormField label="Tempo" value={form.tempo} onChange={v => updateField('tempo', v)} />
