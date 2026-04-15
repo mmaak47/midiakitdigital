@@ -792,6 +792,127 @@ function normalizePdfImageSource(value) {
   return 'imagem2';
 }
 
+// ---------------------------------------------------------------------------
+// Auto-calculate monthly insertions from horario + telas
+// 1 insertion every 3 min = 20/hour. Monthly = avg_daily_hours * 20 * 30 * telas
+// ---------------------------------------------------------------------------
+const DAY_ORDER_CALC = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo'];
+const PT_DAY_MAP_CALC = {
+  'segunda-feira': 'segunda', 'segunda': 'segunda', 'seg': 'segunda',
+  'terca-feira': 'terca', 'terça-feira': 'terca', 'terça': 'terca', 'terca': 'terca', 'ter': 'terca',
+  'quarta-feira': 'quarta', 'quarta': 'quarta', 'qua': 'quarta',
+  'quinta-feira': 'quinta', 'quinta': 'quinta', 'qui': 'quinta',
+  'sexta-feira': 'sexta', 'sexta': 'sexta', 'sex': 'sexta',
+  'sabado': 'sabado', 'sab': 'sabado',
+  'domingo': 'domingo', 'dom': 'domingo',
+};
+const EN_DAY_MAP_CALC = {
+  mo: 'segunda', tu: 'terca', we: 'quarta', th: 'quinta', fr: 'sexta', sa: 'sabado', su: 'domingo',
+};
+
+function normDayCalc(raw) {
+  const s = String(raw || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  return PT_DAY_MAP_CALC[s] || EN_DAY_MAP_CALC[s] || null;
+}
+
+function cleanTimeCalc(t) {
+  return String(t || '')
+    .replace(/(\d{1,2})h(\d{2})/gi, '$1:$2')
+    .replace(/(\d{1,2})h(?!\d)/gi, '$1:00')
+    .replace(/\./g, ':')
+    .replace(/\s*[-–—]\s*/g, '–')
+    .replace(/\s*às\s*/gi, '–')
+    .trim();
+}
+
+function parseTimeRangeHours(t) {
+  t = cleanTimeCalc(t);
+  const ranges = [...t.matchAll(/(\d{1,2}):(\d{2})\s*–\s*(\d{1,2}):(\d{2})/g)];
+  let total = 0;
+  for (const m of ranges) {
+    let start = parseInt(m[1]) + parseInt(m[2]) / 60;
+    let end = parseInt(m[3]) + parseInt(m[4]) / 60;
+    if (end <= start) end += 24;
+    total += (end - start);
+  }
+  return total;
+}
+
+function expandOsmDaysCalc(spec) {
+  const en = ['mo', 'tu', 'we', 'th', 'fr', 'sa', 'su'];
+  const rm = spec.toLowerCase().match(/^(\w{2})\s*-\s*(\w{2})$/);
+  if (rm) {
+    const si = en.indexOf(rm[1]), ei = en.indexOf(rm[2]);
+    if (si >= 0 && ei >= 0) return en.slice(si, ei + 1).map(d => EN_DAY_MAP_CALC[d]);
+  }
+  return spec.split(',').map(d => normDayCalc(d.trim())).filter(Boolean);
+}
+
+function parseHorarioToDayHours(horario) {
+  const raw = String(horario || '').trim();
+  if (!raw || raw === '-') return null;
+  if (/^24\s*h/i.test(raw) || raw === '24/7') {
+    return Object.fromEntries(DAY_ORDER_CALC.map(d => [d, 24]));
+  }
+  if (/^\d{1,2}([:.h]\d{2}|h(?!\d))\s*(às|–|-|a)\s*\d{1,2}([:.h]\d{2}|h(?!\d))$/i.test(raw)) {
+    const h = parseTimeRangeHours(raw);
+    return h > 0 ? Object.fromEntries(DAY_ORDER_CALC.map(d => [d, h])) : null;
+  }
+  const dayHours = {};
+  // Google weekday_text
+  if (raw.includes('|') && /feira|segunda|terca|terça|quarta|quinta|sexta|sabado|domingo/i.test(raw)) {
+    for (const entry of raw.split('|').map(s => s.trim()).filter(Boolean)) {
+      const m = entry.match(/^([^:]+):\s*(.+)$/);
+      if (m) { const d = normDayCalc(m[1]); if (d) dayHours[d] = (dayHours[d] || 0) + parseTimeRangeHours(m[2]); }
+    }
+    if (Object.keys(dayHours).length > 0) return dayHours;
+  }
+  // OSM
+  if (/;/.test(raw) && /\b(Mo|Tu|We|Th|Fr|Sa|Su)\b/i.test(raw)) {
+    for (const part of raw.split(';').map(s => s.trim()).filter(Boolean)) {
+      if (/24\s*\/?\s*7/i.test(part)) return Object.fromEntries(DAY_ORDER_CALC.map(d => [d, 24]));
+      const m = part.match(/^([A-Za-z, -]+)\s+(.+)$/);
+      if (m) { const h = parseTimeRangeHours(m[2]); for (const d of expandOsmDaysCalc(m[1].trim())) if (d) dayHours[d] = (dayHours[d] || 0) + h; }
+    }
+    if (Object.keys(dayHours).length > 0) return dayHours;
+  }
+  // Generic multiline
+  const lines = raw.split(/[|\n]/).map(s => s.trim()).filter(Boolean);
+  let lastDay = null;
+  for (const line of lines) {
+    const rm = line.match(/([\w\u00e7\u00e3\u00e1\u00e0-]+)\s*(?:a|à|até)\s*([\w\u00e7\u00e3\u00e1\u00e0-]+)\s*[:,-]?\s*(.+)/i);
+    if (rm) {
+      const sd = normDayCalc(rm[1]), ed = normDayCalc(rm[2]);
+      if (sd && ed) {
+        const si = DAY_ORDER_CALC.indexOf(sd), ei = DAY_ORDER_CALC.indexOf(ed);
+        if (si >= 0 && ei >= 0) { const h = parseTimeRangeHours(rm[3]); for (let i = si; i <= ei; i++) dayHours[DAY_ORDER_CALC[i]] = (dayHours[DAY_ORDER_CALC[i]] || 0) + h; lastDay = null; continue; }
+      }
+    }
+    let foundDay = null, timeStr = '';
+    const tabParts = line.split(/\t/);
+    if (tabParts.length >= 2) { const d = normDayCalc(tabParts[0]); if (d) { foundDay = d; timeStr = tabParts.slice(1).join(' ').trim(); } }
+    if (!foundDay) {
+      const nl = line.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      for (const [pat, dk] of Object.entries(PT_DAY_MAP_CALC)) {
+        const np = pat.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (nl.includes(np)) { foundDay = dk; timeStr = nl.replace(np, '').replace(/^[\s:,\-–—\t]+/, '').trim(); break; }
+      }
+    }
+    if (foundDay) { lastDay = foundDay; if (timeStr && /\d/.test(timeStr)) dayHours[foundDay] = (dayHours[foundDay] || 0) + parseTimeRangeHours(timeStr); }
+    else if (lastDay && /\d{1,2}[:.]\d{2}/.test(line)) dayHours[lastDay] = (dayHours[lastDay] || 0) + parseTimeRangeHours(line);
+  }
+  return Object.keys(dayHours).length > 0 ? dayHours : null;
+}
+
+function calcInsercoesMensal(horario, telas) {
+  telas = Math.max(parseInt(telas) || 1, 1);
+  const dayHours = parseHorarioToDayHours(horario);
+  if (!dayHours) return null;
+  const weeklyTotal = DAY_ORDER_CALC.reduce((sum, d) => sum + (dayHours[d] || 0), 0);
+  const dailyAvg = weeklyTotal / 7;
+  return Math.round(dailyAvg * 20 * 30 * telas);
+}
+
 function normalizePhysicalSizeMeters(value, fallback = null) {
   if (value === undefined || value === null || String(value).trim() === '') {
     return fallback;
@@ -2395,12 +2516,17 @@ app.post('/api/pontos', upload.fields([
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
+    const telasVal = parseInt(data.telas) || 1;
+    const insercoes = isBackOrFrontLight
+      ? (parseInt(data.insercoes) || 0)
+      : (calcInsercoesMensal(data.horario, telasVal) ?? (parseInt(data.insercoes) || 0));
+
     const result = stmt.run(
       data.nome, data.cidade, tipo, data.endereco,
       latDb, lngDb,
-      data.horario, parseInt(data.fluxo) || 0, parseInt(data.insercoes) || 0,
+      data.horario, parseInt(data.fluxo) || 0, insercoes,
       data.tempo || '15s', data.loop || '3 min', data.veiculacao || 'Vídeo sem áudio',
-      data.publico || 'A/B', parseInt(data.telas) || 1, parseFloat(data.preco) || 0,
+      data.publico || 'A/B', telasVal, parseFloat(data.preco) || 0,
       data.descricao, imagem, imagem2, simulacaoTela, simulacaoArte, simulacaoPreview,
       arteLargura, arteAltura, midiaLarguraM, midiaAlturaM, tipoFluxo,
       JSON.stringify(audienceTags), JSON.stringify(availabilityCalendar), elevadorCategoria,
@@ -2499,7 +2625,13 @@ app.put('/api/pontos/:id', upload.fields([
       data.endereco || existing.endereco,
       latDb, lngDb,
       data.horario || existing.horario, parseInt(data.fluxo) || existing.fluxo,
-      parseInt(data.insercoes) || existing.insercoes,
+      (() => {
+        const t = data.tipo || existing.tipo;
+        if (t === 'Backlight' || t === 'Frontlight') return parseInt(data.insercoes) || existing.insercoes;
+        const h = data.horario || existing.horario;
+        const n = parseInt(data.telas) || existing.telas;
+        return calcInsercoesMensal(h, n) ?? (parseInt(data.insercoes) || existing.insercoes);
+      })(),
       data.tempo || existing.tempo, data.loop || existing.loop,
       data.veiculacao || existing.veiculacao, data.publico || existing.publico,
       parseInt(data.telas) || existing.telas, parseFloat(data.preco) || existing.preco,
