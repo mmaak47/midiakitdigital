@@ -103,13 +103,11 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
               href="https://www.instagram.com/intermidiadigitalooh/"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center w-9 h-9 rounded-lg border-2 transition-all duration-200 border-brand-orange text-brand-orange bg-white hover:bg-brand-orange hover:text-white"
+              className="flex items-center justify-center w-9 h-9 rounded-lg border-2 transition-all duration-200 border-brand-orange bg-white hover:shadow-sm"
               aria-label="Instagram"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4" aria-hidden="true">
-                <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
-                <circle cx="12" cy="12" r="4" />
-                <circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none" />
+              <svg viewBox="0 0 24 24" className="w-4 h-4" aria-hidden="true">
+                <path fill="#fe5c2b" d="M7.2 2h9.6A5.2 5.2 0 0 1 22 7.2v9.6a5.2 5.2 0 0 1-5.2 5.2H7.2A5.2 5.2 0 0 1 2 16.8V7.2A5.2 5.2 0 0 1 7.2 2Zm0 1.8A3.4 3.4 0 0 0 3.8 7.2v9.6a3.4 3.4 0 0 0 3.4 3.4h9.6a3.4 3.4 0 0 0 3.4-3.4V7.2a3.4 3.4 0 0 0-3.4-3.4H7.2Zm4.8 2.7a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Zm0 1.8a3.7 3.7 0 1 0 0 7.4 3.7 3.7 0 0 0 0-7.4Zm5.2-.7a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4Z" />
               </svg>
             </a>
           </div>
@@ -164,13 +162,11 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setOpen(false)}
-                className="flex items-center justify-center w-12 h-12 rounded-xl border-2 transition-colors border-brand-orange text-brand-orange bg-white hover:bg-brand-orange hover:text-white"
+                className="flex items-center justify-center w-12 h-12 rounded-xl border-2 transition-colors border-brand-orange bg-white hover:shadow-sm"
                 aria-label="Instagram"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5" aria-hidden="true">
-                  <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
-                  <circle cx="12" cy="12" r="4" />
-                  <circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none" />
+                <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden="true">
+                  <path fill="#fe5c2b" d="M7.2 2h9.6A5.2 5.2 0 0 1 22 7.2v9.6a5.2 5.2 0 0 1-5.2 5.2H7.2A5.2 5.2 0 0 1 2 16.8V7.2A5.2 5.2 0 0 1 7.2 2Zm0 1.8A3.4 3.4 0 0 0 3.8 7.2v9.6a3.4 3.4 0 0 0 3.4 3.4h9.6a3.4 3.4 0 0 0 3.4-3.4V7.2a3.4 3.4 0 0 0-3.4-3.4H7.2Zm4.8 2.7a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Zm0 1.8a3.7 3.7 0 1 0 0 7.4 3.7 3.7 0 0 0 0-7.4Zm5.2-.7a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4Z" />
                 </svg>
               </a>
             </div>
