@@ -2196,7 +2196,7 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
     // Filter out contracts dismissed via WhatsApp commands (/renovou, /cancelou)
     const dismissedRows = db.prepare(`
       SELECT LOWER(client_name) as name, action FROM contract_actions
-      WHERE created_at > datetime('now', '-60 days')
+      WHERE created_at > NOW() - INTERVAL '60 days'
     `).all();
     const dismissedNames = dismissedRows.map(r => r.name);
     const filteredContracts = contractsData.items.filter(c => {
