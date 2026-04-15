@@ -1,5 +1,6 @@
 ﻿import { loadPdfLayoutConfig } from './pdfLayoutConfig';
 import { buildAudienceQualification, buildEntornoSummary, getSegmentDisplayName, sortFormatos } from './strategy';
+import { normalizeHorarioForPdf } from './horarioUtils';
 
 const PAGE_WIDTH = 1366;
 const PAGE_HEIGHT = 768;
@@ -1014,7 +1015,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   const focalPoint = String(ponto?.foto_focal_point || 'center center').trim() || 'center center';
   const locationLabel = formatPointAddress(ponto.endereco);
   const veiculacao = ponto.veiculacao || 'Vídeo sem áudio';
-  const horario = ponto.horario || '-';
+  const horario = normalizeHorarioForPdf(ponto.horario, '-');
 
   return createPage(`
     <div style="position:absolute;inset:0;background:#ECEFF3;"></div>
@@ -1387,7 +1388,7 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
             </div>
             <div>
               <div style="font-size:10px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Horário</div>
-              <div style="font-size:14px;font-weight:700;color:${PROPOSAL_TEXT};margin-top:4px;">${escapeHtml(point.horario || '24 horas')}</div>
+              <div style="font-size:14px;font-weight:700;color:${PROPOSAL_TEXT};margin-top:4px;">${escapeHtml(normalizeHorarioForPdf(point.horario, '24 horas'))}</div>
             </div>
           </div>
           <div style="text-align:right;">

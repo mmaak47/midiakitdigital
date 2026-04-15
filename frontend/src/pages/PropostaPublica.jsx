@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet';
 import { fetchPropostaPublica, aprovarPropostaPublica, fetchCensusProfiles } from '../lib/api';
 import { buildAudienceQualification, getSegmentDisplayName } from '../lib/strategy';
+import { normalizeHorarioForPdf } from '../lib/horarioUtils';
 import { computeCityBoundingBoxes } from '../lib/geo';
 import { getPrimaryPointScreenImage } from '../lib/pointImages';
 import { trackEvent } from '../lib/tracking';
@@ -204,7 +205,7 @@ function PointCard({ point, index, total }) {
                 {point.horario && (
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Horário</p>
-                    <p className="text-sm font-semibold text-gray-700">{point.horario}</p>
+                    <p className="text-sm font-semibold text-gray-700">{normalizeHorarioForPdf(point.horario)}</p>
                   </div>
                 )}
               </div>
