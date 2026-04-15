@@ -1939,6 +1939,17 @@ try {
   )`).run();
 } catch (e) { /* já existe */ }
 
+// ── Tabela de ações de contrato via WhatsApp ──
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS contract_actions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_name TEXT NOT NULL,
+    action TEXT NOT NULL,
+    author TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`).run();
+} catch (e) { /* já existe */ }
+
 // ── Tabela de gerações de arte via IA ──
 try {
   db.prepare(`CREATE TABLE IF NOT EXISTS arte_geracoes (
@@ -2181,8 +2192,20 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
 
     const contractsData = await fetchContractsFromOrigin();
     if (contractsData.warning) warnings.push(contractsData.warning);
-    const expiring5 = contractsData.items.filter((c) => Number(c.daysRemaining) <= 5 && Number(c.daysRemaining) >= 0).length;
-    const expiring15 = contractsData.items.filter((c) => Number(c.daysRemaining) <= 15 && Number(c.daysRemaining) > 5).length;
+
+    // Filter out contracts dismissed via WhatsApp commands (/renovou, /cancelou)
+    const dismissedRows = db.prepare(`
+      SELECT LOWER(client_name) as name, action FROM contract_actions
+      WHERE created_at > datetime('now', '-60 days')
+    `).all();
+    const dismissedNames = dismissedRows.map(r => r.name);
+    const filteredContracts = contractsData.items.filter(c => {
+      const nameNorm = (c.advertiser || '').toLowerCase().trim();
+      return !dismissedNames.some(d => nameNorm.includes(d) || d.includes(nameNorm));
+    });
+
+    const expiring5 = filteredContracts.filter((c) => Number(c.daysRemaining) <= 5 && Number(c.daysRemaining) >= 0).length;
+    const expiring15 = filteredContracts.filter((c) => Number(c.daysRemaining) <= 15 && Number(c.daysRemaining) > 5).length;
 
     const ranking = getMonthlyVendorRanking();
     const goals = getTvGoalsSnapshot();
@@ -2194,10 +2217,10 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
       generated_at: new Date().toISOString(),
       loop: loopSummary,
       contracts: {
-        total: contractsData.items.length,
+        total: filteredContracts.length,
         expiring_5d: expiring5,
         expiring_15d: expiring15,
-        items: contractsData.items
+        items: filteredContracts
           .sort((a, b) => Number(a.daysRemaining || 0) - Number(b.daysRemaining || 0))
           .slice(0, 14)
       },
@@ -2212,6 +2235,21 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
     console.error('[tv/dashboard]', err.message);
     res.status(500).json({ error: 'Falha ao montar painel TV.' });
   }
+});
+
+// ── Contract Actions (WhatsApp commands) ──
+app.get('/api/admin/contract-actions', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const rows = db.prepare(`SELECT * FROM contract_actions ORDER BY created_at DESC LIMIT 100`).all();
+    res.json(rows);
+  } catch (err) { internalError(res, err); }
+});
+
+app.delete('/api/admin/contract-actions/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    db.prepare(`DELETE FROM contract_actions WHERE id = ?`).run(req.params.id);
+    res.json({ ok: true });
+  } catch (err) { internalError(res, err); }
 });
 
 app.get('/api/admin/tv/postits', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
@@ -4805,7 +4843,7 @@ async function syncMissedPollVotes() {
 }
 
 // ─── Webhook Evolution API — reações emoji pós-venda ─────────────────────────
-app.post('/api/webhooks/whatsapp', (req, res) => {
+app.post('/api/webhooks/whatsapp', async (req, res) => {
   try {
     const payload = req.body;
     const event = payload?.event;
@@ -4886,6 +4924,46 @@ app.post('/api/webhooks/whatsapp', (req, res) => {
         || key?.participant
         || 'vendedor'
       ).trim();
+
+      // ── Comandos WhatsApp (/, !) ────────────────────────────────────────
+      const cmdMatch = text.match(/^[\/!](renovou|cancelou)\s+(.+)/i);
+      if (cmdMatch) {
+        const action = cmdMatch[1].toLowerCase(); // 'renovou' ou 'cancelou'
+        const clientName = cmdMatch[2].trim();
+
+        if (clientName.length < 2) {
+          console.log(`[webhook] command ignored: client name too short "${clientName}"`);
+        } else {
+          db.prepare(`
+            INSERT INTO contract_actions (client_name, action, author)
+            VALUES (?, ?, ?)
+          `).run(clientName, action, author);
+
+          console.log(`[webhook] command: /${action} "${clientName}" by ${author}`);
+
+          // Reply confirmation in group
+          try {
+            const evo = getEvolutionSettings();
+            if (evo.evolution_api_url && evo.evolution_instance && evo.evolution_api_key) {
+              const emoji = action === 'renovou' ? '🔄' : '❌';
+              const label = action === 'renovou' ? 'RENOVADO' : 'CANCELADO';
+              await sendEvolutionText({
+                apiUrl: evo.evolution_api_url,
+                instance: evo.evolution_instance,
+                apiKey: evo.evolution_api_key,
+                number: remoteJid,
+                text: `${emoji} *${label}*: ${clientName}\n✅ Registrado por ${author.split(' ')[0]}. O contrato será atualizado no painel.`
+              });
+            }
+          } catch (replyErr) {
+            console.error('[webhook] reply error:', replyErr.message);
+          }
+
+          return res.json({ ok: true, processed: 'command', action, client: clientName });
+        }
+      }
+
+      // ── Post-it normal ──────────────────────────────────────────────────
 
       if (messageId) {
         db.prepare(`

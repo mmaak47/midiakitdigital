@@ -390,6 +390,7 @@ export default function TvWall() {
           align-items: center;
           gap: 6px;
           min-width: 0;
+          max-width: 100%;
           overflow: hidden;
         }
 
@@ -412,9 +413,14 @@ export default function TvWall() {
           align-items: center;
           gap: 5px;
           min-width: 0;
-          overflow: hidden;
+          overflow-x: auto;
+          overflow-y: hidden;
           flex-wrap: nowrap;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
         }
+
+        .tv-lotados-list::-webkit-scrollbar { display: none; }
 
         .tv-lotados-chip {
           flex: 0 0 auto;
