@@ -4,12 +4,16 @@ import { submitNovaVenda } from '../../lib/api';
 
 const TIPOS_NEGOCIO = ['Nova Venda', 'Renovação'];
 const TIPOS_VALOR = ['Líquido', 'Bruto'];
+const COTAS_CONTRATADAS = ['10 Segundos', '15 Segundos'];
 
 const emptyForm = {
   tipo: 'Nova Venda',
   razao_social: '',
+  nome_fantasia: '',
   cnpj: '',
   valor_mensal: '',
+  cota_contratada: '',
+  plano_fidelidade: false,
   tipo_valor: 'Líquido',
   via_agencia: false,
   agencia_nome: '',
@@ -109,8 +113,11 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       const fd = new FormData();
       fd.append('tipo', form.tipo);
       fd.append('razao_social', form.razao_social.trim());
+      fd.append('nome_fantasia', form.nome_fantasia.trim());
       fd.append('cnpj', form.cnpj.trim());
       fd.append('valor_mensal', form.valor_mensal.trim());
+      fd.append('cota_contratada', form.cota_contratada);
+      fd.append('plano_fidelidade', form.plano_fidelidade ? 'true' : 'false');
       fd.append('tipo_valor', form.tipo_valor);
       fd.append('via_agencia', form.via_agencia ? 'true' : 'false');
       if (form.via_agencia) {
@@ -258,6 +265,17 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
               />
             </div>
             <div>
+              <label className={lbl}>Nome Fantasia</label>
+              <input
+                className={inp}
+                value={form.nome_fantasia}
+                onChange={e => set('nome_fantasia', e.target.value)}
+                placeholder="Nome fantasia da empresa"
+              />
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
               <label className={lbl}>CNPJ</label>
               <input
                 className={inp}
@@ -387,6 +405,34 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
                   </p>
                 )}
               </div>
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className={lbl}>Cota contratada</label>
+              <select
+                className={inp}
+                value={form.cota_contratada}
+                onChange={e => set('cota_contratada', e.target.value)}
+              >
+                <option value="">Selecionar cota...</option>
+                {COTAS_CONTRATADAS.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end pb-1">
+              <label className={`flex items-center gap-3 cursor-pointer select-none`}>
+                <button
+                  type="button"
+                  onClick={() => set('plano_fidelidade', !form.plano_fidelidade)}
+                  className={`w-10 h-5 rounded-full transition-colors relative ${form.plano_fidelidade ? 'bg-brand-orange' : isDark ? 'bg-white/20' : 'bg-neutral-300'}`}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.plano_fidelidade ? 'left-5' : 'left-0.5'}`} />
+                </button>
+                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-700'}`}>Plano Fidelidade</span>
+              </label>
             </div>
           </div>
 
@@ -629,8 +675,8 @@ function buildMsgPreview({ form, selectedPontos, currentUser }) {
     '━━━━━━━━━━━━━━━━━━━━━━━━━',
     '',
     form.cnpj
-      ? `🏢 *${form.razao_social || '—'}*\n_CNPJ: ${form.cnpj}_`
-      : `🏢 *${form.razao_social || '—'}*`,
+      ? `🏢 *${form.razao_social || '—'}*${form.nome_fantasia ? `\n_${form.nome_fantasia}_` : ''}\n_CNPJ: ${form.cnpj}_`
+      : `🏢 *${form.razao_social || '—'}*${form.nome_fantasia ? `\n_${form.nome_fantasia}_` : ''}`,
     '',
     `📍 *PONTO${selectedPontos.length !== 1 ? 'S' : ''} CONTRATADO${selectedPontos.length !== 1 ? 'S' : ''}*`,
     pontosList,
@@ -640,6 +686,8 @@ function buildMsgPreview({ form, selectedPontos, currentUser }) {
     periodo ? `📅 Período: *${periodo}*` : null,
     form.data_primeira_parcela ? `📆 Data da 1ª parcela: *${fmtDate(form.data_primeira_parcela)}*` : null,
     form.dia_pagamento_dia ? `📆 Dia de pagamento: *Dia ${form.dia_pagamento_dia} de cada mês*` : null,
+    form.cota_contratada ? `⏱️ Cota contratada: *${form.cota_contratada}*` : null,
+    form.plano_fidelidade ? `🤝 Plano Fidelidade: *Sim*` : null,
     form.via_agencia && form.agencia_nome ? `🤝 Via agência: *${form.agencia_nome}*${form.comissao_pct ? ` · Comissão: *${form.comissao_pct}%*` : ''}` : null,
     isRenovacao ? `🔁 Troca de material: *${form.troca_material ? 'Sim' : 'Não'}*` : null,
     '',

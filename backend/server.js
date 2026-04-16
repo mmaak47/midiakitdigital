@@ -3888,6 +3888,9 @@ try {
   'ALTER TABLE admin_users ADD COLUMN photo_url TEXT DEFAULT NULL',
   'ALTER TABLE vendas ADD COLUMN email TEXT',
   "ALTER TABLE pontos ADD COLUMN disponibilidade TEXT DEFAULT 'disponivel'",
+  'ALTER TABLE vendas ADD COLUMN nome_fantasia TEXT',
+  'ALTER TABLE vendas ADD COLUMN cota_contratada TEXT',
+  'ALTER TABLE vendas ADD COLUMN plano_fidelidade INTEGER DEFAULT 0',
 ].forEach(sql => {
   try { db.prepare(sql).run(); } catch { /* coluna já existe */ }
 });
@@ -4277,8 +4280,8 @@ async function sendEvolutionDocument({ apiUrl, instance, apiKey, number, caption
   return res.json();
 }
 
-function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, cnpj, pontosNomes,
-  valorMensal, tipoValor, periodo, diaPagamento, dataPrimeiraParcela, diaPagamentoDia,
+function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantasia, cnpj, pontosNomes,
+  valorMensal, tipoValor, cotaContratada, planoFidelidade, periodo, diaPagamento, dataPrimeiraParcela, diaPagamentoDia,
   viaAgencia, agenciaNome, comissaoPct,
   trocaMaterial,
   responsavelNome, responsavelWhatsapp, obs }) {
@@ -4295,9 +4298,11 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, cnpj, pont
 
   if (cnpj) {
     lines.push(`🏢 *${razaoSocial}*`);
+    if (nomeFantasia) lines.push(`_${nomeFantasia}_`);
     lines.push(`_CNPJ: ${cnpj}_`);
   } else {
     lines.push(`🏢 *${razaoSocial}*`);
+    if (nomeFantasia) lines.push(`_${nomeFantasia}_`);
   }
   lines.push('');
 
@@ -4313,6 +4318,8 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, cnpj, pont
     periodo     ? `📅 Período: *${periodo}*` : null,
     dataPrimeiraParcela ? `📆 Data da 1ª parcela: *${dataPrimeiraParcela}*` : null,
     diaPagamentoDia ? `📆 Dia de pagamento: *Dia ${diaPagamentoDia} de cada mês*` : (diaPagamento ? `📆 Dia de pagamento: *dia ${diaPagamento}*` : null),
+    cotaContratada ? `⏱️ Cota contratada: *${cotaContratada}*` : null,
+    planoFidelidade ? `🤝 Plano Fidelidade: *Sim*` : null,
   ].filter(Boolean);
 
   if (financeiro.length > 0) {
@@ -4352,9 +4359,12 @@ app.post(
       const {
         tipo = 'Nova Venda',
         razao_social,
+        nome_fantasia,
         cnpj,
         valor_mensal,
         tipo_valor,
+        cota_contratada,
+        plano_fidelidade,
         via_agencia,
         agencia_nome,
         comissao_pct,
@@ -4391,21 +4401,25 @@ app.post(
 
       // Salva no banco
       const stmt = db.prepare(`
-        INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal, tipo_valor,
+        INSERT INTO vendas (tipo, razao_social, nome_fantasia, cnpj, pontos_nomes, valor_mensal, tipo_valor,
+          cota_contratada, plano_fidelidade,
           via_agencia, agencia_nome, comissao_pct, troca_material,
           periodo, dia_pagamento, data_primeira_parcela, dia_pagamento_dia,
           responsavel_nome, responsavel_whatsapp, email,
           obs, pi_path, vendedor_id, vendedor_nome, whatsapp_status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
       `);
 
       const dbResult = stmt.run(
         tipo,
         String(razao_social).trim(),
+        nome_fantasia || null,
         cnpj || null,
         pontos_nomes || '[]',
         valor_mensal || null,
         tipo_valor || null,
+        cota_contratada || null,
+        plano_fidelidade === 'true' || plano_fidelidade === true ? 1 : 0,
         via_agencia === 'true' || via_agencia === true ? 1 : 0,
         agencia_nome || null,
         comissao_pct || null,
@@ -4437,10 +4451,13 @@ app.post(
             tipo,
             vendedorNome: vendedor_nome || req.authUser?.username || 'Vendedor',
             razaoSocial: String(razao_social).trim(),
+            nomeFantasia: nome_fantasia || '',
             cnpj: cnpj || '',
             pontosNomes: pontos_nomes || '[]',
             valorMensal: valor_mensal || '',
             tipoValor: tipo_valor || '',
+            cotaContratada: cota_contratada || '',
+            planoFidelidade: plano_fidelidade === 'true' || plano_fidelidade === true,
             periodo,
             diaPagamento: dia_pagamento || '',
             dataPrimeiraParcela: data_primeira_parcela || '',
@@ -4808,7 +4825,8 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
     if (!existing) return res.status(404).json({ error: 'Venda não encontrada.' });
 
     const {
-      tipo, razao_social, cnpj, pontos_nomes, valor_mensal, tipo_valor,
+      tipo, razao_social, nome_fantasia, cnpj, pontos_nomes, valor_mensal, tipo_valor,
+      cota_contratada, plano_fidelidade,
       via_agencia, agencia_nome, comissao_pct, troca_material,
       periodo, dia_pagamento, data_primeira_parcela, dia_pagamento_dia,
       responsavel_nome, responsavel_whatsapp, email, obs, status, vendedor_nome
@@ -4816,7 +4834,8 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
 
     db.prepare(`
       UPDATE vendas SET
-        tipo = ?, razao_social = ?, cnpj = ?, pontos_nomes = ?, valor_mensal = ?, tipo_valor = ?,
+        tipo = ?, razao_social = ?, nome_fantasia = ?, cnpj = ?, pontos_nomes = ?, valor_mensal = ?, tipo_valor = ?,
+        cota_contratada = ?, plano_fidelidade = ?,
         via_agencia = ?, agencia_nome = ?, comissao_pct = ?, troca_material = ?,
         periodo = ?, dia_pagamento = ?, data_primeira_parcela = ?, dia_pagamento_dia = ?,
         responsavel_nome = ?, responsavel_whatsapp = ?, email = ?, obs = ?, status = ?, vendedor_nome = ?,
@@ -4825,10 +4844,13 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
     `).run(
       tipo || 'Nova Venda',
       razao_social || '',
+      nome_fantasia || null,
       cnpj || null,
       pontos_nomes || '[]',
       valor_mensal || null,
       tipo_valor || null,
+      cota_contratada || null,
+      plano_fidelidade ? 1 : 0,
       via_agencia ? 1 : 0,
       agencia_nome || null,
       comissao_pct || null,

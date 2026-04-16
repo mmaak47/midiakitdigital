@@ -1188,14 +1188,11 @@ export default function Admin() {
           </div>
         </div>
 
-        <div className="mb-6">
-          <div className={`flex flex-wrap items-center rounded-2xl border p-2 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white shadow-sm'}`}>
-            {getVisibleGroups(currentUser?.role).map((group, gi) => (
-              <div key={group.key} className="flex flex-wrap items-center">
-                {gi > 0 && (
-                  <div className={`hidden sm:block mx-2 h-6 w-px ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
-                )}
-                <span className={`px-2 py-1 text-[10px] font-semibold uppercase tracking-wider select-none ${isDark ? 'text-white/30' : 'text-neutral-400'}`}>
+        <div className="mb-6 space-y-2">
+          {getVisibleGroups(currentUser?.role).map((group) => (
+            <div key={group.key} className={`rounded-2xl border p-2 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white shadow-sm'}`}>
+              <div className="flex flex-wrap items-center gap-1">
+                <span className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider select-none ${isDark ? 'text-white/30' : 'text-neutral-400'}`}>
                   {group.label}
                 </span>
                 {group.tabs.map((tab) => {
@@ -1214,8 +1211,8 @@ export default function Admin() {
                   );
                 })}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
 
         {activeTab === 'pontos' ? (
