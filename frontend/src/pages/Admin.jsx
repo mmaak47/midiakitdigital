@@ -72,29 +72,39 @@ const USER_ROLES = [
   { value: 'vendedor', label: 'Vendedor (criar propostas)' }
 ];
 
-const ADMIN_TABS = [
-  { key: 'pontos',           label: 'Pontos',             icon: PanelsTopLeft, roles: ['admin', 'gerente_comercial'] },
-  { key: 'entorno',          label: 'Análise de entorno', icon: MapPinned,     roles: ['admin', 'gerente_comercial'] },
-  { key: 'arte_ia',          label: 'Arte IA',            icon: Zap,           roles: ['admin', 'gerente_comercial'] },
-  { key: 'usuarios',         label: 'Usuários',           icon: Users,         roles: ['admin'] },
-  { key: 'vendas',           label: 'Nova Venda',         icon: Zap,           roles: ['admin', 'gerente_comercial', 'vendedor'] },
-  { key: 'historico_vendas', label: 'Vendas',             icon: ClipboardList, roles: ['admin', 'gerente_comercial', 'vendedor'] },
-  { key: 'gestao_comercial', label: 'Gestão Comercial',   icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'], href: '/comercial/gestao' },
-  { key: 'auditoria_loop',   label: 'Auditoria de Loop', icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'] },
-  { key: 'leads',             label: 'Leads',             icon: UserPlus,      roles: ['admin', 'gerente_comercial'] },
-  { key: 'propostas',          label: 'Propostas',          icon: FileText,      roles: ['admin', 'gerente_comercial'] },
-  { key: 'whatsapp_logs',      label: 'Envios WhatsApp',    icon: Send,          roles: ['admin', 'gerente_comercial'] },
-  { key: 'painel_tv',         label: 'Painel TV',         icon: Newspaper,     roles: ['admin', 'gerente_comercial'] },
-  { key: 'configuracoes',    label: 'Configurações',      icon: Settings,      roles: ['admin', 'gerente_comercial'] },
+const ADMIN_TAB_GROUPS = [
+  { key: 'comercial', label: 'Comercial', tabs: [
+    { key: 'vendas',           label: 'Nova Venda',         icon: Zap,           roles: ['admin', 'gerente_comercial', 'vendedor'] },
+    { key: 'historico_vendas', label: 'Vendas',             icon: ClipboardList, roles: ['admin', 'gerente_comercial', 'vendedor'] },
+    { key: 'gestao_comercial', label: 'Gestão Comercial',   icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'], href: '/comercial/gestao' },
+    { key: 'leads',            label: 'Leads',              icon: UserPlus,      roles: ['admin', 'gerente_comercial'] },
+    { key: 'propostas',        label: 'Propostas',          icon: FileText,      roles: ['admin', 'gerente_comercial'] },
+    { key: 'auditoria_loop',   label: 'Auditoria de Loop',  icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'] },
+  ]},
+  { key: 'pontos_midia', label: 'Pontos & Mídia', tabs: [
+    { key: 'pontos',   label: 'Pontos',             icon: PanelsTopLeft, roles: ['admin', 'gerente_comercial'] },
+    { key: 'entorno',  label: 'Análise de Entorno', icon: MapPinned,     roles: ['admin', 'gerente_comercial'] },
+    { key: 'arte_ia',  label: 'Arte IA',            icon: Zap,           roles: ['admin', 'gerente_comercial'] },
+  ]},
+  { key: 'monitoramento', label: 'Monitoramento', tabs: [
+    { key: 'whatsapp_logs', label: 'Envios WhatsApp', icon: Send,      roles: ['admin', 'gerente_comercial'] },
+    { key: 'painel_tv',     label: 'Painel TV',       icon: Newspaper, roles: ['admin', 'gerente_comercial'] },
+  ]},
+  { key: 'sistema', label: 'Sistema', tabs: [
+    { key: 'usuarios',      label: 'Usuários',      icon: Users,    roles: ['admin'] },
+    { key: 'configuracoes', label: 'Configurações', icon: Settings, roles: ['admin', 'gerente_comercial'] },
+  ]},
 ];
 
-function getVisibleTabs(role) {
-  return ADMIN_TABS.filter(t => !t.roles || t.roles.includes(role));
+function getVisibleGroups(role) {
+  return ADMIN_TAB_GROUPS
+    .map(g => ({ ...g, tabs: g.tabs.filter(t => !t.roles || t.roles.includes(role)) }))
+    .filter(g => g.tabs.length > 0);
 }
 
 function getDefaultTab(role) {
   if (role === 'vendedor') return 'vendas';
-  return 'pontos';
+  return 'vendas';
 }
 
 const emptyForm = {
@@ -464,7 +474,7 @@ export default function Admin() {
         .then(u => {
           setCurrentUser(u);
           setActiveTab(prev => {
-            const visible = getVisibleTabs(u?.role);
+            const visible = getVisibleGroups(u?.role).flatMap(g => g.tabs);
             if (visible.find(t => t.key === prev)) return prev;
             return getDefaultTab(u?.role);
           });
@@ -1179,22 +1189,32 @@ export default function Admin() {
         </div>
 
         <div className="mb-6">
-          <div className={`flex flex-wrap gap-2 rounded-2xl border p-2 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white shadow-sm'}`}>
-            {getVisibleTabs(currentUser?.role).map((tab) => {
-              const Icon = tab.icon;
-              const active = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => tab.href ? navigate(tab.href) : setActiveTab(tab.key)}
-                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${active ? 'bg-brand-orange text-white' : th.tabInactive}`}
-                >
-                  <Icon size={15} />
-                  {tab.label}
-                </button>
-              );
-            })}
+          <div className={`flex flex-wrap items-center rounded-2xl border p-2 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white shadow-sm'}`}>
+            {getVisibleGroups(currentUser?.role).map((group, gi) => (
+              <div key={group.key} className="flex flex-wrap items-center">
+                {gi > 0 && (
+                  <div className={`hidden sm:block mx-2 h-6 w-px ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
+                )}
+                <span className={`px-2 py-1 text-[10px] font-semibold uppercase tracking-wider select-none ${isDark ? 'text-white/30' : 'text-neutral-400'}`}>
+                  {group.label}
+                </span>
+                {group.tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const active = activeTab === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => tab.href ? navigate(tab.href) : setActiveTab(tab.key)}
+                      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${active ? 'bg-brand-orange text-white' : th.tabInactive}`}
+                    >
+                      <Icon size={15} />
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
 
