@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCcw, Loader2, CheckCircle2, XCircle, AlertTriangle, Clock, Send, FileText, MessageCircle, BarChart3 } from 'lucide-react';
+import { RefreshCcw, Loader2, CheckCircle2, XCircle, AlertTriangle, Clock, Send, FileText, MessageCircle, BarChart3, HelpCircle } from 'lucide-react';
 import { fetchWhatsappLogs } from '../../lib/api';
 
 const STATUS_BADGE = {
@@ -7,6 +7,7 @@ const STATUS_BADGE = {
   falha:    { label: 'Falha',    dark: 'bg-red-500/20 text-red-300 border-red-500/30',        light: 'bg-red-50 text-red-700 border-red-200',        Icon: XCircle },
   ignorado: { label: 'Ignorado', dark: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30', light: 'bg-yellow-50 text-yellow-700 border-yellow-200', Icon: AlertTriangle },
   pendente: { label: 'Pendente', dark: 'bg-blue-500/20 text-blue-300 border-blue-500/30',     light: 'bg-blue-50 text-blue-700 border-blue-200',     Icon: Clock },
+  incerto:  { label: 'Incerto',  dark: 'bg-orange-500/20 text-orange-300 border-orange-500/30', light: 'bg-orange-50 text-orange-700 border-orange-200', Icon: HelpCircle },
 };
 
 const TIPO_LABELS = {
@@ -69,6 +70,7 @@ export default function WhatsappLogsTab({ isDark }) {
     enviado: logs.filter(l => l.status === 'enviado').length,
     falha: logs.filter(l => l.status === 'falha').length,
     ignorado: logs.filter(l => l.status === 'ignorado').length,
+    incerto: logs.filter(l => l.status === 'incerto').length,
   };
 
   return (
@@ -94,12 +96,13 @@ export default function WhatsappLogsTab({ isDark }) {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
         {[
           { label: 'Total', value: stats.total, color: isDark ? 'text-white' : 'text-gray-900' },
           { label: 'Enviados', value: stats.enviado, color: 'text-green-500' },
           { label: 'Falhas', value: stats.falha, color: 'text-red-500' },
           { label: 'Ignorados', value: stats.ignorado, color: 'text-yellow-500' },
+          { label: 'Incertos', value: stats.incerto, color: 'text-orange-500' },
         ].map(s => (
           <div key={s.label} className={`rounded-xl border p-3 text-center ${th.card}`}>
             <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
@@ -119,6 +122,7 @@ export default function WhatsappLogsTab({ isDark }) {
           <option value="enviado">Enviado</option>
           <option value="falha">Falha</option>
           <option value="ignorado">Ignorado</option>
+          <option value="incerto">Incerto (backfill)</option>
           <option value="pendente">Pendente</option>
         </select>
         <select

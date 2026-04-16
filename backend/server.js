@@ -3939,7 +3939,7 @@ try {
     const ins = db.prepare('INSERT INTO whatsapp_send_log (venda_id, tipo, destino, status, erro, detalhes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
     let filled = 0;
     for (const v of vendas) {
-      const phone = v.responsavel_whatsapp ? String(v.responsavel_whatsapp).trim() : null;
+      const phone = sanitizePhoneForWhatsApp(v.responsavel_whatsapp);
       const ts = v.created_at || null;
       // Log da notificação do grupo
       if (v.whatsapp_status === 'enviado') {
@@ -3949,12 +3949,12 @@ try {
       } else if (v.whatsapp_status === 'nao_configurado') {
         ins.run(v.id, 'notificacao_grupo', null, 'ignorado', null, 'Evolution API não configurada (backfill)', ts);
       }
-      // Log do PDF (inferido: se grupo foi enviado e há telefone+pontos, o PDF provavelmente foi enviado)
+      // Log do PDF — não temos certeza se foi enviado de fato, apenas que as condições existiam
       let hasPontos = false;
       try { const arr = JSON.parse(v.pontos_nomes || '[]'); hasPontos = arr.length > 0; } catch { /* ignore */ }
       if (v.whatsapp_status === 'enviado' && phone && hasPontos) {
-        ins.run(v.id, 'pdf_desktop', phone, 'enviado', null, 'Backfill histórico (inferido)', ts);
-        ins.run(v.id, 'pdf_mobile', phone, 'enviado', null, 'Backfill histórico (inferido)', ts);
+        ins.run(v.id, 'pdf_desktop', phone, 'incerto', null, 'Backfill — sem confirmação real de entrega', ts);
+        ins.run(v.id, 'pdf_mobile', phone, 'incerto', null, 'Backfill — sem confirmação real de entrega', ts);
       } else if (v.whatsapp_status === 'enviado' && !phone) {
         ins.run(v.id, 'pdf_desktop', null, 'ignorado', null, 'WhatsApp não informado (backfill)', ts);
       }
@@ -4185,6 +4185,22 @@ const EMOJI_ETAPA_MAP = Object.fromEntries(
 const LIST_OPTION_MAP = Object.fromEntries(
   ETAPAS_VENDA.map(e => [`${e.emoji} ${e.label}`, e])
 );
+
+/**
+ * Sanitiza número de telefone para formato WhatsApp brasileiro.
+ * Remove caracteres não-numéricos e adiciona código do país 55 se ausente.
+ * Ex: "(43) 99996-3014" -> "5543999963014"
+ */
+function sanitizePhoneForWhatsApp(raw) {
+  if (!raw) return null;
+  let digits = String(raw).replace(/\D/g, '');
+  if (!digits) return null;
+  // Se tem 10 ou 11 dígitos (DDD + número), falta o código do país
+  if (digits.length === 10 || digits.length === 11) {
+    digits = '55' + digits;
+  }
+  return digits;
+}
 
 async function sendEvolutionText({ apiUrl, instance, apiKey, number, text }) {
   const base = apiUrl.replace(/\/$/, '');
@@ -4568,7 +4584,7 @@ app.post(
           return;
         }
 
-        const clientPhone = responsavel_whatsapp ? String(responsavel_whatsapp).trim() : null;
+        const clientPhone = sanitizePhoneForWhatsApp(responsavel_whatsapp);
         if (!clientPhone) {
           console.warn(`[vendas/pdf] Venda ${vendaId}: responsavel_whatsapp não informado — PDF não enviado.`);
           logSend('pdf_desktop', null, 'ignorado', null, 'WhatsApp do responsável não informado');
@@ -4708,7 +4724,7 @@ app.post('/api/vendas/test-pdf', requireRoles(['admin', 'gerente_comercial']), a
     return res.status(400).json({ error: 'Evolution API não configurada nas Configurações.' });
   }
 
-  const destPhone      = String(phone).trim();
+  const destPhone      = sanitizePhoneForWhatsApp(phone) || String(phone).trim();
   const nomeResp       = responsavel_nome ? String(responsavel_nome).trim() : 'cliente teste';
   const nomeVend       = vendedor_nome    ? String(vendedor_nome).trim()    : req.authUser?.username || 'vendedor';
   const caption        = `Oi, ${nomeResp}! Tudo bem? 😄\n\nPassando pra te dar os parabéns pela escolha dos pontos — excelente decisão!\n\nEu sou o assistente de criação que trabalha junto com o ${nomeVend} e vou te ajudar com tudo que envolver criativos.\n\nTe enviei a proposta técnica com os detalhes 📄\n\nSe quiser trocar ideias ou precisar de ajuda com as artes, estou por aqui!`;
