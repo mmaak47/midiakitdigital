@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 640" fill="none">
+  <rect width="480" height="640" fill="#dad0c3"/>
+  <rect x="24" y="24" width="432" height="592" rx="28" fill="url(#bg)"/>
+  <ellipse cx="240" cy="198" rx="132" ry="146" fill="#b99273"/>
+  <path d="M128 214C128 128 177 70 246 70C309 70 351 113 351 202V286H128V214Z" fill="#46382e"/>
+  <path d="M169 300C169 245 201 207 240 207C279 207 311 245 311 300V355C311 411 279 455 240 455C201 455 169 411 169 355V300Z" fill="#d9b196"/>
+  <path d="M109 640C121 523 176 468 240 468C304 468 359 523 371 640H109Z" fill="#566050"/>
+  <path d="M186 469L240 523L294 469" stroke="#ede3d7" stroke-width="16" stroke-linecap="round"/>
+  <circle cx="212" cy="332" r="8" fill="#594337"/>
+  <circle cx="269" cy="332" r="8" fill="#594337"/>
+  <path d="M221 387C233 394 247 394 259 387" stroke="#8a6254" stroke-width="8" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="bg" x1="52" y1="42" x2="420" y2="592" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f4eee7"/>
+      <stop offset="1" stop-color="#cfc1b0"/>
+    </linearGradient>
+  </defs>
+</svg>

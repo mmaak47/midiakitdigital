@@ -5,7 +5,7 @@ import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
   Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings,
   Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap, ClipboardList, Activity, Newspaper,
-  LogOut, Camera, Info
+  LogOut, Camera, Info, Send
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { normalizeHorarioForPdf } from '../lib/horarioUtils';
@@ -47,6 +47,7 @@ import VendasListTab from '../components/admin/VendasListTab';
 import AuditoriaLoopTab from '../components/admin/AuditoriaLoopTab';
 import LeadsTab from '../components/admin/LeadsTab';
 import PropostasTab from '../components/admin/PropostasTab';
+import WhatsappLogsTab from '../components/admin/WhatsappLogsTab';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
 import { generateTechnicalInfoPdf } from '../lib/technicalInfoPdf';
 import { generateTechnicalInfoMobilePdf } from '../lib/technicalInfoMobilePdf';
@@ -82,6 +83,7 @@ const ADMIN_TABS = [
   { key: 'auditoria_loop',   label: 'Auditoria de Loop', icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'] },
   { key: 'leads',             label: 'Leads',             icon: UserPlus,      roles: ['admin', 'gerente_comercial'] },
   { key: 'propostas',          label: 'Propostas',          icon: FileText,      roles: ['admin', 'gerente_comercial'] },
+  { key: 'whatsapp_logs',      label: 'Envios WhatsApp',    icon: Send,          roles: ['admin', 'gerente_comercial'] },
   { key: 'painel_tv',         label: 'Painel TV',         icon: Newspaper,     roles: ['admin', 'gerente_comercial'] },
   { key: 'configuracoes',    label: 'Configurações',      icon: Settings,      roles: ['admin', 'gerente_comercial'] },
 ];
@@ -1507,6 +1509,10 @@ export default function Admin() {
 
         {activeTab === 'propostas' ? (
           <PropostasTab isDark={isDark} />
+        ) : null}
+
+        {activeTab === 'whatsapp_logs' ? (
+          <WhatsappLogsTab isDark={isDark} />
         ) : null}
 
         {activeTab === 'painel_tv' ? (

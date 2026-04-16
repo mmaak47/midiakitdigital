@@ -210,10 +210,10 @@ export default function TvWall() {
     }
   }, [data?.recent_activity]);
 
-  // Auto-dismiss popup after 8 seconds
+  // Auto-dismiss popup after 60 seconds
   useEffect(() => {
     if (!salePopup) return;
-    const timer = setTimeout(() => setSalePopup(null), 8000);
+    const timer = setTimeout(() => setSalePopup(null), 60000);
     return () => clearTimeout(timer);
   }, [salePopup]);
 

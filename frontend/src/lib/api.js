@@ -569,6 +569,13 @@ export async function testPdfWhatsapp({ phone, pontos_nomes, responsavel_nome, v
   return data;
 }
 
+export async function fetchWhatsappLogs(limit = 100) {
+  const res = await apiRequest(`/whatsapp-logs?limit=${limit}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro ao buscar logs');
+  return data;
+}
+
 export async function syncGoogleOperatingHours({
   dryRun = true,
   overwrite = false,

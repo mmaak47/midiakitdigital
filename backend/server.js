@@ -3910,6 +3910,24 @@ try {
   console.error('[venda_etapas] falha ao criar tabela:', dbInitErr.message);
 }
 
+// ─── Tabela de log de envios WhatsApp (PDF técnico, notificações, etc.) ──
+try {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS whatsapp_send_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      venda_id INTEGER REFERENCES vendas(id),
+      tipo TEXT NOT NULL,
+      destino TEXT,
+      status TEXT NOT NULL DEFAULT 'pendente',
+      erro TEXT,
+      detalhes TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `).run();
+} catch (dbInitErr) {
+  console.error('[whatsapp_send_log] falha ao criar tabela:', dbInitErr.message);
+}
+
 // ─── GESTÃO COMERCIAL: metas, vendas_comercial, renovações ─────────────
 try {
   db.prepare(`
@@ -4406,6 +4424,7 @@ app.post(
           }
 
           whatsappStatus = 'enviado';
+          try { db.prepare('INSERT INTO whatsapp_send_log (venda_id, tipo, destino, status, erro, detalhes) VALUES (?, ?, ?, ?, ?, ?)').run(vendaId, 'notificacao_grupo', evo.evolution_dest_number, 'enviado', null, piPath ? 'Com PI anexo' : 'Somente texto'); } catch { /* ignore */ }
 
           // Envia enquete de etapas pós-venda (best-effort)
           try {
@@ -4425,11 +4444,13 @@ app.post(
             }
           } catch (pollErr) {
             console.warn('[vendas] falha ao enviar enquete de etapas:', pollErr.message);
+            try { db.prepare('INSERT INTO whatsapp_send_log (venda_id, tipo, destino, status, erro, detalhes) VALUES (?, ?, ?, ?, ?, ?)').run(vendaId, 'enquete_etapas', evo.evolution_dest_number, 'falha', pollErr.message, null); } catch { /* ignore */ }
           }
         } catch (wErr) {
           console.error('[vendas] falha ao enviar WhatsApp:', wErr.message);
           whatsappStatus = 'falha';
           whatsappError = wErr.message;
+          try { db.prepare('INSERT INTO whatsapp_send_log (venda_id, tipo, destino, status, erro, detalhes) VALUES (?, ?, ?, ?, ?, ?)').run(vendaId, 'notificacao_grupo', evo.evolution_dest_number, 'falha', wErr.message, null); } catch { /* ignore */ }
         }
 
         // Atualiza status no banco
@@ -4499,14 +4520,20 @@ app.post(
       // ─── Disparo assíncrono: PDF técnico para o WhatsApp do cliente ───────
       // Roda em background para não atrasar a resposta ao vendedor.
       setImmediate(async () => {
+        const logSend = (tipo, destino, status, erro, detalhes) => {
+          try { db.prepare('INSERT INTO whatsapp_send_log (venda_id, tipo, destino, status, erro, detalhes) VALUES (?, ?, ?, ?, ?, ?)').run(vendaId, tipo, destino, status, erro || null, detalhes || null); } catch { /* ignore */ }
+        };
+
         const evoClient = getEvolutionSettings();
         if (!evoClient.evolution_api_url || !evoClient.evolution_instance || !evoClient.evolution_api_key) {
-          return; // Evolution API não configurada
+          logSend('pdf_desktop', null, 'ignorado', null, 'Evolution API não configurada');
+          return;
         }
 
         const clientPhone = responsavel_whatsapp ? String(responsavel_whatsapp).trim() : null;
         if (!clientPhone) {
           console.warn(`[vendas/pdf] Venda ${vendaId}: responsavel_whatsapp não informado — PDF não enviado.`);
+          logSend('pdf_desktop', null, 'ignorado', null, 'WhatsApp do responsável não informado');
           return;
         }
 
@@ -4515,11 +4542,13 @@ app.post(
           pontosArr = Array.isArray(pontos_nomes) ? pontos_nomes : JSON.parse(pontos_nomes || '[]');
         } catch {
           console.warn(`[vendas/pdf] Venda ${vendaId}: falha ao parsear pontos_nomes.`);
+          logSend('pdf_desktop', clientPhone, 'falha', 'Falha ao parsear pontos_nomes', null);
           return;
         }
 
         if (pontosArr.length === 0) {
           console.warn(`[vendas/pdf] Venda ${vendaId}: sem pontos — PDF não gerado.`);
+          logSend('pdf_desktop', clientPhone, 'ignorado', null, 'Sem pontos — PDF não gerado');
           return;
         }
 
@@ -4548,8 +4577,10 @@ app.post(
             });
             require('fs').unlinkSync(tmpDesktop);
             console.log(`[vendas/pdf] PDF desktop enviado para ${clientPhone} (venda ${vendaId}).`);
+            logSend('pdf_desktop', clientPhone, 'enviado', null, `${pontosArr.length} ponto(s)`);
           } catch (sendErr) {
             console.error(`[vendas/pdf] Falha ao enviar PDF desktop (venda ${vendaId}):`, sendErr.message);
+            logSend('pdf_desktop', clientPhone, 'falha', sendErr.message, null);
           }
 
           // Envia PDF mobile
@@ -4567,12 +4598,15 @@ app.post(
             });
             require('fs').unlinkSync(tmpMobile);
             console.log(`[vendas/pdf] PDF mobile enviado para ${clientPhone} (venda ${vendaId}).`);
+            logSend('pdf_mobile', clientPhone, 'enviado', null, `${pontosArr.length} ponto(s)`);
           } catch (sendErr) {
             console.error(`[vendas/pdf] Falha ao enviar PDF mobile (venda ${vendaId}):`, sendErr.message);
+            logSend('pdf_mobile', clientPhone, 'falha', sendErr.message, null);
           }
 
         } catch (genErr) {
           console.error(`[vendas/pdf] Falha ao gerar PDFs técnicos (venda ${vendaId}):`, genErr.message);
+          logSend('pdf_geracao', clientPhone, 'falha', genErr.message, 'Falha ao gerar PDFs');
         }
       });
       // ─────────────────────────────────────────────────────────────────────
@@ -4583,6 +4617,24 @@ app.post(
     }
   }
 );
+
+// ─── Log de envios WhatsApp (monitoramento) ─────────────────────────────────
+app.get('/api/whatsapp-logs', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const rows = db.prepare(`
+      SELECT l.*, v.razao_social, v.vendedor_nome, v.responsavel_nome
+      FROM whatsapp_send_log l
+      LEFT JOIN vendas v ON v.id = l.venda_id
+      ORDER BY l.created_at DESC
+      LIMIT ?
+    `).all(limit);
+    res.json({ logs: rows });
+  } catch (err) {
+    console.error('[whatsapp-logs] erro:', err.message);
+    res.status(500).json({ error: 'Falha ao buscar logs de envio.' });
+  }
+});
 
 // ─── Teste de envio de PDF técnico via WhatsApp ───────────────────────────────
 // Gera os PDFs para os pontos informados e envia ao número de teste.
