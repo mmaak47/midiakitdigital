@@ -18,7 +18,6 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
 
   const links = commercial
     ? [
-        { to: '/planejar', label: 'Planejar Campanha', icon: 'ri-magic-line' },
         { to: '/comercial/explorar', label: 'Explorar Pontos', icon: 'ri-map-pin-line' },
         { to: '/comercial/admin', label: 'Admin', icon: 'ri-settings-3-line' }
       ]
