@@ -130,6 +130,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     objetivo: 'reconhecimento de marca',
     publicos: [],
     selectedCities: [],
+    duracao_meses: '',
     ...(draft?.form || {})
   }));
   const [analysisMode, setAnalysisMode] = useState(draft?.analysisMode || 'segmento');
@@ -708,6 +709,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         analysisMode,
         pointMapImages,
         overviewMapImage,
+        duracao_meses: form.duracao_meses ? Number(form.duracao_meses) : null,
         showMetricsMethodology: pdfSections.methodology,
         showCampaignScore: pdfSections.score,
         showCoverageLayer: pdfSections.coverage,
@@ -767,7 +769,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         strategicTopics: form.strategicTopics,
         strategicText: argumentos,
         points: pointsWithEntorno.map(({ custo_operacional: _co, ...p }) => p),
-        totals, pricingSummary
+        totals, pricingSummary,
+        duracao_meses: form.duracao_meses ? Number(form.duracao_meses) : null
       };
 
       // Upload simulation preview images to server (convert blob: URLs to permanent URLs)
@@ -1242,7 +1245,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       <Input isDark={isDark} label="Nome do cliente" value={form.clientName} onChange={(v) => setForm((s) => ({ ...s, clientName: v }))} />
                       <Input isDark={isDark} label="Endereço do cliente" value={form.clientAddress} onChange={(v) => setForm((s) => ({ ...s, clientAddress: v }))} />
                     </div>
-                    <Input isDark={isDark} label="Subtítulo da capa (opcional)" value={form.proposalSubtitle} onChange={(v) => setForm((s) => ({ ...s, proposalSubtitle: v }))} />
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <Input isDark={isDark} label="Subtítulo da capa (opcional)" value={form.proposalSubtitle} onChange={(v) => setForm((s) => ({ ...s, proposalSubtitle: v }))} />
+                      <Input isDark={isDark} label="Duração do contrato (meses)" type="number" min="1" value={form.duracao_meses} onChange={(v) => setForm((s) => ({ ...s, duracao_meses: v }))} placeholder="Ex: 6, 12" />
+                    </div>
                   </Card>
 
                   {/* CARD 2 — Configuração da campanha */}
@@ -2124,11 +2130,11 @@ function MiniStat({ isDark = true, label, value }) {
   );
 }
 
-function Input({ isDark = true, label, value, onChange }) {
+function Input({ isDark = true, label, value, onChange, type = 'text', min, placeholder }) {
   return (
     <div>
       <label className={`text-[11px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{label}</label>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className={`mt-1.5 w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition-colors ${isDark ? 'bg-white/[0.07] border-white/15 focus:border-brand-orange/45 focus:bg-white/[0.09] text-white' : 'bg-white border-neutral-200 focus:border-brand-orange/50 text-neutral-800'}`} />
+      <input type={type} min={min} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} className={`mt-1.5 w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition-colors ${isDark ? 'bg-white/[0.07] border-white/15 focus:border-brand-orange/45 focus:bg-white/[0.09] text-white' : 'bg-white border-neutral-200 focus:border-brand-orange/50 text-neutral-800'}`} />
     </div>
   );
 }

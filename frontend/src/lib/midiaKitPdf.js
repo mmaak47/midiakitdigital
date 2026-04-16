@@ -1402,7 +1402,9 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
       <div style="display:flex;flex-direction:column;gap:12px;height:100%;min-width:0;overflow:hidden;">
         ${hasImage ? `
         <div style="flex:1;min-height:0;border-radius:24px;overflow:hidden;background:${PROPOSAL_SURFACE_ALT};position:relative;border:1px solid ${PROPOSAL_BORDER};">
-          <img src="${image}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(point?.foto_focal_point || 'center 38%')};display:block;" />
+          <img src="${image}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(point?.foto_focal_point || 'center 38%')};filter:blur(22px) saturate(1.1);transform:scale(1.06);opacity:0.4;display:block;" />
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.35));"></div>
+          <img src="${image}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:${escapeHtml(point?.foto_focal_point || 'center 38%')};display:block;filter:drop-shadow(0 8px 24px rgba(0,0,0,0.3));" />
         </div>
         ` : ''}
         
@@ -1896,7 +1898,7 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
   `, PROPOSAL_BG);
 }
 
-function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico, assets }) {
+function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico, duracao_meses, assets }) {
   const segmentLabel = getSegmentDisplayName(segmento);
   const pointCount = proposalPoints.length;
   const finalTotal = pricingSummary?.finalTotal ?? proposalTotals?.valorTotal ?? 0;
@@ -2035,7 +2037,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
                 <div style="font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:${PROPOSAL_TEXT_SECONDARY};">Total Mensal</div>
                 <div style="font-size:32px;font-weight:800;color:${PROPOSAL_ACCENT};font-family:Poppins, system-ui, sans-serif;line-height:1.1;letter-spacing:-0.02em;">${formatMoney(finalTotal)}</div>
                 <div style="font-size:9.5px;color:${PROPOSAL_LABEL};margin-top:12px;line-height:1.45;">
-                  Negociação válida <strong>exclusivamente</strong> para o plano e quantidade de pontos apresentados.<br>
+                  ${duracao_meses ? `Valores válidos para o contrato de <strong>${duracao_meses} meses</strong>.<br>` : ''}Negociação válida <strong>exclusivamente</strong> para o plano e quantidade de pontos apresentados.<br>
                   Para outras condições de compra, os valores deverão ser consultados.<br>
                   * Produção de materiais por conta do cliente.
                 </div>
@@ -2160,6 +2162,7 @@ export async function generateProposalPdf({
   publico,
   pointMapImages = [],
   overviewMapImage = null,
+  duracao_meses = null,
   showMetricsMethodology = true,
   showCampaignScore = true,
   showCoverageLayer = true,
@@ -2239,7 +2242,7 @@ export async function generateProposalPdf({
   }
 
   if (showImpactSection) {
-    pages.push(buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico: effectivePublico, assets }));
+    pages.push(buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico: effectivePublico, duracao_meses, assets }));
   }
 
   pages.push(buildProposalClosingPage(assets, overviewMapImage));

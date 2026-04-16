@@ -234,8 +234,15 @@ function PointCard({ point, index, total }) {
             <div className="relative flex-1 min-h-[280px] bg-gray-900 overflow-hidden">
               <img
                 src={img}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover blur-[22px] saturate-[1.1] scale-[1.06] opacity-40"
+                style={{ objectPosition: point.foto_focal_point || 'center center' }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-black/35" />
+              <img
+                src={img}
                 alt={point.nome}
-                className="w-full h-full object-cover"
+                className="absolute inset-0 w-full h-full object-contain drop-shadow-lg"
                 style={{ objectPosition: point.foto_focal_point || 'center center' }}
                 onError={e => { e.target.style.display = 'none'; }}
               />
@@ -512,7 +519,7 @@ export default function PropostaPublica() {
                   <p className="text-2xl font-extrabold" style={{ color: ORANGE }}>{formatCurrency(finalTotal)}</p>
                 </div>
                 <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
-                  Negociação válida exclusivamente para o plano e quantidade de endereços apresentados. Para outras condições, os valores deverão ser consultados.
+                  {data.duracao_meses ? `Valores válidos para o contrato de ${data.duracao_meses} meses. ` : ''}Negociação válida exclusivamente para o plano e quantidade de endereços apresentados. Para outras condições, os valores deverão ser consultados.
                 </p>
               </div>
             </div>
