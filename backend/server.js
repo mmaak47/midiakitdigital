@@ -3928,6 +3928,44 @@ try {
   console.error('[whatsapp_send_log] falha ao criar tabela:', dbInitErr.message);
 }
 
+// Backfill: popula whatsapp_send_log a partir de vendas existentes (roda uma vez)
+try {
+  const logCount = db.prepare('SELECT COUNT(*) AS c FROM whatsapp_send_log').get().c;
+  if (logCount === 0) {
+    const vendas = db.prepare(`
+      SELECT id, responsavel_whatsapp, whatsapp_status, whatsapp_error, pontos_nomes, created_at
+      FROM vendas ORDER BY id
+    `).all();
+    const ins = db.prepare('INSERT INTO whatsapp_send_log (venda_id, tipo, destino, status, erro, detalhes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    let filled = 0;
+    for (const v of vendas) {
+      const phone = v.responsavel_whatsapp ? String(v.responsavel_whatsapp).trim() : null;
+      const ts = v.created_at || null;
+      // Log da notificação do grupo
+      if (v.whatsapp_status === 'enviado') {
+        ins.run(v.id, 'notificacao_grupo', null, 'enviado', null, 'Backfill histórico', ts);
+      } else if (v.whatsapp_status === 'falha') {
+        ins.run(v.id, 'notificacao_grupo', null, 'falha', v.whatsapp_error || 'Erro desconhecido', 'Backfill histórico', ts);
+      } else if (v.whatsapp_status === 'nao_configurado') {
+        ins.run(v.id, 'notificacao_grupo', null, 'ignorado', null, 'Evolution API não configurada (backfill)', ts);
+      }
+      // Log do PDF (inferido: se grupo foi enviado e há telefone+pontos, o PDF provavelmente foi enviado)
+      let hasPontos = false;
+      try { const arr = JSON.parse(v.pontos_nomes || '[]'); hasPontos = arr.length > 0; } catch { /* ignore */ }
+      if (v.whatsapp_status === 'enviado' && phone && hasPontos) {
+        ins.run(v.id, 'pdf_desktop', phone, 'enviado', null, 'Backfill histórico (inferido)', ts);
+        ins.run(v.id, 'pdf_mobile', phone, 'enviado', null, 'Backfill histórico (inferido)', ts);
+      } else if (v.whatsapp_status === 'enviado' && !phone) {
+        ins.run(v.id, 'pdf_desktop', null, 'ignorado', null, 'WhatsApp não informado (backfill)', ts);
+      }
+      filled++;
+    }
+    if (filled > 0) console.log(`[whatsapp_send_log] Backfill: ${filled} venda(s) históricas importadas.`);
+  }
+} catch (bfErr) {
+  console.error('[whatsapp_send_log] backfill erro:', bfErr.message);
+}
+
 // ─── GESTÃO COMERCIAL: metas, vendas_comercial, renovações ─────────────
 try {
   db.prepare(`
