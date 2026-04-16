@@ -96,6 +96,8 @@ export default function TvWall() {
   const seenSalesRef = useRef(new Set());
   const [tickerIdx, setTickerIdx] = useState(0);
   const isFirstLoadRef = useRef(true);
+  const celebratedGoalsRef = useRef(new Set());
+  const confettiCanvasRef = useRef(null);
 
   useEffect(() => {
     let alive = true;
@@ -221,6 +223,70 @@ export default function TvWall() {
     const timer = setInterval(() => setNowTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // ── Confetti launcher ──────────────────────────────────────────────────
+  const launchConfetti = () => {
+    const canvas = confettiCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    canvas.style.display = 'block';
+    const COLORS = ['#fe5c2b','#22c55e','#facc15','#3b82f6','#a855f7','#ef4444','#14b8a6'];
+    const pieces = Array.from({ length: 150 }, () => ({
+      x: Math.random() * canvas.width,
+      y: -10 - Math.random() * canvas.height * 0.4,
+      w: 6 + Math.random() * 6,
+      h: 4 + Math.random() * 4,
+      vx: (Math.random() - 0.5) * 6,
+      vy: 2 + Math.random() * 5,
+      rot: Math.random() * Math.PI * 2,
+      rotV: (Math.random() - 0.5) * 0.2,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      life: 1,
+    }));
+    let raf;
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let alive = false;
+      for (const p of pieces) {
+        if (p.life <= 0) continue;
+        alive = true;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.12;
+        p.rot += p.rotV;
+        p.life -= 0.004;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      }
+      if (alive) { raf = requestAnimationFrame(animate); }
+      else { ctx.clearRect(0, 0, canvas.width, canvas.height); canvas.style.display = 'none'; }
+    };
+    raf = requestAnimationFrame(animate);
+    return () => { cancelAnimationFrame(raf); canvas.style.display = 'none'; };
+  };
+
+  // ── Trigger confetti when goals hit 100% ────────────────────────────────
+  useEffect(() => {
+    if (!data?.goals) return;
+    const g = data.goals;
+    const checks = [
+      { key: 'pct_mensal', value: Number(g.pct_mensal || 0) },
+      { key: 'pct_recorrencia', value: Number(g.pct_recorrencia || 0) },
+    ];
+    for (const c of checks) {
+      if (c.value >= 100 && !celebratedGoalsRef.current.has(c.key)) {
+        celebratedGoalsRef.current.add(c.key);
+        launchConfetti();
+      }
+    }
+  }, [data?.goals]);
 
   useEffect(() => {
     let alive = true;
@@ -734,8 +800,14 @@ export default function TvWall() {
         }
 
         .tv-contract-chip.critical { background: #ffe8e8; color: var(--danger); }
+        .tv-contract-chip.critical.has-countdown { animation: chip-pulse 1.6s ease-in-out infinite; }
         .tv-contract-chip.warning { background: #fff3dc; color: var(--warn); }
         .tv-contract-chip.ok { background: #e7faf2; color: var(--ok); }
+
+        @keyframes chip-pulse {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(216,79,79,0.3); }
+          50% { transform: scale(1.06); box-shadow: 0 0 12px 2px rgba(216,79,79,0.22); }
+        }
 
         .tv-ranking-item {
           display: flex;
@@ -834,6 +906,26 @@ export default function TvWall() {
 
         .tv-ranking-val.parcela { color: var(--ok); }
         .tv-ranking-val.contratos { color: #a855f7; }
+
+        .tv-ranking-bar-wrap {
+          margin-top: 8px;
+          width: 100%;
+          height: 7px;
+          border-radius: 999px;
+          background: #f1f0ee;
+          overflow: hidden;
+        }
+
+        .tv-ranking-bar {
+          height: 100%;
+          border-radius: 999px;
+          transition: width 800ms cubic-bezier(0.4, 0, 0.2, 1);
+          background: linear-gradient(90deg, #fe5c2b, #ff9066);
+        }
+
+        .tv-ranking-bar.leader {
+          background: linear-gradient(90deg, #f59e0b, #facc15, #fde047);
+        }
 
         .tv-ranking-val-label {
           font-size: 9px;
@@ -1387,8 +1479,23 @@ export default function TvWall() {
             <div className="tv-scroll" ref={contractsScrollRef}>
               <div className="tv-list">
                 {(contracts.items || []).map((contract, index) => {
-                  const chipClass = contract.daysRemaining <= 5 ? 'critical' : contract.daysRemaining <= 15 ? 'warning' : 'ok';
-                  const rowTone = contract.daysRemaining <= 5 ? 'is-critical' : contract.daysRemaining <= 15 ? 'is-high' : 'is-low';
+                  const isUrgent = contract.daysRemaining <= 5;
+                  const chipClass = isUrgent ? 'critical' : contract.daysRemaining <= 15 ? 'warning' : 'ok';
+                  const rowTone = isUrgent ? 'is-critical' : contract.daysRemaining <= 15 ? 'is-high' : 'is-low';
+
+                  let chipLabel = `${contract.daysRemaining} dia(s)`;
+                  if (isUrgent && contract.expirationDate) {
+                    const expMs = new Date(contract.expirationDate).getTime() - nowTime.getTime();
+                    if (expMs > 0) {
+                      const totalH = Math.floor(expMs / 3600000);
+                      const d = Math.floor(totalH / 24);
+                      const h = totalH % 24;
+                      chipLabel = `${d}d ${h}h`;
+                    } else {
+                      chipLabel = 'Vencido';
+                    }
+                  }
+
                   return (
                     <div
                       key={`${contract.advertiser}-${contract.expirationDate}-${index}`}
@@ -1401,8 +1508,8 @@ export default function TvWall() {
                             {contract.vendorName || 'Sem vendedor'} • {fmtMoney(contract.value)}
                           </div>
                         </div>
-                        <div className={`tv-contract-chip ${chipClass}`}>
-                          {contract.daysRemaining} dia(s)
+                        <div className={`tv-contract-chip ${chipClass}${isUrgent ? ' has-countdown' : ''}`}>
+                          {chipLabel}
                         </div>
                       </div>
                     </div>
@@ -1424,46 +1531,60 @@ export default function TvWall() {
 
             <div className="tv-scroll">
               <div className="tv-list">
-                {ranking.map((seller, index) => (
-                  <div key={`${seller.vendedor}-${seller.posicao}`} className={`tv-ranking-item ${index === 0 ? 'leader' : ''}`}>
-                    <div className="tv-ranking-left">
-                      <div style={{ position: 'relative' }}>
-                        {index === 0 && (
-                          <div className="tv-crown">
-                            <svg width="28" height="22" viewBox="0 0 28 22" fill="none">
-                              <path d="M2 18L5 6L10 12L14 2L18 12L23 6L26 18H2Z" fill="#facc15" stroke="#eab308" strokeWidth="1.5" strokeLinejoin="round"/>
-                              <rect x="2" y="18" width="24" height="3" rx="1.5" fill="#eab308"/>
-                              <circle cx="5" cy="6" r="2" fill="#fde047"/>
-                              <circle cx="14" cy="2" r="2" fill="#fde047"/>
-                              <circle cx="23" cy="6" r="2" fill="#fde047"/>
-                            </svg>
+                {(() => {
+                  const maxTotal = ranking.reduce((m, s) => Math.max(m, Number(s.total || 0)), 0) || 1;
+                  return ranking.map((seller, index) => {
+                    const barPct = Math.min(100, (Number(seller.total || 0) / maxTotal) * 100);
+                    const isLeader = index === 0;
+                    return (
+                      <div key={`${seller.vendedor}-${seller.posicao}`} className={`tv-ranking-item ${isLeader ? 'leader' : ''}`}>
+                        <div style={{ width: '100%' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                            <div className="tv-ranking-left">
+                              <div style={{ position: 'relative' }}>
+                                {isLeader && (
+                                  <div className="tv-crown">
+                                    <svg width="28" height="22" viewBox="0 0 28 22" fill="none">
+                                      <path d="M2 18L5 6L10 12L14 2L18 12L23 6L26 18H2Z" fill="#facc15" stroke="#eab308" strokeWidth="1.5" strokeLinejoin="round"/>
+                                      <rect x="2" y="18" width="24" height="3" rx="1.5" fill="#eab308"/>
+                                      <circle cx="5" cy="6" r="2" fill="#fde047"/>
+                                      <circle cx="14" cy="2" r="2" fill="#fde047"/>
+                                      <circle cx="23" cy="6" r="2" fill="#fde047"/>
+                                    </svg>
+                                  </div>
+                                )}
+                                {seller.photo_url ? (
+                                  <img src={seller.photo_url} alt={seller.vendedor} className="tv-avatar" />
+                                ) : (
+                                  <div className="tv-avatar-fallback">{getInitials(seller.vendedor)}</div>
+                                )}
+                              </div>
+
+                              <div>
+                                <div className="tv-ranking-name">{seller.posicao}. {seller.vendedor}</div>
+                                <div className="tv-ranking-meta">{seller.vendas} venda(s) no mês</div>
+                              </div>
+                            </div>
+
+                            <div className="tv-ranking-total">
+                              <div>
+                                <span className="tv-ranking-val-label">1ª Parcela</span>
+                                <div className="tv-ranking-val parcela">{fmtMoney(seller.total)}</div>
+                              </div>
+                              <div>
+                                <span className="tv-ranking-val-label">Contratos</span>
+                                <div className="tv-ranking-val contratos">{fmtMoney(seller.total_contratos)}</div>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                        {seller.photo_url ? (
-                          <img src={seller.photo_url} alt={seller.vendedor} className="tv-avatar" />
-                        ) : (
-                          <div className="tv-avatar-fallback">{getInitials(seller.vendedor)}</div>
-                        )}
+                          <div className="tv-ranking-bar-wrap">
+                            <div className={`tv-ranking-bar${isLeader ? ' leader' : ''}`} style={{ width: `${barPct}%` }} />
+                          </div>
+                        </div>
                       </div>
-
-                      <div>
-                        <div className="tv-ranking-name">{seller.posicao}. {seller.vendedor}</div>
-                        <div className="tv-ranking-meta">{seller.vendas} venda(s) no mês</div>
-                      </div>
-                    </div>
-
-                    <div className="tv-ranking-total">
-                      <div>
-                        <span className="tv-ranking-val-label">1ª Parcela</span>
-                        <div className="tv-ranking-val parcela">{fmtMoney(seller.total)}</div>
-                      </div>
-                      <div>
-                        <span className="tv-ranking-val-label">Contratos</span>
-                        <div className="tv-ranking-val contratos">{fmtMoney(seller.total_contratos)}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  });
+                })()}
 
                 {!ranking.length && <div className="tv-empty">Nenhuma venda registrada no mês atual.</div>}
               </div>
@@ -1607,6 +1728,8 @@ export default function TvWall() {
           ))}
         </div>
       ) : null}
+
+      <canvas ref={confettiCanvasRef} style={{ position: 'fixed', inset: 0, zIndex: 200, pointerEvents: 'none', display: 'none' }} />
 
       {salePopup && (
         <>
