@@ -222,6 +222,29 @@ function LeadRow({ lead, isDark, onStatusChange }) {
       {expanded && (
         <tr>
           <td colSpan={6} className={`px-4 py-4 ${expandBg}`}>
+            {/* Lead extra info row */}
+            {(lead.orcamento || lead.origem || lead.ultima_mensagem) && (
+              <div className={`mb-3 p-3 rounded-xl border grid grid-cols-1 sm:grid-cols-3 gap-2 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white'}`}>
+                {lead.orcamento && (
+                  <div>
+                    <p className={`text-[10px] font-semibold uppercase tracking-wide mb-0.5 ${mutedText}`}>Orçamento</p>
+                    <p className={`text-xs ${cellText}`}>{lead.orcamento}</p>
+                  </div>
+                )}
+                {lead.origem && (
+                  <div>
+                    <p className={`text-[10px] font-semibold uppercase tracking-wide mb-0.5 ${mutedText}`}>Como soube</p>
+                    <p className={`text-xs ${cellText}`}>{lead.origem}</p>
+                  </div>
+                )}
+                {lead.ultima_mensagem && (
+                  <div className="sm:col-span-3">
+                    <p className={`text-[10px] font-semibold uppercase tracking-wide mb-0.5 ${mutedText}`}>Última mensagem no chat</p>
+                    <p className={`text-xs italic ${cellText}`}>"{lead.ultima_mensagem}"</p>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Left: Status + Notas */}
               <div className="space-y-3">

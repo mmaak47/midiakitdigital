@@ -153,6 +153,9 @@ try {
   try { db.exec(`ALTER TABLE leads ADD COLUMN proposta_vencedora_token_id INTEGER`); } catch { /* exists */ }
   try { db.exec(`ALTER TABLE leads ADD COLUMN venda_id INTEGER`); } catch { /* exists */ }
   try { db.exec(`ALTER TABLE leads ADD COLUMN convertido_em TEXT`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE leads ADD COLUMN orcamento TEXT`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE leads ADD COLUMN origem TEXT`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE leads ADD COLUMN ultima_mensagem TEXT`); } catch { /* exists */ }
 } catch (e) {
   console.error('[schema bootstrap]', e.message);
 }
@@ -644,7 +647,7 @@ function authenticateSensitiveApi(req, res, next) {
   }
 
   // AI campaign analysis + recommendation — public for /planejar
-  const publicPostPaths = ['/ai/campaign', '/ai/recommend', '/ai/plan-decision', '/inventory-chat', '/ai/proposta-texto', '/track', '/leads/capture', '/leads/capture-contact'];
+  const publicPostPaths = ['/ai/campaign', '/ai/recommend', '/ai/plan-decision', '/inventory-chat', '/ai/proposta-texto', '/track', '/leads/capture', '/leads/capture-contact', '/leads/last-message'];
   if (method === 'POST' && publicPostPaths.includes(routePath)) {
     return next();
   }
@@ -2570,12 +2573,8 @@ app.post('/api/pontos', upload.fields([
     const simulacaoPreview = pickUploadedPath(req, 'simulacao_preview') || data.simulacao_preview || null;
     const simulacaoTela = data.simulacao_tela || null;
     const tipo = data.tipo || '';
-    const arteLargura = tipo === ELEVADOR_TIPO
-      ? ELEVADOR_ARTE_LARGURA
-      : (parseInt(data.arte_largura, 10) || 1920);
-    const arteAltura = tipo === ELEVADOR_TIPO
-      ? ELEVADOR_ARTE_ALTURA
-      : (parseInt(data.arte_altura, 10) || 1080);
+    const arteLargura = parseInt(data.arte_largura, 10) || 1920;
+    const arteAltura = parseInt(data.arte_altura, 10) || 1080;
     const isBackOrFrontLight = tipo === 'Backlight' || tipo === 'Frontlight';
     const midiaLarguraM = isBackOrFrontLight
       ? normalizePhysicalSizeMeters(data.midia_largura_m, null)
@@ -2652,12 +2651,8 @@ app.put('/api/pontos/:id', upload.fields([
     const simulacaoPreview = pickUploadedPath(req, 'simulacao_preview') || data.simulacao_preview || existing.simulacao_preview;
     const simulacaoTela = data.simulacao_tela || existing.simulacao_tela;
     const tipo = data.tipo || existing.tipo;
-    const arteLargura = tipo === ELEVADOR_TIPO
-      ? ELEVADOR_ARTE_LARGURA
-      : (parseInt(data.arte_largura, 10) || existing.arte_largura || 1920);
-    const arteAltura = tipo === ELEVADOR_TIPO
-      ? ELEVADOR_ARTE_ALTURA
-      : (parseInt(data.arte_altura, 10) || existing.arte_altura || 1080);
+    const arteLargura = parseInt(data.arte_largura, 10) || existing.arte_largura || 1920;
+    const arteAltura = parseInt(data.arte_altura, 10) || existing.arte_altura || 1080;
     const isBackOrFrontLight = tipo === 'Backlight' || tipo === 'Frontlight';
     const midiaLarguraM = isBackOrFrontLight
       ? normalizePhysicalSizeMeters(data.midia_largura_m, normalizePhysicalSizeMeters(existing.midia_largura_m, null))
@@ -6081,7 +6076,7 @@ app.post('/api/track', (req, res) => {
 // ── Lead capture (public) ─────────────────────────────────────────────────────
 app.post('/api/leads/capture', (req, res) => {
   try {
-    const { sessionId, telefone, empresa } = req.body || {};
+    const { sessionId, telefone, empresa, orcamento, origem } = req.body || {};
     if (!sessionId || !telefone || !empresa) {
       return res.status(400).json({ error: 'sessionId, telefone e empresa são obrigatórios.' });
     }
@@ -6089,10 +6084,15 @@ app.post('/api/leads/capture', (req, res) => {
     if (cleanPhone.length < 10) {
       return res.status(400).json({ error: 'Telefone inválido.' });
     }
+    const cleanOrcamento = orcamento ? String(orcamento).trim().slice(0, 200) : null;
+    const cleanOrigem = origem ? String(origem).trim().slice(0, 200) : null;
     const result = db.prepare(
-      `INSERT INTO leads (session_id, telefone, empresa) VALUES (?, ?, ?)
-       ON CONFLICT(session_id) DO UPDATE SET telefone = excluded.telefone, empresa = excluded.empresa, updated_at = datetime('now')`
-    ).run(sessionId.slice(0, 64), cleanPhone, String(empresa).trim().slice(0, 200));
+      `INSERT INTO leads (session_id, telefone, empresa, orcamento, origem) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(session_id) DO UPDATE SET telefone = excluded.telefone, empresa = excluded.empresa,
+         orcamento = coalesce(excluded.orcamento, orcamento),
+         origem = coalesce(excluded.origem, origem),
+         updated_at = datetime('now')`
+    ).run(sessionId.slice(0, 64), cleanPhone, String(empresa).trim().slice(0, 200), cleanOrcamento, cleanOrigem);
     try {
       db.prepare('UPDATE chat_sessions SET lead_captured = 1 WHERE id = ?').run(sessionId);
     } catch { /* session may not exist yet */ }
@@ -6135,10 +6135,26 @@ app.post('/api/leads/capture-contact', (req, res) => {
 app.get('/api/leads/check/:sessionId', (req, res) => {
   try {
     const { sessionId } = req.params;
-    const lead = db.prepare('SELECT id, telefone, empresa FROM leads WHERE session_id = ?').get(sessionId);
-    res.json({ captured: !!lead, telefone: lead?.telefone, empresa: lead?.empresa });
+    const lead = db.prepare('SELECT id, telefone, empresa, orcamento, origem FROM leads WHERE session_id = ?').get(sessionId);
+    res.json({ captured: !!lead, telefone: lead?.telefone, empresa: lead?.empresa, orcamento: lead?.orcamento, origem: lead?.origem });
   } catch (err) {
     internalError(res, err, 'Erro ao verificar lead.');
+  }
+});
+
+// ── Lead last-message update (public) ────────────────────────────────────────
+app.post('/api/leads/last-message', (req, res) => {
+  try {
+    const { sessionId, mensagem } = req.body || {};
+    if (!sessionId || typeof sessionId !== 'string' || !mensagem || typeof mensagem !== 'string') {
+      return res.status(400).json({ error: 'sessionId e mensagem são obrigatórios.' });
+    }
+    db.prepare(
+      `UPDATE leads SET ultima_mensagem = ?, updated_at = datetime('now') WHERE session_id = ?`
+    ).run(String(mensagem).trim().slice(0, 1000), sessionId.slice(0, 64));
+    res.json({ ok: true });
+  } catch (err) {
+    internalError(res, err, 'Erro ao salvar última mensagem.');
   }
 });
 

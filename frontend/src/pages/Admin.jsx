@@ -129,8 +129,6 @@ function enforceElevadorDimensions(nextForm) {
   }
   return {
     ...nextForm,
-    arte_largura: ELEVADOR_ARTE_LARGURA,
-    arte_altura: ELEVADOR_ARTE_ALTURA,
     elevador_categoria: ELEVADOR_CATEGORIAS.includes(nextForm?.elevador_categoria)
       ? nextForm.elevador_categoria
       : 'Comercial'

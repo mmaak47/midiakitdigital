@@ -1237,10 +1237,18 @@ export async function checkLeadStatus(sessionId) {
   return res.json();
 }
 
-export async function captureLeadInfo({ sessionId, telefone, empresa }) {
+export async function captureLeadInfo({ sessionId, telefone, empresa, orcamento, origem }) {
   const res = await apiRequest('/leads/capture', {
     method: 'POST',
-    body: JSON.stringify({ sessionId, telefone, empresa }),
+    body: JSON.stringify({ sessionId, telefone, empresa, orcamento, origem }),
+  });
+  return res.json();
+}
+
+export async function updateLeadLastMessage({ sessionId, mensagem }) {
+  const res = await apiRequest('/leads/last-message', {
+    method: 'POST',
+    body: JSON.stringify({ sessionId, mensagem }),
   });
   return res.json();
 }

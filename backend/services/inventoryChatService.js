@@ -920,7 +920,7 @@ function buildChatContext(intent, entities) {
 
 // ── Build LLM prompt (split system_prompt + prompt for Replicate) ────────────
 function buildChatPrompt(dbContext, serverHistory, userMessage, conversationState) {
-  const system_prompt = `Você é o Especialista DOOH da Rede Intermídia, um consultor de mídia Out-of-Home digital.
+  const system_prompt = `Você é o Especialista de Mídia Externa da Rede Intermídia, um consultor de mídia Out-of-Home digital.
 
 ${ai.DOOH_KNOWLEDGE_COMPACT}
 
@@ -930,12 +930,17 @@ REGRAS ABSOLUTAS:
 3. Se não tiver dados suficientes, diga CLARAMENTE: "Não encontrei essa informação no inventário disponível" e sugira reformular.
 4. Formate valores com R$ e pontos de milhar. Fluxo como "X impactos/mês".
 5. Máximo 4 parágrafos ou 1 parágrafo + lista de até 10 itens.
-6. Tom consultivo e profissional. Português brasileiro.
+6. Tom consultivo, profissional e comercialmente proativo. Português brasileiro.
 7. Ao listar pontos: "Nome (Tipo) — Fluxo X impactos/mês, R$ Y/mês"
 8. Liste TODOS os pontos presentes no CONTEXTO quando relevante — não omita nenhum.
 9. Inclua endereço e bairro quando disponíveis.
-10. Se a pergunta for saudação, apresente-se brevemente e sugira exemplos.
-11. NUNCA adicione pontos que não estejam explicitamente no CONTEXTO.`;
+10. NUNCA se apresente como "Sou o Especialista" ou similar em nenhuma resposta — o usuário já sabe quem você é. Se for saudação, responda amigavelmente e sugira exemplos diretamente.
+11. NUNCA adicione pontos que não estejam explicitamente no CONTEXTO.
+
+TÁTICA COMERCIAL:
+- Você tem malicia de vendedor: destaque os benefícios, crie senso de urgência, incentive a fechar negócio.
+- Se o cliente pedir desconto, ofereça até 10% de desconto posicionándolo como um valor especial, limitado e excepcional.
+- Se o cliente insistir em desconto maior que 10%, responda que precisa falar diretamente com um vendedor e forneça o WhatsApp: **(43) 98450-0480** (wa.me/554398450480). Não ofereça mais de 10% em hipótese alguma por este canal.`;
 
   const parts = [];
 
@@ -973,10 +978,10 @@ REGRAS ABSOLUTAS:
 function buildAlgorithmicResponse(intent, entities, dbContext) {
   switch (intent) {
     case 'saudacao':
-      return 'Olá! Sou o Especialista DOOH da Rede Intermídia. Posso ajudar com informações sobre nosso inventário de mídia digital.\n\nExperimente perguntar:\n- "Quais pontos na Gleba Palhano?"\n- "Pontos disponíveis em Londrina"\n- "Ponto com maior fluxo em Maringá"\n- "O que é CPM?"\n- "Formatos disponíveis"';
+      return 'Olá! Posso ajudar com informações sobre nosso inventário de mídia externa digital da Rede Intermídia.\n\nExperimente perguntar:\n- "Quais pontos na Gleba Palhano?"\n- "Pontos disponíveis em Londrina"\n- "Ponto com maior fluxo em Maringá"\n- "O que é CPM?"\n- "Formatos disponíveis"';
 
     case 'conhecimento_geral':
-      return 'Como especialista DOOH, posso explicar conceitos de mídia Out-of-Home. Nossos principais formatos são:\n\n- **Painel LED**: Alto impacto visual, 24h de visibilidade, ideal para branding massivo\n- **Elevador**: Público cativo em prédios residenciais e comerciais, alta frequência\n- **Tela Indoor**: Proximidade ao ponto de venda, momento de decisão de compra\n- **Backlight**: Grande formato iluminado, vias de alto tráfego\n- **Frontlight**: Rodovias e vias arteriais, alto alcance veicular\n\nPara informações específicas do inventário, pergunte sobre uma cidade, bairro ou formato!';
+      return 'Posso explicar conceitos de mídia externa Out-of-Home. Nossos principais formatos são:\n\n- **Painel LED**: Alto impacto visual, 24h de visibilidade, ideal para branding massivo\n- **Elevador**: Público cativo em prédios residenciais e comerciais, alta frequência\n- **Tela Indoor**: Proximidade ao ponto de venda, momento de decisão de compra\n- **Backlight**: Grande formato iluminado, vias de alto tráfego\n- **Frontlight**: Rodovias e vias arteriais, alto alcance veicular\n\nPara informações específicas do inventário, pergunte sobre uma cidade, bairro ou formato!';
 
     default:
       if (dbContext) return dbContext;
