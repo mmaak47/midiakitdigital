@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Loader2, Upload, X, Send, CheckCircle2, AlertCircle, FileText, MessageCircle, WifiOff, AlertTriangle } from 'lucide-react';
 import { submitNovaVenda } from '../../lib/api';
 
-const TIPOS_NEGOCIO = ['Nova Venda', 'Renovação'];
+const TIPOS_NEGOCIO = ['Nova Venda', 'Renovação', 'Permuta'];
 const TIPOS_VALOR = ['Líquido', 'Bruto'];
 const COTAS_CONTRATADAS = ['10 Segundos', '15 Segundos'];
 
@@ -69,6 +69,7 @@ function fmtCurrency(v) {
 export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }) {
   const [form, setForm] = useState({ ...emptyForm });
   const [selectedPontos, setSelectedPontos] = useState([]);
+  const [pontoPrecos, setPontoPrecos] = useState({});
   const [search, setSearch] = useState('');
   const [piFile, setPiFile] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -84,9 +85,14 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
   );
 
   const togglePonto = p => {
-    setSelectedPontos(prev =>
-      prev.find(x => x.id === p.id) ? prev.filter(x => x.id !== p.id) : [...prev, p]
-    );
+    setSelectedPontos(prev => {
+      const removing = prev.find(x => x.id === p.id);
+      if (removing) {
+        setPontoPrecos(pp => { const cp = { ...pp }; delete cp[p.id]; return cp; });
+        return prev.filter(x => x.id !== p.id);
+      }
+      return [...prev, p];
+    });
   };
 
   const handlePiChange = e => {
@@ -138,6 +144,9 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       fd.append('email', form.email.trim());
       fd.append('obs', form.obs.trim());
       fd.append('pontos_nomes', JSON.stringify(selectedPontos.map(p => p.nome)));
+      fd.append('pontos_precos', JSON.stringify(
+        selectedPontos.reduce((acc, p) => { if (pontoPrecos[p.id]) acc[p.nome] = pontoPrecos[p.id]; return acc; }, {})
+      ));
       fd.append('vendedor_nome', currentUser
         ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username || 'Vendedor'
         : 'Vendedor'
@@ -148,6 +157,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       setResult({ ok: true, msg: res.message || 'Venda registrada e notificação enviada!', whatsapp: res.whatsapp_status || 'pendente' });
       setForm({ ...emptyForm });
       setSelectedPontos([]);
+      setPontoPrecos({});
       setPiFile(null);
       setSearch('');
     } catch (e) {
@@ -173,7 +183,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       : 'border-neutral-200 bg-neutral-50 text-neutral-500 hover:border-neutral-300 hover:text-neutral-900'}`;
 
   /* ─── preview da mensagem ─── */
-  const msgPreview = buildMsgPreview({ form, selectedPontos, currentUser });
+  const msgPreview = buildMsgPreview({ form, selectedPontos, pontoPrecos, currentUser });
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -349,6 +359,25 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
               })
             )}
           </div>
+          {selectedPontos.length > 0 && (
+            <div className="space-y-2 pt-2">
+              <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Valor por ponto</p>
+              {selectedPontos.map(p => (
+                <div key={p.id} className="flex items-center gap-3">
+                  <span className={`text-sm flex-1 min-w-0 truncate ${isDark ? 'text-white' : 'text-neutral-800'}`}>{p.nome}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>R$</span>
+                    <input
+                      className={`${inp} !w-32 text-right`}
+                      value={pontoPrecos[p.id] || ''}
+                      onChange={e => setPontoPrecos(pp => ({ ...pp, [p.id]: fmtCurrency(e.target.value) }))}
+                      placeholder="0,00"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Dados comerciais */}
@@ -426,7 +455,14 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
               <label className={`flex items-center gap-3 cursor-pointer select-none`}>
                 <button
                   type="button"
-                  onClick={() => set('plano_fidelidade', !form.plano_fidelidade)}
+                  onClick={() => {
+                    const next = !form.plano_fidelidade;
+                    set('plano_fidelidade', next);
+                    if (next) {
+                      const autoObs = 'Cota de 10 Segundos com Loop de 6 Minutos. (Adicionar a mídia em um grupo com outro cliente do Plano Fidelidade. Caso não haja dupla para ele, fazer um grupo com mídias institucionais da Intermidia.)';
+                      setForm(f => ({ ...f, plano_fidelidade: true, obs: f.obs ? (f.obs.includes(autoObs) ? f.obs : f.obs + '\n' + autoObs) : autoObs }));
+                    }
+                  }}
                   className={`w-10 h-5 rounded-full transition-colors relative ${form.plano_fidelidade ? 'bg-brand-orange' : isDark ? 'bg-white/20' : 'bg-neutral-300'}`}
                 >
                   <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.plano_fidelidade ? 'left-5' : 'left-0.5'}`} />
@@ -651,7 +687,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
 }
 
 /* ─── helpers ─── */
-function buildMsgPreview({ form, selectedPontos, currentUser }) {
+function buildMsgPreview({ form, selectedPontos, pontoPrecos, currentUser }) {
   if (!form.razao_social && selectedPontos.length === 0) return '';
 
   const vendedorNome = currentUser
@@ -660,7 +696,10 @@ function buildMsgPreview({ form, selectedPontos, currentUser }) {
 
   const isRenovacao = form.tipo === 'Renovação';
   const pontosList = selectedPontos.length
-    ? selectedPontos.map(p => `  • ${p.nome}`).join('\n')
+    ? selectedPontos.map(p => {
+        const preco = pontoPrecos[p.id];
+        return preco ? `  • ${p.nome} — R$ ${preco}` : `  • ${p.nome}`;
+      }).join('\n')
     : '  • (nenhum selecionado)';
 
   let periodo = '';

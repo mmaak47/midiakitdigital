@@ -164,6 +164,7 @@ function EditVendaModal({ venda, isDark, onClose, onSaved, pontos = [] }) {
             <select className={inp} value={form.tipo} onChange={e => set('tipo', e.target.value)}>
               <option value="Nova Venda">Nova Venda</option>
               <option value="Renovação">Renovação</option>
+              <option value="Permuta">Permuta</option>
             </select>
           </div>
           <div>
@@ -476,7 +477,7 @@ const SUMMARY_ITEMS = [
   { key: 'cancelada',label: 'Canceladas',Icon: XCircle,      light: 'text-red-500',   dark: 'text-red-400'   },
 ];
 
-export default function VendasListTab({ isDark = true, pontos = [] }) {
+export default function VendasListTab({ isDark = true, pontos = [], currentUser = null }) {
   const [vendas, setVendas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('todas');
@@ -485,17 +486,25 @@ export default function VendasListTab({ isDark = true, pontos = [] }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Admin+vendedor only sees their own sales
+  const isAdminVendedor = currentUser && currentUser.role === 'admin' && currentUser.is_vendedor;
+  const myVendorName = isAdminVendedor ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() : null;
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await fetchVendas({ status: statusFilter, q: search.trim() });
-      setVendas(Array.isArray(data) ? data : []);
+      let list = Array.isArray(data) ? data : [];
+      if (isAdminVendedor && myVendorName) {
+        list = list.filter(v => (v.vendedor_nome || '').toLowerCase() === myVendorName.toLowerCase());
+      }
+      setVendas(list);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, search]);
+  }, [statusFilter, search, isAdminVendedor, myVendorName]);
 
   useEffect(() => { load(); }, [load]);
 

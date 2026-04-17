@@ -30,7 +30,7 @@ function buildInitialForm(initialData) {
   };
 }
 
-export default function UserModal({ isOpen, onClose, onSave, initialData }) {
+export default function UserModal({ isOpen, onClose, onSave, initialData, isDark = true }) {
   const [form, setForm] = useState(INITIAL_FORM);
   const [errors, setErrors] = useState({});
 
@@ -90,12 +90,12 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm"
+      className={`fixed inset-0 z-50 flex items-center justify-center px-4 backdrop-blur-sm ${isDark ? 'bg-black/75' : 'bg-black/40'}`}
       onClick={onClose}
       role="presentation"
     >
       <div
-        className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#121212] p-6 text-white shadow-2xl shadow-black/40"
+        className={`w-full max-w-lg rounded-2xl border p-6 shadow-2xl ${isDark ? 'border-white/10 bg-[#121212] text-white shadow-black/40' : 'border-neutral-200 bg-white text-neutral-900 shadow-neutral-300/30'}`}
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -106,14 +106,14 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
               <UserRound size={18} />
             </span>
             <div>
-              <h3 className="text-lg font-bold text-white">{isEdit ? 'Editar Usuário' : 'Novo Usuário'}</h3>
-              <p className="text-xs text-brand-gray-500">Preencha os dados e confirme para salvar.</p>
+              <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{isEdit ? 'Editar Usuário' : 'Novo Usuário'}</h3>
+              <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Preencha os dados e confirme para salvar.</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-brand-gray-500 transition-colors hover:bg-white/10 hover:text-white"
+            className={`rounded-lg p-1.5 transition-colors ${isDark ? 'text-brand-gray-500 hover:bg-white/10 hover:text-white' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700'}`}
             aria-label="Fechar modal"
           >
             <X size={16} />
@@ -122,11 +122,11 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Tipo de Usuário" required error={errors.tipoUsuario}>
+            <Field label="Tipo de Usuário" required error={errors.tipoUsuario} isDark={isDark}>
               <select
                 value={form.tipoUsuario}
                 onChange={(event) => setForm((prev) => ({ ...prev, tipoUsuario: event.target.value }))}
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-orange/40"
+                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white focus:border-brand-orange/40' : 'border-neutral-300 bg-neutral-50 text-neutral-900 focus:border-brand-orange/60'}`}
               >
                 <option value="admin">Admin</option>
                 <option value="gerente_comercial">Gerente Comercial</option>
@@ -134,11 +134,11 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
               </select>
             </Field>
 
-            <Field label="Status" error={errors.status}>
+            <Field label="Status" error={errors.status} isDark={isDark}>
               <select
                 value={form.status}
                 onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))}
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-orange/40"
+                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white focus:border-brand-orange/40' : 'border-neutral-300 bg-neutral-50 text-neutral-900 focus:border-brand-orange/60'}`}
               >
                 <option value="ativo">Ativo</option>
                 <option value="inativo">Inativo</option>
@@ -147,52 +147,52 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Nome" required error={errors.nome}>
+            <Field label="Nome" required error={errors.nome} isDark={isDark}>
               <input
                 type="text"
                 value={form.nome}
                 onChange={(event) => setForm((prev) => ({ ...prev, nome: event.target.value }))}
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
+                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/40' : 'border-neutral-300 bg-neutral-50 text-neutral-900 placeholder:text-neutral-400 focus:border-brand-orange/60'}`}
               />
             </Field>
 
-            <Field label="E-mail" error={errors.email}>
+            <Field label="E-mail" error={errors.email} isDark={isDark}>
               <input
                 type="email"
                 value={form.email}
                 onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
+                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/40' : 'border-neutral-300 bg-neutral-50 text-neutral-900 placeholder:text-neutral-400 focus:border-brand-orange/60'}`}
               />
             </Field>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Login" required error={errors.login}>
+            <Field label="Login" required error={errors.login} isDark={isDark}>
               <input
                 type="text"
                 value={form.login}
                 readOnly={!isEdit}
                 onChange={isEdit ? (event) => setForm((prev) => ({ ...prev, login: event.target.value })) : undefined}
                 title={!isEdit ? 'Gerado automaticamente a partir do nome' : undefined}
-                className={`w-full rounded-lg border border-white/10 px-3 py-2 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none ${isEdit ? 'bg-white/5 focus:border-brand-orange/40' : 'bg-white/[0.02] cursor-default opacity-70'}`}
+                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none ${isEdit ? (isDark ? 'border-white/10 bg-white/5 text-white focus:border-brand-orange/40' : 'border-neutral-300 bg-neutral-50 text-neutral-900 focus:border-brand-orange/60') : (isDark ? 'border-white/10 bg-white/[0.02] text-white cursor-default opacity-70' : 'border-neutral-200 bg-neutral-100 text-neutral-500 cursor-default opacity-70')}`}
               />
               {!isEdit && form.login && (
-                <span className="mt-1 block text-[11px] text-brand-gray-500">Gerado automaticamente a partir do nome</span>
+                <span className={`mt-1 block text-[11px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Gerado automaticamente a partir do nome</span>
               )}
             </Field>
 
-            <Field label="Senha" error={errors.senha}>
+            <Field label="Senha" error={errors.senha} isDark={isDark}>
               <input
                 type="password"
                 value={form.senha}
                 onChange={(event) => setForm((prev) => ({ ...prev, senha: event.target.value }))}
                 placeholder="Deixe em branco para manter"
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40"
+                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/40' : 'border-neutral-300 bg-neutral-50 text-neutral-900 placeholder:text-neutral-400 focus:border-brand-orange/60'}`}
               />
             </Field>
           </div>
 
-          <label className="flex items-center gap-3 cursor-pointer rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 transition-colors hover:bg-white/[0.06]">
+          <label className={`flex items-center gap-3 cursor-pointer rounded-lg border px-4 py-3 transition-colors ${isDark ? 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]' : 'border-neutral-200 bg-neutral-50 hover:bg-neutral-100'}`}>
             <input
               type="checkbox"
               checked={form.isVendedor}
@@ -200,8 +200,8 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
               className="h-4 w-4 rounded border-white/20 accent-brand-orange"
             />
             <div>
-              <span className="text-sm font-semibold text-white">É vendedor (Gestão Comercial)</span>
-              <p className="text-xs text-brand-gray-500">Marcar esta opção faz este usuário aparecer como vendedor na planilha de gestão comercial, independente do cargo.</p>
+              <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-800'}`}>É vendedor (Gestão Comercial)</span>
+              <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Marcar esta opção faz este usuário aparecer como vendedor na planilha de gestão comercial, independente do cargo.</p>
             </div>
           </label>
 
@@ -209,7 +209,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+              className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100'}`}
             >
               Cancelar
             </button>
@@ -227,14 +227,14 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }) {
   );
 }
 
-function Field({ label, required = false, error, children }) {
+function Field({ label, required = false, error, children, isDark = true }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-brand-gray-400">
+      <span className={`mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
         {label} {required ? <span className="text-brand-orange">*</span> : null}
       </span>
       {children}
-      {error ? <span className="mt-1 block text-xs text-red-300">{error}</span> : null}
+      {error ? <span className={`mt-1 block text-xs ${isDark ? 'text-red-300' : 'text-red-500'}`}>{error}</span> : null}
     </label>
   );
 }

@@ -19,7 +19,7 @@ const multer = require('multer');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = rateLimit;
 const { z } = require('zod');
-const { randomUUID } = require('crypto');
+const { randomUUID, timingSafeEqual } = require('crypto');
 const db = require('./database');
 const cidadeFotosRouter = require('./routes/cidadeFotos');
 const arteRouter          = require('./routes/arte');
@@ -537,6 +537,41 @@ function clearAuthCookies(res, req) {
   ]);
 }
 
+function secureTokenEquals(candidate, expected) {
+  const left = Buffer.from(String(candidate || ''), 'utf8');
+  const right = Buffer.from(String(expected || ''), 'utf8');
+  if (!left.length || !right.length || left.length !== right.length) {
+    return false;
+  }
+  return timingSafeEqual(left, right);
+}
+
+function extractIntegrationToken(req) {
+  const customHeader = String(req.headers['x-integration-token'] || '').trim();
+  if (customHeader) return customHeader;
+
+  const bearer = extractBearerToken(req.headers.authorization);
+  if (bearer) return bearer;
+
+  return String(req.query.token || '').trim();
+}
+
+function requireMaintenanceIntegrationToken(req, res, next) {
+  const expectedToken = String(process.env.MANUTENCAO_SYNC_TOKEN || '').trim();
+  if (!expectedToken) {
+    return res.status(503).json({
+      error: 'Integração indisponível: MANUTENCAO_SYNC_TOKEN não configurado.'
+    });
+  }
+
+  const providedToken = extractIntegrationToken(req);
+  if (!secureTokenEquals(providedToken, expectedToken)) {
+    return res.status(401).json({ error: 'Token de integração inválido.' });
+  }
+
+  next();
+}
+
 function resolveAuthenticatedUser(req, res, next) {
   try {
     const token = extractBearerToken(req.headers.authorization) || extractTokenFromCookie(req);
@@ -546,7 +581,7 @@ function resolveAuthenticatedUser(req, res, next) {
 
     const claims = parseAuthToken(token);
     const user = db.prepare(`
-      SELECT id, first_name, last_name, username, email, whatsapp, role, photo_url
+      SELECT id, first_name, last_name, username, email, whatsapp, role, is_vendedor, photo_url
       FROM admin_users
       WHERE id = ? AND lower(username) = lower(?)
       LIMIT 1
@@ -600,7 +635,8 @@ function authenticateSensitiveApi(req, res, next) {
     '/ai/health',
     '/ai/stats',
     '/ai/point',
-    '/leads/check'
+    '/leads/check',
+    '/integracoes/manutencao/pontos'
   ];
 
   if (method === 'GET' && publicGetPrefixes.some((prefix) => routePath === prefix || routePath.startsWith(`${prefix}/`))) {
@@ -1151,6 +1187,35 @@ function buildAudienceTagCatalog(rows = []) {
 }
 
 // ==================== API ROUTES ====================
+
+// Integração Manutenções: exporta pontos para consumo entre projetos na mesma VPS.
+// Autenticação: header x-integration-token (ou Bearer) com MANUTENCAO_SYNC_TOKEN.
+app.get('/api/integracoes/manutencao/pontos', requireMaintenanceIntegrationToken, (req, res) => {
+  const cidades = parseOptionalValues(req.query.cidade);
+  const tipos = parseOptionalValues(req.query.tipo);
+  const incluirInativos = ['1', 'true', 'sim', 'yes'].includes(String(req.query.incluir_inativos || '').trim().toLowerCase());
+  const sqlParts = ['SELECT * FROM pontos WHERE 1=1'];
+  const params = [];
+
+  if (!incluirInativos) {
+    sqlParts.push(' AND ativo = 1');
+  }
+
+  appendMultiFilter(sqlParts, params, 'cidade', cidades);
+  appendMultiFilter(sqlParts, params, 'tipo', tipos);
+  sqlParts.push(' ORDER BY cidade, nome');
+
+  try {
+    const pontos = db.prepare(sqlParts.join('')).all(...params).map(hydratePontoRow);
+    res.json({
+      generated_at: new Date().toISOString(),
+      total: pontos.length,
+      pontos
+    });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
 
 // GET all pontos (with optional filters)
 app.get('/api/pontos', (req, res) => {
@@ -1794,12 +1859,16 @@ function getMonthlyVendorRanking() {
   const sellerDirectory = getTvSellerDirectory();
 
   // Primary source: vendas_comercial (same source as GestaoComercial)
+  // Exclude Permuta from ranking (does not count toward goals)
   const vcRows = db.prepare(`
-    SELECT vendedor_nome, valor_mensal, total_contrato
+    SELECT vendedor_nome, valor_mensal, total_contrato, COALESCE(tipo, 'Nova Venda') as tipo
     FROM vendas_comercial
     WHERE ano = ? AND mes = ?
       AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
   `).all(year, mes);
+
+  // Separate Permuta totals
+  let permutaTotal = 0, permutaTotalContratos = 0, permutaVendas = 0;
 
   const map = new Map();
   for (const row of vcRows) {
@@ -1813,6 +1882,14 @@ function getMonthlyVendorRanking() {
 
     const valMensal = Number(row.valor_mensal || 0);
     const valContrato = Number(row.total_contrato || 0);
+
+    // Track Permuta separately — does not count toward goals/ranking
+    if (String(row.tipo || '').toLowerCase() === 'permuta') {
+      permutaTotal += valMensal;
+      permutaTotalContratos += valContrato;
+      permutaVendas += 1;
+      continue;
+    }
 
     if (!map.has(sellerKey)) {
       map.set(sellerKey, {
@@ -1876,7 +1953,7 @@ function getMonthlyVendorRanking() {
     entry.vendas += 1;
   }
 
-  return Array.from(map.values())
+  const rankingList = Array.from(map.values())
     .sort((a, b) => b.total - a.total)
     .slice(0, 10)
     .map((item, idx) => ({
@@ -1887,6 +1964,15 @@ function getMonthlyVendorRanking() {
       vendas: item.vendas,
       photo_url: item.photo_url || null,
     }));
+
+  return {
+    list: rankingList,
+    permuta: {
+      total: Number(permutaTotal.toFixed(2)),
+      total_contratos: Number(permutaTotalContratos.toFixed(2)),
+      vendas: permutaVendas,
+    },
+  };
 }
 
 function parseFlexibleDateToTimestamp(value) {
@@ -1938,6 +2024,7 @@ function getTvGoalsSnapshot() {
     WHERE ano = ?
       AND mes = ?
       AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
+      AND LOWER(COALESCE(tipo, 'nova venda')) != 'permuta'
   `).get(ano, mes) || {};
 
   const metaMensal = Number(metaRow.valor_meta || 0);
@@ -2333,7 +2420,7 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
     const expiring5 = filteredContracts.filter((c) => Number(c.daysRemaining) <= 5 && Number(c.daysRemaining) >= 0).length;
     const expiring15 = filteredContracts.filter((c) => Number(c.daysRemaining) <= 15 && Number(c.daysRemaining) > 5).length;
 
-    const ranking = getMonthlyVendorRanking();
+    const rankingData = getMonthlyVendorRanking();
     const goals = getTvGoalsSnapshot();
     const recentActivity = getTvRecentActivity(5);
     const tickerMessage = getAppSetting('tv_ticker_message', 'Painel Intermidia: acompanhe contratos, auditoria de loop e ranking de vendas em tempo real.');
@@ -2350,8 +2437,9 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
           .sort((a, b) => Number(a.daysRemaining || 0) - Number(b.daysRemaining || 0))
           .slice(0, 14)
       },
-      ranking,
+      ranking: rankingData.list,
       goals,
+      permuta: rankingData.permuta,
       recent_activity: recentActivity,
       ticker_message: tickerMessage,
       postits,
@@ -3777,8 +3865,8 @@ app.delete('/api/admin/pdf-layout', requireRoles(['admin']), (req, res) => {
 // ==================== USUÁRIO ATUAL ====================
 
 app.get('/api/users/me', resolveAuthenticatedUser, (req, res) => {
-  const { id, first_name, last_name, username, email, whatsapp, role, photo_url } = req.authUser;
-  res.json({ id, first_name, last_name, username, email, whatsapp, role, photo_url });
+  const { id, first_name, last_name, username, email, whatsapp, role, is_vendedor, photo_url } = req.authUser;
+  res.json({ id, first_name, last_name, username, email, whatsapp, role, is_vendedor: !!is_vendedor, photo_url });
 });
 
 // Upload photo for own user
@@ -3891,6 +3979,7 @@ try {
   'ALTER TABLE vendas ADD COLUMN nome_fantasia TEXT',
   'ALTER TABLE vendas ADD COLUMN cota_contratada TEXT',
   'ALTER TABLE vendas ADD COLUMN plano_fidelidade INTEGER DEFAULT 0',
+  'ALTER TABLE vendas ADD COLUMN pontos_precos TEXT',
 ].forEach(sql => {
   try { db.prepare(sql).run(); } catch { /* coluna já existe */ }
 });
@@ -4018,6 +4107,7 @@ try {
 } catch (e) { console.error('[vendas_comercial] init:', e.message); }
 try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN venda_id INTEGER").run(); } catch {}
 try { db.prepare("ALTER TABLE metas_vendedor ADD COLUMN valor_meta_recorrencia REAL DEFAULT 0").run(); } catch {}
+try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN tipo TEXT NOT NULL DEFAULT 'Nova Venda'").run(); } catch {}
 
 // Repair auto-synced vendas_comercial rows where total_contrato was incorrectly set to valor_mensal
 try {
@@ -4103,7 +4193,7 @@ try {
         : '[]';
       const periodo = vc.qtde_parcelas > 1 ? `${vc.qtde_parcelas} meses` : null;
       const result = insertVenda.run(
-        'Nova Venda',
+        vc.tipo || 'Nova Venda',
         vc.cliente,
         vc.cnpj || null,
         pontosNomes,
@@ -4280,7 +4370,7 @@ async function sendEvolutionDocument({ apiUrl, instance, apiKey, number, caption
   return res.json();
 }
 
-function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantasia, cnpj, pontosNomes,
+function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantasia, cnpj, pontosNomes, pontosPrecos,
   valorMensal, tipoValor, cotaContratada, planoFidelidade, periodo, diaPagamento, dataPrimeiraParcela, diaPagamentoDia,
   viaAgencia, agenciaNome, comissaoPct,
   trocaMaterial,
@@ -4307,9 +4397,14 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantas
   lines.push('');
 
   const nomes = Array.isArray(pontosNomes) ? pontosNomes : JSON.parse(pontosNomes || '[]');
+  let precos = {};
+  try { precos = typeof pontosPrecos === 'string' ? JSON.parse(pontosPrecos || '{}') : (pontosPrecos || {}); } catch { /* ignore */ }
   if (nomes.length > 0) {
     lines.push(`📍 *PONTO${nomes.length > 1 ? 'S' : ''} CONTRATADO${nomes.length > 1 ? 'S' : ''}*`);
-    nomes.forEach(n => lines.push(`  • ${n}`));
+    nomes.forEach(n => {
+      const preco = precos[n];
+      lines.push(preco ? `  • ${n} — R$ ${preco}` : `  • ${n}`);
+    });
     lines.push('');
   }
 
@@ -4381,6 +4476,7 @@ app.post(
         email,
         obs,
         pontos_nomes,
+        pontos_precos,
         vendedor_nome
       } = req.body;
 
@@ -4401,13 +4497,13 @@ app.post(
 
       // Salva no banco
       const stmt = db.prepare(`
-        INSERT INTO vendas (tipo, razao_social, nome_fantasia, cnpj, pontos_nomes, valor_mensal, tipo_valor,
+        INSERT INTO vendas (tipo, razao_social, nome_fantasia, cnpj, pontos_nomes, pontos_precos, valor_mensal, tipo_valor,
           cota_contratada, plano_fidelidade,
           via_agencia, agencia_nome, comissao_pct, troca_material,
           periodo, dia_pagamento, data_primeira_parcela, dia_pagamento_dia,
           responsavel_nome, responsavel_whatsapp, email,
           obs, pi_path, vendedor_id, vendedor_nome, whatsapp_status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
       `);
 
       const dbResult = stmt.run(
@@ -4416,6 +4512,7 @@ app.post(
         nome_fantasia || null,
         cnpj || null,
         pontos_nomes || '[]',
+        pontos_precos || '{}',
         valor_mensal || null,
         tipo_valor || null,
         cota_contratada || null,
@@ -4454,6 +4551,7 @@ app.post(
             nomeFantasia: nome_fantasia || '',
             cnpj: cnpj || '',
             pontosNomes: pontos_nomes || '[]',
+            pontosPrecos: pontos_precos || '{}',
             valorMensal: valor_mensal || '',
             tipoValor: tipo_valor || '',
             cotaContratada: cota_contratada || '',
@@ -4556,8 +4654,8 @@ app.post(
         db.prepare(`
           INSERT INTO vendas_comercial
             (vendedor_nome, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
-             valor_mensal, total_contrato, qtde_parcelas, contato, email, obs, venda_id)
-          VALUES (?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             valor_mensal, total_contrato, qtde_parcelas, contato, email, obs, venda_id, tipo)
+          VALUES (?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           vNome,
           now.getFullYear(),
@@ -4571,7 +4669,8 @@ app.post(
           contatoStr,
           email || null,
           obs || null,
-          vendaId
+          vendaId,
+          tipo || 'Nova Venda'
         );
       } catch (syncErr) {
         console.warn('[vendas] auto-sync vendas_comercial falhou:', syncErr.message);
@@ -4945,7 +5044,7 @@ app.delete('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req
     const venda = db.prepare('SELECT id FROM vendas WHERE id = ?').get(id);
     if (!venda) return res.status(404).json({ error: 'Venda não encontrada.' });
     db.prepare('DELETE FROM venda_etapas WHERE venda_id = ?').run(id);
-    // Also remove linked vendas_comercial record
+    db.prepare('DELETE FROM whatsapp_send_log WHERE venda_id = ?').run(id);
     db.prepare('DELETE FROM vendas_comercial WHERE venda_id = ?').run(id);
     db.prepare('DELETE FROM vendas WHERE id = ?').run(id);
     res.json({ ok: true });
@@ -5369,14 +5468,15 @@ app.post('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vended
       INSERT INTO vendas_comercial
         (vendedor_nome, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
          valor_mensal, total_contrato, qtde_parcelas, previsao_veiculacao,
-         data_emissao_nf, vencimento_boletos, contato, email, obs)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         data_emissao_nf, vencimento_boletos, contato, email, obs, tipo)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       String(b.vendedor_nome), Number(b.ano), Number(b.mes),
       b.data_venda || null, b.cliente, b.cnpj || null, b.pontos_contratados || null,
       parseBRLCurrency(b.valor_mensal), parseBRLCurrency(b.total_contrato), Number(b.qtde_parcelas || 1),
       b.previsao_veiculacao || null, b.data_emissao_nf || null, b.vencimento_boletos || null,
-      b.contato || null, b.email || null, b.obs || null
+      b.contato || null, b.email || null, b.obs || null,
+      b.tipo || 'Nova Venda'
     );
     const vcId = result.lastInsertRowid;
 
@@ -5394,7 +5494,7 @@ app.post('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vended
             periodo, vendedor_nome, whatsapp_status, status, obs, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, 'nao_configurado', 'ativa', ?, COALESCE(?, datetime('now')))
         `).run(
-          'Nova Venda',
+          b.tipo || 'Nova Venda',
           b.cliente,
           b.cnpj || null,
           pontosNomes,
@@ -5429,7 +5529,7 @@ app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','ven
         status_contrato = ?, status_contrato_assinado = ?,
         status_conteudo = ?, status_checkin = ?,
         status_faturado = ?, status_excel_pastas = ?,
-        obs = ?, updated_at = datetime('now')
+        obs = ?, tipo = ?, updated_at = datetime('now')
       WHERE id = ?
     `).run(
       String(b.vendedor_nome || ''),
@@ -5441,7 +5541,7 @@ app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','ven
       b.status_contrato ? 1 : 0, b.status_contrato_assinado ? 1 : 0,
       b.status_conteudo ? 1 : 0, b.status_checkin ? 1 : 0,
       b.status_faturado ? 1 : 0, b.status_excel_pastas ? 1 : 0,
-      b.obs || null, id
+      b.obs || null, b.tipo || 'Nova Venda', id
     );
 
     // Reverse-sync: update linked vendas record if exists
@@ -5453,11 +5553,12 @@ app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','ven
           : '[]';
         db.prepare(`
           UPDATE vendas SET
-            razao_social = ?, cnpj = ?, pontos_nomes = ?,
+            tipo = ?, razao_social = ?, cnpj = ?, pontos_nomes = ?,
             valor_mensal = ?, vendedor_nome = ?, email = ?, obs = ?,
             updated_at = datetime('now')
           WHERE id = ?
         `).run(
+          b.tipo || 'Nova Venda',
           b.cliente || '', b.cnpj || null, pontosNomes,
           b.valor_mensal || null, String(b.vendedor_nome || ''),
           b.email || null, b.obs || null, vc.venda_id
@@ -5519,7 +5620,16 @@ app.patch('/api/gestao/vendas/:id/status', requireRoles(['admin','gerente_comerc
 
 app.delete('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial']), (req, res) => {
   try {
-    db.prepare('DELETE FROM vendas_comercial WHERE id = ?').run(Number(req.params.id));
+    const vcId = Number(req.params.id);
+    // Check if this vendas_comercial record is linked to a vendas record
+    const vc = db.prepare('SELECT venda_id FROM vendas_comercial WHERE id = ?').get(vcId);
+    db.prepare('DELETE FROM vendas_comercial WHERE id = ?').run(vcId);
+    // Cascade: also delete the linked vendas record + dependencies
+    if (vc && vc.venda_id) {
+      db.prepare('DELETE FROM venda_etapas WHERE venda_id = ?').run(vc.venda_id);
+      db.prepare('DELETE FROM whatsapp_send_log WHERE venda_id = ?').run(vc.venda_id);
+      db.prepare('DELETE FROM vendas WHERE id = ?').run(vc.venda_id);
+    }
     res.json({ ok: true });
   } catch (err) {
     internalError(res, err);
@@ -5599,7 +5709,7 @@ app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vend
     // Metas por vendedor/mês
     const metas = db.prepare('SELECT * FROM metas_vendedor WHERE ano = ? ORDER BY vendedor_nome, mes').all(ano);
 
-    // Vendas realizadas agregadas por vendedor/mês
+    // Vendas realizadas agregadas por vendedor/mês (excluindo Permuta das metas)
     const vendas = db.prepare(`
       SELECT vendedor_nome, mes,
              COUNT(*) as qtde_vendas,
@@ -5607,8 +5717,22 @@ app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vend
              COALESCE(SUM(total_contrato), 0) as total_contrato
       FROM vendas_comercial
       WHERE ano = ?
+        AND LOWER(COALESCE(tipo, 'nova venda')) != 'permuta'
       GROUP BY vendedor_nome, mes
       ORDER BY vendedor_nome, mes
+    `).all(ano);
+
+    // Permutas agregadas por mês (separado das metas)
+    const permutas = db.prepare(`
+      SELECT mes,
+             COUNT(*) as qtde_vendas,
+             COALESCE(SUM(valor_mensal), 0) as total_mensal,
+             COALESCE(SUM(total_contrato), 0) as total_contrato
+      FROM vendas_comercial
+      WHERE ano = ?
+        AND LOWER(COALESCE(tipo, 'nova venda')) = 'permuta'
+      GROUP BY mes
+      ORDER BY mes
     `).all(ano);
 
     // Renovações agregadas por mês
@@ -5625,7 +5749,7 @@ app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vend
     `).all(ano);
 
     const vendedoresAtivos = getVendedoresAtivos();
-    res.json({ ano, metas, vendas, renovacoes, vendedores: vendedoresAtivos, mesesLabel: MESES_LABEL });
+    res.json({ ano, metas, vendas, renovacoes, permutas, vendedores: vendedoresAtivos, mesesLabel: MESES_LABEL });
   } catch (err) {
     internalError(res, err);
   }

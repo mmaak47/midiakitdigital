@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Save, Loader2, ChevronDown, ChevronUp, X,
   CheckSquare, Square, FileText, Target, Repeat, Eye, EyeOff, MapPin,
-  Users, Pencil, Send, CheckCircle2, Package, Palette, Radio, CircleDot
+  Users, Pencil, Send, CheckCircle2, Package, Palette, Radio, CircleDot, ArrowLeftRight
 } from 'lucide-react';
 import {
   fetchGestaoVendas, createGestaoVenda, updateGestaoVenda,
@@ -74,6 +74,7 @@ const pctBg = (pct) => {
 };
 
 const emptyVenda = {
+  tipo: 'Nova Venda',
   data_venda: '', cliente: '', cnpj: '', pontos_contratados: '',
   valor_mensal: '', total_contrato: '', qtde_parcelas: 1,
   previsao_veiculacao: '', data_emissao_nf: '', vencimento_boletos: '',
@@ -239,11 +240,24 @@ export default function GestaoUnificada({ isDark, ano }) {
     recorrencia: Number(metasRecorr?.[GLOBAL_KEY]?.[mes] || 0),
   }), [metas, metasRecorr, mes]);
 
-  // Totals for selected month
+  // Totals for selected month (excluding Permuta from goals)
   const monthTotals = useMemo(() => {
     let mensal = 0, contrato = 0;
-    vendas.forEach(v => { mensal += Number(v.valor_mensal || 0); contrato += Number(v.total_contrato || 0); });
+    vendas.forEach(v => {
+      if (String(v.tipo || '').toLowerCase() === 'permuta') return;
+      mensal += Number(v.valor_mensal || 0); contrato += Number(v.total_contrato || 0);
+    });
     return { mensal, contrato };
+  }, [vendas]);
+
+  // Separate Permuta totals
+  const permutaTotals = useMemo(() => {
+    let mensal = 0, contrato = 0, count = 0;
+    vendas.forEach(v => {
+      if (String(v.tipo || '').toLowerCase() !== 'permuta') return;
+      mensal += Number(v.valor_mensal || 0); contrato += Number(v.total_contrato || 0); count++;
+    });
+    return { mensal, contrato, count };
   }, [vendas]);
 
   const pctP = globalMeta.parcela > 0 ? Math.round((monthTotals.mensal / globalMeta.parcela) * 100) : 0;
@@ -296,6 +310,7 @@ export default function GestaoUnificada({ isDark, ano }) {
       return num.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     };
     setFormData({
+      tipo: v.tipo || 'Nova Venda',
       data_venda: v.data_venda || '', cliente: v.cliente || '', cnpj: v.cnpj || '',
       pontos_contratados: v.pontos_contratados || '', valor_mensal: fmtVal(v.valor_mensal),
       total_contrato: fmtVal(v.total_contrato), qtde_parcelas: v.qtde_parcelas || 1,
@@ -434,6 +449,27 @@ export default function GestaoUnificada({ isDark, ano }) {
         />
       </div>
 
+      {/* Permuta card */}
+      {permutaTotals.count > 0 && (
+        <div className={`rounded-2xl border-l-4 border-teal-400 ${cardBg} border ${isDark ? 'border-white/10' : 'border-neutral-200'} p-5 flex items-center gap-4`}>
+          <div className="p-2.5 rounded-xl bg-teal-500/10">
+            <ArrowLeftRight size={24} className="text-teal-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className={`text-sm font-bold ${text}`}>Permutas do mês</p>
+            <p className={`text-xs ${textMuted}`}>{permutaTotals.count} permuta(s) — Não contabilizadas na meta</p>
+          </div>
+          <div className="text-right">
+            <p className={`text-xs ${textMuted}`}>Valor Mensal</p>
+            <p className="font-bold text-teal-500 text-lg">{fmtCurrency(permutaTotals.mensal)}</p>
+          </div>
+          <div className="text-right">
+            <p className={`text-xs ${textMuted}`}>Total Contratos</p>
+            <p className="font-bold text-teal-500 text-lg">{fmtCurrency(permutaTotals.contrato)}</p>
+          </div>
+        </div>
+      )}
+
       {/* ─── LOADING ─── */}
       {loading && (
         <div className="flex items-center gap-3 py-12 justify-center">
@@ -453,8 +489,9 @@ export default function GestaoUnificada({ isDark, ano }) {
 
           {vendedorUsernames.map(vendedor => {
             const items = vendasByVendedor[vendedor] || [];
-            const totalMensal = items.reduce((s, v) => s + Number(v.valor_mensal || 0), 0);
-            const totalContrato = items.reduce((s, v) => s + Number(v.total_contrato || 0), 0);
+            const nonPermutaItems = items.filter(v => String(v.tipo || '').toLowerCase() !== 'permuta');
+            const totalMensal = nonPermutaItems.reduce((s, v) => s + Number(v.valor_mensal || 0), 0);
+            const totalContrato = nonPermutaItems.reduce((s, v) => s + Number(v.total_contrato || 0), 0);
             const isExpanded = expandedVendedor === vendedor;
             const displayName = vendedorDisplayName[vendedor] || vendedor;
             const vendedorData = vendedores.find(v => v.username === vendedor);
@@ -530,7 +567,19 @@ export default function GestaoUnificada({ isDark, ano }) {
                               <div className="p-4">
                                 <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
                                   <div className="flex-1 min-w-0">
-                                    <p className={`font-bold text-base ${text} truncate`}>{v.cliente}</p>
+                                    <p className={`font-bold text-base ${text} truncate`}>
+                                      {v.cliente}
+                                      {v.tipo === 'Permuta' && (
+                                        <span className="ml-2 inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-500/15 text-teal-500 border border-teal-500/30">
+                                          <ArrowLeftRight size={10} /> Permuta
+                                        </span>
+                                      )}
+                                      {v.tipo === 'Renovação' && (
+                                        <span className="ml-2 inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                                          Renovação
+                                        </span>
+                                      )}
+                                    </p>
                                   </div>
                                   <div className={`flex flex-wrap items-start justify-end gap-4 rounded-xl px-3 py-2 border ${isDark ? 'bg-black/25 border-white/10' : 'bg-brand-orange/5 border-brand-orange/20'}`}>
                                     <div>
@@ -704,6 +753,25 @@ function VendaForm({
       <div className="flex items-center justify-between">
         <h4 className="font-bold text-lg inline-flex items-center gap-2">{editingId ? <Pencil size={16} /> : <Plus size={16} />} {editingId ? 'Editar Venda' : 'Nova Venda'}</h4>
         <button onClick={onCancel}><X size={18} className={textMuted} /></button>
+      </div>
+
+      {/* Tipo selector */}
+      <div>
+        <label className={`block text-xs font-semibold mb-1 ${textMuted}`}>Tipo</label>
+        <div className="flex gap-2">
+          {['Nova Venda', 'Renovação', 'Permuta'].map(t => (
+            <button key={t} type="button"
+              onClick={() => setFormData(prev => ({ ...prev, tipo: t }))}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                formData.tipo === t
+                  ? (t === 'Permuta'
+                      ? 'bg-teal-600 text-white shadow-md'
+                      : 'bg-brand-orange text-white shadow-md')
+                  : (isDark ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')
+              }`}
+            >{t}</button>
+          ))}
+        </div>
       </div>
 
       {/* Pontos multiselect */}

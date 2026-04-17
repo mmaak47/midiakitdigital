@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
   Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings,
-  Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap, ClipboardList, Activity, Newspaper,
+  Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap, ClipboardList, Activity,
   LogOut, Camera, Info, Send
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
@@ -79,20 +79,16 @@ const ADMIN_TAB_GROUPS = [
     { key: 'gestao_comercial', label: 'Gestão Comercial',   icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'], href: '/comercial/gestao' },
     { key: 'leads',            label: 'Leads',              icon: UserPlus,      roles: ['admin', 'gerente_comercial'] },
     { key: 'propostas',        label: 'Propostas',          icon: FileText,      roles: ['admin', 'gerente_comercial'] },
-    { key: 'auditoria_loop',   label: 'Auditoria de Loop',  icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'] },
+    { key: 'auditoria_loop',   label: 'Auditoria de Loop',  icon: RefreshCcw,    roles: ['admin', 'gerente_comercial', 'vendedor'] },
   ]},
   { key: 'pontos_midia', label: 'Pontos & Mídia', tabs: [
     { key: 'pontos',   label: 'Pontos',             icon: PanelsTopLeft, roles: ['admin', 'gerente_comercial'] },
     { key: 'entorno',  label: 'Análise de Entorno', icon: MapPinned,     roles: ['admin', 'gerente_comercial'] },
-    { key: 'arte_ia',  label: 'Arte IA',            icon: Zap,           roles: ['admin', 'gerente_comercial'] },
-  ]},
-  { key: 'monitoramento', label: 'Monitoramento', tabs: [
-    { key: 'whatsapp_logs', label: 'Envios WhatsApp', icon: Send,      roles: ['admin', 'gerente_comercial'] },
-    { key: 'painel_tv',     label: 'Painel TV',       icon: Newspaper, roles: ['admin', 'gerente_comercial'] },
   ]},
   { key: 'sistema', label: 'Sistema', tabs: [
-    { key: 'usuarios',      label: 'Usuários',      icon: Users,    roles: ['admin'] },
-    { key: 'configuracoes', label: 'Configurações', icon: Settings, roles: ['admin', 'gerente_comercial'] },
+    { key: 'usuarios',      label: 'Usuários',         icon: Users,    roles: ['admin'] },
+    { key: 'whatsapp_logs', label: 'Envios WhatsApp', icon: Send,     roles: ['admin', 'gerente_comercial'] },
+    { key: 'configuracoes', label: 'Configurações',    icon: Settings, roles: ['admin', 'gerente_comercial'] },
   ]},
 ];
 
@@ -1513,7 +1509,7 @@ export default function Admin() {
         ) : null}
 
         {activeTab === 'historico_vendas' ? (
-          <VendasListTab isDark={isDark} pontos={pontos.filter(p => Number(p.ativo) === 1)} />
+          <VendasListTab isDark={isDark} pontos={pontos.filter(p => Number(p.ativo) === 1)} currentUser={currentUser} />
         ) : null}
 
         {activeTab === 'auditoria_loop' ? (
@@ -2175,6 +2171,7 @@ export default function Admin() {
         }}
         onSave={handleSaveUser}
         initialData={userModalInitialData}
+        isDark={isDark}
       />
 
       {/* Edit / Create Modal */}

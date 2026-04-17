@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
+  ArrowLeftRight,
   CalendarClock,
   Clock3,
   FileWarning,
@@ -160,6 +161,7 @@ export default function TvWall() {
   const contracts = data?.contracts || { items: [] };
   const ranking = data?.ranking || [];
   const goals = data?.goals || {};
+  const permuta = data?.permuta || { total: 0, total_contratos: 0, vendas: 0 };
   const postits = data?.postits || [];
 
   // Detect new sales and show popup
@@ -907,26 +909,6 @@ export default function TvWall() {
         .tv-ranking-val.parcela { color: var(--ok); }
         .tv-ranking-val.contratos { color: #a855f7; }
 
-        .tv-ranking-bar-wrap {
-          margin-top: 8px;
-          width: 100%;
-          height: 7px;
-          border-radius: 999px;
-          background: #f1f0ee;
-          overflow: hidden;
-        }
-
-        .tv-ranking-bar {
-          height: 100%;
-          border-radius: 999px;
-          transition: width 800ms cubic-bezier(0.4, 0, 0.2, 1);
-          background: linear-gradient(90deg, #fe5c2b, #ff9066);
-        }
-
-        .tv-ranking-bar.leader {
-          background: linear-gradient(90deg, #f59e0b, #facc15, #fde047);
-        }
-
         .tv-ranking-val-label {
           font-size: 9px;
           text-transform: uppercase;
@@ -1070,6 +1052,42 @@ export default function TvWall() {
 
         .tv-goal-diff-value.is-ok { color: #22c55e; }
         .tv-goal-diff-value.is-miss { color: #ef4444; }
+
+        .tv-permuta-card {
+          margin-top: 12px;
+          background: linear-gradient(135deg, rgba(20, 184, 166, 0.08), rgba(20, 184, 166, 0.03));
+          border: 1px solid rgba(20, 184, 166, 0.25);
+          border-left: 3px solid #14b8a6;
+          border-radius: 12px;
+          padding: 14px 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .tv-permuta-head {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .tv-permuta-title {
+          font-weight: 700;
+          font-size: 0.95rem;
+          color: #14b8a6;
+        }
+        .tv-permuta-subtitle {
+          font-size: 0.72rem;
+          color: rgba(255,255,255,0.45);
+        }
+        .tv-permuta-values {
+          display: flex;
+          gap: 24px;
+        }
+        .tv-permuta-val {
+          font-weight: 800;
+          font-size: 1.15rem;
+          color: #14b8a6;
+          letter-spacing: -0.02em;
+        }
 
         .tv-postit-grid {
           display: grid;
@@ -1532,9 +1550,7 @@ export default function TvWall() {
             <div className="tv-scroll">
               <div className="tv-list">
                 {(() => {
-                  const maxTotal = ranking.reduce((m, s) => Math.max(m, Number(s.total || 0)), 0) || 1;
                   return ranking.map((seller, index) => {
-                    const barPct = Math.min(100, (Number(seller.total || 0) / maxTotal) * 100);
                     const isLeader = index === 0;
                     return (
                       <div key={`${seller.vendedor}-${seller.posicao}`} className={`tv-ranking-item ${isLeader ? 'leader' : ''}`}>
@@ -1576,9 +1592,6 @@ export default function TvWall() {
                                 <div className="tv-ranking-val contratos">{fmtMoney(seller.total_contratos)}</div>
                               </div>
                             </div>
-                          </div>
-                          <div className="tv-ranking-bar-wrap">
-                            <div className={`tv-ranking-bar${isLeader ? ' leader' : ''}`} style={{ width: `${barPct}%` }} />
                           </div>
                         </div>
                       </div>
@@ -1674,6 +1687,30 @@ export default function TvWall() {
                 });
               })()}
             </div>
+
+            {/* Permuta card */}
+            {permuta.vendas > 0 && (
+              <div className="tv-permuta-card">
+                <div className="tv-permuta-head">
+                  <ArrowLeftRight size={20} color="#14b8a6" />
+                  <div>
+                    <div className="tv-permuta-title">Permutas</div>
+                    <div className="tv-permuta-subtitle">{permuta.vendas} permuta(s) no mês — fora da meta</div>
+                  </div>
+                </div>
+                <div className="tv-permuta-values">
+                  <div>
+                    <div className="tv-goal-label">Valor Mensal</div>
+                    <div className="tv-permuta-val">{fmtMoney(permuta.total)}</div>
+                  </div>
+                  <div>
+                    <div className="tv-goal-label">Contratos</div>
+                    <div className="tv-permuta-val">{fmtMoney(permuta.total_contratos)}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             </div>
           </article>
 

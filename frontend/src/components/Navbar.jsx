@@ -18,7 +18,7 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
 
   const links = commercial
     ? [
-        { to: '/comercial/explorar', label: 'Explorar Pontos', icon: 'ri-map-pin-line' },
+        { to: '/comercial/explorar', label: 'Proposta Comercial', icon: 'ri-file-text-line', cta: true },
         { to: '/comercial/admin', label: 'Admin', icon: 'ri-settings-3-line' }
       ]
     : plannerMode
@@ -56,9 +56,20 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
         {/* Desktop Nav */}
         {showNav && !plannerMode ? (
           <div className="hidden md:flex items-center gap-5">
-            {links.map((link) => (
-              <NavLink key={link.to} to={link.to} label={link.label} current={location.pathname} commercial={commercial} isDark={isDark} />
-            ))}
+            {links.map((link) =>
+              link.cta ? (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  className="inline-flex items-center gap-2 px-4 h-9 bg-brand-orange text-white text-sm font-semibold rounded-lg hover:bg-brand-orange-hover hover:shadow-lg hover:shadow-brand-orange/40 transition-all duration-200"
+                >
+                  <i className="ri-add-line" style={{ fontSize: 15 }} />
+                  {link.label}
+                </Link>
+              ) : (
+                <NavLink key={link.to} to={link.to} label={link.label} current={location.pathname} commercial={commercial} isDark={isDark} />
+              )
+            )}
             {commercial && onToggleTheme ? (
               <button
                 type="button"
@@ -141,9 +152,21 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
           animate={{ opacity: 1, y: 0 }}
           className={`md:hidden backdrop-blur-xl border-t px-6 py-4 space-y-3 ${commercial && !isDark ? 'bg-[#f1f2f4]/98 border-neutral-300' : 'bg-brand-gray-900/95 border-white/10'}`}
         >
-          {showNav && !plannerMode && links.map((link) => (
-            <MobileNavLink key={link.to} to={link.to} label={link.label} icon={link.icon} onClick={() => setOpen(false)} commercial={commercial} isDark={isDark} />
-          ))}
+          {showNav && !plannerMode && links.map((link) =>
+            link.cta ? (
+              <Link
+                key={link.to}
+                to={link.to}
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-brand-orange text-white text-sm font-semibold rounded-lg hover:bg-brand-orange-hover transition-all duration-200"
+              >
+                <i className="ri-add-line" style={{ fontSize: 15 }} />
+                {link.label}
+              </Link>
+            ) : (
+              <MobileNavLink key={link.to} to={link.to} label={link.label} icon={link.icon} onClick={() => setOpen(false)} commercial={commercial} isDark={isDark} />
+            )
+          )}
           {showNav && plannerMode && (
             <a
               href={WA_HREF}

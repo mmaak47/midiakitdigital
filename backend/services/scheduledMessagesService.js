@@ -131,7 +131,7 @@ async function tick() {
 
     await _sendTextFn({
       apiUrl: settings.evolution_api_url,
-      instance: settings.evolution_instance,
+      instance: String(settings.evolution_pdf_instance || settings.evolution_instance || 'aux adm').trim(),
       apiKey: settings.evolution_api_key,
       number: financeiroNumber,
       text: message,
