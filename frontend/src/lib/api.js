@@ -681,6 +681,40 @@ export async function submitNovaVenda(formData) {
   return res.json();
 }
 
+// Rascunho da Nova Venda (persistido por vendedor no backend)
+export async function fetchNovaVendaDraft() {
+  const res = await apiRequest('/vendas/rascunho');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao carregar rascunho da venda');
+  }
+  return res.json();
+}
+
+export async function saveNovaVendaDraft(payload) {
+  const res = await apiRequest('/vendas/rascunho', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ payload }),
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao salvar rascunho da venda');
+  }
+  return res.json();
+}
+
+export async function clearNovaVendaDraft() {
+  const res = await apiRequest('/vendas/rascunho', {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao remover rascunho da venda');
+  }
+  return res.json();
+}
+
 export async function fetchCidadeFotos() {
   const res = await apiRequest('/cidade-fotos');
   if (!res.ok) throw new Error('Erro ao carregar fotos das cidades');

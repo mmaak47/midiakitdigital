@@ -1315,7 +1315,7 @@ $$
 - Formato custom: `{base64url_payload}.{hmac_sha256_signature}`
 - Payload: `{ sub: userId, username, role, iat, exp }`
 - Segredo: `AUTH_SECRET` (env) ou efêmero se não configurado
-- TTL: 12 horas (configurável via `AUTH_TOKEN_TTL_SECONDS`)
+- TTL: 12 horas (configurável via `AUTH_TOKEN_TTL_SECONDS`, com mínimo de 3600s / 1 hora)
 - Verificação com `crypto.timingSafeEqual` contra timing attacks
 
 **Middleware de rotas:**
@@ -1339,7 +1339,7 @@ $$
 | `DB_ENGINE` | sqlite | Engine do DB (sqlite ou postgres) |
 | `DATABASE_URL` | — | String de conexão PostgreSQL |
 | `AUTH_SECRET` | (efêmero) | Segredo para assinatura de tokens |
-| `AUTH_TOKEN_TTL_SECONDS` | 43200 (12h) | Duração dos tokens |
+| `AUTH_TOKEN_TTL_SECONDS` | 43200 (12h) | Duração dos tokens (mínimo efetivo: 3600s) |
 | `FRONTEND_ORIGINS` | localhost + prod | Origens CORS permitidas |
 | `OVERPASS_API_URL` | overpass-api.de | URL do Overpass |
 | `GOOGLE_PLACES_API_KEY` | — | Chave Google Places (opcional) |

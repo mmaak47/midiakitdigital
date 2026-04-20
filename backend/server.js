@@ -26,6 +26,7 @@ const arteRouter          = require('./routes/arte');
 const comercialChatRouter = require('./routes/comercialChat');
 const geoRouter           = require('./routes/geo');
 const aiRouter            = require('./routes/ai');
+const aiService           = require('./services/aiService');
 const {
   TOKEN_TTL_SECONDS,
   createAuthToken,
@@ -724,6 +725,423 @@ app.use('/api/ai', aiRouter);
 
 // ── Inventory chatbot (inline, same pattern as other /api routes) ──
 const { processInventoryChat } = require('./services/inventoryChatService');
+
+const CHATBOT_PROPOSAL_TTL_DAYS = 7;
+
+function normalizeChatbotText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function shouldGenerateProposalFromChat(message) {
+  const normalized = normalizeChatbotText(message);
+  const directRequest = /\b(quero\s+proposta|gerar\s+proposta|montar\s+proposta|proposta\s+comercial|pdf\s+da\s+proposta)\b/.test(normalized);
+  const hasProposalWord = /\b(proposta|orcamento|planejamento|plano|pdf)\b/.test(normalized);
+  const hasActionWord = /\b(gerar|gera|montar|monte|criar|crie|fazer|faca|quero|preciso|enviar|envia)\b/.test(normalized);
+  return directRequest || (hasProposalWord && hasActionWord);
+}
+
+function parseBudgetValue(rawValue, { requireBudgetKeyword = false } = {}) {
+  const source = String(rawValue || '').trim();
+  if (!source) return null;
+
+  const normalized = normalizeChatbotText(source);
+  if (requireBudgetKeyword && !/\b(orcamento|budget|verba|invest|gastar|mensal|maximo|limite)\b/.test(normalized)) {
+    return null;
+  }
+
+  const numberMatch = normalized.match(/(\d{1,3}(?:[.\s]\d{3})+|\d+[.,]?\d*)/);
+  if (!numberMatch) return null;
+
+  let valueText = numberMatch[1].replace(/\s/g, '');
+  if (valueText.includes('.') && valueText.includes(',')) {
+    valueText = valueText.replace(/\./g, '').replace(',', '.');
+  } else if (valueText.includes(',')) {
+    valueText = valueText.replace(/\./g, '').replace(',', '.');
+  } else {
+    const thousandsPattern = /^\d{1,3}(?:\.\d{3})+$/;
+    if (thousandsPattern.test(valueText)) {
+      valueText = valueText.replace(/\./g, '');
+    }
+  }
+
+  let value = Number(valueText);
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  if (/\b(k|mil)\b/.test(normalized) && value < 1000) {
+    value *= 1000;
+  }
+
+  if (value > 2_000_000) return null;
+  return Math.round(value);
+}
+
+function inferCityFromMessage(message) {
+  const normalized = normalizeChatbotText(message);
+  try {
+    const points = aiService.getEnrichedPoints();
+    const knownCities = [...new Set(points.map((p) => String(p.cidade || '').trim()).filter(Boolean))];
+    for (const city of knownCities) {
+      if (normalized.includes(normalizeChatbotText(city))) {
+        return city;
+      }
+    }
+  } catch {
+    return '';
+  }
+  return '';
+}
+
+const CHATBOT_SEGMENT_HINTS = [
+  { key: 'clinica', regex: /\b(clinica|clinicas|odont|medic|saude)\b/ },
+  { key: 'hospital', regex: /\b(hospital|hospitais)\b/ },
+  { key: 'escola', regex: /\b(escola|colegio|colegios)\b/ },
+  { key: 'faculdade', regex: /\b(faculdade|universidade|ensino\s+superior)\b/ },
+  { key: 'construtora', regex: /\b(construtora|obra|obras|engenharia)\b/ },
+  { key: 'imobiliaria', regex: /\b(imobiliaria|imovel|imoveis|corretor)\b/ },
+  { key: 'varejo', regex: /\b(varejo|loja|lojas|comercio)\b/ },
+  { key: 'restaurante', regex: /\b(restaurante|alimentacao|comida|bar|lanchonete)\b/ },
+  { key: 'advocacia', regex: /\b(advocacia|advogado|juridico)\b/ },
+  { key: 'contabilidade', regex: /\b(contabilidade|contador|fiscal)\b/ },
+  { key: 'industria', regex: /\b(industria|industrial|fabrica)\b/ },
+  { key: 'automotivo', regex: /\b(automotivo|concessionaria|mecanica|carro)\b/ },
+  { key: 'fitness', regex: /\b(fitness|academia|treino)\b/ },
+  { key: 'beleza', regex: /\b(beleza|estetica|salao|cosmetico)\b/ },
+  { key: 'pet', regex: /\b(pet|veterinaria|veterinario)\b/ },
+  { key: 'farmacia', regex: /\b(farmacia|drogaria)\b/ },
+  { key: 'supermercado', regex: /\b(supermercado|mercado|atacarejo)\b/ },
+  { key: 'financeiro', regex: /\b(financeiro|banco|credito|fintech)\b/ },
+  { key: 'turismo', regex: /\b(turismo|hotel|hospedagem|viagem)\b/ },
+  { key: 'coworking', regex: /\b(coworking|escritorio\s+compartilhado)\b/ },
+  { key: 'tecnologia', regex: /\b(tecnologia|software|ti|startup)\b/ },
+];
+
+function inferSegmentFromMessage(message) {
+  const normalized = normalizeChatbotText(message);
+  for (const hint of CHATBOT_SEGMENT_HINTS) {
+    if (hint.regex.test(normalized)) return hint.key;
+  }
+  return 'outro';
+}
+
+function inferObjectiveFromMessage(message) {
+  const normalized = normalizeChatbotText(message);
+  if (/\b(venda|conversao|lead|captacao|performance|resultado)\b/.test(normalized)) {
+    return 'proximidade da decisao de compra';
+  }
+  if (/\b(premium|alto\s*padrao|luxo|sofisticado)\b/.test(normalized)) {
+    return 'presenca premium';
+  }
+  if (/\b(cobertura|regional|abrangencia|cidade\s*toda)\b/.test(normalized)) {
+    return 'cobertura regional';
+  }
+  if (/\b(lembranca|frequencia|recorrencia|constante)\b/.test(normalized)) {
+    return 'lembranca continua';
+  }
+  return 'reconhecimento de marca';
+}
+
+function formatMoneyBR(value) {
+  return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatIntBR(value) {
+  return Number(value || 0).toLocaleString('pt-BR');
+}
+
+function fetchPointsByIds(ids) {
+  if (!ids.length) return new Map();
+  try {
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = db.prepare(`
+      SELECT id, nome, cidade, tipo, endereco, fluxo, preco, telas, insercoes,
+             lat, lng, publico, tempo, loop, veiculacao, imagem, imagem2,
+             simulacao_preview, foto_focal_point, disponibilidade
+      FROM pontos
+      WHERE ativo = 1 AND id IN (${placeholders})
+    `).all(...ids);
+    return new Map(rows.map((row) => [Number(row.id), row]));
+  } catch {
+    return new Map();
+  }
+}
+
+function selectFallbackProposalPoints(cidade, budget) {
+  const maxBudget = Math.max(Number(budget) || 10000, 3000);
+  let candidates = [];
+  try {
+    candidates = aiService.getEnrichedPoints(cidade)
+      .filter((p) => Number(p.preco) > 0 && Number(p.fluxo) > 0)
+      .sort((a, b) => {
+        const scoreA = Number(a.fluxo || 0) / Math.max(Number(a.preco || 0), 1);
+        const scoreB = Number(b.fluxo || 0) / Math.max(Number(b.preco || 0), 1);
+        return scoreB - scoreA;
+      });
+  } catch {
+    return [];
+  }
+
+  const picked = [];
+  let spend = 0;
+  for (const point of candidates) {
+    const price = Number(point.preco) || 0;
+    if (!price) continue;
+
+    // Always keep a minimum mix, then respect the envelope.
+    if (picked.length < 3 || spend + price <= maxBudget * 1.2) {
+      picked.push(point);
+      spend += price;
+    }
+    if (picked.length >= 10) break;
+  }
+  return picked;
+}
+
+function normalizeProposalPoint(point, role, reason) {
+  const preco = Number(point.precoFinal || point.preco || 0);
+  const precoOriginal = Number(point.precoOriginal || point.preco || preco || 0);
+  return {
+    id: Number(point.id),
+    nome: point.nome || `Ponto ${point.id}`,
+    cidade: point.cidade || '',
+    tipo: point.tipo || '',
+    endereco: point.endereco || '',
+    fluxo: Number(point.fluxo || 0),
+    preco,
+    precoOriginal,
+    precoFinal: preco,
+    telas: Number(point.telas || 0),
+    insercoes: Number(point.insercoes || 0),
+    lat: point.lat !== null && point.lat !== undefined ? Number(point.lat) : null,
+    lng: point.lng !== null && point.lng !== undefined ? Number(point.lng) : null,
+    publico: point.publico || '',
+    tempo: point.tempo || '',
+    loop: point.loop || '',
+    veiculacao: point.veiculacao || '',
+    imagem: point.imagem || '',
+    imagem2: point.imagem2 || '',
+    simulacao_preview: point.simulacao_preview || '',
+    foto_focal_point: point.foto_focal_point || '',
+    disponibilidade: point.disponibilidade || '',
+    proposal_role: role || 'support',
+    proposal_reason: reason || '',
+  };
+}
+
+function buildPricingSummary(points) {
+  const originalTotal = points.reduce((sum, p) => sum + (Number(p.precoOriginal || p.preco || 0)), 0);
+  const finalTotal = points.reduce((sum, p) => sum + (Number(p.precoFinal || p.preco || 0)), 0);
+  const discountTotal = Math.max(0, originalTotal - finalTotal);
+  const discountPercent = originalTotal > 0 ? (discountTotal / originalTotal) * 100 : 0;
+  return {
+    hasDiscount: discountTotal > 0,
+    originalTotal,
+    discountTotal,
+    finalTotal,
+    discountPercent,
+  };
+}
+
+async function maybeAttachChatbotProposal(req, originalMessage, chatResult) {
+  if (!shouldGenerateProposalFromChat(originalMessage)) {
+    return chatResult;
+  }
+
+  try {
+    const sessionId = chatResult?.sessionId || null;
+    if (!sessionId) {
+      return {
+        ...chatResult,
+        response: `${chatResult.response}\n\nPosso gerar uma proposta comercial automatica para voce. Primeiro preciso do cadastro no chat (empresa e telefone) e da cidade alvo da campanha.`,
+      };
+    }
+
+    let sessionState = {};
+    try {
+      const sessionRow = db.prepare('SELECT conversation_state FROM chat_sessions WHERE id = ?').get(sessionId);
+      sessionState = JSON.parse(sessionRow?.conversation_state || '{}');
+    } catch {
+      sessionState = {};
+    }
+
+    const lead = db.prepare('SELECT id, empresa, orcamento FROM leads WHERE session_id = ?').get(sessionId);
+    const cidade = chatResult?.entities?.cidades?.[0]
+      || sessionState?.cidades?.[0]
+      || inferCityFromMessage(originalMessage);
+
+    if (!cidade) {
+      return {
+        ...chatResult,
+        response: `${chatResult.response}\n\nPara gerar a proposta agora, me diga a cidade principal da campanha.`,
+      };
+    }
+
+    const budget =
+      parseBudgetValue(originalMessage, { requireBudgetKeyword: true })
+      || Number(sessionState?.budget_hint || 0)
+      || parseBudgetValue(lead?.orcamento || '')
+      || 10000;
+
+    const segmento = inferSegmentFromMessage(originalMessage);
+    const objetivo = inferObjectiveFromMessage(originalMessage);
+
+    let plan = null;
+    try {
+      plan = await aiService.aiPlanDecision({
+        cidade,
+        segmento,
+        objetivo,
+        budget,
+        duration: 4,
+        publico: 'A/B',
+        empresa: lead?.empresa || '',
+      });
+    } catch (err) {
+      console.warn('[inventory-chat] aiPlanDecision failed:', err.message);
+    }
+
+    const roleMap = plan?.point_roles || {};
+    const reasonMap = plan?.point_reasons || {};
+    let selectedPoints = Array.isArray(plan?.pontos) ? plan.pontos : [];
+    if (selectedPoints.length < 2) {
+      selectedPoints = selectFallbackProposalPoints(cidade, budget);
+    }
+
+    const orderedIds = [...new Set(
+      selectedPoints
+        .map((point) => Number(point.id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    )].slice(0, 12);
+
+    if (orderedIds.length < 2) {
+      return {
+        ...chatResult,
+        response: `${chatResult.response}\n\nAinda nao consegui montar uma proposta segura com os dados atuais. Me informe cidade, segmento e orcamento para eu gerar em seguida.`,
+      };
+    }
+
+    const detailedPointsById = fetchPointsByIds(orderedIds);
+    const selectedById = new Map(selectedPoints.map((point) => [Number(point.id), point]));
+
+    const proposalPoints = orderedIds
+      .map((id) => {
+        const merged = { ...(selectedById.get(id) || {}), ...(detailedPointsById.get(id) || {}) };
+        return normalizeProposalPoint(merged, roleMap[id], reasonMap[id]);
+      })
+      .filter((point) => Number.isFinite(point.id));
+
+    if (proposalPoints.length < 2) {
+      return {
+        ...chatResult,
+        response: `${chatResult.response}\n\nNao consegui finalizar a proposta agora. Tente novamente com a cidade e um orcamento estimado.`,
+      };
+    }
+
+    const totals = proposalPoints.reduce((acc, point) => {
+      acc.valorTotal += Number(point.precoFinal || point.preco || 0);
+      acc.fluxoTotal += Number(point.fluxo || 0);
+      acc.insercoesTotal += Number(point.insercoes || 0);
+      return acc;
+    }, { valorTotal: 0, fluxoTotal: 0, insercoesTotal: 0, cpmEstimado: 0 });
+    totals.cpmEstimado = totals.fluxoTotal > 0 ? totals.valorTotal / (totals.fluxoTotal / 1000) : 0;
+
+    const pricingSummary = buildPricingSummary(proposalPoints);
+    const reasonLines = proposalPoints
+      .filter((point) => point.proposal_reason)
+      .slice(0, 5)
+      .map((point) => `- ${point.nome}: ${point.proposal_reason}`);
+
+    const strategicTopics = [
+      `Objetivo central: ${objetivo}.`,
+      `Praca priorizada: ${cidade}.`,
+      `Mix sugerido: ${proposalPoints.length} pontos com equilibrio entre alcance e eficiencia de CPM.`,
+      ...reasonLines,
+    ].join('\n');
+
+    const strategicText = [
+      plan?.strategy_summary || '',
+      `A campanha foi estruturada para maximizar presenca em ${cidade} dentro do orcamento informado.`,
+      `Estimativa consolidada de ${formatIntBR(totals.fluxoTotal)} impactos por mes com CPM aproximado de ${formatMoneyBR(totals.cpmEstimado)}.`,
+    ].filter(Boolean);
+
+    const proposalData = {
+      clientName: lead?.empresa || 'Cliente Intermidia',
+      clientAddress: '',
+      segmento,
+      objetivo,
+      strategicTopics,
+      strategicText,
+      points: proposalPoints,
+      totals,
+      pricingSummary,
+    };
+
+    const token = randomUUID().replace(/-/g, '');
+    const expiresAt = new Date(Date.now() + CHATBOT_PROPOSAL_TTL_DAYS * 86400000).toISOString();
+
+    const insertToken = db.prepare(`
+      INSERT INTO proposta_tokens (token, proposta_data, expires_at, created_by)
+      VALUES (?, ?, ?, ?)
+    `).run(token, JSON.stringify(proposalData), expiresAt, req.authUser?.id || null);
+
+    if (lead?.id) {
+      db.prepare(`
+        INSERT INTO lead_proposta_links (lead_id, proposta_tipo, proposta_token_id, etapa, observacao, created_by)
+        VALUES (?, 'publica', ?, 'enviada', ?, ?)
+      `).run(
+        Number(lead.id),
+        Number(insertToken.lastInsertRowid),
+        'Proposta gerada automaticamente pelo chatbot de inventario.',
+        req.authUser?.id || null
+      );
+
+      db.prepare(`
+        UPDATE leads
+        SET status = CASE WHEN status = 'novo' THEN 'em_atendimento' ELSE status END,
+            updated_at = datetime('now')
+        WHERE id = ?
+      `).run(Number(lead.id));
+    }
+
+    const origin = String(process.env.FRONTEND_ORIGINS || '').split(',')[0].trim()
+      || `${req.protocol}://${req.get('host')}`;
+    const url = `${origin}/p/${token}`;
+
+    const proposalNotice = [
+      '✅ Proposta comercial preliminar gerada com sucesso.',
+      `Campanha sugerida para ${cidade} com ${proposalPoints.length} pontos.`,
+      `Investimento estimado: ${formatMoneyBR(totals.valorTotal)}/mes.`,
+      `Fluxo estimado: ${formatIntBR(totals.fluxoTotal)} impactos/mes.`,
+      `CPM estimado: ${formatMoneyBR(totals.cpmEstimado)}.`,
+      '',
+      'Acesse sua proposta:',
+      url,
+    ].join('\n');
+
+    return {
+      ...chatResult,
+      response: `${chatResult.response}\n\n${proposalNotice}`,
+      proposal: {
+        token,
+        url,
+        expires_at: expiresAt,
+        cidade,
+        budget,
+        points: proposalPoints.length,
+        totals,
+      },
+    };
+  } catch (err) {
+    console.error('[inventory-chat][proposal]', err.message);
+    return {
+      ...chatResult,
+      response: `${chatResult.response}\n\nTive uma falha ao montar a proposta automatica agora. Se quiser, tente novamente informando cidade e orcamento.`,
+    };
+  }
+}
+
 const _inventoryChatHandler = async (req, res) => {
   try {
     const { message, history, sessionId } = req.body || {};
@@ -735,7 +1153,8 @@ const _inventoryChatHandler = async (req, res) => {
       : [];
     const userId = req.authUser?.id || null;
     const safeSessionId = (typeof sessionId === 'string' && sessionId.length >= 10) ? sessionId : null;
-    const result = await processInventoryChat(message.trim(), safeHistory, userId, safeSessionId);
+    const baseResult = await processInventoryChat(message.trim(), safeHistory, userId, safeSessionId);
+    const result = await maybeAttachChatbotProposal(req, message.trim(), baseResult);
     res.json(result);
   } catch (err) {
     console.error('[inventory-chat]', err.message);
@@ -3956,6 +4375,22 @@ try {
 } catch (dbInitErr) {
   console.error('[vendas] falha ao criar tabela vendas:', dbInitErr.message);
 }
+
+// Rascunho de nova venda (1 rascunho por vendedor/usuário autenticado)
+try {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS vendas_rascunhos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vendedor_id INTEGER NOT NULL UNIQUE,
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `).run();
+} catch (dbInitErr) {
+  console.error('[vendas_rascunhos] falha ao criar tabela:', dbInitErr.message);
+}
+
 // Migração: adiciona colunas novas a tabelas existentes (idempotente)
 [
   'ALTER TABLE vendas ADD COLUMN whatsapp_message_id TEXT',
@@ -4440,6 +4875,84 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantas
   return lines.join('\n');
 }
 
+const VENDA_DRAFT_FORM_FIELDS = [
+  'tipo',
+  'razao_social',
+  'nome_fantasia',
+  'cnpj',
+  'valor_mensal',
+  'cota_contratada',
+  'plano_fidelidade',
+  'tipo_valor',
+  'via_agencia',
+  'agencia_nome',
+  'comissao_pct',
+  'troca_material',
+  'periodo_tipo',
+  'periodo_meses',
+  'periodo_inicio',
+  'periodo_fim',
+  'data_primeira_parcela',
+  'dia_pagamento_dia',
+  'responsavel_nome',
+  'responsavel_whatsapp',
+  'email',
+  'obs',
+];
+
+function normalizeVendaDraftPayload(payload) {
+  const safePayload = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
+  const rawForm = safePayload.form && typeof safePayload.form === 'object' && !Array.isArray(safePayload.form)
+    ? safePayload.form
+    : {};
+
+  const form = {};
+  for (const key of VENDA_DRAFT_FORM_FIELDS) {
+    const value = rawForm[key];
+    if (typeof value === 'boolean') {
+      form[key] = value;
+    } else if (value === null || value === undefined) {
+      form[key] = '';
+    } else {
+      form[key] = String(value).slice(0, 600);
+    }
+  }
+
+  const selectedPontos = Array.isArray(safePayload.selectedPontos)
+    ? safePayload.selectedPontos
+        .slice(0, 80)
+        .map((p) => {
+          const id = Number(p?.id);
+          if (!Number.isFinite(id) || id <= 0) return null;
+          return {
+            id,
+            nome: String(p?.nome || '').slice(0, 220),
+            cidade: String(p?.cidade || '').slice(0, 120),
+            tipo: String(p?.tipo || '').slice(0, 120),
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  const rawPrecos = safePayload.pontoPrecos && typeof safePayload.pontoPrecos === 'object' && !Array.isArray(safePayload.pontoPrecos)
+    ? safePayload.pontoPrecos
+    : {};
+  const pontoPrecos = {};
+  for (const [key, value] of Object.entries(rawPrecos)) {
+    const numericKey = String(Number(key));
+    if (!/^\d+$/.test(numericKey)) continue;
+    pontoPrecos[numericKey] = String(value ?? '').slice(0, 24);
+  }
+
+  return {
+    form,
+    selectedPontos,
+    pontoPrecos,
+    search: String(safePayload.search || '').slice(0, 160),
+    saved_at: new Date().toISOString(),
+  };
+}
+
 app.post(
   '/api/vendas',
   resolveAuthenticatedUser,
@@ -4671,6 +5184,15 @@ app.post(
         console.warn('[vendas] auto-sync vendas_comercial falhou:', syncErr.message);
       }
 
+      // Venda concluída: remove rascunho vinculado ao vendedor atual.
+      if (req.authUser?.id) {
+        try {
+          db.prepare('DELETE FROM vendas_rascunhos WHERE vendedor_id = ?').run(req.authUser.id);
+        } catch (draftClearErr) {
+          console.warn('[vendas] falha ao limpar rascunho após registro:', draftClearErr.message);
+        }
+      }
+
       res.json({
         success: true,
         id: vendaId,
@@ -4782,6 +5304,69 @@ app.post(
     }
   }
 );
+
+// ─── Rascunho de Nova Venda (por vendedor) ───────────────────────────────────
+app.get('/api/vendas/rascunho', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const userId = Number(req.authUser?.id || 0);
+    if (!userId) return res.status(401).json({ error: 'Usuário não autenticado.' });
+
+    const row = db.prepare('SELECT payload_json, created_at, updated_at FROM vendas_rascunhos WHERE vendedor_id = ?').get(userId);
+    if (!row) return res.json({ draft: null });
+
+    let draft = null;
+    try {
+      draft = JSON.parse(row.payload_json || '{}');
+    } catch {
+      draft = null;
+    }
+
+    res.json({
+      draft,
+      created_at: row.created_at || null,
+      updated_at: row.updated_at || null,
+    });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+app.put('/api/vendas/rascunho', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const userId = Number(req.authUser?.id || 0);
+    if (!userId) return res.status(401).json({ error: 'Usuário não autenticado.' });
+
+    const payload = normalizeVendaDraftPayload(req.body?.payload ?? req.body ?? {});
+    const payloadJson = JSON.stringify(payload);
+
+    if (payloadJson.length > 600000) {
+      return res.status(400).json({ error: 'Rascunho excede o tamanho máximo permitido.' });
+    }
+
+    db.prepare(`
+      INSERT INTO vendas_rascunhos (vendedor_id, payload_json, created_at, updated_at)
+      VALUES (?, ?, datetime('now'), datetime('now'))
+      ON CONFLICT(vendedor_id)
+      DO UPDATE SET payload_json = excluded.payload_json, updated_at = datetime('now')
+    `).run(userId, payloadJson);
+
+    const row = db.prepare('SELECT updated_at FROM vendas_rascunhos WHERE vendedor_id = ?').get(userId);
+    res.json({ ok: true, updated_at: row?.updated_at || null });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+app.delete('/api/vendas/rascunho', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const userId = Number(req.authUser?.id || 0);
+    if (!userId) return res.status(401).json({ error: 'Usuário não autenticado.' });
+    db.prepare('DELETE FROM vendas_rascunhos WHERE vendedor_id = ?').run(userId);
+    res.json({ ok: true });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
 
 // ─── Log de envios WhatsApp (monitoramento) ─────────────────────────────────
 app.get('/api/whatsapp-logs', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
@@ -5847,6 +6432,15 @@ app.get('/api/admin/propostas', requireRoles(['admin', 'gerente_comercial']), (r
     const propostas = rows.map(row => {
       let data = {};
       try { data = JSON.parse(row.proposta_data || '{}'); } catch { /* ignore */ }
+
+      const namedCreator = [row.first_name, row.last_name].filter(Boolean).join(' ') || row.creator_username || '';
+      const creatorType = namedCreator
+        ? 'vendedor'
+        : row.created_by
+          ? 'usuario'
+          : 'robo';
+      const creatorLabel = namedCreator || (creatorType === 'robo' ? 'Robô (Chatbot)' : `Usuário #${row.created_by}`);
+
       return {
         id: row.id,
         token: row.token,
@@ -5854,7 +6448,8 @@ app.get('/api/admin/propostas', requireRoles(['admin', 'gerente_comercial']), (r
         segmento: data.segmento || '',
         pointsCount: Array.isArray(data.points) ? data.points.length : 0,
         totalValue: data.pricingSummary?.totalComDesconto ?? data.totals?.valorTotal ?? 0,
-        created_by_name: [row.first_name, row.last_name].filter(Boolean).join(' ') || row.creator_username || '',
+        created_by_name: creatorLabel,
+        created_by_type: creatorType,
         created_at: row.created_at,
         expires_at: row.expires_at,
         viewed_at: row.viewed_at,
@@ -5942,6 +6537,8 @@ app.post('/api/proposta-publica', resolveAuthenticatedUser, express.json({ limit
 });
 
 // GET /api/p/:token — cliente acessa proposta pública
+const PROPOSAL_VIEW_NOTIFY_GROUP_JID = '120363426469902795@g.us';
+
 app.get('/api/p/:token', (req, res) => {
   try {
     const token = String(req.params.token || '').replace(/[^a-f0-9]/g, '');
@@ -5951,9 +6548,8 @@ app.get('/api/p/:token', (req, res) => {
     if (new Date(row.expires_at) < new Date()) {
       return res.status(410).json({ error: 'Este link expirou.' });
     }
-    if (!row.viewed_at) {
-      db.prepare("UPDATE proposta_tokens SET viewed_at = datetime('now') WHERE token = ?").run(token);
-    }
+    const markViewed = db.prepare("UPDATE proposta_tokens SET viewed_at = datetime('now') WHERE token = ? AND viewed_at IS NULL").run(token);
+    const firstView = Number(markViewed?.changes || 0) > 0;
 
     db.prepare(`
       UPDATE lead_proposta_links
@@ -5971,8 +6567,63 @@ app.get('/api/p/:token', (req, res) => {
       )
     `).run(row.id);
 
+    const proposalData = JSON.parse(row.proposta_data || '{}');
+
+    // Notify commercial WhatsApp number only on first view event.
+    if (firstView) {
+      try {
+        const settings = getEvolutionSettings();
+        const destination = PROPOSAL_VIEW_NOTIFY_GROUP_JID || sanitizePhoneForWhatsApp(settings.evolution_dest_number);
+        if (settings.evolution_api_url && settings.evolution_api_key && settings.evolution_instance && destination) {
+          const vendedor = row.created_by
+            ? db.prepare('SELECT first_name, last_name FROM admin_users WHERE id = ?').get(row.created_by)
+            : null;
+          const vendedorNome = vendedor ? `${vendedor.first_name || ''} ${vendedor.last_name || ''}`.trim() : '';
+
+          const linkedLead = db.prepare(`
+            SELECT l.id, l.empresa, l.telefone
+            FROM lead_proposta_links lpl
+            JOIN leads l ON l.id = lpl.lead_id
+            WHERE lpl.proposta_tipo = 'publica' AND lpl.proposta_token_id = ?
+            ORDER BY lpl.id DESC
+            LIMIT 1
+          `).get(row.id);
+
+          const clienteNome = String(proposalData?.clientName || linkedLead?.empresa || 'Cliente').trim();
+          const cidades = Array.from(new Set(
+            (Array.isArray(proposalData?.points) ? proposalData.points : [])
+              .map((point) => String(point?.cidade || '').trim())
+              .filter(Boolean)
+          ));
+          const origin = String(process.env.FRONTEND_ORIGINS || '').split(',')[0].trim()
+            || `${req.protocol}://${req.get('host')}`;
+
+          const msgLines = [
+            '👀 *Proposta visualizada pelo cliente*',
+            `Cliente: *${clienteNome || 'Cliente'}*`,
+            cidades.length ? `Praça: ${cidades.join(', ')}` : null,
+            linkedLead?.telefone && linkedLead.telefone !== 'nao-informado' ? `Telefone: ${linkedLead.telefone}` : null,
+            vendedorNome ? `Vendedor: ${vendedorNome}` : null,
+            `Link: ${origin}/p/${token}`,
+          ].filter(Boolean);
+
+          sendEvolutionText({
+            apiUrl: settings.evolution_api_url,
+            instance: settings.evolution_instance,
+            apiKey: settings.evolution_api_key,
+            number: destination,
+            text: msgLines.join('\n')
+          }).catch((notifyErr) => {
+            console.error('[proposta-publica][view-notify]', notifyErr.message);
+          });
+        }
+      } catch (notifySetupErr) {
+        console.error('[proposta-publica][view-notify-setup]', notifySetupErr.message);
+      }
+    }
+
     res.json({
-      ...JSON.parse(row.proposta_data),
+      ...proposalData,
       expires_at: row.expires_at,
       approved_at: row.approved_at,
       approved_name: row.approved_name
@@ -6034,6 +6685,19 @@ app.post('/api/p/:token/aprovar', express.json(), (req, res) => {
 // ── Navigation tracking (public) ──────────────────────────────────────────────
 const VALID_EVENT_TYPES = new Set(['page_view', 'pdf_generate', 'slides_open', 'chatbot_open', 'chatbot_message', 'whatsapp_click', 'instagram_click', 'contact_click', 'proposal_view', 'point_detail_view']);
 
+function isPlaceholderLeadRecord(lead) {
+  if (!lead) return true;
+  const phone = String(lead.telefone || '').replace(/\D/g, '');
+  const company = String(lead.empresa || '').trim().toLowerCase();
+  const placeholderPhone = phone.length < 10;
+  const placeholderCompany = !company || company.startsWith('lead via ');
+  return placeholderPhone || placeholderCompany;
+}
+
+function isLeadCapturedForChat(lead) {
+  return !!lead && !isPlaceholderLeadRecord(lead);
+}
+
 function seedLeadFromContactEvent({ sessionId, eventType, eventData, pageUrl }) {
   if (!['whatsapp_click', 'instagram_click', 'contact_click'].includes(String(eventType || ''))) {
     return;
@@ -6049,12 +6713,6 @@ function seedLeadFromContactEvent({ sessionId, eventType, eventData, pageUrl }) 
      VALUES (?, ?, ?, 'novo', ?)
      ON CONFLICT(session_id) DO NOTHING`
   ).run(sessionId.slice(0, 64), 'nao-informado', empresa, notas);
-
-  try {
-    db.prepare('UPDATE chat_sessions SET lead_captured = 1 WHERE id = ?').run(sessionId);
-  } catch {
-    // session may not exist yet
-  }
 }
 
 app.post('/api/track', (req, res) => {
@@ -6084,6 +6742,7 @@ app.post('/api/leads/capture', (req, res) => {
     if (cleanPhone.length < 10) {
       return res.status(400).json({ error: 'Telefone inválido.' });
     }
+    const sessionKey = String(sessionId).slice(0, 64);
     const cleanOrcamento = orcamento ? String(orcamento).trim().slice(0, 200) : null;
     const cleanOrigem = origem ? String(origem).trim().slice(0, 200) : null;
     const result = db.prepare(
@@ -6091,10 +6750,11 @@ app.post('/api/leads/capture', (req, res) => {
        ON CONFLICT(session_id) DO UPDATE SET telefone = excluded.telefone, empresa = excluded.empresa,
          orcamento = coalesce(excluded.orcamento, orcamento),
          origem = coalesce(excluded.origem, origem),
+         notas = CASE WHEN coalesce(notas, '') LIKE 'Capturado por clique em CTA%' THEN NULL ELSE notas END,
          updated_at = datetime('now')`
-    ).run(sessionId.slice(0, 64), cleanPhone, String(empresa).trim().slice(0, 200), cleanOrcamento, cleanOrigem);
+    ).run(sessionKey, cleanPhone, String(empresa).trim().slice(0, 200), cleanOrcamento, cleanOrigem);
     try {
-      db.prepare('UPDATE chat_sessions SET lead_captured = 1 WHERE id = ?').run(sessionId);
+      db.prepare('UPDATE chat_sessions SET lead_captured = 1 WHERE id = ?').run(sessionKey);
     } catch { /* session may not exist yet */ }
     res.json({ ok: true, leadId: result.lastInsertRowid || null });
   } catch (err) {
@@ -6120,12 +6780,6 @@ app.post('/api/leads/capture-contact', (req, res) => {
        ON CONFLICT(session_id) DO NOTHING`
     ).run(sessionId.slice(0, 64), 'nao-informado', empresa, notas);
 
-    try {
-      db.prepare('UPDATE chat_sessions SET lead_captured = 1 WHERE id = ?').run(sessionId);
-    } catch {
-      // session may not exist yet
-    }
-
     return res.json({ ok: true });
   } catch (err) {
     return internalError(res, err, 'Erro ao capturar lead por contato.');
@@ -6135,8 +6789,10 @@ app.post('/api/leads/capture-contact', (req, res) => {
 app.get('/api/leads/check/:sessionId', (req, res) => {
   try {
     const { sessionId } = req.params;
-    const lead = db.prepare('SELECT id, telefone, empresa, orcamento, origem FROM leads WHERE session_id = ?').get(sessionId);
-    res.json({ captured: !!lead, telefone: lead?.telefone, empresa: lead?.empresa, orcamento: lead?.orcamento, origem: lead?.origem });
+    const sessionKey = String(sessionId || '').slice(0, 64);
+    const lead = db.prepare('SELECT id, telefone, empresa, orcamento, origem FROM leads WHERE session_id = ?').get(sessionKey);
+    const captured = isLeadCapturedForChat(lead);
+    res.json({ captured, telefone: lead?.telefone, empresa: lead?.empresa, orcamento: lead?.orcamento, origem: lead?.origem });
   } catch (err) {
     internalError(res, err, 'Erro ao verificar lead.');
   }

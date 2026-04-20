@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2, Upload, X, Send, CheckCircle2, AlertCircle, FileText, MessageCircle, WifiOff, AlertTriangle } from 'lucide-react';
-import { submitNovaVenda } from '../../lib/api';
+import { clearNovaVendaDraft, fetchNovaVendaDraft, saveNovaVendaDraft, submitNovaVenda } from '../../lib/api';
 
 const TIPOS_NEGOCIO = ['Nova Venda', 'Renovação', 'Permuta'];
 const TIPOS_VALOR = ['Líquido', 'Bruto'];
@@ -73,6 +73,10 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
   const [search, setSearch] = useState('');
   const [piFile, setPiFile] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [draftPayload, setDraftPayload] = useState(null);
+  const [draftInfo, setDraftInfo] = useState(null);
+  const [draftNotice, setDraftNotice] = useState('');
   const [result, setResult] = useState(null);
   const [err, setErr] = useState('');
 
@@ -99,6 +103,96 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
     const f = e.target.files?.[0];
     if (f && f.type === 'application/pdf') setPiFile(f);
     else if (f) setErr('Apenas arquivos PDF são aceitos para o P.I.');
+  };
+
+  const buildDraftPayload = () => ({
+    form,
+    selectedPontos: selectedPontos.map(p => ({
+      id: p.id,
+      nome: p.nome,
+      cidade: p.cidade,
+      tipo: p.tipo,
+    })),
+    pontoPrecos,
+    search,
+  });
+
+  const applyDraftPayload = (payload) => {
+    if (!payload || typeof payload !== 'object') return;
+    const draftForm = payload.form && typeof payload.form === 'object' ? payload.form : {};
+    const draftPoints = Array.isArray(payload.selectedPontos) ? payload.selectedPontos : [];
+    const draftPrecos = payload.pontoPrecos && typeof payload.pontoPrecos === 'object' ? payload.pontoPrecos : {};
+    setForm({ ...emptyForm, ...draftForm });
+    setSelectedPontos(draftPoints);
+    setPontoPrecos(draftPrecos);
+    setSearch(typeof payload.search === 'string' ? payload.search : '');
+    setPiFile(null);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchNovaVendaDraft();
+        if (cancelled) return;
+        if (data?.draft) {
+          setDraftPayload(data.draft);
+          setDraftInfo({
+            updated_at: data.updated_at || data.draft?.saved_at || null,
+            created_at: data.created_at || null,
+          });
+        } else {
+          setDraftPayload(null);
+          setDraftInfo(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setDraftPayload(null);
+          setDraftInfo(null);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleLoadDraft = () => {
+    if (!draftPayload) return;
+    setErr('');
+    setResult(null);
+    applyDraftPayload(draftPayload);
+    setDraftNotice('Rascunho carregado.');
+  };
+
+  const handleSaveDraft = async () => {
+    setDraftBusy(true);
+    setErr('');
+    setResult(null);
+    try {
+      const payload = buildDraftPayload();
+      const saved = await saveNovaVendaDraft(payload);
+      setDraftPayload(payload);
+      setDraftInfo({ updated_at: saved?.updated_at || new Date().toISOString(), created_at: draftInfo?.created_at || null });
+      setDraftNotice('Rascunho salvo com sucesso.');
+    } catch (e) {
+      setErr(e.message || 'Erro ao salvar rascunho.');
+    } finally {
+      setDraftBusy(false);
+    }
+  };
+
+  const handleDiscardDraft = async () => {
+    setDraftBusy(true);
+    setErr('');
+    try {
+      await clearNovaVendaDraft();
+      setDraftPayload(null);
+      setDraftInfo(null);
+      setDraftNotice('Rascunho removido.');
+    } catch (e) {
+      setErr(e.message || 'Erro ao remover rascunho.');
+    } finally {
+      setDraftBusy(false);
+    }
   };
 
   const handleSubmit = async e => {
@@ -155,11 +249,21 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
 
       const res = await submitNovaVenda(fd);
       setResult({ ok: true, msg: res.message || 'Venda registrada e notificação enviada!', whatsapp: res.whatsapp_status || 'pendente' });
+
+      try {
+        await clearNovaVendaDraft();
+      } catch {
+        // non-blocking: venda já foi registrada com sucesso
+      }
+
       setForm({ ...emptyForm });
       setSelectedPontos([]);
       setPontoPrecos({});
       setPiFile(null);
       setSearch('');
+      setDraftPayload(null);
+      setDraftInfo(null);
+      setDraftNotice('');
     } catch (e) {
       setResult({ ok: false, msg: e.message || 'Erro ao registrar venda.' });
     } finally {
@@ -196,6 +300,50 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
           via WhatsApp para o grupo/contato configurado.
         </p>
       </div>
+
+      {draftPayload && (
+        <section className={card}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Rascunho disponível</h3>
+              <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                Última atualização: {fmtDateTime(draftInfo?.updated_at || draftInfo?.created_at || '') || 'agora'}.
+                O anexo de P.I. não é salvo no rascunho e precisa ser selecionado novamente.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleLoadDraft}
+                disabled={busy || draftBusy}
+                className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${isDark
+                  ? 'border-brand-orange/40 text-brand-orange hover:bg-brand-orange/10'
+                  : 'border-orange-300 text-orange-700 hover:bg-orange-50'}`}
+              >
+                Retomar rascunho
+              </button>
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                disabled={busy || draftBusy}
+                className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${isDark
+                  ? 'border-white/15 text-brand-gray-300 hover:bg-white/5'
+                  : 'border-neutral-300 text-neutral-600 hover:bg-neutral-100'}`}
+              >
+                Excluir rascunho
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {draftNotice && (
+        <p className={`text-sm rounded-xl px-4 py-3 border ${isDark
+          ? 'text-blue-300 bg-blue-500/10 border-blue-500/20'
+          : 'text-blue-700 bg-blue-50 border-blue-200'}`}>
+          {draftNotice}
+        </p>
+      )}
 
       {result && (
         <div className="space-y-2">
@@ -671,10 +819,22 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
           </p>
         )}
 
-        <div className="flex justify-end pt-1">
+        <div className="flex flex-wrap justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            disabled={busy || draftBusy}
+            className={`inline-flex items-center gap-2.5 px-4 py-3 border font-semibold rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none ${isDark
+              ? 'border-white/15 text-brand-gray-200 hover:bg-white/5'
+              : 'border-neutral-300 text-neutral-700 hover:bg-neutral-100'}`}
+          >
+            {draftBusy ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+            {draftBusy ? 'Salvando...' : 'Salvar rascunho'}
+          </button>
+
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || draftBusy}
             className="inline-flex items-center gap-2.5 px-6 py-3 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none"
           >
             {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
@@ -744,4 +904,17 @@ function fmtDate(iso) {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
+}
+
+function fmtDateTime(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }

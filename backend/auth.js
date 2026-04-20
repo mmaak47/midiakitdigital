@@ -2,7 +2,13 @@
 
 const crypto = require('crypto');
 
-const TOKEN_TTL_SECONDS = Number(process.env.AUTH_TOKEN_TTL_SECONDS || 12 * 60 * 60);
+const TOKEN_TTL_MIN_SECONDS = 60 * 60;
+const TOKEN_TTL_DEFAULT_SECONDS = 12 * 60 * 60;
+const rawTokenTtl = Number(process.env.AUTH_TOKEN_TTL_SECONDS);
+const tokenTtlFromEnv = Number.isFinite(rawTokenTtl) && rawTokenTtl > 0
+  ? Math.floor(rawTokenTtl)
+  : null;
+const TOKEN_TTL_SECONDS = Math.max(TOKEN_TTL_MIN_SECONDS, tokenTtlFromEnv || TOKEN_TTL_DEFAULT_SECONDS);
 const DEFAULT_ITERATIONS = 16384;
 const KEY_LEN = 64;
 const DIGEST = 'sha512';
@@ -11,6 +17,10 @@ const runtimeSecret = process.env.AUTH_SECRET || crypto.randomBytes(48).toString
 
 if (!process.env.AUTH_SECRET) {
   console.warn('[auth] AUTH_SECRET not set. Using ephemeral runtime secret; active sessions will reset on restart.');
+}
+
+if (tokenTtlFromEnv && tokenTtlFromEnv < TOKEN_TTL_MIN_SECONDS) {
+  console.warn(`[auth] AUTH_TOKEN_TTL_SECONDS=${tokenTtlFromEnv} below minimum; using ${TOKEN_TTL_SECONDS}s.`);
 }
 
 function base64UrlEncode(value) {

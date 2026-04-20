@@ -16,6 +16,7 @@ import { getOrCreateSessionId, trackEvent } from '../lib/tracking';
 
 // ── Quick suggestions ─────────────────────────────────────────────────────────
 const SUGESTOES = [
+  'Gerar proposta comercial',
   'Pontos na Gleba Palhano',
   'Quais pontos em Londrina?',
   'Formatos disponíveis',
@@ -27,6 +28,31 @@ const SUGESTOES = [
 ];
 
 // ── Simple markdown renderer (bold + line breaks) ─────────────────────────────
+function linkifyText(text, keyPrefix) {
+  const urlRegex = /(https?:\/\/[^\s<>")]+|wa\.me\/[^\s<>")]+)/gi;
+  const parts = String(text || '').split(urlRegex);
+  if (parts.length === 1) return text;
+
+  return parts.map((part, idx) => {
+    if (!part) return null;
+    if (/^(https?:\/\/|wa\.me\/)/i.test(part)) {
+      const href = part.startsWith('http') ? part : `https://${part}`;
+      return (
+        <a
+          key={`${keyPrefix}-${idx}`}
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="underline decoration-brand-orange/60 text-brand-orange hover:text-brand-orange-hover break-all"
+        >
+          {part}
+        </a>
+      );
+    }
+    return <span key={`${keyPrefix}-${idx}`}>{part}</span>;
+  });
+}
+
 function renderMarkdown(text) {
   const lines = text.split('\n');
   return lines.map((line, i) => {
@@ -38,7 +64,7 @@ function renderMarkdown(text) {
       if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
         return <strong key={j}>{part.slice(1, -1)}</strong>;
       }
-      return part;
+      return linkifyText(part, `${i}-${j}`);
     });
     return (
       <span key={i}>
@@ -251,7 +277,7 @@ export default function InventarioChatBot() {
       setGatePhase('ready');
       setMensagens(prev => [...prev, {
         role: 'bot',
-        text: 'Perfeito! Agora posso te ajudar com todo nosso inventário de mídia externa.\n\nPergunte o que quiser — pontos, formatos, cidades, preços ou conceitos de OOH!',
+        text: 'Perfeito! Agora posso te ajudar com todo nosso inventário de mídia externa.\n\nPergunte o que quiser — pontos, formatos, cidades, preços ou conceitos de OOH.\n\nSe quiser, posso também *gerar sua proposta comercial* agora mesmo.',
         timestamp: horaAtual(),
       }]);
       return;

@@ -517,6 +517,41 @@ const FORMAT_ALIASES = {
   posto: 'LED Posto',
 };
 
+// ── Scope guard: block non-DOOH topics and prompt abuse ─────────────────────
+const DOMINIO_DOOH_REGEX = /\b(dooh|ooh|midia|painel|paineis|led|elevador|indoor|backlight|frontlight|totem|videowall|video\s+wall|cpm|fluxo|bairro|cidade|londrina|maringa|campanha|alcance|frequencia|impacto|inventario|ponto|pontos)\b/;
+const FORA_ESCOPO_REGEX = /\b(python|javascript|typescript|java|php|golang|node|programacao|codigo|algoritmo|funcao|classe|variavel|sql|postgres|mysql|mongodb|linux|windows|excel|planilha|receita|culinaria|astrologia|horoscopo|politica|religiao|criptomoeda)\b/;
+const PROMPT_ABUSE_REGEX = /\b(ignore|ignora|esqueca|esquece|desconsidere|bypass|contorne)\b.*\b(instrucoes|instrucao|regras|sistema|prompt)\b|\b(system\s*prompt|jailbreak|prompt\s*injection|act\s+as|roleplay|finja\s+que)\b/;
+
+function isOutOfScopeMessage(message) {
+  const n = norm(message);
+  if (!n) return false;
+
+  if (PROMPT_ABUSE_REGEX.test(n)) return true;
+
+  const hasDomainSignal = DOMINIO_DOOH_REGEX.test(n);
+  const hasOutOfScopeSignal = FORA_ESCOPO_REGEX.test(n);
+
+  // If user mixes DOOH with unrelated topics (e.g., coding), still block to prevent abuse.
+  if (hasOutOfScopeSignal) return true;
+
+  // No strong DOOH signal and asks for generic explanation/tutorial => treat as out of scope.
+  if (!hasDomainSignal && /\b(explica|explique|como\s+faz|como\s+funciona|tutorial|aula|ensina|ensine)\b/.test(n)) {
+    return true;
+  }
+
+  return false;
+}
+
+function getOutOfScopeResponse() {
+  return `Posso ajudar apenas com temas de mídia OOH/DOOH e com o inventário da Rede Intermídia. Não respondo perguntas fora desse escopo (como programação, tecnologia geral ou outros assuntos).
+
+Se quiser, posso te ajudar agora com:
+- Pontos por cidade ou bairro
+- Formatos disponíveis (LED, Elevador, Indoor, etc.)
+- Comparação de CPM e fluxo
+- Sugestão de plano de campanha`;
+}
+
 // ── Intent engine (scored, same pattern as comercialChat.js) ──────────────────
 const INTENCOES_CONFIG = [
   {
@@ -621,6 +656,8 @@ const INTENCOES_CONFIG = [
 ];
 
 function classificarIntencao(txt) {
+  if (isOutOfScopeMessage(txt)) return 'fora_escopo';
+
   const n = norm(txt);
   const scores = {};
 
@@ -906,6 +943,9 @@ function buildChatContext(intent, entities) {
       case 'conhecimento_geral':
         return '';
 
+      case 'fora_escopo':
+        return '';
+
       case 'saudacao':
         return '';
 
@@ -936,6 +976,7 @@ REGRAS ABSOLUTAS:
 9. Inclua endereço e bairro quando disponíveis.
 10. NUNCA se apresente como "Sou o Especialista" ou similar em nenhuma resposta — o usuário já sabe quem você é. Se for saudação, responda amigavelmente e sugira exemplos diretamente.
 11. NUNCA adicione pontos que não estejam explicitamente no CONTEXTO.
+12. Se o usuário pedir algo fora de OOH/DOOH e inventário (ex.: programação, receitas, política etc.), recuse de forma breve e redirecione para temas de mídia externa.
 
 TÁTICA COMERCIAL:
 - Você tem malicia de vendedor: destaque os benefícios, crie senso de urgência, incentive a fechar negócio.
@@ -977,6 +1018,9 @@ TÁTICA COMERCIAL:
 // ── Algorithmic fallback ──────────────────────────────────────────────────────
 function buildAlgorithmicResponse(intent, entities, dbContext) {
   switch (intent) {
+    case 'fora_escopo':
+      return getOutOfScopeResponse();
+
     case 'saudacao':
       return 'Olá! Posso ajudar com informações sobre nosso inventário de mídia externa digital da Rede Intermídia.\n\nExperimente perguntar:\n- "Quais pontos na Gleba Palhano?"\n- "Pontos disponíveis em Londrina"\n- "Ponto com maior fluxo em Maringá"\n- "O que é CPM?"\n- "Formatos disponíveis"';
 
@@ -1085,6 +1129,51 @@ async function processInventoryChat(message, history = [], userId = null, sessio
     formatos: currentEntities.formatos.length ? currentEntities.formatos : (accState?.formatos || []),
     pontoIds: currentEntities.pontoIds.length ? currentEntities.pontoIds : (accState?.pontoIds_discussed || []).slice(-3),
   };
+
+  // Hard stop before any LLM call for out-of-scope or prompt-abuse attempts.
+  if (intent === 'fora_escopo') {
+    const responseText = buildAlgorithmicResponse(intent, effectiveEntities, '');
+    const latency = Date.now() - startMs;
+
+    if (session) {
+      const updatedHistory = [
+        ...session.history.slice(-18),
+        { role: 'user', text: message },
+        { role: 'assistant', text: responseText },
+      ];
+      updateSession(session.id, {
+        history: updatedHistory,
+        conversation_state: accState || session.conversation_state,
+        last_intent: intent,
+      });
+    }
+
+    try {
+      ai.saveMemory(
+        message,
+        responseText,
+        userId,
+        JSON.stringify({
+          intent,
+          entities: effectiveEntities,
+          model: 'policy_guard',
+          validation_passed: true,
+          latency_ms: latency,
+          turn: session ? session.message_count + 1 : 0,
+        }),
+        session?.id || null
+      );
+    } catch { /* non-critical */ }
+
+    return {
+      response: responseText,
+      intent,
+      entities: effectiveEntities,
+      _model: 'policy_guard',
+      _source: 'policy_guard',
+      sessionId: session?.id || null,
+    };
+  }
 
   const dbContext = buildChatContext(intent, effectiveEntities);
 
