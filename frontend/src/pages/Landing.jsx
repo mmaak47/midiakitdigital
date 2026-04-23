@@ -394,6 +394,10 @@ export default function Landing() {
     if (typeof window === 'undefined') return false;
     return !sessionStorage.getItem('intermidia_welcome_seen');
   });
+  const [showMoreStats, setShowMoreStats] = useState(false);
+  const [tableSortKey, setTableSortKey] = useState('tipo');
+  const [tableSortDir, setTableSortDir] = useState('asc');
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   const t = {
     bg: isDark ? 'bg-[#050505]' : 'bg-[#FFF8F5]',
@@ -558,6 +562,36 @@ export default function Landing() {
   const tiposComAncora = useMemo(() => {
     return formatos.map((f) => ({ ...f, anchorId: anchorIdFromTipo(f.tipo) }));
   }, [formatos]);
+
+  // Sorted table data with max values for mini bars
+  const formatosTabela = useMemo(() => {
+    const maxFluxo = Math.max(1, ...formatos.map((f) => f.fluxo || 0));
+    const maxEnderecos = Math.max(1, ...formatos.map((f) => f.quantidade || 0));
+    const maxTelas = Math.max(1, ...formatos.map((f) => f.telas || 0));
+    const cpmsValid = formatos.map((f) => f.cpm).filter((v) => v > 0);
+    const cpmMin = cpmsValid.length ? Math.min(...cpmsValid) : 0;
+    const cpmMax = cpmsValid.length ? Math.max(...cpmsValid) : 0;
+    const sortable = formatos.map((f) => ({ ...f, _maxFluxo: maxFluxo, _maxEnderecos: maxEnderecos, _maxTelas: maxTelas, _cpmMin: cpmMin, _cpmMax: cpmMax }));
+    const comparators = {
+      tipo: (a, b) => (a.tipo || '').localeCompare(b.tipo || '', 'pt-BR'),
+      quantidade: (a, b) => (a.quantidade || 0) - (b.quantidade || 0),
+      telas: (a, b) => (a.telas || 0) - (b.telas || 0),
+      fluxo: (a, b) => (a.fluxo || 0) - (b.fluxo || 0),
+      cpm: (a, b) => (a.cpm || 0) - (b.cpm || 0),
+    };
+    const cmp = comparators[tableSortKey] || comparators.tipo;
+    sortable.sort((a, b) => (tableSortDir === 'asc' ? cmp(a, b) : -cmp(a, b)));
+    return sortable;
+  }, [formatos, tableSortKey, tableSortDir]);
+
+  const toggleTableSort = (key) => {
+    if (tableSortKey === key) {
+      setTableSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setTableSortKey(key);
+      setTableSortDir(key === 'tipo' ? 'asc' : 'desc');
+    }
+  };
 
   const pontosFiltrados = useMemo(() => {
     if (!searchQuery.trim()) return pontos;
@@ -892,26 +926,38 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* ── Action buttons row ── */}
+            {/* ── Action buttons row — clear hierarchy: ONE primary CTA ── */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              {/* Slides button — left side */}
+              {/* Primary CTA — highlighted, takes visual priority */}
               <button
-                onClick={() => { setShowSlidesMode(true); trackEvent('slides_open'); }}
-                className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[10px] px-5 text-sm font-bold transition-all duration-200 whitespace-nowrap"
-                style={{
-                  background: 'linear-gradient(135deg, #FF6B35, #FF8F5E)',
-                  color: '#fff',
-                  boxShadow: '0 2px 12px rgba(255,107,53,0.28)',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.88'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                onClick={() => setShowMapModal(true)}
+                className="landing-orange-btn group h-[48px] px-6 text-white font-bold rounded-[10px] transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap text-[15px] order-1 sm:order-1"
+                style={{ background: '#FF6B35', boxShadow: '0 4px 16px rgba(255,107,53,0.36)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#E85A25'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(255,107,53,0.50)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#FF6B35'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(255,107,53,0.36)'; }}
               >
-                <Play size={15} />
-                Ver slides
+                <i className="ri-pin-distance-line" style={{ fontSize: 17 }} />
+                Abrir mapa interativo
               </button>
 
-              {/* PDF + Map — right side */}
-              <div className="flex items-center gap-2 ml-auto">
+              {/* Secondary actions — outline style, lower visual weight */}
+              <div className="flex items-center gap-2 ml-auto order-2 sm:order-2 flex-wrap">
+
+              {/* Slides — demoted to secondary outline */}
+              <button
+                onClick={() => { setShowSlidesMode(true); trackEvent('slides_open'); }}
+                className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[10px] px-4 text-sm font-semibold transition-all duration-200 whitespace-nowrap"
+                style={{
+                  background: 'transparent',
+                  border: `1px solid ${isDark ? 'rgba(255,107,53,0.40)' : '#FFCFB8'}`,
+                  color: isDark ? '#FF9466' : '#C94A1A',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = isDark ? 'rgba(255,107,53,0.10)' : '#FFF0EA'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <Play size={14} />
+                Ver slides
+              </button>
 
               {/* ── PDF format toggle + generate button ── */}
               <div className="flex items-center gap-1.5">
@@ -969,53 +1015,51 @@ export default function Landing() {
                 </button>
               </div>
 
-              <button
-                onClick={() => setShowMapModal(true)}
-                className="landing-orange-btn group h-[44px] px-6 text-white font-bold rounded-[10px] hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap text-sm"
-                style={{ background: '#FF6B35', boxShadow: '0 2px 12px rgba(255,107,53,0.30)' }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = '#E85A25'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = '#FF6B35'; }}
-              >
-                <i className="ri-pin-distance-line" style={{ fontSize: 16 }} />
-                Abrir mapa
-              </button>
               </div>
             </div>
           </motion.div>
 
-          {/* ── Praça tags ── */}
-          <div className="flex flex-wrap gap-2 mt-4">
-            {quickPracas.map((praca) => (
+          {/* ── Praça tags — quick filters with header ── */}
+          <div className="mt-5">
+            <div className={`text-[10px] font-bold uppercase tracking-[0.18em] mb-2 ${t.textMuted}`}>
+              <i className="ri-flashlight-line mr-1" style={{ fontSize: 12 }} />
+              Filtros rápidos por praça
+            </div>
+            <div className="flex flex-wrap gap-2">
               <button
-                key={praca}
-                onClick={() => setSelectedPracas((current) => current.includes(praca)
-                  ? current.filter((item) => item !== praca)
-                  : [...current, praca])}
-                className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
+                onClick={() => setSelectedPracas([])}
+                className="px-4 py-2 rounded-full text-sm font-semibold transition-colors min-h-[36px]"
                 style={
-                  selectedPracas.includes(praca)
+                  selectedPracas.length === 0
                     ? { background: '#FF6B35', color: '#fff', border: '1px solid #FF6B35' }
                     : { background: isDark ? 'rgba(255,255,255,0.03)' : '#fff', color: isDark ? '#A3A3A3' : '#7A6155', border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'}` }
                 }
-                onMouseEnter={(e) => { if (!selectedPracas.includes(praca)) { e.currentTarget.style.borderColor = '#FF6B35'; e.currentTarget.style.color = isDark ? '#fff' : '#C94A1A'; } }}
-                onMouseLeave={(e) => { if (!selectedPracas.includes(praca)) { e.currentTarget.style.borderColor = isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'; e.currentTarget.style.color = isDark ? '#A3A3A3' : '#7A6155'; } }}
               >
-                {praca}
+                Todas
               </button>
-            ))}
-            <button
-              onClick={() => setSelectedPracas([])}
-              className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
-              style={
-                selectedPracas.length === 0
-                  ? { background: '#FF6B35', color: '#fff', border: '1px solid #FF6B35' }
-                  : { background: isDark ? 'rgba(255,255,255,0.03)' : '#fff', color: isDark ? '#A3A3A3' : '#7A6155', border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'}` }
-              }
-              onMouseEnter={(e) => { if (selectedPracas.length > 0) { e.currentTarget.style.borderColor = '#FF6B35'; e.currentTarget.style.color = isDark ? '#fff' : '#C94A1A'; } }}
-              onMouseLeave={(e) => { if (selectedPracas.length > 0) { e.currentTarget.style.borderColor = isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'; e.currentTarget.style.color = isDark ? '#A3A3A3' : '#7A6155'; } }}
-            >
-              Todas as praças
-            </button>
+              {quickPracas.map((praca) => {
+                const active = selectedPracas.includes(praca);
+                return (
+                  <button
+                    key={praca}
+                    onClick={() => setSelectedPracas((current) => active
+                      ? current.filter((item) => item !== praca)
+                      : [...current, praca])}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors min-h-[36px]"
+                    style={
+                      active
+                        ? { background: '#FF6B35', color: '#fff', border: '1px solid #FF6B35' }
+                        : { background: isDark ? 'rgba(255,255,255,0.03)' : '#fff', color: isDark ? '#A3A3A3' : '#7A6155', border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'}` }
+                    }
+                    onMouseEnter={(e) => { if (!active) { e.currentTarget.style.borderColor = '#FF6B35'; e.currentTarget.style.color = isDark ? '#fff' : '#C94A1A'; } }}
+                    onMouseLeave={(e) => { if (!active) { e.currentTarget.style.borderColor = isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'; e.currentTarget.style.color = isDark ? '#A3A3A3' : '#7A6155'; } }}
+                  >
+                    {active && <i className="ri-check-line" style={{ fontSize: 13 }} />}
+                    {praca}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {showCommercialShortcut && (
@@ -1051,34 +1095,83 @@ export default function Landing() {
           {loading ? (
             <div className={`text-sm ${t.textMuted}`}>Carregando inventário...</div>
           ) : (
-            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-              {[
-                { label: 'Endereços', raw: resumo.pontos, iconClass: 'ri-pin-distance-line', fmt: formatInt },
-                { label: 'Pontos de Impacto', raw: resumo.telas, iconClass: 'ri-tv-2-line', fmt: formatInt },
-                { label: 'Fluxo mensal', raw: resumo.fluxo, iconClass: 'ri-group-line', fmt: formatInt },
-                { label: 'Alcance estimado', raw: reachFrequency.estimatedUnique, iconClass: 'ri-user-star-line', fmt: formatInt },
-                { label: 'Ticket médio', raw: resumo.ticketMedio, iconClass: 'ri-coins-line', fmt: formatMoney },
-                { label: 'CPM médio', raw: resumo.cpm, iconClass: 'ri-focus-3-line', fmt: (v) => `R$ ${formatInt(v)}` },
-              ].map((card, i) => (
-                <motion.div
-                  key={card.label}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.08, duration: 0.4 }}
-                  className={`rounded-2xl border p-4 transition-colors group ${t.statsCard}`}
+            <>
+              {/* Primary stats — always visible, bigger */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { label: 'Pontos de Impacto', raw: resumo.telas, iconClass: 'ri-tv-2-line', fmt: formatInt, primary: true },
+                  { label: 'Fluxo mensal', raw: resumo.fluxo, iconClass: 'ri-group-line', fmt: formatInt, primary: true },
+                  { label: 'Alcance estimado', raw: reachFrequency.estimatedUnique, iconClass: 'ri-user-star-line', fmt: formatInt, primary: true },
+                ].map((card, i) => (
+                  <motion.div
+                    key={card.label}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.08, duration: 0.4 }}
+                    className={`rounded-2xl border p-5 transition-colors group ${t.statsCard}`}
+                  >
+                    <div className="mb-3 w-11 h-11 rounded-xl flex items-center justify-center"
+                      style={{ background: isDark ? 'rgba(255,107,53,0.12)' : '#FFF0EA', border: `1px solid ${isDark ? 'rgba(255,107,53,0.25)' : '#FFCFB8'}` }}>
+                      <i className={`${card.iconClass} text-brand-orange group-hover:scale-110 transition-transform inline-block`} style={{ fontSize: 22 }} />
+                    </div>
+                    <div className="text-2xl md:text-4xl font-bold mb-1">
+                      <AnimatedCounter value={card.raw} formatter={card.fmt} />
+                    </div>
+                    <div className={`text-xs uppercase tracking-wide ${t.textMuted}`}>{card.label}</div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Secondary stats — progressive disclosure */}
+              <AnimatePresence initial={false}>
+                {showMoreStats && (
+                  <motion.div
+                    key="more-stats"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                      {[
+                        { label: 'Endereços', raw: resumo.pontos, iconClass: 'ri-pin-distance-line', fmt: formatInt },
+                        { label: 'Ticket médio', raw: resumo.ticketMedio, iconClass: 'ri-coins-line', fmt: formatMoney },
+                        { label: 'CPM médio', raw: resumo.cpm, iconClass: 'ri-focus-3-line', fmt: (v) => `R$ ${formatInt(v)}` },
+                      ].map((card) => (
+                        <div key={card.label} className={`rounded-2xl border p-4 transition-colors group ${t.statsCard}`}>
+                          <div className="mb-2 w-9 h-9 rounded-lg flex items-center justify-center"
+                            style={{ background: isDark ? 'rgba(255,107,53,0.10)' : '#FFF0EA', border: `1px solid ${isDark ? 'rgba(255,107,53,0.20)' : '#FFCFB8'}` }}>
+                            <i className={`${card.iconClass} text-brand-orange`} style={{ fontSize: 16 }} />
+                          </div>
+                          <div className="text-lg md:text-2xl font-bold mb-0.5">
+                            <AnimatedCounter value={card.raw} formatter={card.fmt} />
+                          </div>
+                          <div className={`text-[11px] uppercase tracking-wide ${t.textMuted}`}>{card.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Toggle */}
+              <div className="mt-4 flex justify-center">
+                <button
+                  onClick={() => setShowMoreStats((v) => !v)}
+                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full transition-colors ${
+                    isDark
+                      ? 'text-brand-gray-400 hover:text-white border border-white/10 hover:border-brand-orange/40'
+                      : 'text-[#7A6155] hover:text-[#C94A1A] border border-[#EFE0D8] hover:border-[#FF6B35]/40 bg-white'
+                  }`}
+                  aria-expanded={showMoreStats}
                 >
-                  <div className="mb-3 w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{ background: isDark ? 'rgba(255,107,53,0.12)' : '#FFF0EA', border: `1px solid ${isDark ? 'rgba(255,107,53,0.25)' : '#FFCFB8'}` }}>
-                    <i className={`${card.iconClass} text-brand-orange group-hover:scale-110 transition-transform inline-block`} style={{ fontSize: 20 }} />
-                  </div>
-                  <div className="text-xl md:text-3xl font-bold mb-1">
-                    <AnimatedCounter value={card.raw} formatter={card.fmt} />
-                  </div>
-                  <div className={`text-xs uppercase tracking-wide ${t.textMuted}`}>{card.label}</div>
-                </motion.div>
-              ))}
-            </div>
+                  <i className={showMoreStats ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} style={{ fontSize: 14 }} />
+                  {showMoreStats ? 'Mostrar menos métricas' : 'Ver mais métricas (Endereços, Ticket, CPM)'}
+                </button>
+              </div>
+            </>
           )}
         </div>
       </section>
@@ -1107,36 +1200,140 @@ export default function Landing() {
               </div>
               <span className={`text-xs uppercase tracking-wide ${t.textMuted}`}>{selectedPracaLabel}</span>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto hidden md:block">
               <table className="w-full text-sm">
                 <thead className={t.tableHead}>
                   <tr>
-                    <th className="text-left font-medium px-5 py-3">Formato</th>
-                    <th className="text-left font-medium px-5 py-3">Endereços</th>
-                    <th className="text-left font-medium px-5 py-3">Pontos de Impacto</th>
-                    <th className="text-left font-medium px-5 py-3">Fluxo</th>
-                    <th className="text-left font-medium px-5 py-3">CPM est.</th>
+                    {[
+                      { key: 'tipo', label: 'Formato', align: 'left' },
+                      { key: 'quantidade', label: 'Endereços', align: 'left' },
+                      { key: 'telas', label: 'Pontos de Impacto', align: 'left' },
+                      { key: 'fluxo', label: 'Fluxo', align: 'left' },
+                      { key: 'cpm', label: 'CPM est.', align: 'left' },
+                    ].map((col) => {
+                      const active = tableSortKey === col.key;
+                      return (
+                        <th key={col.key} className="font-medium px-5 py-3 text-left select-none">
+                          <button
+                            onClick={() => toggleTableSort(col.key)}
+                            className={`inline-flex items-center gap-1 uppercase tracking-wide text-[11px] transition-colors ${
+                              active ? 'text-brand-orange' : (isDark ? 'hover:text-white' : 'hover:text-[#1A1008]')
+                            }`}
+                          >
+                            {col.label}
+                            <i
+                              className={active
+                                ? (tableSortDir === 'asc' ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line')
+                                : 'ri-expand-up-down-line'}
+                              style={{ fontSize: 12, opacity: active ? 1 : 0.45 }}
+                            />
+                          </button>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
-                  {formatos.map((f) => (
-                    <tr key={f.tipo} className={t.tableRow}>
-                      <td className={`px-5 py-3 ${t.tableCell}`}>{f.tipo}</td>
-                      <td className={`px-5 py-3 ${t.tableCellSec}`}>{formatInt(f.quantidade)}</td>
-                      <td className={`px-5 py-3 ${t.tableCellSec}`}>{formatInt(f.telas)}</td>
-                      <td className={`px-5 py-3 ${t.tableCellSec}`}>{formatInt(f.fluxo)}</td>
-                      <td className={`px-5 py-3 font-medium ${f.cpm > 0 ? 'text-brand-orange' : t.tableCellSec}`}>
-                        {f.cpm > 0 ? `R$ ${formatInt(f.cpm)}` : '—'}
-                      </td>
-                    </tr>
-                  ))}
+                  {formatosTabela.map((f, idx) => {
+                    const fluxoPct = f._maxFluxo ? Math.min(100, (f.fluxo / f._maxFluxo) * 100) : 0;
+                    const endPct = f._maxEnderecos ? Math.min(100, (f.quantidade / f._maxEnderecos) * 100) : 0;
+                    const telasPct = f._maxTelas ? Math.min(100, (f.telas / f._maxTelas) * 100) : 0;
+                    // CPM color: lower = better (green), higher = warmer
+                    let cpmColor = t.tableCellSec;
+                    let cpmBg = 'transparent';
+                    if (f.cpm > 0 && f._cpmMax > f._cpmMin) {
+                      const ratio = (f.cpm - f._cpmMin) / (f._cpmMax - f._cpmMin);
+                      if (ratio < 0.34) { cpmColor = isDark ? 'text-emerald-400' : 'text-emerald-600'; cpmBg = isDark ? 'rgba(16,185,129,0.10)' : 'rgba(16,185,129,0.08)'; }
+                      else if (ratio < 0.67) { cpmColor = isDark ? 'text-amber-400' : 'text-amber-600'; cpmBg = isDark ? 'rgba(245,158,11,0.10)' : 'rgba(245,158,11,0.08)'; }
+                      else { cpmColor = 'text-brand-orange'; cpmBg = isDark ? 'rgba(255,107,53,0.12)' : 'rgba(255,107,53,0.10)'; }
+                    } else if (f.cpm > 0) {
+                      cpmColor = 'text-brand-orange';
+                    }
+                    return (
+                      <tr key={f.tipo} className={`${t.tableRow} ${idx % 2 === 1 ? (isDark ? 'bg-white/[0.012]' : 'bg-[#FDF7F4]/40') : ''}`}>
+                        <td className={`px-5 py-3 font-medium ${t.tableCell}`}>
+                          <span className="inline-flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
+                            {f.tipo}
+                          </span>
+                        </td>
+                        <td className={`px-5 py-3 ${t.tableCellSec}`}>
+                          <div className="flex items-center gap-2">
+                            <span className="tabular-nums min-w-[40px]">{formatInt(f.quantidade)}</span>
+                            <span className={`${t.vizBar} flex-1 max-w-[90px]`}><span className="block h-full rounded-full bg-brand-orange/60" style={{ width: `${endPct}%` }} /></span>
+                          </div>
+                        </td>
+                        <td className={`px-5 py-3 ${t.tableCellSec}`}>
+                          <div className="flex items-center gap-2">
+                            <span className="tabular-nums min-w-[40px]">{formatInt(f.telas)}</span>
+                            <span className={`${t.vizBar} flex-1 max-w-[90px]`}><span className="block h-full rounded-full bg-brand-orange/45" style={{ width: `${telasPct}%` }} /></span>
+                          </div>
+                        </td>
+                        <td className={`px-5 py-3 ${t.tableCellSec}`}>
+                          <div className="flex items-center gap-2">
+                            <span className="tabular-nums min-w-[64px]">{formatInt(f.fluxo)}</span>
+                            <span className={`${t.vizBar} flex-1 max-w-[120px]`}><span className="block h-full rounded-full bg-gradient-to-r from-brand-orange to-[#ff9466]" style={{ width: `${fluxoPct}%` }} /></span>
+                          </div>
+                        </td>
+                        <td className={`px-5 py-3 font-semibold ${cpmColor}`}>
+                          {f.cpm > 0 ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[12px] tabular-nums" style={{ background: cpmBg }}>
+                              R$ {formatInt(f.cpm)}
+                            </span>
+                          ) : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {!loading && formatos.length === 0 && (
                     <tr>
-                      <td colSpan={4} className={`px-5 py-4 ${t.textMuted}`}>Nenhum formato encontrado para esta seleção.</td>
+                      <td colSpan={5} className={`px-5 py-4 ${t.textMuted}`}>Nenhum formato encontrado para esta seleção.</td>
                     </tr>
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile: render as cards instead of table */}
+            <div className="md:hidden divide-y divide-white/5">
+              {formatosTabela.length === 0 && !loading && (
+                <div className={`px-5 py-4 text-sm ${t.textMuted}`}>Nenhum formato encontrado para esta seleção.</div>
+              )}
+              {formatosTabela.map((f) => {
+                const fluxoPct = f._maxFluxo ? Math.min(100, (f.fluxo / f._maxFluxo) * 100) : 0;
+                return (
+                  <div key={f.tipo} className={`px-5 py-4 ${isDark ? '' : 'border-b border-[#F2DDD4]/60'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-brand-orange" />
+                        <span className="font-semibold text-sm">{f.tipo}</span>
+                      </div>
+                      {f.cpm > 0 && (
+                        <span className="text-[11px] font-semibold text-brand-orange px-2 py-0.5 rounded-md border border-brand-orange/25 bg-brand-orange/5">
+                          CPM R$ {formatInt(f.cpm)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-[11px]">
+                      <div>
+                        <div className={`uppercase tracking-wide ${t.textMuted}`}>Endereços</div>
+                        <div className="font-semibold text-sm tabular-nums">{formatInt(f.quantidade)}</div>
+                      </div>
+                      <div>
+                        <div className={`uppercase tracking-wide ${t.textMuted}`}>Pontos</div>
+                        <div className="font-semibold text-sm tabular-nums">{formatInt(f.telas)}</div>
+                      </div>
+                      <div>
+                        <div className={`uppercase tracking-wide ${t.textMuted}`}>Fluxo</div>
+                        <div className="font-semibold text-sm tabular-nums">{formatInt(f.fluxo)}</div>
+                      </div>
+                    </div>
+                    <div className={`${t.vizBar} mt-2`}>
+                      <span className="block h-full rounded-full bg-gradient-to-r from-brand-orange to-[#ff9466]" style={{ width: `${fluxoPct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </motion.article>
 
@@ -1195,6 +1392,52 @@ export default function Landing() {
               {searchQuery ? `${formatInt(pontosFiltrados.length)} de ${formatInt(pontos.length)}` : formatInt(pontos.length)} endereços
             </span>
           </div>
+
+          {/* Applied filters summary — shows count + quick clear */}
+          {(selectedPracas.length > 0 || selectedTipos.length > 0 || searchQuery) && (
+            <div className={`mb-4 rounded-xl border p-3 flex flex-wrap items-center gap-2 ${
+              isDark ? 'bg-brand-orange/[0.05] border-brand-orange/25' : 'bg-[#FFF0EA] border-[#FFCFB8]'
+            }`}>
+              <span className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider ${
+                isDark ? 'text-brand-orange' : 'text-[#C94A1A]'
+              }`}>
+                <i className="ri-filter-3-fill" style={{ fontSize: 13 }} />
+                {selectedPracas.length + selectedTipos.length + (searchQuery ? 1 : 0)} filtro{selectedPracas.length + selectedTipos.length + (searchQuery ? 1 : 0) > 1 ? 's' : ''} aplicado{selectedPracas.length + selectedTipos.length + (searchQuery ? 1 : 0) > 1 ? 's' : ''}
+              </span>
+              <span className={`text-xs ${t.textMuted}`}>·</span>
+              {selectedPracas.map((p) => (
+                <button key={`p-${p}`} onClick={() => setSelectedPracas((cur) => cur.filter((x) => x !== p))}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/80 dark:bg-white/10 border border-brand-orange/30 text-[#C94A1A] dark:text-brand-orange hover:bg-brand-orange hover:text-white transition-colors">
+                  <i className="ri-map-pin-line" style={{ fontSize: 10 }} />
+                  {p}
+                  <i className="ri-close-line" style={{ fontSize: 11 }} />
+                </button>
+              ))}
+              {selectedTipos.map((tp) => (
+                <button key={`t-${tp}`} onClick={() => setSelectedTipos((cur) => cur.filter((x) => x !== tp))}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/80 dark:bg-white/10 border border-brand-orange/30 text-[#C94A1A] dark:text-brand-orange hover:bg-brand-orange hover:text-white transition-colors">
+                  <i className="ri-layers-line" style={{ fontSize: 10 }} />
+                  {tp}
+                  <i className="ri-close-line" style={{ fontSize: 11 }} />
+                </button>
+              ))}
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/80 dark:bg-white/10 border border-brand-orange/30 text-[#C94A1A] dark:text-brand-orange hover:bg-brand-orange hover:text-white transition-colors">
+                  <i className="ri-search-line" style={{ fontSize: 10 }} />
+                  "{searchQuery.slice(0, 18)}{searchQuery.length > 18 ? '…' : ''}"
+                  <i className="ri-close-line" style={{ fontSize: 11 }} />
+                </button>
+              )}
+              <button
+                onClick={() => { setSelectedPracas([]); setSelectedTipos([]); setSearchQuery(''); }}
+                className="ml-auto inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full text-white bg-brand-orange hover:bg-[#E85A25] transition-colors"
+              >
+                <i className="ri-close-circle-line" style={{ fontSize: 13 }} />
+                Limpar tudo
+              </button>
+            </div>
+          )}
 
           {/* Search + sort controls */}
           <div className="flex flex-col sm:flex-row gap-3 mb-5">
@@ -1289,40 +1532,48 @@ export default function Landing() {
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
                       transition={{ delay: Math.min((groupIndex + itemIndex) * 0.02, 0.45), duration: 0.4 }}
-                      className={`rounded-2xl border backdrop-blur p-4 lg:p-5 transition-colors ${t.card} ${isDark ? 'hover:border-white/20' : 'hover:border-brand-orange/30'}`}
+                      className={`rounded-2xl border backdrop-blur p-4 lg:p-5 transition-all duration-200 ${t.card} ${isDark ? 'hover:border-brand-orange/35 hover:shadow-[0_10px_30px_rgba(0,0,0,0.45)] hover:-translate-y-0.5' : 'hover:border-brand-orange/40 hover:shadow-lg hover:-translate-y-0.5'}`}
                     >
-                      <div className="grid lg:grid-cols-[220px_1fr] gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
                         <PointImageGallery ponto={ponto} onExpand={openLightbox} />
 
                         <div>
                           <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2 mb-2">
-                                <span className={`text-[11px] uppercase tracking-wide rounded-md px-2 py-1 border ${t.chipOrange}`}>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                                <span className={`text-[11px] uppercase tracking-wide rounded-md px-2 py-1 border font-semibold ${t.chipOrange}`}>
+                                  <i className="ri-layers-line mr-1" style={{ fontSize: 11 }} />
                                   {ponto.tipo}
                                 </span>
                                 <span className={`text-[11px] uppercase tracking-wide rounded-md px-2 py-1 border ${t.chipGray}`}>
-                                  Público {ponto.publico || 'N/I'}
+                                  <i className="ri-user-line mr-1" style={{ fontSize: 11 }} />
+                                  {ponto.publico || 'N/I'}
                                 </span>
+                                {ponto.cidade && (
+                                  <span className={`text-[11px] uppercase tracking-wide rounded-md px-2 py-1 border ${t.chipGray}`}>
+                                    <i className="ri-map-pin-2-line mr-1" style={{ fontSize: 11 }} />
+                                    {ponto.cidade}
+                                  </span>
+                                )}
                                 {(ponto.tipo === 'Frontlight' || ponto.tipo === 'Backlight') && (
-                                  <span className={`text-[11px] uppercase tracking-wide rounded-md px-2 py-1 border font-bold ${
+                                  <span className={`inline-flex items-center gap-1 text-[11px] uppercase tracking-wide rounded-md px-2 py-1 border font-bold ${
                                     ponto.disponibilidade === 'indisponivel'
                                       ? 'bg-red-500/10 text-red-500 border-red-500/30'
                                       : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
                                   }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${ponto.disponibilidade === 'indisponivel' ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`} />
                                     {ponto.disponibilidade === 'indisponivel' ? 'Indisponível' : 'Disponível'}
                                   </span>
                                 )}
                               </div>
-                              <h4 className="text-xl font-semibold leading-tight">{ponto.nome}</h4>
-                              <p className={`text-sm mt-1 ${t.textMuted}`}>{ponto.cidade}</p>
+                              <h4 className="text-xl font-semibold leading-tight break-words">{ponto.nome}</h4>
                             </div>
-                            <div className={t.priceCard}>
-                              <div className={`flex items-center gap-1 text-[11px] uppercase tracking-wide mb-1 ${t.priceLabel}`}>
+                            <div className={`${t.priceCard} shrink-0`} style={isDark ? { boxShadow: '0 2px 14px rgba(255,107,53,0.12)' } : { boxShadow: '0 2px 14px rgba(255,107,53,0.15)' }}>
+                              <div className={`flex items-center gap-1 text-[10px] uppercase tracking-wide mb-0.5 font-semibold ${t.priceLabel}`}>
                                 <i className="ri-money-dollar-line text-brand-orange" style={{ fontSize: 12 }} />
-                                Investimento mensal
+                                Investimento / mês
                               </div>
-                              <div className="text-xl font-bold">{formatMoney(Number(ponto.preco) || 0)}</div>
+                              <div className="text-2xl font-bold text-brand-orange">{formatMoney(Number(ponto.preco) || 0)}</div>
                             </div>
                           </div>
 

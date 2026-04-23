@@ -16,6 +16,7 @@ import {
   createPonto,
   updatePonto,
   deletePonto,
+  hardDeletePonto,
   fetchEntornoCategories,
   fetchEntornoJobs,
   fetchEntornoJobStatus,
@@ -169,6 +170,9 @@ export default function Admin() {
   const [search, setSearch] = useState('');
   const [filterCidade, setFilterCidade] = useState('todas');
   const [filterTipo, setFilterTipo] = useState('todos');
+  const [filterStatus, setFilterStatus] = useState('todos'); // todos | ativo | inativo
+  const [pontosSortKey, setPontosSortKey] = useState('nome');
+  const [pontosSortDir, setPontosSortDir] = useState('asc');
   const [activeTab, setActiveTab] = useState('pontos');
 
   const [users, setUsers] = useState([]);
@@ -602,6 +606,20 @@ export default function Admin() {
     }
   };
 
+  const handleHardDelete = async (p) => {
+    const name = p?.nome || 'este ponto';
+    const confirm1 = confirm(`ATENÇÃO: Excluir PERMANENTEMENTE "${name}"?\n\nEssa ação não pode ser desfeita e removerá o ponto do banco de dados.`);
+    if (!confirm1) return;
+    const confirm2 = prompt(`Para confirmar a exclusão permanente, digite EXCLUIR:`);
+    if (String(confirm2 || '').trim().toUpperCase() !== 'EXCLUIR') return;
+    try {
+      await hardDeletePonto(p.id);
+      loadPontos();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const splitName = (fullName, login) => {
     const normalized = String(fullName || '').trim().replace(/\s+/g, ' ');
     if (!normalized) return { firstName: login, lastName: '-' };
@@ -881,15 +899,59 @@ export default function Admin() {
     });
   };
 
-  const filtered = pontos.filter((p) => {
+  const filtered = useMemo(() => {
     const searchTerm = search.trim().toLowerCase();
-    const matchSearch = !searchTerm
-      || p.nome.toLowerCase().includes(searchTerm)
-      || p.cidade.toLowerCase().includes(searchTerm);
-    const matchCidade = filterCidade === 'todas' || p.cidade === filterCidade;
-    const matchTipo = filterTipo === 'todos' || p.tipo === filterTipo;
-    return matchSearch && matchCidade && matchTipo;
-  });
+    const base = pontos.filter((p) => {
+      const matchSearch = !searchTerm
+        || p.nome.toLowerCase().includes(searchTerm)
+        || p.cidade.toLowerCase().includes(searchTerm);
+      const matchCidade = filterCidade === 'todas' || p.cidade === filterCidade;
+      const matchTipo = filterTipo === 'todos' || p.tipo === filterTipo;
+      const matchStatus = filterStatus === 'todos'
+        || (filterStatus === 'ativo' && Number(p.ativo) === 1)
+        || (filterStatus === 'inativo' && Number(p.ativo) !== 1);
+      return matchSearch && matchCidade && matchTipo && matchStatus;
+    });
+    const comparators = {
+      nome: (a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'),
+      cidade: (a, b) => String(a.cidade || '').localeCompare(String(b.cidade || ''), 'pt-BR'),
+      tipo: (a, b) => String(a.tipo || '').localeCompare(String(b.tipo || ''), 'pt-BR'),
+      telas: (a, b) => (Number(a.telas) || 0) - (Number(b.telas) || 0),
+      preco: (a, b) => (Number(a.preco) || 0) - (Number(b.preco) || 0),
+      ativo: (a, b) => (Number(b.ativo) || 0) - (Number(a.ativo) || 0),
+    };
+    const cmp = comparators[pontosSortKey] || comparators.nome;
+    const dirMul = pontosSortDir === 'asc' ? 1 : -1;
+    return [...base].sort((a, b) => dirMul * cmp(a, b));
+  }, [pontos, search, filterCidade, filterTipo, filterStatus, pontosSortKey, pontosSortDir]);
+
+  const togglePontosSort = (key) => {
+    if (pontosSortKey === key) {
+      setPontosSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setPontosSortKey(key);
+      setPontosSortDir(key === 'preco' || key === 'telas' ? 'desc' : 'asc');
+    }
+  };
+
+  const tiposContagem = useMemo(() => {
+    const scope = pontos.filter((p) => {
+      const matchCidade = filterCidade === 'todas' || p.cidade === filterCidade;
+      const matchStatus = filterStatus === 'todos'
+        || (filterStatus === 'ativo' && Number(p.ativo) === 1)
+        || (filterStatus === 'inativo' && Number(p.ativo) !== 1);
+      return matchCidade && matchStatus;
+    });
+    const counts = new Map();
+    scope.forEach((p) => counts.set(p.tipo || 'Sem tipo', (counts.get(p.tipo || 'Sem tipo') || 0) + 1));
+    return counts;
+  }, [pontos, filterCidade, filterStatus]);
+
+  const activeFiltersCount =
+    (filterCidade !== 'todas' ? 1 : 0)
+    + (filterTipo !== 'todos' ? 1 : 0)
+    + (filterStatus !== 'todos' ? 1 : 0)
+    + (search.trim() ? 1 : 0);
 
   const technicalPdfCandidates = useMemo(() => {
     const term = technicalPdfSearch.trim().toLowerCase();
@@ -1211,14 +1273,17 @@ export default function Admin() {
 
         {activeTab === 'pontos' ? (
           <>
-            <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center">
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Buscar por nome ou cidade..."
-                className={`w-full lg:max-w-md px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
-              />
+            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="relative w-full lg:max-w-md">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray-500" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Buscar por nome ou cidade..."
+                  className={`w-full pl-9 pr-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
+                />
+              </div>
 
               <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
                 <select
@@ -1235,32 +1300,137 @@ export default function Admin() {
                 </select>
 
                 <select
-                  value={filterTipo}
-                  onChange={(e) => setFilterTipo(e.target.value)}
-                  className={`w-full sm:w-52 px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className={`w-full sm:w-40 px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                 >
-                  <option value="todos" className={th.selectOpt}>Todos os tipos</option>
-                  {tipos.map((tipo) => (
-                    <option key={tipo} value={tipo} className={th.selectOpt}>
-                      {tipo}
-                    </option>
-                  ))}
+                  <option value="todos" className={th.selectOpt}>Todos os status</option>
+                  <option value="ativo" className={th.selectOpt}>Apenas ativos</option>
+                  <option value="inativo" className={th.selectOpt}>Apenas inativos</option>
                 </select>
               </div>
             </div>
+
+            {/* Formato chips — replaces simple select with count per format */}
+            <div className="mb-4">
+              <div className={`text-[10px] font-bold uppercase tracking-[0.18em] mb-2 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>
+                Filtrar por formato
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFilterTipo('todos')}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-colors min-h-[34px] ${
+                    filterTipo === 'todos'
+                      ? 'bg-brand-orange text-white border border-brand-orange'
+                      : isDark
+                        ? 'bg-white/[0.03] text-brand-gray-300 border border-white/10 hover:border-brand-orange/40 hover:text-white'
+                        : 'bg-white text-neutral-700 border border-neutral-200 hover:border-brand-orange/40 hover:text-[#C94A1A] shadow-sm'
+                  }`}
+                >
+                  Todos <span className="opacity-70">({pontos.length})</span>
+                </button>
+                {tipos.map((tipo) => {
+                  const count = tiposContagem.get(tipo) || 0;
+                  const active = filterTipo === tipo;
+                  return (
+                    <button
+                      key={tipo}
+                      type="button"
+                      onClick={() => setFilterTipo(active ? 'todos' : tipo)}
+                      disabled={count === 0 && !active}
+                      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-colors min-h-[34px] ${
+                        active
+                          ? 'bg-brand-orange text-white border border-brand-orange'
+                          : isDark
+                            ? 'bg-white/[0.03] text-brand-gray-300 border border-white/10 hover:border-brand-orange/40 hover:text-white disabled:opacity-35 disabled:cursor-not-allowed'
+                            : 'bg-white text-neutral-700 border border-neutral-200 hover:border-brand-orange/40 hover:text-[#C94A1A] shadow-sm disabled:opacity-35 disabled:cursor-not-allowed'
+                      }`}
+                    >
+                      {active && (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      )}
+                      {tipo} <span className="opacity-70">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Applied filters bar */}
+            {activeFiltersCount > 0 && (
+              <div className={`mb-4 rounded-xl border p-3 flex flex-wrap items-center gap-2 ${
+                isDark ? 'bg-brand-orange/[0.05] border-brand-orange/25' : 'bg-[#FFF0EA] border-[#FFCFB8]'
+              }`}>
+                <span className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-brand-orange' : 'text-[#C94A1A]'}`}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
+                  {activeFiltersCount} filtro{activeFiltersCount > 1 ? 's' : ''} aplicado{activeFiltersCount > 1 ? 's' : ''}
+                </span>
+                <span className={`text-xs ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>·</span>
+                <span className={`text-xs font-medium ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>
+                  {filtered.length} de {pontos.length} pontos
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setFilterCidade('todas'); setFilterTipo('todos'); setFilterStatus('todos'); }}
+                  className="ml-auto inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full text-white bg-brand-orange hover:bg-[#E85A25] transition-colors"
+                >
+                  <X size={13} />
+                  Limpar tudo
+                </button>
+              </div>
+            )}
 
             <div className={`border rounded-2xl overflow-hidden ${isDark ? 'border-white/5' : 'border-neutral-200'}`}>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className={th.tableHead}>
-                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs`}>Nome</th>
-                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden md:table-cell`}>Cidade</th>
-                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden md:table-cell`}>Tipo</th>
-                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden lg:table-cell`}>Telas</th>
+                      {[
+                        { key: 'nome', label: 'Nome', cls: '' },
+                        { key: 'cidade', label: 'Cidade', cls: 'hidden md:table-cell' },
+                        { key: 'tipo', label: 'Tipo', cls: 'hidden md:table-cell' },
+                        { key: 'telas', label: 'Telas', cls: 'hidden lg:table-cell' },
+                      ].map((col) => {
+                        const active = pontosSortKey === col.key;
+                        return (
+                          <th key={col.key} className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs ${col.cls}`}>
+                            <button
+                              type="button"
+                              onClick={() => togglePontosSort(col.key)}
+                              className={`inline-flex items-center gap-1 uppercase tracking-wide transition-colors ${active ? 'text-brand-orange' : (isDark ? 'hover:text-white' : 'hover:text-neutral-900')}`}
+                            >
+                              {col.label}
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: active ? 1 : 0.45 }}>
+                                {active ? (
+                                  pontosSortDir === 'asc'
+                                    ? <polyline points="18 15 12 9 6 15"/>
+                                    : <polyline points="6 9 12 15 18 9"/>
+                                ) : (
+                                  <><polyline points="7 15 12 20 17 15"/><polyline points="17 9 12 4 7 9"/></>
+                                )}
+                              </svg>
+                            </button>
+                          </th>
+                        );
+                      })}
                       <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden lg:table-cell`}>Proporção</th>
-                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs`}>Preço</th>
-                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden lg:table-cell`}>Status</th>
+                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs`}>
+                        <button type="button" onClick={() => togglePontosSort('preco')} className={`inline-flex items-center gap-1 uppercase tracking-wide transition-colors ${pontosSortKey === 'preco' ? 'text-brand-orange' : (isDark ? 'hover:text-white' : 'hover:text-neutral-900')}`}>
+                          Preço
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: pontosSortKey === 'preco' ? 1 : 0.45 }}>
+                            {pontosSortKey === 'preco' ? (pontosSortDir === 'asc' ? <polyline points="18 15 12 9 6 15"/> : <polyline points="6 9 12 15 18 9"/>) : (<><polyline points="7 15 12 20 17 15"/><polyline points="17 9 12 4 7 9"/></>)}
+                          </svg>
+                        </button>
+                      </th>
+                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden lg:table-cell`}>
+                        <button type="button" onClick={() => togglePontosSort('ativo')} className={`inline-flex items-center gap-1 uppercase tracking-wide transition-colors ${pontosSortKey === 'ativo' ? 'text-brand-orange' : (isDark ? 'hover:text-white' : 'hover:text-neutral-900')}`}>
+                          Status
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: pontosSortKey === 'ativo' ? 1 : 0.45 }}>
+                            {pontosSortKey === 'ativo' ? (pontosSortDir === 'asc' ? <polyline points="18 15 12 9 6 15"/> : <polyline points="6 9 12 15 18 9"/>) : (<><polyline points="7 15 12 20 17 15"/><polyline points="17 9 12 4 7 9"/></>)}
+                          </svg>
+                        </button>
+                      </th>
                       <th className={`text-right px-4 py-3 ${th.tableHeadText} font-medium text-xs`}>Ações</th>
                     </tr>
                   </thead>
@@ -1319,11 +1489,21 @@ export default function Admin() {
                             </button>
                             <button
                               onClick={() => handleDelete(p.id)}
-                              className={`p-2 rounded-lg transition-colors ${isDark ? 'text-brand-gray-400 hover:bg-white/10 hover:text-red-400' : 'text-neutral-500 hover:bg-red-50 hover:text-red-600'}`}
-                              title="Excluir"
+                              className={`p-2 rounded-lg transition-colors ${isDark ? 'text-brand-gray-400 hover:bg-white/10 hover:text-amber-400' : 'text-neutral-500 hover:bg-amber-50 hover:text-amber-600'}`}
+                              title={Number(p.ativo) === 1 ? 'Desativar ponto (soft delete)' : 'Ponto já inativo'}
+                              disabled={Number(p.ativo) !== 1}
                             >
-                              <Trash2 size={14} />
+                              <EyeOff size={14} />
                             </button>
+                            {currentUser?.role === 'admin' && (
+                              <button
+                                onClick={() => handleHardDelete(p)}
+                                className={`p-2 rounded-lg transition-colors ${isDark ? 'text-brand-gray-400 hover:bg-red-500/20 hover:text-red-400' : 'text-neutral-500 hover:bg-red-50 hover:text-red-600'}`}
+                                title="Excluir permanentemente (admin)"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

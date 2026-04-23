@@ -3774,6 +3774,20 @@ app.delete('/api/pontos/:id', requireRoles(['admin', 'gerente_comercial']), (req
   }
 });
 
+// HARD DELETE ponto (admin only) — permanently removes row
+app.delete('/api/pontos/:id/hard', requireRoles(['admin']), (req, res) => {
+  try {
+    const existing = db.prepare('SELECT id, cidade, nome FROM pontos WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Ponto não encontrado' });
+    const result = db.prepare('DELETE FROM pontos WHERE id = ?').run(req.params.id);
+    if (result.changes === 0) return res.status(404).json({ error: 'Ponto não encontrado' });
+    invalidateCityCaches(existing.cidade, db);
+    res.json({ success: true, deleted: existing.nome });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
 // GET all pontos for admin (including inactive)
 app.get('/api/admin/pontos', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {

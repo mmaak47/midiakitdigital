@@ -67,6 +67,64 @@ function getBaseTypeLabel(typeLabel) {
   return String(typeLabel || '').split(' - ')[0].trim();
 }
 
+function normalizePdfText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function isStaticPrintFormat(rawType) {
+  const normalizedType = normalizePdfText(rawType);
+  return normalizedType.includes('backlight') || normalizedType.includes('frontlight');
+}
+
+function isInsertionBasedFormat(rawType) {
+  return !isStaticPrintFormat(rawType);
+}
+
+function resolveInsertionMetric(point, { minimum = false } = {}) {
+  if (!isInsertionBasedFormat(point?.tipo)) {
+    return {
+      key: 'veiculacao',
+      label: 'Exibição',
+      value: 'Contínua'
+    };
+  }
+
+  const numeric = Number(point?.insercoes);
+  const baseValue = Number.isFinite(numeric) ? formatInt(numeric) : '-';
+
+  return {
+    key: 'insercoes',
+    label: 'Inserções',
+    value: minimum ? `Mín. ${baseValue}` : baseValue
+  };
+}
+
+function getDigitalInsercoesTotal(points = []) {
+  return points.reduce((sum, point) => {
+    if (!isInsertionBasedFormat(point?.tipo)) return sum;
+    const numeric = Number(point?.insercoes);
+    return sum + (Number.isFinite(numeric) ? numeric : 0);
+  }, 0);
+}
+
+function resolveVeiculacaoLabel(point, fallback = '—') {
+  const raw = String(point?.veiculacao ?? '').trim();
+
+  if (isStaticPrintFormat(point?.tipo)) {
+    const normalizedRaw = normalizePdfText(raw);
+    const looksLikeVideoLabel = /(video\s*sem\s*(audio|som))/.test(normalizedRaw);
+    if (!raw || looksLikeVideoLabel) {
+      return 'Mídia estática (impressão em lona)';
+    }
+  }
+
+  return raw || fallback;
+}
+
 export function formatMoney(value) {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -476,12 +534,14 @@ async function renderPagesToPdf(pages, fileName, options = {}) {
 <title>${escapeHtml(pdfTitle)}</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; }
-html, body { margin: 0; padding: 0; background: #FFFFFF; }
+html, body { margin: 0; padding: 0; background: #FFFFFF; width: 1366px; }
+body { margin: 0 auto; }
 @page { size: 1366px 768px; margin: 0; }
 section {
   display: block;
   width: 1366px !important;
   height: 768px !important;
+  margin: 0 auto;
   overflow: hidden !important;
   page-break-after: always;
   break-after: page;
@@ -494,7 +554,7 @@ section:last-child {
   html, body {
     width: 1366px;
     height: auto;
-    margin: 0;
+    margin: 0 auto;
     padding: 0;
     overflow: visible;
   }
@@ -734,7 +794,7 @@ function buildMidiaKitManifestoPage({ assets }) {
     },
     {
       title: 'Qual exposição você compra',
-      text: 'Fluxo, inserções, tempo de tela e público organizados para facilitar comparação e decisão.'
+      text: 'Fluxo, exibição e público organizados para facilitar comparação e decisão.'
     },
     {
       title: 'Como ativar com segurança',
@@ -1003,18 +1063,19 @@ function buildMidiaKitEndingPage({ assets }) {
 
 function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   const fluxoLabel = isVehicleFlowPoint(ponto) ? 'Veículos / mês' : 'Pessoas / mês';
+  const insertionMetric = resolveInsertionMetric(ponto, { minimum: true });
   const metrics = [
     { key: 'publico', label: 'Público', value: ponto.publico || '-' },
     { key: 'fluxo', label: fluxoLabel, value: formatInt(ponto.fluxo) },
     { key: 'telas', label: 'Pontos de Impacto', value: formatInt(ponto.telas) },
-    { key: 'insercoes', label: 'Inserções', value: `Mín. ${formatInt(ponto.insercoes)}` },
+    insertionMetric,
     { key: 'tempo', label: 'Tempo', value: ponto.tempo || '-' },
     { key: 'loop', label: 'Loop', value: ponto.loop ? `Mín. ${ponto.loop}` : '-' }
   ];
   const photo = image || assets.showcase || assets.about1 || '';
   const focalPoint = String(ponto?.foto_focal_point || 'center center').trim() || 'center center';
   const locationLabel = formatPointAddress(ponto.endereco);
-  const veiculacao = ponto.veiculacao || 'Vídeo sem áudio';
+  const veiculacao = resolveVeiculacaoLabel(ponto, 'Vídeo sem áudio');
   const horario = normalizeHorarioForPdf(ponto.horario, '-');
 
   return createPage(`
@@ -1107,7 +1168,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
     <div style="position:absolute;left:0;bottom:0;width:460px;height:260px;background:linear-gradient(145deg,rgba(232,89,26,0.14) 0%,rgba(232,89,26,0.04) 46%,rgba(232,89,26,0) 100%);"></div>
-    <div style="position:relative;z-index:1;display:grid;grid-template-columns:1.04fr 0.96fr;height:768px;max-height:768px;padding:58px 64px 50px;gap:22px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+    <div style="position:relative;z-index:1;width:100%;display:grid;grid-template-columns:1.04fr 0.96fr;height:768px;max-height:768px;padding:58px 64px 50px;gap:22px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;flex-direction:column;min-width:0;">
         <div style="display:flex;align-items:center;gap:18px;">
           <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:48px;width:auto;object-fit:contain;" />
@@ -1191,7 +1252,8 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
   const segmentLabel = getSegmentDisplayName(segmento);
   const pointCount = proposalPoints.length;
   const fluxoTotal = Number(proposalTotals?.fluxoTotal) || 0;
-  const insercoesTotal = Number(proposalTotals?.insercoesTotal) || 0;
+  const hasDigitalInsertionPoints = proposalPoints.some((point) => isInsertionBasedFormat(point?.tipo));
+  const digitalInsercoesTotal = getDigitalInsercoesTotal(proposalPoints);
   const valorTabela = Number(pricingSummary?.originalTotal ?? proposalTotals?.valorTotal) || 0;
   const valorNegociado = Number(pricingSummary?.finalTotal ?? proposalTotals?.valorTotal) || 0;
   const ticketMedio = pointCount > 0 ? valorNegociado / pointCount : 0;
@@ -1234,18 +1296,25 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
       howToRead: 'Custo estimado de cada impacto mensal, considerando todo o fluxo da campanha.',
       value: formatCostPerImpact(custoPorImpacto)
     },
-    {
-      name: 'Inserções Mensais',
-      meaning: 'Volume mínimo de inserções previstas no plano.',
-      howToRead: 'Quantidade mínima de inserções mensais planejadas para execução da campanha.',
-      value: `Mínimo de ${formatInt(insercoesTotal)}`
-    }
+    hasDigitalInsertionPoints
+      ? {
+          name: 'Inserções Mensais',
+          meaning: 'Volume mínimo de inserções previsto para os formatos digitais do plano.',
+          howToRead: 'Quantidade mínima de inserções mensais planejadas para execução digital da campanha.',
+          value: `Mínimo de ${formatInt(digitalInsercoesTotal)}`
+        }
+      : {
+          name: 'Exibição',
+          meaning: 'Backlight e Frontlight trabalham com mídia estática de exposição contínua.',
+          howToRead: 'Para formatos estáticos não existe contagem por inserções.',
+          value: 'Contínua'
+        }
   ];
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
 
-    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:38px 48px;box-sizing:border-box;display:grid;grid-template-rows:auto auto 1fr;gap:12px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+    <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:38px 48px;box-sizing:border-box;display:grid;grid-template-rows:auto auto 1fr;gap:12px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;">
         <div style="display:flex;align-items:center;gap:14px;">
           <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;flex-shrink:0;" />
@@ -1331,12 +1400,13 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
     }
     return null;
   })();
+  const insertionMetric = resolveInsertionMetric(point);
 
   const leftStats = [
     { label: 'Público', value: escapeHtml(audience.badge || 'A/B+') },
     { label: escapeHtml(fluxoLabel), value: formatMetricValue(point.fluxo) },
     { label: 'Telas', value: formatMetricValue(point.telas) },
-    { label: 'Inserções', value: formatMetricValue(point.insercoes) },
+    { label: insertionMetric.label, value: insertionMetric.value },
   ];
   
   const tempo = String(point?.tempo_insercao ?? point?.tempo ?? '').trim();
@@ -1346,15 +1416,15 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
 
   const hasImage = Boolean(image);
   const hasMap = Boolean(mapImage);
-  const veiculacao = String(point?.veiculacao ?? '').trim() || '—';
+  const veiculacao = resolveVeiculacaoLabel(point, '—');
   const horario = normalizeHorarioForPdf(point?.horario, '—');
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
-    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:28px 32px;box-sizing:border-box;display:grid;grid-template-columns:${(hasImage || hasMap) ? "1fr 1.05fr" : "1fr"};gap:20px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+    <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:20px 22px 18px;box-sizing:border-box;display:grid;grid-template-columns:${(hasImage || hasMap) ? "minmax(0,1.12fr) minmax(0,0.88fr)" : "1fr"};gap:14px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       
       <!-- LEFT COLUMN -->
-      <div style="display:flex;flex-direction:column;gap:20px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};border-radius:24px;padding:26px 32px;overflow:hidden;box-sizing:border-box;">
+      <div style="display:flex;flex-direction:column;gap:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};border-left:6px solid ${PROPOSAL_ACCENT};border-radius:24px;padding:22px 24px 18px;overflow:hidden;box-sizing:border-box;">
         
         <!-- Header: Logo and Pagination -->
         <div style="display:flex;justify-content:space-between;align-items:center;min-height:32px;flex-shrink:0;">
@@ -1402,36 +1472,33 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
         <div style="flex:1;min-height:0;"></div>
 
         <!-- Bottom Row -->
-        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;border-top:1px solid rgba(0,0,0,0.06);padding-top:18px;flex-shrink:0;">
-          <div style="display:flex;gap:36px;">
-            <div>
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;border-top:1px solid rgba(0,0,0,0.06);padding-top:14px;flex-shrink:0;">
+          <div style="padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};min-width:0;">
               <div style="font-size:10px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Veiculação</div>
-              <div style="font-size:14px;font-weight:700;color:${PROPOSAL_TEXT};margin-top:4px;">${escapeHtml(veiculacao)}</div>
-            </div>
-            <div>
-              <div style="font-size:10px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Horário</div>
-              <div style="font-size:14px;font-weight:700;color:${PROPOSAL_TEXT};margin-top:4px;">${escapeHtml(horario)}</div>
-            </div>
+              <div style="font-size:14px;font-weight:700;color:${PROPOSAL_TEXT};line-height:1.25;margin-top:4px;word-break:break-word;">${escapeHtml(veiculacao)}</div>
           </div>
-          <div style="text-align:right;">
+          <div style="padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};min-width:0;">
+              <div style="font-size:10px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Horário</div>
+              <div style="font-size:14px;font-weight:700;color:${PROPOSAL_TEXT};line-height:1.25;margin-top:4px;word-break:break-word;">${escapeHtml(horario)}</div>
+          </div>
+          <div style="padding:10px 12px;border-radius:12px;border:1px solid rgba(232,89,26,0.24);background:rgba(232,89,26,0.10);min-width:0;">
             <div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Valor mensal</div>
-            <div style="font-size:28px;font-weight:800;color:${PROPOSAL_ACCENT};line-height:1;margin-top:4px;">${escapeHtml(monthlyValueLabel)}</div>
+            <div style="font-size:30px;font-weight:800;color:${PROPOSAL_ACCENT};line-height:1.05;margin-top:5px;letter-spacing:-0.02em;word-break:break-word;">${escapeHtml(monthlyValueLabel)}</div>
           </div>
         </div>
       </div>
 
       <!-- RIGHT COLUMN -->
-      <div style="display:flex;flex-direction:column;gap:12px;height:100%;min-width:0;overflow:hidden;">
+      <div style="display:flex;flex-direction:column;gap:10px;height:100%;min-width:0;overflow:hidden;">
         ${hasImage ? `
         <div style="flex:1;min-height:0;border-radius:24px;overflow:hidden;background:${PROPOSAL_SURFACE_ALT};position:relative;border:1px solid ${PROPOSAL_BORDER};">
-          <img src="${image}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(point?.foto_focal_point || 'center 38%')};filter:blur(22px) saturate(1.1);transform:scale(1.06);opacity:0.4;display:block;" />
-          <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.35));"></div>
-          <img src="${image}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:${escapeHtml(point?.foto_focal_point || 'center 38%')};display:block;filter:drop-shadow(0 8px 24px rgba(0,0,0,0.3));" />
+          <img src="${image}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(point?.foto_focal_point || 'center 38%')};display:block;" />
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.06),rgba(0,0,0,0.22));"></div>
         </div>
         ` : ''}
         
         ${hasMap ? `
-        <div style="height:${hasImage ? '170px' : '100%'};flex-shrink:0;border-radius:24px;overflow:hidden;background:${PROPOSAL_SURFACE_ALT};position:relative;border:1px solid ${PROPOSAL_BORDER};">
+        <div style="height:${hasImage ? '182px' : '100%'};flex-shrink:0;border-radius:24px;overflow:hidden;background:${PROPOSAL_SURFACE_ALT};position:relative;border:1px solid ${PROPOSAL_BORDER};">
           <img src="${mapImage}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;" />
         </div>
         ` : ''}
@@ -1686,7 +1753,7 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
 
-    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:42px 56px;box-sizing:border-box;display:grid;grid-template-rows:auto auto auto 1fr;gap:12px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+    <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:42px 56px;box-sizing:border-box;display:grid;grid-template-rows:auto auto auto 1fr;gap:12px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;">
         <div style="display:flex;align-items:center;gap:14px;">
           <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;flex-shrink:0;" />
@@ -1819,7 +1886,7 @@ function buildCampaignScorePage({ proposalPoints, segmento, assets }) {
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
     <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(254,92,43,0.08) 0%,transparent 40%);"></div>
-    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+    <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;">
         <div style="display:flex;align-items:center;gap:16px;">
           <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;flex-shrink:0;" />
@@ -1871,7 +1938,7 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
     <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(254,92,43,0.06) 0%,transparent 40%);"></div>
-    <div style="position:relative;z-index:1;height:768px;max-height:768px;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+    <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;">
         <div style="display:flex;align-items:center;gap:16px;">
           <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;flex-shrink:0;" />
@@ -1930,7 +1997,10 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
   const publicoLabel = Array.isArray(publico) ? publico.filter(Boolean).join(', ') : (publico || '—');
   const cityLabel = Array.isArray(proposalCity) ? proposalCity.join(', ') : (proposalCity || '—');
 
-  const insercoesLabel = proposalTotals?.insercoesTotal ? proposalTotals.insercoesTotal.toLocaleString('pt-BR') : '—';
+  const hasDigitalInsertionPoints = proposalPoints.some((point) => isInsertionBasedFormat(point?.tipo));
+  const digitalInsercoesTotal = getDigitalInsercoesTotal(proposalPoints);
+  const insertionMetricTitle = hasDigitalInsertionPoints ? 'Inserções (Mensais)' : 'Veiculação';
+  const insertionMetricValue = hasDigitalInsertionPoints ? formatInt(digitalInsercoesTotal) : 'Contínua';
   const fluxoLabel = proposalTotals?.fluxoTotal ? proposalTotals.fluxoTotal.toLocaleString('pt-BR') : '—';
   const cpmLabel = proposalTotals?.cpmEstimado ? formatMoney(proposalTotals.cpmEstimado) : '—';
 
@@ -1954,7 +2024,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
     <div style="position:absolute;top:-20%;right:-10%;width:800px;height:800px;background:radial-gradient(circle, rgba(232,89,26,0.06) 0%, transparent 60%);border-radius:50%;filter:blur(60px);pointer-events:none;"></div>
     <div style="position:absolute;bottom:-20%;left:-10%;width:600px;height:600px;background:radial-gradient(circle, rgba(232,89,26,0.04) 0%, transparent 60%);border-radius:50%;filter:blur(60px);pointer-events:none;"></div>
 
-    <div style="position:relative;z-index:1;height:${impactPageHeight}px;max-height:${impactPageHeight}px;padding:42px 52px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:visible;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+    <div style="position:relative;z-index:1;width:100%;height:${impactPageHeight}px;max-height:${impactPageHeight}px;padding:42px 52px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:visible;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
 
       <!-- Header -->
       <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -2021,8 +2091,8 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
 
             <div style="display:flex;flex-direction:column;gap:18px;">
               <div style="padding-bottom:16px;border-bottom:1px dashed ${PROPOSAL_BORDER};">
-                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:${PROPOSAL_LABEL};margin-bottom:4px;">Inserções (Mensais)</div>
-                <div style="font-size:24px;font-weight:800;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${insercoesLabel}</div>
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:${PROPOSAL_LABEL};margin-bottom:4px;">${insertionMetricTitle}</div>
+                <div style="font-size:24px;font-weight:800;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${insertionMetricValue}</div>
               </div>
               <div style="padding-bottom:16px;border-bottom:1px dashed ${PROPOSAL_BORDER};">
                 <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:${PROPOSAL_LABEL};margin-bottom:4px;">Fluxo de Pessoas (Mensal)</div>
@@ -2036,34 +2106,32 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
           </div>
 
           <!-- Investment Summary -->
-          <div style="flex:1;border-radius:16px;background:rgba(232,89,26,0.04);border:1px solid rgba(232,89,26,0.20);padding:24px;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden;box-shadow:0 4px 20px rgba(232,89,26,0.06);">
-            <div style="position:absolute;top:0;left:0;width:100%;height:3px;background:linear-gradient(90deg, transparent, ${PROPOSAL_ACCENT}, transparent);"></div>
-
-            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_ACCENT};background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.2);padding:6px 12px;border-radius:100px;align-self:flex-start;margin-bottom:auto;">
+          <div style="flex:1;border-radius:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};padding:18px;display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.06);">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_ACCENT};background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.2);padding:6px 12px;border-radius:100px;align-self:flex-start;">
               Resumo Financeiro
             </div>
 
-            <div style="margin-top:24px;">
-              ${hasDiscount ? `
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                  <div style="font-size:12px;font-weight:500;color:${PROPOSAL_LABEL};">Valor Original</div>
-                  <div style="font-size:14px;font-weight:600;color:${PROPOSAL_LABEL};text-decoration:line-through;font-family:Poppins, system-ui, sans-serif;">${formatMoney(originalTotal)}</div>
-                </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:16px;border-bottom:1px dashed ${PROPOSAL_BORDER};">
-                  <div style="font-size:12px;font-weight:500;color:${PROPOSAL_TEXT_SECONDARY};">Desconto Aplicado</div>
-                  <div style="font-size:14px;font-weight:700;color:#16a34a;font-family:Poppins, system-ui, sans-serif;">-${formatMoney(discountTotal)}</div>
-                </div>
-              ` : ''}
+            <div style="padding:12px 14px;border-radius:12px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};">
+              <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Tabela cheia</div>
+              <div style="margin-top:5px;font-size:24px;line-height:1.05;font-weight:800;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;letter-spacing:-0.02em;word-break:break-word;">${formatMoney(originalTotal)}</div>
+            </div>
 
-              <div style="display:flex;flex-direction:column;gap:6px;">
-                <div style="font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:${PROPOSAL_TEXT_SECONDARY};">Total Mensal</div>
-                <div style="font-size:32px;font-weight:800;color:${PROPOSAL_ACCENT};font-family:Poppins, system-ui, sans-serif;line-height:1.1;letter-spacing:-0.02em;">${formatMoney(finalTotal)}</div>
-                <div style="font-size:9.5px;color:${PROPOSAL_LABEL};margin-top:12px;line-height:1.45;">
-                  ${duracao_meses ? `Valores válidos para o contrato de <strong>${duracao_meses} meses</strong>.<br>` : ''}Negociação válida <strong>exclusivamente</strong> para o plano e quantidade de pontos apresentados.<br>
-                  Para outras condições de compra, os valores deverão ser consultados.<br>
-                  * Produção de materiais por conta do cliente.
-                </div>
-              </div>
+            <div style="padding:12px 14px;border-radius:12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.28);">
+              <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#92400e;">Desconto total</div>
+              <div style="margin-top:5px;font-size:24px;line-height:1.05;font-weight:800;color:#b45309;font-family:Poppins, system-ui, sans-serif;letter-spacing:-0.02em;word-break:break-word;">${formatMoney(discountTotal)}</div>
+              <div style="margin-top:4px;font-size:10px;line-height:1.35;color:${PROPOSAL_TEXT_SECONDARY};">${hasDiscount ? 'Condição comercial aplicada neste combo.' : 'Nenhum desconto aplicado neste cenário.'}</div>
+            </div>
+
+            <div style="padding:14px 14px;border-radius:14px;background:rgba(34,197,94,0.08);border:2px solid rgba(34,197,94,0.34);">
+              <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#166534;">Valor final</div>
+              <div style="margin-top:6px;font-size:32px;line-height:1.04;font-weight:900;color:#15803d;font-family:Poppins, system-ui, sans-serif;letter-spacing:-0.02em;word-break:break-word;">${formatMoney(finalTotal)}</div>
+            </div>
+
+            <div style="margin-top:auto;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,0.02);border:1px solid ${PROPOSAL_BORDER};font-size:9.5px;line-height:1.42;color:${PROPOSAL_LABEL};">
+              ${duracao_meses ? `Valores válidos para o contrato de <strong>${duracao_meses} meses</strong>.<br>` : ''}
+              Negociação válida <strong>exclusivamente</strong> para o plano e quantidade de pontos apresentados.<br>
+              Para outras condições de compra, os valores deverão ser consultados.<br>
+              * Produção de materiais por conta do cliente.
             </div>
           </div>
 
@@ -2153,7 +2221,7 @@ function buildProposalClosingPage(assets, overviewMapImage) {
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
     <div style="position:absolute;inset:auto auto -180px -60px;width:560px;height:560px;border-radius:999px;background:radial-gradient(circle,rgba(232,89,26,0.08) 0%,rgba(232,89,26,0.02) 48%,rgba(232,89,26,0) 72%);"></div>
-    <div style="position:relative;z-index:1;height:768px;max-height:768px;display:flex;align-items:center;justify-content:center;padding:44px 56px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+    <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;display:flex;align-items:center;justify-content:center;padding:44px 56px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="width:100%;max-width:1060px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;text-align:center;">
         <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:56px;width:auto;object-fit:contain;flex-shrink:0;" />
         ${mapHtml}

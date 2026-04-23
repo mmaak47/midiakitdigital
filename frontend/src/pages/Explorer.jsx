@@ -38,6 +38,9 @@ export default function Explorer() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ cidade: initialCidade, tipo: '', elevador_categoria: '', publico: [], search: '' });
   const [view, setView] = useState('grid');
+  const [sortBy, setSortBy] = useState('relevancia'); // relevancia | preco-asc | preco-desc | telas-desc | nome-asc
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const sortMenuRef = useRef(null);
   const [showMapModal, setShowMapModal] = useState(false);
   const [selected, setSelected] = useState(null);
   const [mobileFilters, setMobileFilters] = useState(false);
@@ -144,6 +147,66 @@ export default function Explorer() {
     setSelected(ponto);
   }, [registerView]);
 
+  // Sort the filtered points
+  const sortedPontos = useMemo(() => {
+    if (!pontos.length) return pontos;
+    const arr = [...pontos];
+    switch (sortBy) {
+      case 'preco-asc':
+        return arr.sort((a, b) => (Number(a.preco) || 0) - (Number(b.preco) || 0));
+      case 'preco-desc':
+        return arr.sort((a, b) => (Number(b.preco) || 0) - (Number(a.preco) || 0));
+      case 'telas-desc':
+        return arr.sort((a, b) => (Number(b.telas) || 0) - (Number(a.telas) || 0));
+      case 'nome-asc':
+        return arr.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
+      case 'relevancia':
+      default:
+        return arr;
+    }
+  }, [pontos, sortBy]);
+
+  // Applied filters summary
+  const appliedFilterChips = useMemo(() => {
+    const chips = [];
+    if (filters.search) chips.push({ key: 'search', label: `Busca: ${filters.search}`, remove: () => setFilters((f) => ({ ...f, search: '' })) });
+    if (filters.cidade?.length) {
+      filters.cidade.forEach((c) => {
+        chips.push({ key: `cidade-${c}`, label: c, remove: () => setFilters((f) => ({ ...f, cidade: f.cidade.filter((x) => x !== c) })) });
+      });
+    }
+    if (filters.tipo) chips.push({ key: 'tipo', label: filters.tipo, remove: () => setFilters((f) => ({ ...f, tipo: '' })) });
+    if (filters.elevador_categoria) chips.push({ key: 'elv', label: filters.elevador_categoria, remove: () => setFilters((f) => ({ ...f, elevador_categoria: '' })) });
+    if (filters.publico?.length) {
+      filters.publico.forEach((p) => {
+        chips.push({ key: `publico-${p}`, label: p, remove: () => setFilters((f) => ({ ...f, publico: f.publico.filter((x) => x !== p) })) });
+      });
+    }
+    return chips;
+  }, [filters]);
+
+  const clearAllFilters = useCallback(() => {
+    setFilters({ cidade: [], tipo: '', elevador_categoria: '', publico: [], search: '' });
+  }, []);
+
+  useEffect(() => {
+    if (!showSortMenu) return;
+    const handler = (e) => {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target)) setShowSortMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showSortMenu]);
+
+  const sortOptions = [
+    { value: 'relevancia', label: 'Relevância (padrão)' },
+    { value: 'preco-asc', label: 'Menor preço' },
+    { value: 'preco-desc', label: 'Maior preço' },
+    { value: 'telas-desc', label: 'Mais telas' },
+    { value: 'nome-asc', label: 'Nome (A-Z)' },
+  ];
+  const currentSortLabel = sortOptions.find((o) => o.value === sortBy)?.label || 'Ordenar';
+
   return (
     <div
       className={`min-h-screen ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
@@ -238,35 +301,121 @@ export default function Explorer() {
               </span>
             </div>
 
-            <div className={`flex items-center gap-1 rounded-xl p-1 ${isDark ? 'bg-white/5' : 'bg-neutral-100 border border-neutral-200'}`}>
-              <button
-                onClick={() => setView('grid')}
-                className={`p-2 rounded-lg transition-all duration-200 ${
-                  !showMapModal
-                    ? 'bg-brand-orange text-white'
-                    : isDark
-                      ? 'text-brand-gray-400 hover:text-white'
-                      : 'text-neutral-500 hover:text-neutral-900 hover:bg-white'
-                }`}
-                title="Visualização em grade"
-              >
-                <LayoutGrid size={16} />
-              </button>
-              <button
-                onClick={() => setShowMapModal(true)}
-                className={`p-2 rounded-lg transition-all duration-200 ${
-                  showMapModal
-                    ? 'bg-brand-orange text-white'
-                    : isDark
-                      ? 'text-brand-gray-400 hover:text-white'
-                      : 'text-neutral-500 hover:text-neutral-900 hover:bg-white'
-                }`}
-                title="Abrir mapa"
-              >
-                <Map size={16} />
-              </button>
+            <div className="flex items-center gap-2">
+              <div className={`flex items-center gap-1 rounded-xl p-1 ${isDark ? 'bg-white/5' : 'bg-neutral-100 border border-neutral-200'}`}>
+                <button
+                  onClick={() => setView('grid')}
+                  className={`p-2 rounded-lg transition-all duration-200 ${
+                    !showMapModal
+                      ? 'bg-brand-orange text-white'
+                      : isDark
+                        ? 'text-brand-gray-400 hover:text-white'
+                        : 'text-neutral-500 hover:text-neutral-900 hover:bg-white'
+                  }`}
+                  title="Visualização em grade"
+                >
+                  <LayoutGrid size={16} />
+                </button>
+                <button
+                  onClick={() => setShowMapModal(true)}
+                  className={`p-2 rounded-lg transition-all duration-200 ${
+                    showMapModal
+                      ? 'bg-brand-orange text-white'
+                      : isDark
+                        ? 'text-brand-gray-400 hover:text-white'
+                        : 'text-neutral-500 hover:text-neutral-900 hover:bg-white'
+                  }`}
+                  title="Abrir mapa"
+                >
+                  <Map size={16} />
+                </button>
+              </div>
+
+              <div className="relative" ref={sortMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowSortMenu((s) => !s)}
+                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${
+                    isDark
+                      ? 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10 hover:text-white'
+                      : 'bg-white border-neutral-200 text-neutral-700 hover:border-brand-orange/40 hover:text-[#C94A1A]'
+                  }`}
+                  title="Ordenar resultados"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
+                  <span className="hidden sm:inline">{currentSortLabel}</span>
+                  <ChevronDown size={12} className={`transition-transform ${showSortMenu ? 'rotate-180' : ''}`} />
+                </button>
+                {showSortMenu && (
+                  <div className={`absolute right-0 mt-2 w-56 rounded-xl border shadow-lg z-20 overflow-hidden ${isDark ? 'bg-[#151515] border-white/10' : 'bg-white border-neutral-200'}`}>
+                    {sortOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => { setSortBy(opt.value); setShowSortMenu(false); }}
+                        className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors flex items-center justify-between ${
+                          sortBy === opt.value
+                            ? (isDark ? 'bg-brand-orange/10 text-brand-orange' : 'bg-[#FFF0EA] text-[#C94A1A]')
+                            : (isDark ? 'text-white/80 hover:bg-white/5' : 'text-neutral-700 hover:bg-neutral-50')
+                        }`}
+                      >
+                        {opt.label}
+                        {sortBy === opt.value && (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Applied filters summary bar */}
+          {appliedFilterChips.length > 0 && (
+            <div className={`px-6 pt-3 pb-2 border-b flex flex-wrap items-center gap-2 ${
+              isDark ? 'bg-brand-orange/[0.04] border-white/5' : 'bg-[#FFF8F3] border-neutral-200'
+            }`}>
+              <span className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-brand-orange' : 'text-[#C94A1A]'}`}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
+                {appliedFilterChips.length} filtro{appliedFilterChips.length > 1 ? 's' : ''}
+              </span>
+              <span className={`text-xs ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>·</span>
+              <span className={`text-xs font-medium ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>
+                {pontos.length} resultado{pontos.length !== 1 ? 's' : ''}
+              </span>
+
+              <div className="flex flex-wrap items-center gap-1.5 ml-1">
+                {appliedFilterChips.slice(0, 6).map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    onClick={chip.remove}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      isDark
+                        ? 'bg-white/10 text-white/80 hover:bg-red-500/20 hover:text-red-300'
+                        : 'bg-white text-neutral-700 border border-neutral-200 hover:border-red-300 hover:text-red-600 hover:bg-red-50'
+                    }`}
+                  >
+                    {chip.label}
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                ))}
+                {appliedFilterChips.length > 6 && (
+                  <span className={`text-xs ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>+{appliedFilterChips.length - 6}</span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="ml-auto inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full text-white bg-brand-orange hover:bg-[#E85A25] transition-colors"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                Limpar tudo
+              </button>
+            </div>
+          )}
 
           <div className="p-6">
             {loading ? (
@@ -291,7 +440,7 @@ export default function Explorer() {
               </motion.div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
-                {pontos.map((ponto, i) => (
+                {sortedPontos.map((ponto, i) => (
                   <PointCard
                     key={ponto.id}
                     ponto={ponto}

@@ -54,6 +54,19 @@ function getPointTypeShort(point) {
   return parts[0].trim();
 }
 
+function normalizeTypeForRules(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function isStaticPrintPoint(point) {
+  const normalized = normalizeTypeForRules(getPointType(point));
+  return normalized.includes('frontlight') || normalized.includes('backlight');
+}
+
 // ── PointMiniMap (react-leaflet) ─────────────────────────────────────────────
 function PointMiniMap({ lat, lng }) {
   const validLat = Number.isFinite(Number(lat)) ? Number(lat) : null;
@@ -106,12 +119,15 @@ function PointCard({ point, index, total }) {
   const tipoShort = getPointTypeShort(point);
   const hasCoords = point.lat && point.lng;
   const entornoCount = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
+  const insertionMetric = isStaticPrintPoint(point)
+    ? { label: 'Exibição', value: 'Contínua' }
+    : (point.insercoes > 0 ? { label: 'Inserções', value: formatNumber(point.insercoes) } : null);
 
   const metrics = [
     point.publico && { label: 'Público', value: point.publico },
     point.fluxo > 0 && { label: 'Pessoas / mês', value: formatNumber(point.fluxo) },
     point.telas > 0 && { label: 'Telas', value: String(point.telas) },
-    point.insercoes > 0 && { label: 'Inserções', value: formatNumber(point.insercoes) },
+    insertionMetric,
     point.tempo && { label: 'Tempo', value: point.tempo },
     point.loop && { label: 'Loop', value: typeof point.loop === 'number' ? `Mín. ${point.loop} min` : point.loop },
   ].filter(Boolean);
@@ -313,6 +329,18 @@ export default function PropostaPublica() {
   const totals = data?.totals || {};
   const pricingSummary = data?.pricingSummary || {};
   const validPoints = useMemo(() => points.filter(p => p.lat && p.lng), [points]);
+  const hasDigitalInsertionPoints = useMemo(
+    () => points.some((point) => !isStaticPrintPoint(point)),
+    [points]
+  );
+  const digitalInsercoesTotal = useMemo(
+    () => points.reduce((sum, point) => {
+      if (isStaticPrintPoint(point)) return sum;
+      const numeric = Number(point?.insercoes);
+      return sum + (Number.isFinite(numeric) ? numeric : 0);
+    }, 0),
+    [points]
+  );
   const segmentLabel = data?.segmento ? getSegmentDisplayName(data.segmento) : data?.segmento || '';
   const cityLabel = useMemo(() => {
     const cities = [...new Set(points.map(p => p.cidade).filter(Boolean))];
@@ -349,7 +377,9 @@ export default function PropostaPublica() {
     { label: 'Investimento', value: formatCurrency(finalTotal) },
     { label: 'Impactos/mês', value: formatNumber(totals.fluxoTotal) },
     { label: 'CPM estimado', value: totals.cpmEstimado ? formatCurrency(totals.cpmEstimado) : '—' },
-    { label: 'Inserções/mês', value: totals.insercoesTotal ? formatNumber(totals.insercoesTotal) : '—' },
+    ...(hasDigitalInsertionPoints
+      ? [{ label: 'Inserções/mês', value: digitalInsercoesTotal ? formatNumber(digitalInsercoesTotal) : '—' }]
+      : [{ label: 'Veiculação', value: 'Contínua' }]),
     { label: 'Endereços', value: String(points.length) },
   ].filter(c => c.value && c.value !== '—' && c.value !== '0');
 
@@ -478,10 +508,17 @@ export default function PropostaPublica() {
                   <span className="w-2 h-2 rounded-full" style={{ background: ORANGE }} />
                   <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Estimativas de Impacto</p>
                 </div>
-                {totals.insercoesTotal > 0 && (
+                {hasDigitalInsertionPoints ? (
+                  digitalInsercoesTotal > 0 && (
+                    <div className="mb-2.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Inserções (mensais)</p>
+                      <p className="text-2xl font-extrabold text-gray-900">{formatNumber(digitalInsercoesTotal)}</p>
+                    </div>
+                  )
+                ) : (
                   <div className="mb-2.5">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Inserções (mensais)</p>
-                    <p className="text-2xl font-extrabold text-gray-900">{formatNumber(totals.insercoesTotal)}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Veiculação</p>
+                    <p className="text-2xl font-extrabold text-gray-900">Contínua</p>
                   </div>
                 )}
                 {totals.fluxoTotal > 0 && (

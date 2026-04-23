@@ -98,6 +98,44 @@ function metricRow(label, value) {
   `;
 }
 
+function normalizeTypeForRules(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function isStaticPrintPoint(point) {
+  const normalizedType = normalizeTypeForRules(point?.tipo);
+  return normalizedType.includes('frontlight') || normalizedType.includes('backlight');
+}
+
+function resolveInsertionMetric(point, { minimum = false } = {}) {
+  if (isStaticPrintPoint(point)) {
+    return { label: 'Exibição', value: 'Contínua' };
+  }
+
+  const numeric = Number(point?.insercoes);
+  const baseValue = Number.isFinite(numeric) ? formatInt(numeric) : '—';
+  return {
+    label: minimum ? 'Inserções mín.' : 'Inserções',
+    value: baseValue
+  };
+}
+
+function hasDigitalInsertionPoints(points = []) {
+  return points.some((point) => !isStaticPrintPoint(point));
+}
+
+function getDigitalInsercoesTotal(points = []) {
+  return points.reduce((sum, point) => {
+    if (isStaticPrintPoint(point)) return sum;
+    const numeric = Number(point?.insercoes);
+    return sum + (Number.isFinite(numeric) ? numeric : 0);
+  }, 0);
+}
+
 // Helpers específicos para o tema light da Proposta
 function pCard(content, opts = {}) {
   const bg     = opts.bg     || P_SURFACE;
@@ -341,6 +379,7 @@ function buildMKMobileFormatDividerPage({ tipo, formatStats, assets }) {
 
 function buildMKMobilePointPage({ ponto, index, total, image, assets }) {
   const fluxoLabel = isVehicleFlowPoint(ponto) ? 'Veículos/mês' : 'Pessoas/mês';
+  const insertionMetric = resolveInsertionMetric(ponto, { minimum: true });
   const tipo = getPointTypeLabel(ponto);
   const photo = image || assets.showcase || '';
   const focalPoint = String(ponto?.foto_focal_point || 'center center').trim();
@@ -377,7 +416,7 @@ function buildMKMobilePointPage({ ponto, index, total, image, assets }) {
         ${[
           { label: fluxoLabel,           value: formatInt(ponto.fluxo) },
           { label: 'Pontos de Impacto',  value: formatInt(ponto.telas) },
-          { label: 'Inserções mín.',     value: formatInt(ponto.insercoes) },
+          insertionMetric,
           { label: 'Tempo por spot',     value: ponto.tempo || '-' },
           { label: 'Público',            value: ponto.publico || '-' },
           { label: 'Loop',               value: ponto.loop ? `Mín. ${ponto.loop}` : '-' },
@@ -478,6 +517,7 @@ function buildProposalMobilePointPage({ point, index, total, image, assets }) {
   const photo = image || assets.showcase || '';
   const nome = (point.nome || 'PONTO SEM NOME').toUpperCase();
   const fluxoLabel = isVehicleFlowPoint(point) ? 'Veículos/mês' : 'Pessoas/mês';
+  const insertionMetric = resolveInsertionMetric(point, { minimum: true });
   const metricValue = (value) => {
     const numeric = Number(value);
     return Number.isFinite(numeric) ? formatInt(numeric) : '—';
@@ -521,7 +561,7 @@ function buildProposalMobilePointPage({ point, index, total, image, assets }) {
       <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
         ${pMetricRow(fluxoLabel, metricValue(point.fluxo))}
         ${pMetricRow('Pontos de Impacto', metricValue(point.telas))}
-        ${pMetricRow('Inserções mín.', metricValue(point.insercoes))}
+        ${pMetricRow(insertionMetric.label, insertionMetric.value)}
       </div>
 
       ${point.preco ? `
@@ -618,9 +658,13 @@ function buildProposalMobilePricingPages({ proposalPoints, proposalTotals, prici
   return pages;
 }
 
-function buildProposalMobileImpactPage({ proposalTotals, pricingSummary, proposalClient, proposalCity, publico, assets }) {
+function buildProposalMobileImpactPage({ proposalPoints, proposalTotals, pricingSummary, proposalClient, proposalCity, publico, assets }) {
   const publicoLabel = Array.isArray(publico) ? publico.filter(Boolean).join(', ') : (publico || '—');
   const cityLabel = Array.isArray(proposalCity) ? proposalCity.join(', ') : (proposalCity || '—');
+  const hasDigitalPoints = hasDigitalInsertionPoints(proposalPoints);
+  const digitalInsercoesTotal = getDigitalInsercoesTotal(proposalPoints);
+  const insertionSummaryLabel = hasDigitalPoints ? 'Inserções/mês' : 'Veiculação';
+  const insertionSummaryValue = hasDigitalPoints ? formatInt(digitalInsercoesTotal) : 'Contínua';
   return createMobilePage(`
     <div style="position:absolute;inset:0;background:${P_BG};"></div>
     <div style="position:absolute;top:0;left:0;right:0;height:5px;background:${P_ORANGE};"></div>
@@ -655,8 +699,8 @@ function buildProposalMobileImpactPage({ proposalTotals, pricingSummary, proposa
             <div style="margin-top:5px;font-size:30px;font-weight:700;color:${P_TEXT};">${formatInt(proposalTotals.pontos||0)}</div>
           </div>
           <div style="padding:13px 15px;border-top:3px solid ${P_ORANGE};background:${P_SURFACE};border-radius:12px;">
-            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};">Inserções/mês</div>
-            <div style="margin-top:5px;font-size:30px;font-weight:700;color:${P_TEXT};">${formatInt(proposalTotals.insercoesTotal||0)}</div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};">${insertionSummaryLabel}</div>
+            <div style="margin-top:5px;font-size:30px;font-weight:700;color:${P_TEXT};">${insertionSummaryValue}</div>
           </div>
         </div>
         ${proposalTotals.fluxoTotal ? pCard(`
@@ -818,6 +862,7 @@ export async function generateProposalMobilePdf({
 
   if (showImpactSection) {
     pages.push(buildProposalMobileImpactPage({
+      proposalPoints,
       proposalTotals,
       pricingSummary,
       proposalClient,

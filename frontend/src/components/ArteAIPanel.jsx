@@ -197,11 +197,6 @@ export default function ArteAIPanel({
       throw new Error('Selecione um arquivo de imagem válido.');
     }
 
-    const uploadedUrl = await uploadProposalImage(file);
-    if (!uploadedUrl) {
-      throw new Error('Falha ao salvar a imagem enviada.');
-    }
-
     const sourceSignature = getPointFormatSignature(sourcePoint);
     const compatiblePoints = points.filter((candidate) => {
       const candidateSignature = getPointFormatSignature(candidate);
@@ -216,10 +211,28 @@ export default function ArteAIPanel({
       throw new Error('Nenhum ponto compatível encontrado para aplicar a imagem.');
     }
 
+    let uploadedUrl = '';
+    let uploadErrorMessage = '';
+    try {
+      uploadedUrl = await uploadProposalImage(file);
+    } catch (err) {
+      uploadErrorMessage = err?.message || 'Falha de upload';
+    }
+
+    const useLocalFallback = !uploadedUrl;
+    const manualUrlByPoint = useLocalFallback
+      ? Object.fromEntries(targetIds.map((id) => [id, URL.createObjectURL(file)]))
+      : {};
+
     setArtesPorPonto((prev) => {
       const next = { ...prev };
       targetIds.forEach((id) => {
-        next[id] = uploadedUrl;
+        const nextUrl = useLocalFallback ? manualUrlByPoint[id] : uploadedUrl;
+        const prevUrl = next[id];
+        if (prevUrl && String(prevUrl).startsWith('blob:') && prevUrl !== nextUrl) {
+          try { URL.revokeObjectURL(prevUrl); } catch { /* ignore */ }
+        }
+        next[id] = nextUrl;
       });
       return next;
     });
@@ -228,8 +241,9 @@ export default function ArteAIPanel({
     let lastError = null;
     for (const point of compatiblePoints) {
       try {
+        const creativeUrl = useLocalFallback ? manualUrlByPoint[point.id] : uploadedUrl;
         // Serializado para evitar corrida no pipeline de renderização da simulação.
-        await onArteEscolhida?.(point.id, uploadedUrl, null, 'upload_manual');
+        await onArteEscolhida?.(point.id, creativeUrl, null, 'upload_manual');
         appliedCount += 1;
       } catch (err) {
         lastError = err;
@@ -240,7 +254,10 @@ export default function ArteAIPanel({
       throw lastError;
     }
 
-    const statusMessage = `${appliedCount} ponto(s) atualizado(s) com a arte enviada (${sourceSignature.normalizedResolution} · ${sourceSignature.aspectRatio}).`;
+    const fallbackHint = useLocalFallback
+      ? ` Modo local ativado${uploadErrorMessage ? ` (${uploadErrorMessage})` : ''}.`
+      : '';
+    const statusMessage = `${appliedCount} ponto(s) atualizado(s) com a arte enviada (${sourceSignature.normalizedResolution} · ${sourceSignature.aspectRatio}).${fallbackHint}`;
     setManualApplyStatus(statusMessage);
     return {
       appliedCount,

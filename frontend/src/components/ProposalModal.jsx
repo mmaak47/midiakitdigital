@@ -14,6 +14,7 @@ import {
   Loader2,
   Map,
   MapPinned,
+  Plus,
   Presentation,
   QrCode,
   Radio,
@@ -21,6 +22,7 @@ import {
   Settings2,
   Share2,
   Sparkles,
+  Trash2,
   Trophy,
   Upload,
   X,
@@ -141,6 +143,27 @@ function parseLocaleNumber(rawValue) {
     .replace(',', '.');
   const parsed = Number(sanitized);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeStrategicTopicLine(value) {
+  return String(value ?? '')
+    .replace(/^([\-*•]+|\d+[.)])\s*/u, '')
+    .trim();
+}
+
+function parseStrategicTopics(value, maxItems = 8) {
+  return String(value ?? '')
+    .split(/\r?\n+/)
+    .map((line) => normalizeStrategicTopicLine(line))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function stringifyStrategicTopics(lines = []) {
+  return lines
+    .map((line) => normalizeStrategicTopicLine(line))
+    .filter(Boolean)
+    .join('\n');
 }
 
 function applyPdfPointEdit(point, edit = {}) {
@@ -617,6 +640,40 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     return strategic.argumentacaoComercial || [];
   }, [proposalSourcePoints, activeCities, form.publicos, form.objetivo, form.segmento, form.clientName]);
 
+  const strategicTopicSuggestions = useMemo(() => parseStrategicTopics(argumentos.join('\n'), 8), [argumentos]);
+  const strategicTopicCustom = useMemo(() => parseStrategicTopics(form.strategicTopics, 8), [form.strategicTopics]);
+  const strategicTopicList = strategicTopicCustom.length ? strategicTopicCustom : strategicTopicSuggestions;
+  const usingAutoStrategicTopics = strategicTopicCustom.length === 0;
+
+  const commitStrategicTopics = (nextTopics) => {
+    setForm((state) => ({
+      ...state,
+      strategicTopics: stringifyStrategicTopics(nextTopics)
+    }));
+  };
+
+  const handleStrategicTopicChange = (index, value) => {
+    const baseTopics = strategicTopicCustom.length ? strategicTopicCustom : strategicTopicSuggestions;
+    const nextTopics = [...baseTopics];
+    nextTopics[index] = value;
+    commitStrategicTopics(nextTopics);
+  };
+
+  const handleAddStrategicTopic = () => {
+    const baseTopics = strategicTopicCustom.length ? strategicTopicCustom : strategicTopicSuggestions;
+    commitStrategicTopics([...baseTopics, 'Novo tópico estratégico']);
+  };
+
+  const handleRemoveStrategicTopic = (index) => {
+    const baseTopics = strategicTopicCustom.length ? strategicTopicCustom : strategicTopicSuggestions;
+    const nextTopics = baseTopics.filter((_, currentIndex) => currentIndex !== index);
+    commitStrategicTopics(nextTopics);
+  };
+
+  const handleResetStrategicTopics = () => {
+    setForm((state) => ({ ...state, strategicTopics: '' }));
+  };
+
   const imagePromptGroups = useMemo(() => {
     return buildProposalImagePromptsByFormat({
       clientName: form.clientName,
@@ -936,7 +993,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         result.argumentoAudiencia,
         ...(result.porQueEstesPoints || [])
       ].filter(Boolean);
-      setForm(s => ({ ...s, strategicTopics: lines.join('\n') }));
+      setForm((state) => ({ ...state, strategicTopics: stringifyStrategicTopics(lines) }));
     } catch (err) {
       if (handleAuthExpired(err, 'Sua sessão expirou antes de gerar os argumentos comerciais. Faça login novamente para evitar perda de créditos/tokens.')) {
         return;
@@ -1475,14 +1532,61 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                         {aiTextBusy ? 'Gerando...' : 'Gerar com IA'}
                       </button>
                     </div>
-                    <textarea
-                      value={form.strategicTopics}
-                      onChange={(e) => setForm((s) => ({ ...s, strategicTopics: e.target.value }))}
-                      rows={3}
-                      placeholder={argumentos.join('\n')}
-                      className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition-colors ${isDark ? 'border-white/15 bg-white/[0.07] text-brand-gray-200 focus:border-brand-orange/45 focus:bg-white/[0.09]' : 'border-neutral-200 bg-white text-neutral-800 focus:border-brand-orange/50'}`}
-                    />
-                    <p className={`text-[11px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Se vazio, usaremos os argumentos gerados automaticamente.</p>
+                    <div className="space-y-2 mt-2">
+                      {strategicTopicList.length ? strategicTopicList.map((topic, index) => (
+                        <div
+                          key={`strategic-topic-${index}`}
+                          className={`flex items-start gap-2 rounded-xl border px-2.5 py-2 ${isDark ? 'border-white/15 bg-white/[0.06]' : 'border-neutral-200 bg-white'}`}
+                        >
+                          <span className={`mt-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full text-[10px] font-semibold ${isDark ? 'bg-brand-orange/20 text-brand-orange' : 'bg-orange-100 text-orange-700'}`}>
+                            {index + 1}
+                          </span>
+                          <input
+                            type="text"
+                            value={topic}
+                            onChange={(event) => handleStrategicTopicChange(index, event.target.value)}
+                            placeholder={`Tópico ${index + 1}`}
+                            className={`min-w-0 flex-1 bg-transparent text-sm outline-none ${isDark ? 'text-brand-gray-200 placeholder:text-brand-gray-500' : 'text-neutral-800 placeholder:text-neutral-400'}`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveStrategicTopic(index)}
+                            className={`mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${isDark ? 'text-brand-gray-400 hover:bg-white/10 hover:text-red-300' : 'text-neutral-400 hover:bg-neutral-100 hover:text-red-500'}`}
+                            title="Remover tópico"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )) : (
+                        <div className={`rounded-xl border px-3 py-2.5 text-sm ${isDark ? 'border-white/15 bg-white/[0.06] text-brand-gray-400' : 'border-neutral-200 bg-white text-neutral-500'}`}>
+                          Nenhum tópico disponível. Gere com IA ou adicione manualmente.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleAddStrategicTopic}
+                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${isDark ? 'border-white/20 text-brand-gray-300 hover:border-brand-orange/45 hover:text-brand-orange' : 'border-neutral-300 text-neutral-600 hover:border-orange-300 hover:text-orange-700'}`}
+                      >
+                        <Plus size={12} />
+                        Adicionar tópico
+                      </button>
+                      {!usingAutoStrategicTopics && (
+                        <button
+                          type="button"
+                          onClick={handleResetStrategicTopics}
+                          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${isDark ? 'border-brand-orange/35 text-brand-orange hover:bg-brand-orange/10' : 'border-orange-300 text-orange-700 hover:bg-orange-50'}`}
+                        >
+                          Usar sugestão automática
+                        </button>
+                      )}
+                    </div>
+
+                    <p className={`text-[11px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
+                      {usingAutoStrategicTopics ? 'Modo automático ativo: os tópicos são derivados da estratégia da proposta.' : 'Modo manual ativo: os tópicos acima serão usados exatamente no PDF.'}
+                    </p>
                   </Card>
 
                   {/* CARD 4 — Análise de entorno */}

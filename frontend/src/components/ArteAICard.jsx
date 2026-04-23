@@ -9,7 +9,7 @@
  *  - onArteEscolhida : fn(pontoId, urlArte, geracaoId) → chamado quando vendedor escolhe variação
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Wand2, Upload, RefreshCw, ChevronDown, ChevronUp, Loader2, CheckCircle, ImageOff, Edit3 } from 'lucide-react';
 import { gerarArteIA, previewPromptArte, fetchPonto } from '../lib/api';
 
@@ -178,8 +178,6 @@ export default function ArteAICard({
   const [mostrarEditor, setMostrarEditor] = useState(false);
   const [manualBusy, setManualBusy] = useState(false);
   const [manualInfo, setManualInfo] = useState('');
-  const uploadInputRef = useRef(null);
-  const uploadInputId = `arte-manual-upload-${String(ponto?.id || 'ponto')}`;
 
   // Buscar preview do prompt antes de gerar
   const carregarPrompt = useCallback(async () => {
@@ -297,30 +295,24 @@ export default function ArteAICard({
           </div>
         </div>
         {/* Upload manual */}
-        <div className="relative flex-shrink-0">
+        <label
+          className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded border flex-shrink-0 ${
+            isDark
+              ? 'border-white/15 text-brand-gray-400 hover:text-white hover:border-white/30'
+              : 'border-neutral-300 text-neutral-500 hover:text-neutral-700'
+          } ${manualBusy ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+          title="Upload manual"
+        >
+          {manualBusy ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
+          {manualBusy ? 'Enviando...' : 'Upload'}
           <input
-            ref={uploadInputRef}
-            id={uploadInputId}
             type="file"
             accept="image/*"
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            className="hidden"
             onChange={handleManualUploadChange}
             disabled={manualBusy}
-            aria-label="Upload manual"
           />
-          <label
-            htmlFor={uploadInputId}
-            className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded border ${
-              isDark
-                ? 'border-white/15 text-brand-gray-400 hover:text-white hover:border-white/30'
-                : 'border-neutral-300 text-neutral-500 hover:text-neutral-700'
-            } ${manualBusy ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-            title="Upload manual"
-          >
-            {manualBusy ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
-            {manualBusy ? 'Enviando...' : 'Upload'}
-          </label>
-        </div>
+        </label>
       </div>
 
       {manualInfo && (

@@ -319,6 +319,17 @@ export async function deletePonto(id) {
   return res.json();
 }
 
+export async function hardDeletePonto(id) {
+  const res = await apiRequest(`/pontos/${id}/hard`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao excluir ponto permanentemente');
+  }
+  return res.json();
+}
+
 export async function fetchEntornoScores({ segmento, raio = 800, cidade, force = false }) {
   const params = new URLSearchParams();
   if (segmento) params.set('segmento', segmento);
