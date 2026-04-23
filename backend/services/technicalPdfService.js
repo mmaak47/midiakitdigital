@@ -19,6 +19,17 @@ const { renderHtmlToPdfCompressed } = require('../pdfService');
 
 const BASE_URL    = `http://localhost:${process.env.PORT || 3002}`;
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+const TECH_PDF_LARGE_SALE_THRESHOLD = Math.max(4, Number(process.env.TECH_PDF_LARGE_SALE_THRESHOLD || 8));
+const TECH_PDF_FORCE_COMPACT_THRESHOLD = Math.max(
+  TECH_PDF_LARGE_SALE_THRESHOLD,
+  Number(process.env.TECH_PDF_FORCE_COMPACT_THRESHOLD || 12)
+);
+const TECH_PDF_FORCE_LITE_THRESHOLD = Math.max(
+  TECH_PDF_FORCE_COMPACT_THRESHOLD + 4,
+  Number(process.env.TECH_PDF_FORCE_LITE_THRESHOLD || 24)
+);
+const TITLE_LOWER_WORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+const OUTDOOR_TIPOS = ['painel led', 'backlight', 'frontlight', 'led posto', 'totem digital'];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONVERSÃO DE IMAGEM PARA DATA URI (evita timeout do Puppeteer em HTTP)
@@ -88,6 +99,120 @@ function normalizeNumber(value, fallback = null) {
   return numeric;
 }
 
+function normalizeTextForMatch(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function toTitleCase(value) {
+  const raw = String(value || '').trim().replace(/\s+/g, ' ');
+  if (!raw) return '';
+
+  let wordIndex = 0;
+  return raw.split(/(\s+|-|\/)/).map((part) => {
+    if (/^\s+$/.test(part) || part === '-' || part === '/') {
+      return part;
+    }
+
+    return part.replace(/[A-Za-zÀ-ÿ0-9]+/g, (word) => {
+      const lower = word.toLowerCase();
+      const isRoman = /^(ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii)$/i.test(word);
+      const isFirstWord = wordIndex === 0;
+      wordIndex += 1;
+
+      if (/^\d+$/.test(word)) return word;
+      if (isRoman) return lower.toUpperCase();
+      if (!isFirstWord && TITLE_LOWER_WORDS.has(lower)) return lower;
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    });
+  }).join('');
+}
+
+function normalizePointTypeLabel(rawTipo) {
+  const tipoNorm = normalizeTextForMatch(rawTipo);
+  if (!tipoNorm) return 'Outros';
+
+  if (tipoNorm.includes('elevador')) return 'Elevadores';
+  if ((tipoNorm.includes('painel') && tipoNorm.includes('led')) || tipoNorm.includes('led painel')) return 'Painel de LED';
+  if (tipoNorm.includes('backlight')) return 'Backlight';
+  if (tipoNorm.includes('frontlight')) return 'Frontlight';
+  if (tipoNorm.includes('led posto')) return 'LED Posto';
+  if (tipoNorm.includes('totem')) return 'Totem Digital';
+
+  return toTitleCase(rawTipo);
+}
+
+function getPointCategory(rawTipo) {
+  const tipoNorm = normalizeTextForMatch(rawTipo);
+  if (tipoNorm.includes('elevador')) return { key: '01-elevadores', label: 'Elevadores' };
+  if ((tipoNorm.includes('painel') && tipoNorm.includes('led')) || tipoNorm.includes('led painel')) {
+    return { key: '02-painel-led', label: 'Painel de LED' };
+  }
+  if (tipoNorm.includes('backlight')) return { key: '03-backlight', label: 'Backlight' };
+  if (tipoNorm.includes('frontlight')) return { key: '04-frontlight', label: 'Frontlight' };
+  if (tipoNorm.includes('led posto')) return { key: '05-led-posto', label: 'LED Posto' };
+  if (tipoNorm.includes('totem')) return { key: '06-totem-digital', label: 'Totem Digital' };
+  const fallbackLabel = normalizePointTypeLabel(rawTipo);
+  return { key: `99-${normalizeTextForMatch(rawTipo) || 'outros'}`, label: fallbackLabel };
+}
+
+function normalizePointName(rawName, rawTipo) {
+  const tipoNorm = normalizeTextForMatch(rawTipo);
+  const baseName = toTitleCase(rawName || 'Ponto');
+
+  if (!tipoNorm.includes('elevador')) {
+    return baseName;
+  }
+
+  const hasCondominio = /(?:\bCondom[ií]nio\b|\bCond\.?(?=\s|$))/i.test(baseName);
+  if (hasCondominio) {
+    return baseName
+      .replace(/(?:\bCondom[ií]nio\b|\bCond\.?(?=\s|$))/gi, 'Cond.')
+      .replace(/^(?:Ed\.|Edif[ií]cio)\s+/i, '')
+      .trim();
+  }
+
+  if (/^Ed\.\s+/i.test(baseName)) return baseName;
+  if (/^Edif[ií]cio\s+/i.test(baseName)) {
+    return baseName.replace(/^Edif[ií]cio\s+/i, 'Ed. ');
+  }
+
+  return `Ed. ${baseName}`;
+}
+
+function normalizeAndSortPoints(points) {
+  const normalized = points.map((point) => {
+    const category = getPointCategory(point?.tipo);
+    const normalizedName = normalizePointName(point?.nome, point?.tipo);
+    return {
+      ...point,
+      _pdfDisplayName: normalizedName,
+      _pdfTipoLabel: normalizePointTypeLabel(point?.tipo),
+      _pdfCategoryKey: category.key,
+      _pdfCategoryLabel: category.label,
+    };
+  });
+
+  return normalized.sort((a, b) => {
+    const catCmp = String(a._pdfCategoryKey || '').localeCompare(String(b._pdfCategoryKey || ''), 'pt-BR');
+    if (catCmp !== 0) return catCmp;
+
+    const nameCmp = String(a._pdfDisplayName || '').localeCompare(String(b._pdfDisplayName || ''), 'pt-BR', {
+      sensitivity: 'base',
+      numeric: true,
+    });
+    if (nameCmp !== 0) return nameCmp;
+
+    return String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', {
+      sensitivity: 'base',
+      numeric: true,
+    });
+  });
+}
+
 function resolveAssetUrl(url) {
   const raw = String(url || '').trim();
   if (!raw) return '';
@@ -96,9 +221,16 @@ function resolveAssetUrl(url) {
   return `${BASE_URL}/${raw.replace(/^\/+/, '')}`;
 }
 
-function pickPointImage(point) {
+function pickPointImage(point, options = {}) {
+  const photoMode = options.photoMode || (options.disablePointImages ? 'none' : 'full');
+  if (photoMode === 'none') return '';
+
   // Prefere imagem2 (foto de PDF), depois imagem principal
   // Converte diretamente para data URI para evitar HTTP requests no Puppeteer
+  if (photoMode === 'compact') {
+    // Em modo compacto, prioriza a imagem principal (geralmente menor) para reduzir memória.
+    return imageToDataUri(point?.imagem || point?.imagem2 || '');
+  }
   return imageToDataUri(point?.imagem2 || point?.imagem || '');
 }
 
@@ -131,6 +263,32 @@ function parseOperatingHours(horario) {
   }
   if (h.includes('24')) return 24;
   return 17;
+}
+
+function isTransientPdfError(err) {
+  const message = String(err?.message || err || '');
+  return /Target closed|Protocol error|Session closed|Connection closed|Page crashed|Execution context|frame was detached/i.test(message);
+}
+
+async function generateWithRetry(label, fn, attempts = 3) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      const transient = isTransientPdfError(err);
+      if (!transient || attempt === attempts) {
+        throw err;
+      }
+
+      const waitMs = 400 * attempt;
+      console.warn(`[technical-pdf] ${label} falhou (tentativa ${attempt}/${attempts}): ${err.message}. Nova tentativa em ${waitMs}ms.`);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
+
+  throw lastError || new Error(`Falha ao gerar PDF (${label}).`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -182,11 +340,23 @@ function buildSpecItem(title, value, iconSvg) {
   `;
 }
 
-function buildHeroImageFrame(image, focalPoint) {
+function buildHeroImageFrame(image, focalPoint, options = {}) {
   if (!image) {
     return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:${BRAND_MUTED};font-size:18px;background:#111;">Sem foto cadastrada</div>`;
   }
   const fp = String(focalPoint || 'center center').trim() || 'center center';
+  const photoMode = options.photoMode || (options.disablePointImages ? 'none' : 'full');
+
+  if (photoMode === 'compact') {
+    // Mantém foto no PDF com layout mais leve (sem camada blur duplicada).
+    return `
+      <div style="position:absolute;inset:0;background:#000;">
+        <img src="${image}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(fp)};" />
+        <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,7,7,0.18),rgba(7,7,7,0.68));"></div>
+      </div>
+    `;
+  }
+
   return `
     <div style="position:absolute;inset:0;background:#000;">
       <img src="${image}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(fp)};filter:blur(26px) saturate(1.1);transform:scale(1.08);opacity:0.45;" />
@@ -248,11 +418,12 @@ function buildDesktopCoverPage(points) {
   `);
 }
 
-function buildDesktopPointPage(point, index, total) {
-  const image      = pickPointImage(point);
+function buildDesktopPointPage(point, index, total, options = {}) {
+  const image      = pickPointImage(point, options);
   const focalPoint = point?.foto_focal_point || 'center center';
-  const imageContainer = buildHeroImageFrame(image, focalPoint);
+  const imageContainer = buildHeroImageFrame(image, focalPoint, options);
   const logoUrl    = resolveAssetUrl('/logo.png');
+  const displayName = escapeHtml(point?._pdfDisplayName || point?.nome || 'Ponto');
 
   const widthPx  = Math.max(1, Math.round(normalizeNumber(point?.arte_largura, 1080) || 1080));
   const heightPx = Math.max(1, Math.round(normalizeNumber(point?.arte_altura, 1920) || 1920));
@@ -267,9 +438,8 @@ function buildDesktopPointPage(point, index, total) {
 
   const icons = buildIcons();
 
-  const OUTDOOR_TIPOS = ['painel led', 'backlight', 'frontlight', 'led posto', 'totem digital'];
-  const tipoLower = String(point?.tipo || '').toLowerCase().trim();
-  const ambiente = OUTDOOR_TIPOS.includes(tipoLower) ? 'Outdoor' : 'Indoor';
+  const tipoLower = normalizeTextForMatch(point?.tipo || '');
+  const ambiente = OUTDOOR_TIPOS.some((tipo) => tipoLower.includes(tipo)) ? 'Outdoor' : 'Indoor';
   const perfil   = escapeHtml(point?.perfil_publico || point?.publico || 'A/B');
   const coords   = (point?.lat && point?.lng && point.lat !== '0' && point.lng !== '0')
     ? `${point.lat}, ${point.lng}`
@@ -295,7 +465,7 @@ function buildDesktopPointPage(point, index, total) {
       <div style="flex:0 0 580px;padding:32px 20px 32px 36px;display:flex;flex-direction:column;gap:20px;">
           <div style="flex-shrink:0;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:20px;padding:24px;">
              <div style="font-size:11px;font-weight:800;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.12em;margin-bottom:6px;">Dados do ponto</div>
-             <div style="font-size:32px;font-weight:800;color:#fff;line-height:1.1;margin-bottom:20px;letter-spacing:-0.03em;word-break:break-word;">${escapeHtml(point?.nome || 'Ponto')}</div>
+             <div style="font-size:32px;font-weight:800;color:#fff;line-height:1.1;margin-bottom:20px;letter-spacing:-0.03em;word-break:break-word;">${displayName}</div>
              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                 <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px;">
                   <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Ambiente / Perfil</div>
@@ -352,10 +522,10 @@ function buildDesktopPointPage(point, index, total) {
   `);
 }
 
-function buildDesktopHtml(points) {
+function buildDesktopHtml(points, options = {}) {
   const pages = [buildDesktopCoverPage(points)];
   points.forEach((point, index) => {
-    pages.push(buildDesktopPointPage(point, index + 1, points.length));
+    pages.push(buildDesktopPointPage(point, index + 1, points.length, options));
   });
 
   return `<!DOCTYPE html><html lang="pt-BR"><head>
@@ -371,8 +541,8 @@ section:last-child { page-break-after: avoid; break-after: avoid; }
 </head><body>${pages.join('\n')}</body></html>`;
 }
 
-async function generateDesktopPdfBuffer(points) {
-  const html = buildDesktopHtml(points);
+async function generateDesktopPdfBuffer(points, options = {}) {
+  const html = buildDesktopHtml(points, options);
   return renderHtmlToPdfCompressed(html);
 }
 
@@ -438,17 +608,15 @@ function buildMobileCoverPage(points) {
   `;
 }
 
-function buildMobilePointPage(point, index, total) {
-  const img      = pickPointImage(point);
+function buildMobilePointPage(point, index, total, options = {}) {
+  const img      = pickPointImage(point, options);
   const logoUrl  = resolveAssetUrl('/logo.png');
   const focalPt  = String(point?.foto_focal_point || 'center center').trim();
-  const nome     = escapeHtml((point.nome || 'SEM NOME').toUpperCase());
+  const nome     = escapeHtml(point?._pdfDisplayName || point?.nome || 'Sem Nome');
+  const tipoLabel = escapeHtml(point?._pdfTipoLabel || point?.tipo || 'Outros');
   const durSec   = parseDuracaoText(point?.tempo || point?.duracao);
-  const loopSec  = (() => {
-    if (!point?.loop) return durSec * 5 || 30;
-    const v = String(point.loop).replace(/[^0-9.]/g, '');
-    return Number(v) || (durSec * 5 || 30);
-  })();
+  const parsedLoopSec = parseDuracaoText(point?.loop);
+  const loopSec = parsedLoopSec > 0 ? parsedLoopSec : (durSec * 5 || 30);
   const loopLabel = loopSec >= 60 ? `${Math.round(loopSec / 60)} min` : `${loopSec}s`;
   const durLabel  = durSec >= 60
     ? `${Math.floor(durSec / 60)}min${durSec % 60 > 0 ? ` ${durSec % 60}s` : ''}`
@@ -480,7 +648,7 @@ function buildMobilePointPage(point, index, total) {
       <div style="position:absolute;top:38%;left:0;right:0;bottom:0;padding:18px 22px 18px;display:flex;flex-direction:column;gap:12px;overflow:hidden;box-sizing:border-box;">
         <div>
           <div style="font-size:24px;line-height:1.05;font-weight:700;letter-spacing:-0.01em;color:${M_TEXT};word-break:break-word;">${nome}</div>
-          ${point.tipo ? `<span style="margin-top:8px;display:inline-flex;padding:5px 14px;border-radius:999px;background:${M_ORANGE};font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#fff;">${escapeHtml(point.tipo)}</span>` : ''}
+          <span style="margin-top:8px;display:inline-flex;padding:5px 14px;border-radius:999px;background:${M_ORANGE};font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#fff;">${tipoLabel}</span>
           ${point.endereco ? `<div style="margin-top:6px;font-size:13px;color:${M_MUTED};">${escapeHtml(point.endereco)}${point.cidade ? `, ${escapeHtml(point.cidade)}` : ''}</div>` : ''}
         </div>
         <div style="flex:1;overflow:hidden;">
@@ -503,10 +671,10 @@ function buildMobilePointPage(point, index, total) {
   `;
 }
 
-function buildMobileHtml(points) {
+function buildMobileHtml(points, options = {}) {
   const pages = [buildMobileCoverPage(points)];
   points.forEach((point, index) => {
-    pages.push(buildMobilePointPage(point, index + 1, points.length));
+    pages.push(buildMobilePointPage(point, index + 1, points.length, options));
   });
 
   return `<!DOCTYPE html><html lang="pt-BR"><head>
@@ -523,8 +691,8 @@ section:last-child { page-break-after:avoid; break-after:avoid; }
 </head><body>${pages.join('\n')}</body></html>`;
 }
 
-async function generateMobilePdfBuffer(points) {
-  const html = buildMobileHtml(points);
+async function generateMobilePdfBuffer(points, options = {}) {
+  const html = buildMobileHtml(points, options);
   return renderHtmlToPdfCompressed(html);
 }
 
@@ -537,7 +705,7 @@ async function generateMobilePdfBuffer(points) {
  *
  * @param {object} db         - instância do banco (better-sqlite3)
  * @param {string[]} nomes    - array de nomes dos pontos
- * @returns {{ desktop: Buffer, mobile: Buffer }}
+ * @returns {{ desktop: Buffer, mobile: Buffer, photoModeUsed: 'full' | 'compact' | 'none' }}
  */
 async function generatePdfsFromPointNames(db, nomes) {
   if (!nomes || nomes.length === 0) {
@@ -559,17 +727,79 @@ async function generatePdfsFromPointNames(db, nomes) {
     .map(name => rows.find(r => r.nome.trim().toLowerCase() === name.trim().toLowerCase()))
     .filter(Boolean);
 
+  const sortedByCategory = normalizeAndSortPoints(ordered);
+
+  const canFallbackCompact = sortedByCategory.length >= TECH_PDF_LARGE_SALE_THRESHOLD;
+  const canFallbackLite = sortedByCategory.length >= TECH_PDF_FORCE_COMPACT_THRESHOLD;
+
+  let photoMode = 'full';
+  if (sortedByCategory.length >= TECH_PDF_FORCE_LITE_THRESHOLD) {
+    photoMode = 'none';
+  } else if (sortedByCategory.length >= TECH_PDF_FORCE_COMPACT_THRESHOLD) {
+    photoMode = 'compact';
+  }
+
   let desktop, mobile;
+
+  if (photoMode === 'compact') {
+    console.warn(`[technical-pdf] venda com ${sortedByCategory.length} ponto(s): modo de fotos compactas ativado preventivamente.`);
+  }
+  if (photoMode === 'none') {
+    console.warn(`[technical-pdf] venda com ${sortedByCategory.length} ponto(s): modo leve sem fotos ativado preventivamente.`);
+  }
+
   try {
-    [desktop, mobile] = await Promise.all([
-      generateDesktopPdfBuffer(ordered),
-      generateMobilePdfBuffer(ordered),
-    ]);
+    // Renderiza em sequência para reduzir picos de memória do Chromium,
+    // especialmente em vendas com muitas imagens/pontos.
+    try {
+      desktop = await generateWithRetry(
+        photoMode === 'none' ? 'pdf_desktop_lite' : photoMode === 'compact' ? 'pdf_desktop_compact' : 'pdf_desktop',
+        () => generateDesktopPdfBuffer(sortedByCategory, { photoMode })
+      );
+    } catch (err) {
+      if (isTransientPdfError(err) && photoMode === 'full' && canFallbackCompact) {
+        photoMode = 'compact';
+        console.warn(`[technical-pdf] fallback para fotos compactas no desktop (${sortedByCategory.length} ponto(s)): ${err.message}`);
+        _imgCache.clear();
+        desktop = await generateWithRetry('pdf_desktop_compact', () => generateDesktopPdfBuffer(sortedByCategory, { photoMode }), 2);
+      } else if (isTransientPdfError(err) && photoMode !== 'none' && canFallbackLite) {
+        photoMode = 'none';
+        console.warn(`[technical-pdf] fallback para modo leve no desktop (${sortedByCategory.length} ponto(s)): ${err.message}`);
+        _imgCache.clear();
+        desktop = await generateWithRetry('pdf_desktop_lite', () => generateDesktopPdfBuffer(sortedByCategory, { photoMode }), 2);
+      } else {
+        throw err;
+      }
+    }
+
+    // Limpa cache antes da versão mobile para aliviar memória entre renders.
+    _imgCache.clear();
+
+    try {
+      mobile = await generateWithRetry(
+        photoMode === 'none' ? 'pdf_mobile_lite' : photoMode === 'compact' ? 'pdf_mobile_compact' : 'pdf_mobile',
+        () => generateMobilePdfBuffer(sortedByCategory, { photoMode })
+      );
+    } catch (err) {
+      if (isTransientPdfError(err) && photoMode === 'full' && canFallbackCompact) {
+        photoMode = 'compact';
+        console.warn(`[technical-pdf] fallback para fotos compactas no mobile (${sortedByCategory.length} ponto(s)): ${err.message}`);
+        _imgCache.clear();
+        mobile = await generateWithRetry('pdf_mobile_compact', () => generateMobilePdfBuffer(sortedByCategory, { photoMode }), 2);
+      } else if (isTransientPdfError(err) && photoMode !== 'none' && canFallbackLite) {
+        photoMode = 'none';
+        console.warn(`[technical-pdf] fallback para modo leve no mobile (${sortedByCategory.length} ponto(s)): ${err.message}`);
+        _imgCache.clear();
+        mobile = await generateWithRetry('pdf_mobile_lite', () => generateMobilePdfBuffer(sortedByCategory, { photoMode }), 2);
+      } else {
+        throw err;
+      }
+    }
   } finally {
     _imgCache.clear(); // libera base64 das fotos da memória após geração
   }
 
-  return { desktop, mobile };
+  return { desktop, mobile, photoModeUsed: photoMode };
 }
 
 module.exports = { generatePdfsFromPointNames };

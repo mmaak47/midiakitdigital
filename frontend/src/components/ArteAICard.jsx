@@ -9,7 +9,7 @@
  *  - onArteEscolhida : fn(pontoId, urlArte, geracaoId) → chamado quando vendedor escolhe variação
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Wand2, Upload, RefreshCw, ChevronDown, ChevronUp, Loader2, CheckCircle, ImageOff, Edit3 } from 'lucide-react';
 import { gerarArteIA, previewPromptArte, fetchPonto } from '../lib/api';
 
@@ -150,7 +150,9 @@ export default function ArteAICard({
   ponto,
   contexto = {},
   isDark = true,
+  arteAtualUrl = '',
   onArteEscolhida,
+  onManualUpload,
 }) {
   // Busca dados frescos do ponto no DB on mount para garantir arte_largura/arte_altura corretos
   const [pontoLocal, setPontoLocal] = useState(null);
@@ -174,6 +176,10 @@ export default function ArteAICard({
   const [prompt, setPrompt] = useState('');
   const [erroMsg, setErroMsg] = useState('');
   const [mostrarEditor, setMostrarEditor] = useState(false);
+  const [manualBusy, setManualBusy] = useState(false);
+  const [manualInfo, setManualInfo] = useState('');
+  const uploadInputRef = useRef(null);
+  const uploadInputId = `arte-manual-upload-${String(ponto?.id || 'ponto')}`;
 
   // Buscar preview do prompt antes de gerar
   const carregarPrompt = useCallback(async () => {
@@ -228,6 +234,42 @@ export default function ArteAICard({
     setMostrarEditor((v) => !v);
   };
 
+  const handleManualUploadChange = useCallback(async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) return;
+    if (!String(file.type || '').startsWith('image/')) {
+      setErroMsg('Selecione um arquivo de imagem válido para upload.');
+      setEstado('erro');
+      return;
+    }
+    if (typeof onManualUpload !== 'function') {
+      setErroMsg('Upload manual indisponível no momento.');
+      setEstado('erro');
+      return;
+    }
+
+    setManualBusy(true);
+    setManualInfo('');
+    setErroMsg('');
+
+    try {
+      const result = await onManualUpload(pontoAtual || ponto, file);
+      setVariacoes([]);
+      setVariacaoSelecionada(null);
+      setEstado('idle');
+      setManualInfo(result?.message || 'Arte aplicada com sucesso.');
+    } catch (err) {
+      setErroMsg(err?.message || 'Falha ao aplicar upload manual.');
+      setEstado('erro');
+    } finally {
+      setManualBusy(false);
+    }
+  }, [onManualUpload, pontoAtual, ponto]);
+
+  const previewArteAtual = arteAtualUrl || ponto?.simulacao_arte || '';
+
   // ─── RENDER ───
   const base = isDark
     ? 'border-white/10 bg-white/[0.04]'
@@ -254,29 +296,47 @@ export default function ArteAICard({
             <ResoBadge wNativo={wNativo} hNativo={hNativo} />
           </div>
         </div>
-        {/* Botão Upload manual */}
-        <button
-          type="button"
-          className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded border flex-shrink-0 ${
-            isDark
-              ? 'border-white/15 text-brand-gray-400 hover:text-white hover:border-white/30'
-              : 'border-neutral-300 text-neutral-500 hover:text-neutral-700'
-          }`}
-          title="Upload manual"
-        >
-          <Upload size={11} />
-          Upload
-        </button>
+        {/* Upload manual */}
+        <div className="relative flex-shrink-0">
+          <input
+            ref={uploadInputRef}
+            id={uploadInputId}
+            type="file"
+            accept="image/*"
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            onChange={handleManualUploadChange}
+            disabled={manualBusy}
+            aria-label="Upload manual"
+          />
+          <label
+            htmlFor={uploadInputId}
+            className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded border ${
+              isDark
+                ? 'border-white/15 text-brand-gray-400 hover:text-white hover:border-white/30'
+                : 'border-neutral-300 text-neutral-500 hover:text-neutral-700'
+            } ${manualBusy ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+            title="Upload manual"
+          >
+            {manualBusy ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
+            {manualBusy ? 'Enviando...' : 'Upload'}
+          </label>
+        </div>
       </div>
+
+      {manualInfo && (
+        <p className={`text-[11px] rounded-md border px-2 py-1 ${isDark ? 'text-green-300 border-green-500/30 bg-green-500/10' : 'text-green-700 border-green-300 bg-green-50'}`}>
+          {manualInfo}
+        </p>
+      )}
 
       {/* Área de preview / skeleton / variações */}
       {estado === 'idle' && (
         <div className={`${aspect} mx-auto rounded-lg border border-dashed flex flex-col items-center justify-center gap-2 ${
           isDark ? 'border-white/15 bg-white/[0.02]' : 'border-neutral-300 bg-neutral-50'
         }`}>
-          {ponto?.simulacao_arte ? (
+          {previewArteAtual ? (
             <img
-              src={ponto.simulacao_arte}
+              src={previewArteAtual}
               alt={`Arte atual – ${ponto.nome}`}
               className="w-full h-full object-cover rounded-lg"
             />

@@ -6,6 +6,7 @@ const BRAND_BLACK = '#0B0B0B';
 const BRAND_PANEL = '#141414';
 const BRAND_BORDER = 'rgba(255,255,255,0.12)';
 const BRAND_MUTED = 'rgba(255,255,255,0.72)';
+const POINT_NAME_LOWER_WORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
 
 import { normalizeHorarioForPdf } from './horarioUtils';
 
@@ -121,6 +122,94 @@ function parseOperatingHours(horario) {
   if (h.includes("24")) return 24;
   
   return 17;
+}
+
+function normalizeTextForMatch(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function toPointTitleCase(value) {
+  const raw = String(value || '').trim().replace(/\s+/g, ' ');
+  if (!raw) return '';
+
+  let wordIndex = 0;
+  return raw.split(/(\s+|-|\/)/).map((part) => {
+    if (/^\s+$/.test(part) || part === '-' || part === '/') {
+      return part;
+    }
+
+    return part.replace(/[A-Za-zÀ-ÿ0-9]+/g, (word) => {
+      const lower = word.toLowerCase();
+      const isRoman = /^(ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii)$/i.test(word);
+      const isFirstWord = wordIndex === 0;
+      wordIndex += 1;
+
+      if (/^\d+$/.test(word)) return word;
+      if (isRoman) return lower.toUpperCase();
+      if (!isFirstWord && POINT_NAME_LOWER_WORDS.has(lower)) return lower;
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    });
+  }).join('');
+}
+
+function normalizePointNameForPdf(nome, tipo) {
+  const titled = toPointTitleCase(nome || 'Ponto');
+  const tipoNorm = normalizeTextForMatch(tipo);
+
+  if (!tipoNorm.includes('elevador')) {
+    return titled;
+  }
+
+  if (/(?:\bCondom[ií]nio\b|\bCond\.?(?=\s|$))/i.test(titled)) {
+    return titled
+      .replace(/(?:\bCondom[ií]nio\b|\bCond\.?(?=\s|$))/gi, 'Cond.')
+      .replace(/^(?:Ed\.|Edif[ií]cio)\s+/i, '')
+      .trim();
+  }
+
+  if (/^Ed\.\s+/i.test(titled)) return titled;
+  if (/^Edif[ií]cio\s+/i.test(titled)) return titled.replace(/^Edif[ií]cio\s+/i, 'Ed. ');
+  return `Ed. ${titled}`;
+}
+
+function getPointCategoryKey(tipo) {
+  const tipoNorm = normalizeTextForMatch(tipo);
+  if (tipoNorm.includes('elevador')) return '01-elevadores';
+  if ((tipoNorm.includes('painel') && tipoNorm.includes('led')) || tipoNorm.includes('led painel')) return '02-painel-led';
+  if (tipoNorm.includes('backlight')) return '03-backlight';
+  if (tipoNorm.includes('frontlight')) return '04-frontlight';
+  if (tipoNorm.includes('led posto')) return '05-led-posto';
+  if (tipoNorm.includes('totem')) return '06-totem';
+  if (tipoNorm.includes('indoor')) return '07-indoor';
+  return `99-${tipoNorm || 'outros'}`;
+}
+
+function normalizeAndSortPointsForPdf(points = []) {
+  const normalized = points.map((point) => ({
+    ...point,
+    _pdfDisplayName: normalizePointNameForPdf(point?.nome, point?.tipo),
+    _pdfCategoryKey: getPointCategoryKey(point?.tipo),
+  }));
+
+  return normalized.sort((a, b) => {
+    const catCmp = String(a._pdfCategoryKey || '').localeCompare(String(b._pdfCategoryKey || ''), 'pt-BR');
+    if (catCmp !== 0) return catCmp;
+
+    const nameCmp = String(a._pdfDisplayName || '').localeCompare(String(b._pdfDisplayName || ''), 'pt-BR', {
+      sensitivity: 'base',
+      numeric: true,
+    });
+    if (nameCmp !== 0) return nameCmp;
+
+    return String(a?.nome || '').localeCompare(String(b?.nome || ''), 'pt-BR', {
+      sensitivity: 'base',
+      numeric: true,
+    });
+  });
 }
 
 async function preparePointsForPdf(points, onStatusChange) {
@@ -262,6 +351,7 @@ function buildCoverPage(points) {
 
 function buildPointPage(point, index, total) {
   const image = pickPointImage(point);
+  const displayName = point?._pdfDisplayName || point?.nome || 'Ponto';
   
   const focalPoint = point?.foto_focal_point || 'center center';
   const imageContainer = buildHeroImageFrame(image, focalPoint);
@@ -322,7 +412,7 @@ function buildPointPage(point, index, total) {
           
           <div style="flex-shrink:0;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:20px;padding:24px;">
              <div style="font-size:11px;font-weight:800;color:${BRAND_ORANGE};text-transform:uppercase;letter-spacing:0.12em;margin-bottom:6px;">Dados do ponto</div>
-             <div style="font-size:32px;font-weight:800;color:#fff;line-height:1.1;margin-bottom:20px;letter-spacing:-0.03em;word-break:break-word;">${escapeHtml(point?.nome || 'Ponto')}</div>
+             <div style="font-size:32px;font-weight:800;color:#fff;line-height:1.1;margin-bottom:20px;letter-spacing:-0.03em;word-break:break-word;">${escapeHtml(displayName)}</div>
              
              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                 <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px;">
@@ -440,7 +530,9 @@ export async function generateTechnicalInfoPdf(points = [], options = {}) {
     throw new Error('Selecione pelo menos um ponto para exportar o PDF técnico.');
   }
 
-  const preparedPoints = await preparePointsForPdf(list, options.onStatusChange);
+  const preparedPoints = normalizeAndSortPointsForPdf(
+    await preparePointsForPdf(list, options.onStatusChange)
+  );
 
   const pages = [buildCoverPage(preparedPoints)];
   preparedPoints.forEach((point, index) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { RefreshCcw, Loader2, CheckCircle2, XCircle, AlertTriangle, Clock, Send, FileText, MessageCircle, BarChart3, HelpCircle } from 'lucide-react';
-import { fetchWhatsappLogs } from '../../lib/api';
+import { fetchWhatsappLogs, retryVendaTechnicalPdf } from '../../lib/api';
 
 const STATUS_BADGE = {
   enviado:  { label: 'Enviado',  dark: 'bg-green-500/20 text-green-300 border-green-500/30',  light: 'bg-green-50 text-green-700 border-green-200',  Icon: CheckCircle2 },
@@ -17,6 +17,17 @@ const TIPO_LABELS = {
   pdf_mobile:        { label: 'PDF Mobile',         Icon: FileText },
   pdf_geracao:       { label: 'Geração PDF',        Icon: FileText },
 };
+
+const RETRYABLE_PDF_TYPES = new Set(['pdf_desktop', 'pdf_mobile', 'pdf_geracao']);
+
+function canRetryPdf(log) {
+  return Boolean(
+    log &&
+    log.status === 'falha' &&
+    RETRYABLE_PDF_TYPES.has(log.tipo) &&
+    Number(log.venda_id) > 0
+  );
+}
 
 function formatDate(dateStr) {
   if (!dateStr) return '—';
@@ -37,6 +48,8 @@ export default function WhatsappLogsTab({ isDark }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [retryFeedback, setRetryFeedback] = useState(null);
+  const [retryingLogId, setRetryingLogId] = useState(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
 
@@ -58,6 +71,29 @@ export default function WhatsappLogsTab({ isDark }) {
   }, []);
 
   useEffect(() => { loadLogs(); }, [loadLogs]);
+
+  const handleRetry = useCallback(async (log) => {
+    if (!canRetryPdf(log)) return;
+    setError(null);
+    setRetryFeedback(null);
+    setRetryingLogId(log.id);
+    try {
+      const result = await retryVendaTechnicalPdf(log.venda_id);
+      const desktop = result?.desktop || 'desconhecido';
+      const mobile = result?.mobile || 'desconhecido';
+      const photoMode = result?.photo_mode === 'none'
+        ? 'sem fotos'
+        : result?.photo_mode === 'compact'
+          ? 'fotos compactas'
+          : 'fotos completas';
+      setRetryFeedback(`Venda #${log.venda_id}: desktop ${desktop}, mobile ${mobile} (${photoMode}).`);
+      await loadLogs();
+    } catch (err) {
+      setError(err.message || 'Falha ao tentar novamente o envio de PDF técnico.');
+    } finally {
+      setRetryingLogId(null);
+    }
+  }, [loadLogs]);
 
   const filtered = logs.filter(l => {
     if (filterStatus && l.status !== filterStatus) return false;
@@ -145,6 +181,12 @@ export default function WhatsappLogsTab({ isDark }) {
         </div>
       )}
 
+      {retryFeedback && (
+        <div className="mb-4 p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-xs">
+          {retryFeedback}
+        </div>
+      )}
+
       {loading && logs.length === 0 ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
@@ -166,6 +208,7 @@ export default function WhatsappLogsTab({ isDark }) {
                 <th className="py-2 px-2 text-left font-medium">Destino</th>
                 <th className="py-2 px-2 text-left font-medium">Status</th>
                 <th className="py-2 px-2 text-left font-medium">Detalhes</th>
+                <th className="py-2 px-2 text-left font-medium">Ações</th>
               </tr>
             </thead>
             <tbody className={`divide-y ${th.tbl}`}>
@@ -174,6 +217,8 @@ export default function WhatsappLogsTab({ isDark }) {
                 const tipoInfo = TIPO_LABELS[log.tipo] || { label: log.tipo, Icon: Send };
                 const TipoIcon = tipoInfo.Icon;
                 const BadgeIcon = badge.Icon;
+                const retryAllowed = canRetryPdf(log);
+                const retrying = retryingLogId === log.id;
                 return (
                   <tr key={log.id} className={`${th.rowHover} transition-colors`}>
                     <td className={`py-2.5 px-2 whitespace-nowrap ${th.text}`}>
@@ -211,6 +256,25 @@ export default function WhatsappLogsTab({ isDark }) {
                         </span>
                       ) : log.detalhes ? (
                         <span className={th.textMuted}>{log.detalhes}</span>
+                      ) : (
+                        <span className={th.textMuted}>—</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-2 whitespace-nowrap">
+                      {retryAllowed ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRetry(log)}
+                          disabled={retrying}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${isDark ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30 hover:bg-blue-500/30 disabled:opacity-60' : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 disabled:opacity-60'}`}
+                        >
+                          {retrying ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <RefreshCcw className="w-3 h-3" />
+                          )}
+                          Tentar novamente
+                        </button>
                       ) : (
                         <span className={th.textMuted}>—</span>
                       )}

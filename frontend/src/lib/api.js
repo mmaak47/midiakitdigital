@@ -576,6 +576,15 @@ export async function fetchWhatsappLogs(limit = 100) {
   return data;
 }
 
+export async function retryVendaTechnicalPdf(vendaId) {
+  const res = await apiRequest(`/vendas/${vendaId}/retry-pdf`, {
+    method: 'POST'
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro ao tentar novamente o envio de PDF técnico');
+  return data;
+}
+
 export async function syncGoogleOperatingHours({
   dryRun = true,
   overwrite = false,

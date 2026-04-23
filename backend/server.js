@@ -195,6 +195,70 @@ const DEFAULT_AUDIENCE_TAGS = [
 ];
 const WEEK_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const TIME_BLOCKS = ['morning', 'afternoon', 'evening'];
+const POINT_NAME_LOWER_WORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+
+function normalizeTextForMatch(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function toPointTitleCase(value) {
+  const raw = String(value || '').trim().replace(/\s+/g, ' ');
+  if (!raw) return '';
+
+  let wordIndex = 0;
+  return raw.split(/(\s+|-|\/)/).map((part) => {
+    if (/^\s+$/.test(part) || part === '-' || part === '/') {
+      return part;
+    }
+
+    return part.replace(/[A-Za-zÀ-ÿ0-9]+/g, (word) => {
+      const lower = word.toLowerCase();
+      const isRoman = /^(ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii)$/i.test(word);
+      const isFirstWord = wordIndex === 0;
+      wordIndex += 1;
+
+      if (/^\d+$/.test(word)) return word;
+      if (isRoman) return lower.toUpperCase();
+      if (!isFirstWord && POINT_NAME_LOWER_WORDS.has(lower)) return lower;
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    });
+  }).join('');
+}
+
+function isElevadorTipo(tipo) {
+  return normalizeTextForMatch(tipo).includes('elevador');
+}
+
+function normalizePointNameByType(nome, tipo) {
+  const titled = toPointTitleCase(nome || '');
+  if (!titled) return titled;
+
+  if (!isElevadorTipo(tipo)) {
+    return titled;
+  }
+
+  if (/(?:\bCondom[ií]nio\b|\bCond\.?(?=\s|$))/i.test(titled)) {
+    const condensed = titled
+      .replace(/(?:\bCondom[ií]nio\b|\bCond\.?(?=\s|$))/gi, 'Cond.')
+      .replace(/^(?:Ed\.|Edif[ií]cio)\s+/i, '')
+      .trim();
+    return condensed;
+  }
+
+  if (/^Ed\.\s+/i.test(titled)) {
+    return titled;
+  }
+
+  if (/^Edif[ií]cio\s+/i.test(titled)) {
+    return titled.replace(/^Edif[ií]cio\s+/i, 'Ed. ');
+  }
+
+  return `Ed. ${titled}`;
+}
 
 function getAllowedOrigins() {
   const fromEnv = String(process.env.FRONTEND_ORIGINS || '')
@@ -1575,13 +1639,37 @@ function normalizeAvailabilityCalendarInput(raw, fallbackHorario = '') {
 function hydratePontoRow(row) {
   if (!row) return row;
 
+  const normalizedName = normalizePointNameByType(row.nome, row.tipo);
+
   return {
     ...row,
+    nome: normalizedName || row.nome,
     foto_focal_point: normalizeFotoFocalPoint(row.foto_focal_point),
     pdf_image_source: normalizePdfImageSource(row.pdf_image_source),
     audience_tags: normalizeAudienceTagsInput(row.audience_tags, row.publico),
     availability_calendar: normalizeAvailabilityCalendarInput(row.availability_calendar, row.horario)
   };
+}
+
+// One-time normalization pass at startup to keep persisted point names consistent
+try {
+  const rows = db.prepare('SELECT id, nome, tipo FROM pontos').all();
+  if (rows.length > 0) {
+    const updateNameStmt = db.prepare('UPDATE pontos SET nome = ? WHERE id = ?');
+    let renamed = 0;
+    for (const row of rows) {
+      const normalizedName = normalizePointNameByType(row.nome, row.tipo);
+      if (normalizedName && normalizedName !== row.nome) {
+        updateNameStmt.run(normalizedName, row.id);
+        renamed += 1;
+      }
+    }
+    if (renamed > 0) {
+      console.log(`[pontos] normalização de nomes aplicada: ${renamed} registro(s).`);
+    }
+  }
+} catch (normalizeErr) {
+  console.warn('[pontos] falha na normalização de nomes:', normalizeErr.message);
 }
 
 function buildAudienceTagCatalog(rows = []) {
@@ -2992,6 +3080,7 @@ app.post('/api/pontos', upload.fields([
     const simulacaoPreview = pickUploadedPath(req, 'simulacao_preview') || data.simulacao_preview || null;
     const simulacaoTela = data.simulacao_tela || null;
     const tipo = data.tipo || '';
+    const normalizedNome = normalizePointNameByType(data.nome || '', tipo);
     const arteLargura = parseInt(data.arte_largura, 10) || 1920;
     const arteAltura = parseInt(data.arte_altura, 10) || 1080;
     const isBackOrFrontLight = tipo === 'Backlight' || tipo === 'Frontlight';
@@ -3028,7 +3117,7 @@ app.post('/api/pontos', upload.fields([
       : (calcInsercoesMensal(data.horario, telasVal) ?? (parseInt(data.insercoes) || 0));
 
     const result = stmt.run(
-      data.nome, data.cidade, tipo, data.endereco,
+      normalizedNome || data.nome, data.cidade, tipo, data.endereco,
       latDb, lngDb,
       data.horario, parseInt(data.fluxo) || 0, insercoes,
       data.tempo || '15s', data.loop || '3 min', data.veiculacao || 'Vídeo sem áudio',
@@ -3070,6 +3159,7 @@ app.put('/api/pontos/:id', upload.fields([
     const simulacaoPreview = pickUploadedPath(req, 'simulacao_preview') || data.simulacao_preview || existing.simulacao_preview;
     const simulacaoTela = data.simulacao_tela || existing.simulacao_tela;
     const tipo = data.tipo || existing.tipo;
+    const normalizedNome = normalizePointNameByType(data.nome || existing.nome, tipo);
     const arteLargura = parseInt(data.arte_largura, 10) || existing.arte_largura || 1920;
     const arteAltura = parseInt(data.arte_altura, 10) || existing.arte_altura || 1080;
     const isBackOrFrontLight = tipo === 'Backlight' || tipo === 'Frontlight';
@@ -3123,7 +3213,7 @@ app.put('/api/pontos/:id', upload.fields([
     `);
 
     stmt.run(
-      data.nome || existing.nome, data.cidade || existing.cidade, tipo,
+      normalizedNome || data.nome || existing.nome, data.cidade || existing.cidade, tipo,
       data.endereco || existing.endereco,
       latDb, lngDb,
       data.horario || existing.horario, parseInt(data.fluxo) || existing.fluxo,
@@ -4875,6 +4965,167 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantas
   return lines.join('\n');
 }
 
+async function sendTechnicalPdfsForVenda({
+  vendaId,
+  responsavelWhatsApp,
+  responsavelNome,
+  vendedorNome,
+  pontosNomes,
+  trigger = 'auto',
+  actorName = '',
+}) {
+  const triggerLabel = trigger === 'manual_retry'
+    ? `retry manual${actorName ? ` por ${actorName}` : ''}`
+    : 'envio automatico';
+
+  const logSend = (tipo, destino, status, erro, detalhes) => {
+    try {
+      db.prepare('INSERT INTO whatsapp_send_log (venda_id, tipo, destino, status, erro, detalhes) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(vendaId, tipo, destino, status, erro || null, detalhes || null);
+    } catch {
+      // non-blocking log failure
+    }
+  };
+
+  const evoClient = getEvolutionSettings();
+  if (!evoClient.evolution_api_url || !evoClient.evolution_instance || !evoClient.evolution_api_key) {
+    logSend('pdf_desktop', null, 'ignorado', null, `Evolution API nao configurada (${triggerLabel})`);
+    return {
+      ok: false,
+      vendaId,
+      reason: 'nao_configurado',
+      error: 'Evolution API nao configurada.',
+    };
+  }
+
+  const clientPhone = sanitizePhoneForWhatsApp(responsavelWhatsApp);
+  if (!clientPhone) {
+    logSend('pdf_desktop', null, 'ignorado', null, `WhatsApp do responsavel nao informado (${triggerLabel})`);
+    return {
+      ok: false,
+      vendaId,
+      reason: 'telefone_ausente',
+      error: 'WhatsApp do responsavel nao informado.',
+    };
+  }
+
+  let pontosArr = [];
+  try {
+    pontosArr = Array.isArray(pontosNomes) ? pontosNomes : JSON.parse(pontosNomes || '[]');
+  } catch {
+    logSend('pdf_desktop', clientPhone, 'falha', 'Falha ao parsear pontos_nomes', `Parse invalido (${triggerLabel})`);
+    return {
+      ok: false,
+      vendaId,
+      phone: clientPhone,
+      reason: 'pontos_invalidos',
+      error: 'Falha ao parsear pontos da venda.',
+    };
+  }
+
+  if (!Array.isArray(pontosArr) || pontosArr.length === 0) {
+    logSend('pdf_desktop', clientPhone, 'ignorado', null, `Sem pontos para gerar PDF (${triggerLabel})`);
+    return {
+      ok: false,
+      vendaId,
+      phone: clientPhone,
+      reason: 'sem_pontos',
+      error: 'Sem pontos para gerar PDF.',
+    };
+  }
+
+  const nomeResponsavel = responsavelNome ? String(responsavelNome).trim() : 'cliente';
+  const nomeVendedor = vendedorNome || 'nosso time';
+  const caption = `Oi, ${nomeResponsavel}! Tudo bem? 😄\n\nPassando pra te dar os parabens pela escolha dos pontos — excelente decisao!\n\nEu sou o assistente de criacao que trabalha junto com o ${nomeVendedor} e vou te ajudar com tudo que envolver criativos.\n\nTe enviei a proposta tecnica com os detalhes 📄\n\nSe quiser trocar ideias ou precisar de ajuda com as artes, estou por aqui!`;
+
+  let desktopStatus = 'pendente';
+  let mobileStatus = 'pendente';
+  let desktopError = null;
+  let mobileError = null;
+  let photoModeUsed = 'full';
+
+  try {
+    const generated = await generatePdfsFromPointNames(db, pontosArr);
+    const { desktop, mobile } = generated;
+    photoModeUsed = generated?.photoModeUsed || 'full';
+
+    const photoModeLabel = photoModeUsed === 'none'
+      ? 'sem fotos'
+      : photoModeUsed === 'compact'
+        ? 'fotos compactas'
+        : 'fotos completas';
+
+    // Envia PDF desktop
+    const tmpDesktop = path.join(require('os').tmpdir(), `venda_${vendaId}_tecnico_retry.pdf`);
+    fs.writeFileSync(tmpDesktop, desktop);
+    try {
+      await sendEvolutionDocument({
+        apiUrl: evoClient.evolution_api_url,
+        instance: evoClient.evolution_pdf_instance || evoClient.evolution_instance,
+        apiKey: evoClient.evolution_api_key,
+        number: clientPhone,
+        caption,
+        filePath: tmpDesktop,
+        fileName: 'Informações Técnicas.pdf'
+      });
+      desktopStatus = 'enviado';
+      logSend('pdf_desktop', clientPhone, 'enviado', null, `${pontosArr.length} ponto(s) (${photoModeLabel}; ${triggerLabel})`);
+    } catch (err) {
+      desktopStatus = 'falha';
+      desktopError = err.message;
+      logSend('pdf_desktop', clientPhone, 'falha', err.message, `Falha no desktop (${triggerLabel})`);
+    } finally {
+      try { fs.unlinkSync(tmpDesktop); } catch { /* ignore */ }
+    }
+
+    // Envia PDF mobile
+    const tmpMobile = path.join(require('os').tmpdir(), `venda_${vendaId}_tecnico_mobile_retry.pdf`);
+    fs.writeFileSync(tmpMobile, mobile);
+    try {
+      await sendEvolutionDocument({
+        apiUrl: evoClient.evolution_api_url,
+        instance: evoClient.evolution_pdf_instance || evoClient.evolution_instance,
+        apiKey: evoClient.evolution_api_key,
+        number: clientPhone,
+        caption: '📱 Versão mobile da proposta técnica:',
+        filePath: tmpMobile,
+        fileName: 'Informações Técnicas Mobile.pdf'
+      });
+      mobileStatus = 'enviado';
+      logSend('pdf_mobile', clientPhone, 'enviado', null, `${pontosArr.length} ponto(s) (${photoModeLabel}; ${triggerLabel})`);
+    } catch (err) {
+      mobileStatus = 'falha';
+      mobileError = err.message;
+      logSend('pdf_mobile', clientPhone, 'falha', err.message, `Falha no mobile (${triggerLabel})`);
+    } finally {
+      try { fs.unlinkSync(tmpMobile); } catch { /* ignore */ }
+    }
+  } catch (genErr) {
+    logSend('pdf_geracao', clientPhone, 'falha', genErr.message, `Falha ao gerar PDFs (${triggerLabel})`);
+    return {
+      ok: false,
+      vendaId,
+      phone: clientPhone,
+      reason: 'erro_geracao',
+      error: genErr.message,
+      desktop: 'falha',
+      mobile: 'falha',
+    };
+  }
+
+  return {
+    ok: desktopStatus === 'enviado' || mobileStatus === 'enviado',
+    vendaId,
+    phone: clientPhone,
+    pontos: pontosArr.length,
+    photo_mode: photoModeUsed,
+    desktop: desktopStatus,
+    mobile: mobileStatus,
+    desktop_error: desktopError,
+    mobile_error: mobileError,
+  };
+}
+
 const VENDA_DRAFT_FORM_FIELDS = [
   'tipo',
   'razao_social',
@@ -5206,95 +5457,17 @@ app.post(
 
       // ─── Disparo assíncrono: PDF técnico para o WhatsApp do cliente ───────
       // Roda em background para não atrasar a resposta ao vendedor.
-      setImmediate(async () => {
-        const logSend = (tipo, destino, status, erro, detalhes) => {
-          try { db.prepare('INSERT INTO whatsapp_send_log (venda_id, tipo, destino, status, erro, detalhes) VALUES (?, ?, ?, ?, ?, ?)').run(vendaId, tipo, destino, status, erro || null, detalhes || null); } catch { /* ignore */ }
-        };
-
-        const evoClient = getEvolutionSettings();
-        if (!evoClient.evolution_api_url || !evoClient.evolution_instance || !evoClient.evolution_api_key) {
-          logSend('pdf_desktop', null, 'ignorado', null, 'Evolution API não configurada');
-          return;
-        }
-
-        const clientPhone = sanitizePhoneForWhatsApp(responsavel_whatsapp);
-        if (!clientPhone) {
-          console.warn(`[vendas/pdf] Venda ${vendaId}: responsavel_whatsapp não informado — PDF não enviado.`);
-          logSend('pdf_desktop', null, 'ignorado', null, 'WhatsApp do responsável não informado');
-          return;
-        }
-
-        let pontosArr = [];
-        try {
-          pontosArr = Array.isArray(pontos_nomes) ? pontos_nomes : JSON.parse(pontos_nomes || '[]');
-        } catch {
-          console.warn(`[vendas/pdf] Venda ${vendaId}: falha ao parsear pontos_nomes.`);
-          logSend('pdf_desktop', clientPhone, 'falha', 'Falha ao parsear pontos_nomes', null);
-          return;
-        }
-
-        if (pontosArr.length === 0) {
-          console.warn(`[vendas/pdf] Venda ${vendaId}: sem pontos — PDF não gerado.`);
-          logSend('pdf_desktop', clientPhone, 'ignorado', null, 'Sem pontos — PDF não gerado');
-          return;
-        }
-
-        const nomeResponsavel = responsavel_nome ? String(responsavel_nome).trim() : 'cliente';
-        const nomeVendedor    = vendedor_nome || req.authUser?.username || 'nosso time';
-
-        const caption = `Oi, ${nomeResponsavel}! Tudo bem? 😄\n\nPassando pra te dar os parabéns pela escolha dos pontos — excelente decisão!\n\nEu sou o assistente de criação que trabalha junto com o ${nomeVendedor} e vou te ajudar com tudo que envolver criativos.\n\nTe enviei a proposta técnica com os detalhes 📄\n\nSe quiser trocar ideias ou precisar de ajuda com as artes, estou por aqui!`;
-
-        console.log(`[vendas/pdf] Gerando PDFs técnicos para venda ${vendaId} (${pontosArr.length} ponto(s))...`);
-
-        try {
-          const { desktop, mobile } = await generatePdfsFromPointNames(db, pontosArr);
-
-          // Envia PDF desktop
-          try {
-            const tmpDesktop = require('path').join(require('os').tmpdir(), `venda_${vendaId}_tecnico.pdf`);
-            require('fs').writeFileSync(tmpDesktop, desktop);
-            await sendEvolutionDocument({
-              apiUrl:   evoClient.evolution_api_url,
-              instance: evoClient.evolution_pdf_instance || evoClient.evolution_instance,
-              apiKey:   evoClient.evolution_api_key,
-              number:   clientPhone,
-              caption,
-              filePath: tmpDesktop,
-              fileName: 'Informações Técnicas.pdf'
-            });
-            require('fs').unlinkSync(tmpDesktop);
-            console.log(`[vendas/pdf] PDF desktop enviado para ${clientPhone} (venda ${vendaId}).`);
-            logSend('pdf_desktop', clientPhone, 'enviado', null, `${pontosArr.length} ponto(s)`);
-          } catch (sendErr) {
-            console.error(`[vendas/pdf] Falha ao enviar PDF desktop (venda ${vendaId}):`, sendErr.message);
-            logSend('pdf_desktop', clientPhone, 'falha', sendErr.message, null);
-          }
-
-          // Envia PDF mobile
-          try {
-            const tmpMobile = require('path').join(require('os').tmpdir(), `venda_${vendaId}_tecnico_mobile.pdf`);
-            require('fs').writeFileSync(tmpMobile, mobile);
-            await sendEvolutionDocument({
-              apiUrl:   evoClient.evolution_api_url,
-              instance: evoClient.evolution_pdf_instance || evoClient.evolution_instance,
-              apiKey:   evoClient.evolution_api_key,
-              number:   clientPhone,
-              caption:  '📱 Versão mobile da proposta técnica:',
-              filePath: tmpMobile,
-              fileName: 'Informações Técnicas Mobile.pdf'
-            });
-            require('fs').unlinkSync(tmpMobile);
-            console.log(`[vendas/pdf] PDF mobile enviado para ${clientPhone} (venda ${vendaId}).`);
-            logSend('pdf_mobile', clientPhone, 'enviado', null, `${pontosArr.length} ponto(s)`);
-          } catch (sendErr) {
-            console.error(`[vendas/pdf] Falha ao enviar PDF mobile (venda ${vendaId}):`, sendErr.message);
-            logSend('pdf_mobile', clientPhone, 'falha', sendErr.message, null);
-          }
-
-        } catch (genErr) {
-          console.error(`[vendas/pdf] Falha ao gerar PDFs técnicos (venda ${vendaId}):`, genErr.message);
-          logSend('pdf_geracao', clientPhone, 'falha', genErr.message, 'Falha ao gerar PDFs');
-        }
+      setImmediate(() => {
+        sendTechnicalPdfsForVenda({
+          vendaId,
+          responsavelWhatsApp: responsavel_whatsapp,
+          responsavelNome: responsavel_nome,
+          vendedorNome: vendedor_nome || req.authUser?.username || 'nosso time',
+          pontosNomes: pontos_nomes,
+          trigger: 'auto',
+        }).catch((pdfErr) => {
+          console.error(`[vendas/pdf] Falha inesperada no envio assíncrono da venda ${vendaId}:`, pdfErr.message);
+        });
       });
       // ─────────────────────────────────────────────────────────────────────
 
@@ -5386,6 +5559,57 @@ app.get('/api/whatsapp-logs', requireRoles(['admin', 'gerente_comercial']), (req
   }
 });
 
+// ─── Reenvio manual de PDF técnico por venda ───────────────────────────────
+app.post('/api/vendas/:id/retry-pdf', requireRoles(['admin', 'gerente_comercial', 'vendedor']), async (req, res) => {
+  try {
+    const vendaId = Number(req.params.id);
+    if (!Number.isInteger(vendaId) || vendaId <= 0) {
+      return res.status(400).json({ error: 'ID de venda inválido.' });
+    }
+
+    const venda = db.prepare(`
+      SELECT id, vendedor_id, vendedor_nome, responsavel_nome, responsavel_whatsapp, pontos_nomes
+      FROM vendas
+      WHERE id = ?
+    `).get(vendaId);
+
+    if (!venda) {
+      return res.status(404).json({ error: 'Venda não encontrada.' });
+    }
+
+    if (req.authUser?.role === 'vendedor' && Number(venda.vendedor_id || 0) !== Number(req.authUser?.id || 0)) {
+      return res.status(403).json({ error: 'Você só pode reenviar PDFs das suas próprias vendas.' });
+    }
+
+    const actorName = String(req.authUser?.username || 'usuario').trim();
+    const result = await sendTechnicalPdfsForVenda({
+      vendaId,
+      responsavelWhatsApp: venda.responsavel_whatsapp,
+      responsavelNome: venda.responsavel_nome,
+      vendedorNome: venda.vendedor_nome || req.authUser?.username || 'nosso time',
+      pontosNomes: venda.pontos_nomes,
+      trigger: 'manual_retry',
+      actorName,
+    });
+
+    if (!result.ok) {
+      return res.status(502).json({
+        ok: false,
+        ...result,
+        error: result.error || 'Falha ao reenviar PDFs técnicos.',
+      });
+    }
+
+    res.json({
+      ok: true,
+      ...result,
+    });
+  } catch (err) {
+    console.error('[vendas/retry-pdf] erro:', err.message);
+    res.status(500).json({ error: 'Falha ao tentar novamente o envio dos PDFs técnicos.' });
+  }
+});
+
 // ─── Teste de envio de PDF técnico via WhatsApp ───────────────────────────────
 // Gera os PDFs para os pontos informados e envia ao número de teste.
 // Não registra venda, não notifica o grupo interno.
@@ -5428,7 +5652,10 @@ app.post('/api/vendas/test-pdf', requireRoles(['admin', 'gerente_comercial']), a
 
   try {
     log.push(`Gerando PDFs para ${pontosArr.length} ponto(s): ${pontosArr.join(', ')}`);
-    const { desktop, mobile } = await generatePdfsFromPointNames(db, pontosArr);
+    const generated = await generatePdfsFromPointNames(db, pontosArr);
+    const { desktop, mobile } = generated;
+    const photoModeUsed = generated?.photoModeUsed || 'full';
+    log.push(`Modo de fotos: ${photoModeUsed === 'none' ? 'sem fotos' : photoModeUsed === 'compact' ? 'compactas' : 'completas'}`);
     log.push(`PDFs gerados — desktop: ${(desktop.length / 1024).toFixed(0)} KB, mobile: ${(mobile.length / 1024).toFixed(0)} KB`);
 
     // Envia desktop

@@ -70,7 +70,8 @@ const WIZARD_STEPS = [
   { id: 2, label: 'Desconto' },
   { id: 3, label: 'Arte' },
   { id: 4, label: 'Revisão' },
-  { id: 5, label: 'Gerar' },
+  { id: 5, label: 'Editar PDF' },
+  { id: 6, label: 'Gerar' },
 ];
 
 const STEP_TITLES = {
@@ -78,7 +79,8 @@ const STEP_TITLES = {
   2: 'Desconto comercial',
   3: 'Arte da campanha',
   4: 'Revisão da proposta',
-  5: 'Gerar proposta',
+  5: 'Editar PDF final',
+  6: 'Gerar proposta',
 };
 
 function getPointPreviewUrl(point, requireGeneratedPreview = false) {
@@ -111,6 +113,102 @@ export function clearProposalDraft() {
   try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch { /* ignore */ }
 }
 
+const PDF_POINT_EDITABLE_FIELDS = [
+  { key: 'nome', label: 'Nome do ponto', type: 'text', placeholder: 'Nome exibido no PDF' },
+  { key: 'cidade', label: 'Cidade', type: 'text', placeholder: 'Cidade exibida no PDF' },
+  { key: 'tipo', label: 'Tipo', type: 'text', placeholder: 'Ex: Elevador, Painel LED' },
+  { key: 'endereco', label: 'Endereço', type: 'text', placeholder: 'Endereço para o cliente' },
+  { key: 'publico', label: 'Público', type: 'text', placeholder: 'Ex: A/B+, Clínicas' },
+  { key: 'fluxo', label: 'Fluxo', type: 'number', placeholder: 'Ex: 120000' },
+  { key: 'telas', label: 'Pontos de impacto', type: 'number', placeholder: 'Ex: 4' },
+  { key: 'insercoes', label: 'Inserções mín.', type: 'number', placeholder: 'Ex: 720' },
+  { key: 'tempo', label: 'Tempo da peça', type: 'text', placeholder: 'Ex: 15s' },
+  { key: 'loop', label: 'Loop', type: 'text', placeholder: 'Ex: 3 min' },
+  { key: 'veiculacao', label: 'Veiculação', type: 'text', placeholder: 'Ex: Vídeo sem áudio' },
+  { key: 'horario', label: 'Horário', type: 'text', placeholder: 'Ex: 6h às 23h' },
+  { key: 'preco', label: 'Investimento/mês', type: 'text', placeholder: 'Ex: 3250 ou 3.250,00' },
+  { key: 'lat', label: 'Latitude (opcional)', type: 'text', placeholder: 'Ex: -23.30452' },
+  { key: 'lng', label: 'Longitude (opcional)', type: 'text', placeholder: 'Ex: -51.16958' }
+];
+
+function parseLocaleNumber(rawValue) {
+  const source = String(rawValue ?? '').trim();
+  if (!source) return null;
+  const sanitized = source
+    .replace(/\s+/g, '')
+    .replace(/R\$/gi, '')
+    .replace(/\.(?=\d{3}(\D|$))/g, '')
+    .replace(',', '.');
+  const parsed = Number(sanitized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function applyPdfPointEdit(point, edit = {}) {
+  if (!point) return point;
+  const next = { ...point };
+
+  const textKeys = ['nome', 'cidade', 'tipo', 'endereco', 'publico', 'loop', 'veiculacao', 'horario'];
+  textKeys.forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(edit, key)) {
+      next[key] = String(edit[key] ?? '').trim();
+    }
+  });
+
+  if (Object.prototype.hasOwnProperty.call(edit, 'tempo')) {
+    const tempo = String(edit.tempo ?? '').trim();
+    next.tempo = tempo;
+    next.tempo_insercao = tempo;
+  }
+
+  const intKeys = ['fluxo', 'telas', 'insercoes'];
+  intKeys.forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(edit, key)) {
+      const parsed = parseLocaleNumber(edit[key]);
+      next[key] = Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : null;
+    }
+  });
+
+  if (Object.prototype.hasOwnProperty.call(edit, 'preco')) {
+    const parsed = parseLocaleNumber(edit.preco);
+    next.preco = Number.isFinite(parsed) ? parsed : null;
+    next.precoFinal = Number.isFinite(parsed) ? parsed : null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(edit, 'lat')) {
+    const parsed = parseLocaleNumber(edit.lat);
+    next.lat = Number.isFinite(parsed) ? parsed : null;
+  }
+  if (Object.prototype.hasOwnProperty.call(edit, 'lng')) {
+    const parsed = parseLocaleNumber(edit.lng);
+    next.lng = Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return next;
+}
+
+function buildPricingSummaryFromPoints(points = []) {
+  const originalTotal = points.reduce((sum, point) => {
+    const value = Number(point?.precoOriginal ?? point?.preco_tabela ?? point?.preco ?? 0);
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0);
+
+  const finalTotal = points.reduce((sum, point) => {
+    const value = Number(point?.precoFinal ?? point?.preco ?? 0);
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0);
+
+  const discountTotal = Math.max(0, originalTotal - finalTotal);
+  const discountPercentage = originalTotal > 0 ? (discountTotal / originalTotal) * 100 : 0;
+
+  return {
+    originalTotal,
+    finalTotal,
+    discountTotal,
+    discountPercentage,
+    hasDiscount: discountTotal > 0.01
+  };
+}
+
 export default function ProposalModal({ onClose, open = true, selectedPoints = null, isDark = true }) {
   const { favorites } = useFavorites();
   const sourcePoints = selectedPoints ?? favorites;
@@ -141,6 +239,15 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     perPoint: {},
     ...(draft?.discountConfig || {})
   }));
+  const [pdfPointEdits, setPdfPointEdits] = useState(() => {
+    if (!draft?.pdfPointEdits || typeof draft.pdfPointEdits !== 'object') return {};
+    return draft.pdfPointEdits;
+  });
+  const [pdfExcludedPointIds, setPdfExcludedPointIds] = useState(() => {
+    if (!Array.isArray(draft?.pdfExcludedPointIds)) return [];
+    return draft.pdfExcludedPointIds.map((id) => String(id));
+  });
+  const [editingPdfPointId, setEditingPdfPointId] = useState(null);
   const [promptCopied, setPromptCopied] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [advancedRealismOpen, setAdvancedRealismOpen] = useState(false);
@@ -244,8 +351,15 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
   // Auto-save draft whenever form-related state changes
   useEffect(() => {
-    saveDraft({ form, discountConfig, analysisMode, pdfSections });
-  }, [form, discountConfig, analysisMode, pdfSections]);
+    saveDraft({
+      form,
+      discountConfig,
+      analysisMode,
+      pdfSections,
+      pdfPointEdits,
+      pdfExcludedPointIds
+    });
+  }, [form, discountConfig, analysisMode, pdfSections, pdfPointEdits, pdfExcludedPointIds]);
 
   useEffect(() => {
     if (!showPdfFormatPicker) return undefined;
@@ -286,6 +400,13 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         Object.entries(current.perPoint || {}).filter(([pointId]) => sourcePoints.some((point) => String(point.id) === String(pointId)))
       )
     }));
+  }, [sourcePoints]);
+
+  useEffect(() => {
+    setPdfExcludedPointIds((current) => current.filter((pointId) => sourcePoints.some((point) => String(point.id) === String(pointId))));
+    setPdfPointEdits((current) => Object.fromEntries(
+      Object.entries(current).filter(([pointId]) => sourcePoints.some((point) => String(point.id) === String(pointId)))
+    ));
   }, [sourcePoints]);
 
   const proposalSourcePoints = useMemo(() => {
@@ -549,6 +670,64 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     });
   }, [pricing.points, simulationResults, entorno.scoresByPoint, clientAnalysis.byPoint, simulationArtFile]);
 
+  const proposalPointsEditedMap = useMemo(() => {
+    const map = {};
+    proposalPoints.forEach((point) => {
+      const pointId = String(point.id);
+      map[pointId] = applyPdfPointEdit(point, pdfPointEdits[pointId] || {});
+    });
+    return map;
+  }, [proposalPoints, pdfPointEdits]);
+
+  const proposalPointsForPdf = useMemo(() => {
+    const excluded = new Set(pdfExcludedPointIds.map((id) => String(id)));
+    return proposalPoints
+      .filter((point) => !excluded.has(String(point.id)))
+      .map((point) => proposalPointsEditedMap[String(point.id)] || point);
+  }, [proposalPoints, pdfExcludedPointIds, proposalPointsEditedMap]);
+
+  const totalsForPdf = useMemo(() => campaignTotals(proposalPointsForPdf), [proposalPointsForPdf]);
+  const pricingSummaryForPdf = useMemo(() => buildPricingSummaryFromPoints(proposalPointsForPdf), [proposalPointsForPdf]);
+  const hiddenPointsCount = Math.max(0, proposalPoints.length - proposalPointsForPdf.length);
+
+  const updatePdfPointField = (pointId, field, value) => {
+    const key = String(pointId);
+    setPdfPointEdits((current) => ({
+      ...current,
+      [key]: {
+        ...(current[key] || {}),
+        [field]: value
+      }
+    }));
+  };
+
+  const resetPdfPointEdit = (pointId) => {
+    const key = String(pointId);
+    setPdfPointEdits((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+    setEditingPdfPointId((current) => (String(current) === key ? null : current));
+  };
+
+  const togglePointInPdf = (pointId) => {
+    const key = String(pointId);
+    setPdfExcludedPointIds((current) => {
+      if (current.includes(key)) {
+        return current.filter((id) => id !== key);
+      }
+      return [...current, key];
+    });
+  };
+
+  const resetAllPdfEdits = () => {
+    setPdfPointEdits({});
+    setPdfExcludedPointIds([]);
+    setEditingPdfPointId(null);
+  };
+
   const simulationSummary = useMemo(() => {
     const items = Object.values(simulationResults);
     if (!simulationArtFile) {
@@ -577,8 +756,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
   const previewablePoints = useMemo(() => {
     const requireGeneratedPreview = !!simulationArtFile;
-    return proposalPoints.filter((point) => getPointPreviewUrl(point, requireGeneratedPreview));
-  }, [proposalPoints, simulationArtFile]);
+    return proposalPointsForPdf.filter((point) => getPointPreviewUrl(point, requireGeneratedPreview));
+  }, [proposalPointsForPdf, simulationArtFile]);
 
   useEffect(() => {
     if (!previewablePoints.length) {
@@ -597,7 +776,13 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     return previewablePoints.find((point) => point.id === activePreviewPointId) || previewablePoints[0];
   }, [previewablePoints, activePreviewPointId]);
 
-  const handleGenerate = () => setWizardStep(5);
+  const handleGenerate = () => {
+    if (!proposalPointsForPdf.length) {
+      setSimulationError('Inclua pelo menos 1 ponto para continuar para a geração do PDF.');
+      return;
+    }
+    setWizardStep(6);
+  };
 
   const handleCopyPrompt = async () => {
     if (!imagePrompt) return;
@@ -624,8 +809,13 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     const format = formatOverride || pdfFormat;
     setShowPdfFormatPicker(false);
     try {
+      if (!proposalPointsForPdf.length) {
+        setSimulationError('Inclua pelo menos 1 ponto no PDF antes de exportar.');
+        return;
+      }
+
       setPdfBusy(true);
-      const pointsWithEntorno = await ensurePointsWithEntorno(proposalPoints);
+      const pointsWithEntorno = await ensurePointsWithEntorno(proposalPointsForPdf);
       const strategicTopics = String(form.strategicTopics || '')
         .split(/\n+/)
         .map((line) => line.replace(/^[-•\d.)\s]+/, '').trim())
@@ -633,7 +823,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
       if (format === 'mobile') {
         let mobileOverviewMap = null;
-        if (proposalPoints.length > 0) {
+        if (proposalPointsForPdf.length > 0) {
           try {
             mobileOverviewMap = await buildSelectionMapDataUrl(pointsWithEntorno, {
               connectPoints: true,
@@ -650,8 +840,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           city: activeCities,
           publico: form.publicos,
           points: pointsWithEntorno,
-          totals,
-          pricingSummary,
+          totals: totalsForPdf,
+          pricingSummary: pricingSummaryForPdf,
           segmento: form.segmento,
           strategicText: argumentos,
           strategicTopics,
@@ -699,8 +889,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         publico: form.publicos,
         objective: form.objetivo,
         points: pointsWithEntorno,
-        totals,
-        pricingSummary,
+        totals: totalsForPdf,
+        pricingSummary: pricingSummaryForPdf,
         segmento: form.segmento,
         strategicText: argumentos,
         strategicTopics,
@@ -762,14 +952,19 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const handleCompartilhar = async () => {
     setShareBusy(true);
     try {
-      const pointsWithEntorno = await ensurePointsWithEntorno(proposalPoints);
+      if (!proposalPointsForPdf.length) {
+        throw new Error('Inclua pelo menos 1 ponto no PDF antes de compartilhar.');
+      }
+
+      const pointsWithEntorno = await ensurePointsWithEntorno(proposalPointsForPdf);
       const proposalData = {
         clientName: form.clientName, clientAddress: form.clientAddress,
         segmento: form.segmento, objetivo: form.objetivo,
         strategicTopics: form.strategicTopics,
         strategicText: argumentos,
         points: pointsWithEntorno.map(({ custo_operacional: _co, ...p }) => p),
-        totals, pricingSummary,
+        totals: totalsForPdf,
+        pricingSummary: pricingSummaryForPdf,
         duracao_meses: form.duracao_meses ? Number(form.duracao_meses) : null
       };
 
@@ -949,6 +1144,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
   const handleExportSelectionMap = async () => {
     try {
+      if (!proposalPointsForPdf.length) {
+        setSimulationError('Inclua pelo menos 1 ponto no PDF para gerar o mapa.');
+        return;
+      }
+
       setMapBusy(true);
       setMapStatus('');
       setSimulationError('');
@@ -984,7 +1184,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '') || 'proposta';
 
-      await downloadSelectionMapPng(proposalPoints, {
+      await downloadSelectionMapPng(proposalPointsForPdf, {
         connectPoints: connectMapPoints,
         clientCoords: exportClientCoords,
         theme: 'light',
@@ -1672,31 +1872,169 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       <MiniStat isDark={isDark} label="Cidades" value={activeCities.join(', ') || 'Todas'} />
                       <MiniStat isDark={isDark} label="Segmento" value={getSegmentDisplayName(form.segmento)} />
                       <MiniStat isDark={isDark} label="Públicos" value={form.publicos.length ? form.publicos.join(', ') : 'Todos'} />
-                      <MiniStat isDark={isDark} label="Pontos" value={proposalPoints.length} />
+                      <MiniStat isDark={isDark} label="Pontos no PDF" value={`${proposalPointsForPdf.length}/${proposalPoints.length}`} />
+                    </div>
+
+                    {hiddenPointsCount > 0 && (
+                      <p className={`text-xs mt-2 ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>
+                        {hiddenPointsCount} ponto(s) está(ão) oculto(s) no PDF.
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <button
+                        type="button"
+                        onClick={resetAllPdfEdits}
+                        className={`h-9 px-3 rounded-xl border text-xs font-medium transition-colors ${isDark ? 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.08]' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100'}`}
+                      >
+                        Restaurar dados originais do PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setWizardStep(1)}
+                        className={`h-9 px-3 rounded-xl border text-xs font-medium transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+                      >
+                        Editar dados gerais (cliente/estratégia)
+                      </button>
                     </div>
                   </Card>
 
-                  {/* Tabela de pontos */}
-                  <Card isDark={isDark} title="Pontos da campanha">
+                  {/* Próximo passo: edição guiada */}
+                  <Card isDark={isDark} title="Edição guiada do PDF (próximo passo)">
+                    <p className={`text-sm ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>
+                      No próximo passo você só precisa fazer 3 ações simples para finalizar o PDF.
+                    </p>
+                    <div className="grid sm:grid-cols-3 gap-2 mt-3">
+                      <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-700'}`}>
+                        <p className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-orange' : 'text-orange-600'}`}>1</p>
+                        Escolha quais pontos entram no PDF.
+                      </div>
+                      <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-700'}`}>
+                        <p className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-orange' : 'text-orange-600'}`}>2</p>
+                        Clique em Editar e ajuste só o que quiser.
+                      </div>
+                      <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-700'}`}>
+                        <p className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-orange' : 'text-orange-600'}`}>3</p>
+                        Avance para gerar e compartilhar.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep(5)}
+                      className="mt-3 inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-brand-orange text-white text-sm font-semibold hover:bg-brand-orange-hover"
+                    >
+                      Abrir edição guiada
+                      <ChevronRight size={15} />
+                    </button>
+                  </Card>
+
+                  {/* Preview ampliado */}
+                  <PreviewPanel proposalPoints={proposalPointsForPdf} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={!!simulationArtFile} isDark={isDark} />
+                </motion.div>
+              )}
+
+              {/* ═══ STEP 5 — Edição final do PDF ═══ */}
+              {wizardStep === 5 && (
+                <motion.div key="step5" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
+
+                  <Card isDark={isDark} title="Editar PDF de forma simples">
+                    <p className={`text-sm ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>
+                      Pense assim: marcar, editar e gerar. Não altera o cadastro original dos pontos.
+                    </p>
+                    <div className="grid sm:grid-cols-3 gap-2 mt-3">
+                      <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-700'}`}>
+                        <p className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-orange' : 'text-orange-600'}`}>Passo 1</p>
+                        Deixe marcado apenas o que vai entrar no PDF.
+                      </div>
+                      <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-700'}`}>
+                        <p className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-orange' : 'text-orange-600'}`}>Passo 2</p>
+                        Clique em Editar para corrigir nome, cidade, valor e métricas.
+                      </div>
+                      <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-700'}`}>
+                        <p className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-orange' : 'text-orange-600'}`}>Passo 3</p>
+                        Clique em Próximo para gerar e compartilhar.
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <button
+                        type="button"
+                        onClick={resetAllPdfEdits}
+                        className={`h-9 px-3 rounded-xl border text-xs font-medium transition-colors ${isDark ? 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.08]' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100'}`}
+                      >
+                        Restaurar dados originais do PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setWizardStep(1)}
+                        className={`h-9 px-3 rounded-xl border text-xs font-medium transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+                      >
+                        Voltar para dados gerais
+                      </button>
+                    </div>
+                  </Card>
+
+                  <Card isDark={isDark} title="O que entra no PDF">
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className={`text-[11px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
+                            <th className="text-left pb-3 pr-3">Incluir</th>
                             <th className="text-left pb-3 pr-3">Ponto</th>
                             <th className="text-left pb-3 pr-3">Simulação</th>
-                            <th className="text-left pb-3 pr-3">Cidade</th>
-                            <th className="text-left pb-3 pr-3">Tipo</th>
-                            <th className="text-right pb-3">Valor</th>
+                            <th className="text-left pb-3 pr-3">Cidade / Tipo</th>
+                            <th className="text-right pb-3 pr-3">Valor</th>
+                            <th className="text-left pb-3">Ações</th>
                           </tr>
                         </thead>
                         <tbody>
                           {proposalPoints.map((pt) => {
-                            const previewUrl = getPointPreviewUrl(pt, !!simulationArtFile);
+                            const pointId = String(pt.id);
+                            const previewPoint = proposalPointsEditedMap[pointId] || pt;
+                            const pointEdit = pdfPointEdits[pointId] || {};
+                            const hasCustomEdit = Object.keys(pointEdit).length > 0;
+                            const isIncluded = !pdfExcludedPointIds.includes(pointId);
+                            const isEditing = String(editingPdfPointId) === pointId;
+                            const previewUrl = getPointPreviewUrl(previewPoint, !!simulationArtFile);
                             const hasPreview = !!previewUrl;
-                            return (
-                              <tr key={pt.id} className={`border-t ${!hasPreview ? (isDark ? 'border-yellow-500/20 bg-yellow-500/5' : 'border-yellow-200 bg-yellow-50') : (isDark ? 'border-white/[0.06]' : 'border-neutral-100')}`}>
-                                <td className={`py-2.5 pr-3 font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>{pt.nome}</td>
-                                <td className="py-2.5 pr-3">
+                            const priceValue = Number(previewPoint?.precoFinal ?? previewPoint?.preco);
+                            const priceLabel = Number.isFinite(priceValue) && priceValue > 0 ? formatCurrency(priceValue) : '—';
+
+                            const getFieldValue = (fieldKey) => {
+                              if (Object.prototype.hasOwnProperty.call(pointEdit, fieldKey)) {
+                                return pointEdit[fieldKey] ?? '';
+                              }
+                              if (fieldKey === 'tempo') {
+                                return pt?.tempo_insercao ?? pt?.tempo ?? '';
+                              }
+                              if (fieldKey === 'preco') {
+                                const basePrice = pt?.precoFinal ?? pt?.preco ?? '';
+                                return basePrice === null || basePrice === undefined ? '' : String(basePrice);
+                              }
+                              const base = pt?.[fieldKey];
+                              return base === null || base === undefined ? '' : String(base);
+                            };
+
+                            return [
+                              <tr key={`row-${pt.id}`} className={`border-t ${!isIncluded ? (isDark ? 'border-red-500/20 bg-red-500/5' : 'border-red-200 bg-red-50') : !hasPreview ? (isDark ? 'border-yellow-500/20 bg-yellow-500/5' : 'border-yellow-200 bg-yellow-50') : (isDark ? 'border-white/[0.06]' : 'border-neutral-100')}`}>
+                                <td className="py-2.5 pr-3 align-top">
+                                  <label className={`inline-flex items-center gap-2 text-xs font-medium ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
+                                    <input
+                                      type="checkbox"
+                                      checked={isIncluded}
+                                      onChange={() => togglePointInPdf(pointId)}
+                                      className={`h-4 w-4 rounded ${isDark ? 'border-white/20 bg-white/5' : 'border-neutral-300 bg-white'}`}
+                                    />
+                                    {isIncluded ? 'Sim' : 'Não'}
+                                  </label>
+                                </td>
+                                <td className={`py-2.5 pr-3 align-top font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                                  <div>{previewPoint.nome || 'Ponto sem nome'}</div>
+                                  {hasCustomEdit && (
+                                    <div className={`text-[11px] mt-1 ${isDark ? 'text-brand-orange' : 'text-orange-600'}`}>Editado para PDF</div>
+                                  )}
+                                </td>
+                                <td className="py-2.5 pr-3 align-top">
                                   {hasPreview ? (
                                     <div className={`w-16 h-10 rounded-md overflow-hidden border ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
                                       <img src={previewUrl} alt="" className="w-full h-full object-cover" />
@@ -1705,25 +2043,71 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                                     <span className={`text-xs ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>Sem simulação</span>
                                   )}
                                 </td>
-                                <td className={`py-2.5 pr-3 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{pt.cidade}</td>
-                                <td className={`py-2.5 pr-3 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{pt.tipo}</td>
-                                <td className={`py-2.5 text-right font-semibold ${isDark ? 'text-brand-orange' : 'text-brand-orange'}`}>{formatCurrency(pt.finalPrice ?? pt.preco)}</td>
-                              </tr>
-                            );
+                                <td className={`py-2.5 pr-3 align-top ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
+                                  <div>{previewPoint.cidade || '—'}</div>
+                                  <div className={`text-[11px] mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{previewPoint.tipo || '—'}</div>
+                                </td>
+                                <td className={`py-2.5 pr-3 align-top text-right font-semibold ${isDark ? 'text-brand-orange' : 'text-brand-orange'}`}>{priceLabel}</td>
+                                <td className="py-2.5 align-top">
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingPdfPointId(isEditing ? null : pointId)}
+                                      className={`h-8 px-2.5 rounded-lg border text-[11px] font-medium ${isDark ? 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.08]' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100'}`}
+                                    >
+                                      {isEditing ? 'Fechar edição' : 'Editar'}
+                                    </button>
+                                    {hasCustomEdit && (
+                                      <button
+                                        type="button"
+                                        onClick={() => resetPdfPointEdit(pointId)}
+                                        className={`h-8 px-2.5 rounded-lg border text-[11px] font-medium ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+                                      >
+                                        Restaurar
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>,
+                              isEditing ? (
+                                <tr key={`edit-${pt.id}`} className={`border-t ${isDark ? 'border-white/[0.06]' : 'border-neutral-100'}`}>
+                                  <td colSpan={6} className="py-3">
+                                    <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
+                                      <p className={`text-[11px] mb-2 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                                        Edite o que quiser. Isso afeta somente esta proposta/PDF.
+                                      </p>
+                                      <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                                        {PDF_POINT_EDITABLE_FIELDS.map((field) => (
+                                          <div key={`${pointId}-${field.key}`}>
+                                            <label className={`text-[10px] uppercase tracking-[0.11em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{field.label}</label>
+                                            <input
+                                              type={field.type}
+                                              value={getFieldValue(field.key)}
+                                              onChange={(e) => updatePdfPointField(pointId, field.key, e.target.value)}
+                                              placeholder={field.placeholder}
+                                              className={`mt-1.5 w-full rounded-lg border px-2.5 py-2 text-xs outline-none transition-colors ${isDark ? 'bg-white/[0.07] border-white/15 focus:border-brand-orange/45 focus:bg-white/[0.09] text-white' : 'bg-white border-neutral-200 focus:border-brand-orange/50 text-neutral-800'}`}
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ) : null
+                            ];
                           })}
                         </tbody>
                       </table>
                     </div>
                   </Card>
 
-                  {/* Preview ampliado */}
-                  <PreviewPanel proposalPoints={proposalPoints} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={!!simulationArtFile} isDark={isDark} />
+                  <PreviewPanel proposalPoints={proposalPointsForPdf} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={!!simulationArtFile} isDark={isDark} />
                 </motion.div>
               )}
 
-              {/* ═══ STEP 5 — Gerar proposta ═══ */}
-              {wizardStep === 5 && (
-                <motion.div key="step5" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
+              {/* ═══ STEP 6 — Gerar proposta ═══ */}
+              {wizardStep === 6 && (
+                <motion.div key="step6" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
 
                   {/* Seções opcionais do PDF (cards selecionáveis) */}
                   <Card isDark={isDark} title="Seções do PDF">
@@ -1766,7 +2150,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       </label>
                       <button
                         onClick={handleExportSelectionMap}
-                        disabled={mapBusy || !proposalPoints.length}
+                        disabled={mapBusy || !proposalPointsForPdf.length}
                         className={`h-10 px-4 rounded-xl border font-medium inline-flex items-center gap-2 disabled:opacity-50 transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange' : 'border-orange-300 bg-orange-50 hover:bg-orange-100 text-orange-700'}`}
                       >
                         <Route size={16} />
@@ -1870,7 +2254,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     {/* Compartilhar — link público */}
                     <button
                       onClick={handleCompartilhar}
-                      disabled={shareBusy || !proposalPoints.length}
+                      disabled={shareBusy || !proposalPointsForPdf.length}
                       className={`w-full h-11 rounded-xl border font-medium inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${isDark ? 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.08]' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
                     >
                       {shareBusy ? <Loader2 size={16} className="animate-spin" /> : <Share2 size={16} />}
@@ -1898,7 +2282,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
               {wizardStep} de {WIZARD_STEPS.length}
             </div>
 
-            {wizardStep < 4 && (
+            {wizardStep < 5 && (
               <button
                 type="button"
                 onClick={() => setWizardStep((s) => Math.min(5, s + 1))}
@@ -1909,24 +2293,24 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
               </button>
             )}
 
-            {wizardStep === 4 && (
+            {wizardStep === 5 && (
               <button
                 type="button"
                 onClick={handleGenerate}
                 className="inline-flex items-center gap-2 h-10 px-5 rounded-xl bg-brand-orange text-white text-sm font-semibold hover:bg-brand-orange-hover shadow-[0_6px_20px_rgba(254,92,43,0.25)] transition-colors"
               >
                 <FileText size={16} />
-                Gerar proposta
+                Ir para gerar proposta
               </button>
             )}
 
-            {wizardStep === 5 && (
+            {wizardStep === 6 && (
               <button
                 type="button"
-                onClick={() => setWizardStep(4)}
+                onClick={() => setWizardStep(5)}
                 className={`inline-flex items-center gap-2 h-10 px-4 rounded-xl border text-sm font-medium ${isDark ? 'border-white/15 text-white hover:bg-white/[0.06]' : 'border-neutral-200 text-neutral-700 hover:bg-neutral-100'}`}
               >
-                Voltar para revisão
+                Voltar para edição do PDF
               </button>
             )}
           </div>
@@ -1935,11 +2319,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
       {showPresentation && (
         <PresentationMode
-          points={proposalPoints}
-          totals={totals}
+          points={proposalPointsForPdf}
+          totals={totalsForPdf}
           segmento={form.segmento}
           clientName={form.clientName}
-          pricingSummary={pricingSummary}
+          pricingSummary={pricingSummaryForPdf}
           onClose={() => setShowPresentation(false)}
           clientMode={clientModePresentation}
           proposalToken={shareModal?.token ?? null}
@@ -1947,7 +2331,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       )}
 
       {showQuickPresentation && (
-        <QuickPresentationMode points={proposalPoints} totals={totals} segmento={form.segmento} clientName={form.clientName} pricingSummary={pricingSummary} onClose={() => setShowQuickPresentation(false)} />
+        <QuickPresentationMode points={proposalPointsForPdf} totals={totalsForPdf} segmento={form.segmento} clientName={form.clientName} pricingSummary={pricingSummaryForPdf} onClose={() => setShowQuickPresentation(false)} />
       )}
 
       {/* Share modal — link público + QR code */}

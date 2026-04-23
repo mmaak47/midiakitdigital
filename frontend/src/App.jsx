@@ -24,7 +24,10 @@ function RequireCommercialAuth({ children }) {
 
 function shouldShowInventoryChat() {
   if (typeof window === 'undefined') return true;
-  return window.location.pathname !== '/painel-tv';
+  const path = String(window.location.pathname || '/');
+  if (path === '/painel-tv') return false;
+  if (path.startsWith('/comercial')) return false;
+  return true;
 }
 
 export default function App() {

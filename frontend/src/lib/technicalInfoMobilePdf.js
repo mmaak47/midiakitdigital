@@ -20,6 +20,7 @@ const SURFACE = '#141414';
 const BORDER  = 'rgba(255,255,255,0.10)';
 const MUTED   = 'rgba(255,255,255,0.55)';
 const TEXT    = '#FFFFFF';
+const POINT_NAME_LOWER_WORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
 
 const FILE_NAME_MOBILE = 'Informações Técnicas Mobile.pdf';
 
@@ -91,6 +92,94 @@ function parseHorario(horario) {
   if (m) { const d = parseInt(m[2]) - parseInt(m[1]); if (d > 0 && d <= 24) return d; }
   if (h.includes('24')) return 24;
   return 17;
+}
+
+function normalizeTextForMatch(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function toPointTitleCase(value) {
+  const raw = String(value || '').trim().replace(/\s+/g, ' ');
+  if (!raw) return '';
+
+  let wordIndex = 0;
+  return raw.split(/(\s+|-|\/)/).map((part) => {
+    if (/^\s+$/.test(part) || part === '-' || part === '/') {
+      return part;
+    }
+
+    return part.replace(/[A-Za-zÀ-ÿ0-9]+/g, (word) => {
+      const lower = word.toLowerCase();
+      const isRoman = /^(ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii)$/i.test(word);
+      const isFirstWord = wordIndex === 0;
+      wordIndex += 1;
+
+      if (/^\d+$/.test(word)) return word;
+      if (isRoman) return lower.toUpperCase();
+      if (!isFirstWord && POINT_NAME_LOWER_WORDS.has(lower)) return lower;
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    });
+  }).join('');
+}
+
+function normalizePointNameForPdf(nome, tipo) {
+  const titled = toPointTitleCase(nome || 'Ponto');
+  const tipoNorm = normalizeTextForMatch(tipo);
+
+  if (!tipoNorm.includes('elevador')) {
+    return titled;
+  }
+
+  if (/(?:\bCondom[ií]nio\b|\bCond\.?(?=\s|$))/i.test(titled)) {
+    return titled
+      .replace(/(?:\bCondom[ií]nio\b|\bCond\.?(?=\s|$))/gi, 'Cond.')
+      .replace(/^(?:Ed\.|Edif[ií]cio)\s+/i, '')
+      .trim();
+  }
+
+  if (/^Ed\.\s+/i.test(titled)) return titled;
+  if (/^Edif[ií]cio\s+/i.test(titled)) return titled.replace(/^Edif[ií]cio\s+/i, 'Ed. ');
+  return `Ed. ${titled}`;
+}
+
+function getPointCategoryKey(tipo) {
+  const tipoNorm = normalizeTextForMatch(tipo);
+  if (tipoNorm.includes('elevador')) return '01-elevadores';
+  if ((tipoNorm.includes('painel') && tipoNorm.includes('led')) || tipoNorm.includes('led painel')) return '02-painel-led';
+  if (tipoNorm.includes('backlight')) return '03-backlight';
+  if (tipoNorm.includes('frontlight')) return '04-frontlight';
+  if (tipoNorm.includes('led posto')) return '05-led-posto';
+  if (tipoNorm.includes('totem')) return '06-totem';
+  if (tipoNorm.includes('indoor')) return '07-indoor';
+  return `99-${tipoNorm || 'outros'}`;
+}
+
+function normalizeAndSortPointsForPdf(points = []) {
+  const normalized = points.map((point) => ({
+    ...point,
+    _pdfDisplayName: normalizePointNameForPdf(point?.nome, point?.tipo),
+    _pdfCategoryKey: getPointCategoryKey(point?.tipo),
+  }));
+
+  return normalized.sort((a, b) => {
+    const catCmp = String(a._pdfCategoryKey || '').localeCompare(String(b._pdfCategoryKey || ''), 'pt-BR');
+    if (catCmp !== 0) return catCmp;
+
+    const nameCmp = String(a._pdfDisplayName || '').localeCompare(String(b._pdfDisplayName || ''), 'pt-BR', {
+      sensitivity: 'base',
+      numeric: true,
+    });
+    if (nameCmp !== 0) return nameCmp;
+
+    return String(a?.nome || '').localeCompare(String(b?.nome || ''), 'pt-BR', {
+      sensitivity: 'base',
+      numeric: true,
+    });
+  });
 }
 
 function formatDuracaoLabel(durSec) {
@@ -197,7 +286,7 @@ function buildTechMobileCoverPage(points) {
 function buildTechMobilePointPage(point, index, total) {
   const img        = pickImg(point);
   const focalPt    = String(point?.foto_focal_point || 'center center').trim();
-  const nome       = escHtml(point?.nome || 'Ponto');
+  const nome       = escHtml(point?._pdfDisplayName || point?.nome || 'Ponto');
 
   // Ambiente + Perfil (matching desktop)
   const ambiente   = escHtml((point?.ambiente && String(point.ambiente).trim() !== '') ? point.ambiente : 'Indoor');
@@ -237,6 +326,8 @@ function buildTechMobilePointPage(point, index, total) {
 
   // Loop — simple display matching desktop
   const loopLabel = (point?.loop && String(point.loop).trim() !== '') ? escHtml(point.loop) : '180s';
+  const parsedLoopSec = parseDuracao(point?.loop);
+  const loopLabelNormalized = parsedLoopSec > 0 ? formatDuracaoLabel(parsedLoopSec) : loopLabel;
 
   return createMobilePage(`
     <!-- Photo panel: top 38% -->
@@ -283,7 +374,7 @@ function buildTechMobilePointPage(point, index, total) {
           specItem('Resolução', resolucao),
           specItem('Duração', duracaoItem),
           specItem('Exibição média', insercoesLabel),
-          specItem('Loop estimado', loopLabel),
+          specItem('Loop estimado', loopLabelNormalized),
           specItem('Tamanho máximo', '50MB'),
           specItem('Funcionamento', point?.horario || '6h às 23h'),
         ])}
@@ -352,7 +443,9 @@ export async function generateTechnicalInfoMobilePdf(points = [], options = {}) 
   }
 
   if (typeof options.onStatusChange === 'function') options.onStatusChange('Otimizando imagens...');
-  const prepared = await preparePoints(list, options.onStatusChange);
+  const prepared = normalizeAndSortPointsForPdf(
+    await preparePoints(list, options.onStatusChange)
+  );
 
   if (typeof options.onStatusChange === 'function') options.onStatusChange('Montando páginas mobile...');
   const pages = [buildTechMobileCoverPage(prepared)];

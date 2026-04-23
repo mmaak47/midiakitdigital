@@ -14,7 +14,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { Wand2, Layers, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Sparkles, Upload, X } from 'lucide-react';
 import ArteAICard from './ArteAICard';
-import { gerarArteLoteIA, uploadArteLogo } from '../lib/api';
+import { gerarArteLoteIA, uploadArteLogo, uploadProposalImage } from '../lib/api';
 
 // ─────────────────────────────────────────
 // HELPERS
@@ -37,6 +37,34 @@ function normalizarRes(w, h, mult = 16) {
   if (h < MIN) h = MIN;
   const snap = (n) => Math.round(n / mult) * mult;
   return `${snap(w) || mult}x${snap(h) || mult}`;
+}
+
+function calcMdc(a, b) {
+  let x = Math.abs(Number(a) || 0);
+  let y = Math.abs(Number(b) || 0);
+  while (y) {
+    const tmp = y;
+    y = x % y;
+    x = tmp;
+  }
+  return x || 1;
+}
+
+function proporcaoKey(w, h) {
+  const ww = Math.max(1, Math.round(Number(w) || 1920));
+  const hh = Math.max(1, Math.round(Number(h) || 1080));
+  const mdc = calcMdc(ww, hh);
+  return `${Math.round(ww / mdc)}:${Math.round(hh / mdc)}`;
+}
+
+function getPointFormatSignature(point) {
+  const w = Math.max(1, Math.round(Number(point?.arte_largura) || 1920));
+  const h = Math.max(1, Math.round(Number(point?.arte_altura) || 1080));
+  return {
+    normalizedResolution: normalizarRes(w, h),
+    aspectRatio: proporcaoKey(w, h),
+    orientation: detectarOrientacao(w, h)
+  };
 }
 
 // Agrupa pontos por resolução de geração
@@ -124,6 +152,7 @@ export default function ArteAIPanel({
   const [logoNome, setLogoNome] = useState('');
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoErro, setLogoErro] = useState('');
+  const [manualApplyStatus, setManualApplyStatus] = useState('');
   const logoInputRef = useRef(null);
 
   const cidadeStr = Array.isArray(cidade) ? cidade[0] : cidade;
@@ -160,11 +189,71 @@ export default function ArteAIPanel({
     setLogoErro('');
   }, []);
 
+  const handleManualUploadByFormat = useCallback(async (sourcePoint, file) => {
+    if (!sourcePoint?.id) {
+      throw new Error('Ponto inválido para upload manual.');
+    }
+    if (!file || !String(file.type || '').startsWith('image/')) {
+      throw new Error('Selecione um arquivo de imagem válido.');
+    }
+
+    const uploadedUrl = await uploadProposalImage(file);
+    if (!uploadedUrl) {
+      throw new Error('Falha ao salvar a imagem enviada.');
+    }
+
+    const sourceSignature = getPointFormatSignature(sourcePoint);
+    const compatiblePoints = points.filter((candidate) => {
+      const candidateSignature = getPointFormatSignature(candidate);
+      const sameNormalizedResolution = candidateSignature.normalizedResolution === sourceSignature.normalizedResolution;
+      const sameAspectRatio = candidateSignature.aspectRatio === sourceSignature.aspectRatio
+        && candidateSignature.orientation === sourceSignature.orientation;
+      return sameNormalizedResolution || sameAspectRatio;
+    });
+
+    const targetIds = compatiblePoints.map((point) => point.id);
+    if (!targetIds.length) {
+      throw new Error('Nenhum ponto compatível encontrado para aplicar a imagem.');
+    }
+
+    setArtesPorPonto((prev) => {
+      const next = { ...prev };
+      targetIds.forEach((id) => {
+        next[id] = uploadedUrl;
+      });
+      return next;
+    });
+
+    let appliedCount = 0;
+    let lastError = null;
+    for (const point of compatiblePoints) {
+      try {
+        // Serializado para evitar corrida no pipeline de renderização da simulação.
+        await onArteEscolhida?.(point.id, uploadedUrl, null, 'upload_manual');
+        appliedCount += 1;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (appliedCount === 0 && lastError) {
+      throw lastError;
+    }
+
+    const statusMessage = `${appliedCount} ponto(s) atualizado(s) com a arte enviada (${sourceSignature.normalizedResolution} · ${sourceSignature.aspectRatio}).`;
+    setManualApplyStatus(statusMessage);
+    return {
+      appliedCount,
+      message: statusMessage
+    };
+  }, [points, onArteEscolhida]);
+
   // ─── Geração em lote ───
   const gerarTodos = useCallback(async () => {
     if (!points.length) return;
 
     setLoteEstado('gerando');
+    setManualApplyStatus('');
     setLoteProgresso({ atual: 0, total: points.length, erros: 0 });
     setLoteResultados([]);
 
@@ -227,6 +316,7 @@ export default function ArteAIPanel({
   // ─── Handler para escolha individual ───
   const handleArteEscolhida = useCallback((pontoId, urlArte, geracaoId, variacao) => {
     setArtesPorPonto((prev) => ({ ...prev, [pontoId]: urlArte }));
+    setManualApplyStatus('');
     onArteEscolhida?.(pontoId, urlArte, geracaoId, variacao);
   }, [onArteEscolhida]);
 
@@ -328,6 +418,12 @@ export default function ArteAIPanel({
           {/* Resumo de grupos */}
           <ResumoGrupos points={points} />
 
+          {manualApplyStatus && (
+            <div className={`rounded-xl border px-3 py-2 text-xs ${isDark ? 'border-green-500/30 bg-green-500/10 text-green-300' : 'border-green-300 bg-green-50 text-green-700'}`}>
+              {manualApplyStatus}
+            </div>
+          )}
+
           {/* Botão gerar todos */}
           {loteEstado === 'idle' || loteEstado === 'erro' ? (
             <button
@@ -377,14 +473,16 @@ export default function ArteAIPanel({
           )}
 
           {/* Cards individuais por ponto */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
             {points.map((ponto) => (
               <ArteAICard
                 key={ponto.id}
                 ponto={ponto}
                 contexto={contexto}
                 isDark={isDark}
+                arteAtualUrl={artesPorPonto[ponto.id] || ''}
                 onArteEscolhida={handleArteEscolhida}
+                onManualUpload={handleManualUploadByFormat}
               />
             ))}
           </div>

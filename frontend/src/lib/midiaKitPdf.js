@@ -1086,12 +1086,18 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
   const hasEntornoData = pointsWithEntorno > 0;
   const originalTotal = pricingSummary?.originalTotal ?? proposalTotals.valorTotal;
   const finalTotal = pricingSummary?.finalTotal ?? proposalTotals.valorTotal;
+  const ticketMedio = proposalPoints.length > 0 ? finalTotal / proposalPoints.length : 0;
+  const simulatedPoints = proposalPoints.filter((point) => Boolean(point?.proposalSimulationPreview || point?.simulacao_preview)).length;
   const cards = [
     { iconHtml: proposalIcon('target'), label: 'Pontos', value: formatInt(proposalPoints.length) },
     { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
     { iconHtml: proposalIcon('money'), label: 'Valor Tabela', value: formatMoney(originalTotal) },
     { iconHtml: proposalIcon('money'), label: 'Valor Negociado', value: formatMoney(finalTotal) },
     { iconHtml: proposalIcon('cpm'), label: 'CPM estimado', value: formatDecimalMoney(proposalTotals.cpmEstimado) }
+  ];
+  const rightQuickStats = [
+    { label: 'Ticket médio/ponto', value: formatMoney(ticketMedio) },
+    { label: 'CPM estimado', value: formatDecimalMoney(proposalTotals.cpmEstimado) }
   ];
   const strategicItems = strategicTopics.length
     ? strategicTopics
@@ -1100,7 +1106,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
-    <div style="position:absolute;inset:auto auto -180px -60px;width:560px;height:560px;border-radius:999px;background:radial-gradient(circle,rgba(232,89,26,0.12) 0%,rgba(232,89,26,0.03) 48%,rgba(232,89,26,0) 72%);"></div>
+    <div style="position:absolute;left:0;bottom:0;width:460px;height:260px;background:linear-gradient(145deg,rgba(232,89,26,0.14) 0%,rgba(232,89,26,0.04) 46%,rgba(232,89,26,0) 100%);"></div>
     <div style="position:relative;z-index:1;display:grid;grid-template-columns:1.04fr 0.96fr;height:768px;max-height:768px;padding:58px 64px 50px;gap:22px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;flex-direction:column;min-width:0;">
         <div style="display:flex;align-items:center;gap:18px;">
@@ -1157,17 +1163,23 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
               </div>
             `).join('')}
           </div>
+          <div style="margin-top:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+            ${rightQuickStats.map((item) => `
+              <div style="padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};">
+                <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(item.label)}</div>
+                <div style="margin-top:6px;font-size:19px;line-height:1.2;color:${PROPOSAL_TEXT};font-weight:700;word-break:break-word;">${escapeHtml(item.value)}</div>
+              </div>
+            `).join('')}
+          </div>
           <div style="margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <div style="padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};">
               <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Segmento priorizado</div>
               <div style="margin-top:6px;font-size:18px;line-height:1.2;color:${PROPOSAL_TEXT};font-weight:700;word-break:break-word;">${escapeHtml(segmentLabel)}</div>
             </div>
-            ${hasEntornoData ? `
-              <div style="padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};">
-                <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Entorno aderente</div>
-                <div style="margin-top:6px;font-size:18px;line-height:1.2;color:${PROPOSAL_TEXT};font-weight:700;word-break:break-word;">${escapeHtml(`${formatInt(pointsWithEntorno)} ponto${pointsWithEntorno === 1 ? '' : 's'}`)}</div>
-              </div>
-            ` : ''}
+            <div style="padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};">
+              <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${hasEntornoData ? 'Entorno aderente' : 'Pontos com simulação'}</div>
+              <div style="margin-top:6px;font-size:18px;line-height:1.2;color:${PROPOSAL_TEXT};font-weight:700;word-break:break-word;">${hasEntornoData ? escapeHtml(`${formatInt(pointsWithEntorno)} ponto${pointsWithEntorno === 1 ? '' : 's'}`) : escapeHtml(`${formatInt(simulatedPoints)} ponto${simulatedPoints === 1 ? '' : 's'}`)}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -1303,6 +1315,14 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
   const environment = buildEntornoSummary(point?.entornoMetrics, segmento);
   const relevantPlacesCount = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
   const hasEntornoData = relevantPlacesCount > 0;
+  const monthlyValue = Number(point?.preco);
+  const monthlyValueLabel = Number.isFinite(monthlyValue) && monthlyValue > 0
+    ? formatMoney(monthlyValue)
+    : '—';
+  const formatMetricValue = (value, formatter = formatInt) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? formatter(numeric) : '—';
+  };
   const fluxoLabel = isVehicleFlowPoint(point) ? 'veículos/mês' : 'pessoas/mês';
   const coords = (() => {
     const lat = Number(point.lat); const lng = Number(point.lng);
@@ -1314,18 +1334,20 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
 
   const leftStats = [
     { label: 'Público', value: escapeHtml(audience.badge || 'A/B+') },
-    { label: escapeHtml(fluxoLabel), value: formatInt(point.fluxo) },
-    { label: 'Telas', value: formatInt(point.telas || 1) },
-    { label: 'Inserções', value: formatInt(point.insercoes || 15300) },
+    { label: escapeHtml(fluxoLabel), value: formatMetricValue(point.fluxo) },
+    { label: 'Telas', value: formatMetricValue(point.telas) },
+    { label: 'Inserções', value: formatMetricValue(point.insercoes) },
   ];
   
-  const tempo = point.tempo_insercao || '15s';
-  const loop = point.loop || '3 min';
-  leftStats.push({ label: 'Tempo', value: escapeHtml(tempo) });
-  leftStats.push({ label: 'Loop', value: escapeHtml(loop) });
+  const tempo = String(point?.tempo_insercao ?? point?.tempo ?? '').trim();
+  const loop = String(point?.loop ?? '').trim();
+  leftStats.push({ label: 'Tempo', value: escapeHtml(tempo || '—') });
+  leftStats.push({ label: 'Loop', value: escapeHtml(loop || '—') });
 
   const hasImage = Boolean(image);
   const hasMap = Boolean(mapImage);
+  const veiculacao = String(point?.veiculacao ?? '').trim() || '—';
+  const horario = normalizeHorarioForPdf(point?.horario, '—');
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
@@ -1384,16 +1406,16 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
           <div style="display:flex;gap:36px;">
             <div>
               <div style="font-size:10px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Veiculação</div>
-              <div style="font-size:14px;font-weight:700;color:${PROPOSAL_TEXT};margin-top:4px;">${escapeHtml(point.veiculacao || 'Vídeo sem áudio')}</div>
+              <div style="font-size:14px;font-weight:700;color:${PROPOSAL_TEXT};margin-top:4px;">${escapeHtml(veiculacao)}</div>
             </div>
             <div>
               <div style="font-size:10px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Horário</div>
-              <div style="font-size:14px;font-weight:700;color:${PROPOSAL_TEXT};margin-top:4px;">${escapeHtml(normalizeHorarioForPdf(point.horario, '24 horas'))}</div>
+              <div style="font-size:14px;font-weight:700;color:${PROPOSAL_TEXT};margin-top:4px;">${escapeHtml(horario)}</div>
             </div>
           </div>
           <div style="text-align:right;">
             <div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Valor mensal</div>
-            <div style="font-size:28px;font-weight:800;color:${PROPOSAL_ACCENT};line-height:1;margin-top:4px;">${escapeHtml(formatMoney(point.preco))}</div>
+            <div style="font-size:28px;font-weight:800;color:${PROPOSAL_ACCENT};line-height:1;margin-top:4px;">${escapeHtml(monthlyValueLabel)}</div>
           </div>
         </div>
       </div>

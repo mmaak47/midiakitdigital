@@ -478,6 +478,10 @@ function buildProposalMobilePointPage({ point, index, total, image, assets }) {
   const photo = image || assets.showcase || '';
   const nome = (point.nome || 'PONTO SEM NOME').toUpperCase();
   const fluxoLabel = isVehicleFlowPoint(point) ? 'Veículos/mês' : 'Pessoas/mês';
+  const metricValue = (value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? formatInt(numeric) : '—';
+  };
   const audience = buildAudienceQualification(point);
   const hasEntorno = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0;
   const entornoCount = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
@@ -515,9 +519,9 @@ function buildProposalMobilePointPage({ point, index, total, image, assets }) {
       </div>
 
       <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
-        ${pMetricRow(fluxoLabel, formatInt(point.fluxo))}
-        ${pMetricRow('Pontos de Impacto', formatInt(point.telas))}
-        ${pMetricRow('Inserções mín.', formatInt(point.insercoes))}
+        ${pMetricRow(fluxoLabel, metricValue(point.fluxo))}
+        ${pMetricRow('Pontos de Impacto', metricValue(point.telas))}
+        ${pMetricRow('Inserções mín.', metricValue(point.insercoes))}
       </div>
 
       ${point.preco ? `
