@@ -41,6 +41,7 @@ export default function App() {
             <Route path="/comercial" element={<Admin />} />
             <Route path="/comercial/admin" element={<Admin />} />
             <Route path="/comercial/gestao" element={<RequireCommercialAuth><GestaoComercial /></RequireCommercialAuth>} />
+            <Route path="/gestao" element={<RequireCommercialAuth><Navigate to="/comercial/gestao" replace /></RequireCommercialAuth>} />
             <Route path="/comercial/explorar" element={<RequireCommercialAuth><Explorer /></RequireCommercialAuth>} />
             <Route path="/painel-tv" element={<TvWall />} />
             <Route path="/p/:token" element={<PropostaPublica />} />

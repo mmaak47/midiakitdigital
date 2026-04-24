@@ -667,11 +667,16 @@ function resolveAuthenticatedUser(req, res, next) {
 }
 
 function requireRoles(roles = []) {
+  // 'diretor' é um cargo sênior que herda os acessos de gerente_comercial e vendedor.
+  const expanded = Array.isArray(roles) ? [...roles] : [];
+  if ((expanded.includes('gerente_comercial') || expanded.includes('vendedor')) && !expanded.includes('diretor')) {
+    expanded.push('diretor');
+  }
   return (req, res, next) => {
     if (!req.authUser) {
       return res.status(401).json({ error: 'Autenticação obrigatória.' });
     }
-    if (!roles.includes(req.authUser.role)) {
+    if (!expanded.includes(req.authUser.role)) {
       return res.status(403).json({ error: 'Acesso negado para este perfil.' });
     }
     next();
@@ -3820,9 +3825,9 @@ app.post('/api/admin/users', requireRoles(['admin']), (req, res) => {
       return res.status(400).json({ error: 'Nome, sobrenome, e-mail e senha são obrigatórios' });
     }
 
-    const validRoles = ['admin', 'gerente_comercial', 'vendedor'];
+    const validRoles = ['admin', 'diretor', 'gerente_comercial', 'vendedor'];
     if (!validRoles.includes(role)) {
-      return res.status(400).json({ error: 'Role inválido. Valores permitidos: admin, gerente_comercial, vendedor' });
+      return res.status(400).json({ error: 'Role inválido. Valores permitidos: admin, diretor, gerente_comercial, vendedor' });
     }
 
     if (password.length < 6) {
@@ -3886,10 +3891,10 @@ app.put('/api/admin/users/:id', requireRoles(['admin']), (req, res) => {
     }
 
     const role = String(req.body?.role || '').trim();
-    const validRoles = ['admin', 'gerente_comercial', 'vendedor'];
+    const validRoles = ['admin', 'diretor', 'gerente_comercial', 'vendedor'];
     
     if (!role || !validRoles.includes(role)) {
-      return res.status(400).json({ error: 'Role inválido. Valores permitidos: admin, gerente_comercial, vendedor' });
+      return res.status(400).json({ error: 'Role inválido. Valores permitidos: admin, diretor, gerente_comercial, vendedor' });
     }
 
     const isVendedor = req.body?.is_vendedor !== undefined ? (req.body.is_vendedor ? 1 : 0) : null;

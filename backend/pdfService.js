@@ -173,7 +173,7 @@ async function renderHtmlToPdf(htmlContent) {
     });
 
     try {
-      await page.setViewport({ width: 1366, height: 900, deviceScaleFactor: 1 });
+      await page.setViewport({ width: 1366, height: 900, deviceScaleFactor: 2 });
       page.setDefaultTimeout(120000);
       page.setDefaultNavigationTimeout(120000);
       await page.setJavaScriptEnabled(false);

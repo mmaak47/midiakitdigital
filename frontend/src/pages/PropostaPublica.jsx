@@ -384,53 +384,87 @@ export default function PropostaPublica() {
   ].filter(c => c.value && c.value !== '—' && c.value !== '0');
 
   return (
-    <div className="min-h-screen bg-[#ECEFF3]" style={{ fontFamily: 'Poppins, system-ui, sans-serif' }}>
+    <div className="min-h-screen bg-[#ECEFF3] relative" style={{ fontFamily: 'Poppins, system-ui, sans-serif' }}>
+      {/* Decorative orange gradient backdrop */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute top-0 left-0 right-0 h-[520px] overflow-hidden"
+        style={{
+          background: 'radial-gradient(ellipse at 20% 0%, rgba(254,92,43,0.10) 0%, rgba(254,92,43,0.04) 35%, transparent 70%), radial-gradient(ellipse at 85% 15%, rgba(232,89,26,0.08) 0%, transparent 55%)',
+        }}
+      />
+      {/* Accent line */}
+      <div aria-hidden className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: `linear-gradient(90deg, transparent 0%, ${ORANGE} 30%, #FE5C2B 50%, ${ORANGE} 70%, transparent 100%)` }} />
+
       {/* Header */}
-      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-gray-100 px-5 py-3 flex items-center justify-between shadow-sm">
+      <header className="sticky top-0 z-20 bg-white/85 backdrop-blur-xl border-b border-gray-100 px-5 py-3 flex items-center justify-between shadow-[0_1px_0_rgba(0,0,0,0.02),0_8px_24px_-12px_rgba(0,0,0,0.08)]">
         <div className="flex items-center gap-3">
           <img src="/logo-light.png" alt="Intermídia" className="h-7 object-contain" />
-          <span className="hidden sm:inline-flex items-center h-6 px-3 rounded-full text-[10px] font-bold uppercase tracking-widest text-white" style={{ background: ORANGE }}>Proposta Comercial</span>
+          <span
+            className="hidden sm:inline-flex items-center gap-1.5 h-6 px-3 rounded-full text-[10px] font-bold uppercase tracking-widest text-white shadow-sm"
+            style={{ background: `linear-gradient(135deg, #FE5C2B 0%, ${ORANGE} 100%)`, boxShadow: `0 4px 10px -2px rgba(232,89,26,0.35)` }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-white/90" />
+            Proposta Comercial
+          </span>
         </div>
         {approved && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 text-xs font-semibold">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 text-xs font-semibold shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             Aprovada
           </span>
         )}
       </header>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+      <div className="relative max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
 
         {/* Approved banner */}
         {approved && data?.approved_name && (
-          <div className="rounded-2xl bg-green-50 border border-green-200 px-5 py-4">
-            <p className="text-green-800 font-semibold text-sm">Proposta aprovada por {data.approved_name}</p>
+          <div className="rounded-2xl bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 px-5 py-4 shadow-sm">
+            <p className="text-green-800 font-semibold text-sm">✓ Proposta aprovada por {data.approved_name}</p>
             <p className="text-green-600 text-xs mt-0.5">{formatDate(data.approved_at)}</p>
           </div>
         )}
 
         {/* Hero */}
-        <div className="text-center pt-2 pb-2">
+        <div className="text-center pt-4 pb-2 relative">
           {data?.clientName && data.clientName !== 'Cliente não informado' && (
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-2" style={{ color: ORANGE }}>Preparado para</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] mb-3 inline-flex items-center gap-2" style={{ color: ORANGE }}>
+              <span className="w-6 h-[1px]" style={{ background: ORANGE }} />
+              Preparado para
+              <span className="w-6 h-[1px]" style={{ background: ORANGE }} />
+            </p>
           )}
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight leading-tight">
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-[1.05]">
             {data?.clientName || 'Proposta de Mídia'}
           </h1>
-          <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
+          <div className="flex items-center justify-center gap-2 mt-5 flex-wrap">
             {cityLabel && (
-              <span className="inline-flex items-center h-7 px-3 rounded-full bg-white/80 border border-gray-200 text-gray-600 text-xs font-medium">{cityLabel}</span>
+              <span className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-white border border-gray-200 text-gray-700 text-xs font-semibold shadow-sm">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                {cityLabel}
+              </span>
             )}
             {segmentLabel && (
-              <span className="inline-flex items-center h-7 px-3 rounded-full text-xs font-bold text-white" style={{ background: ORANGE }}>{segmentLabel}</span>
+              <span className="inline-flex items-center h-7 px-3 rounded-full text-xs font-bold text-white shadow-sm" style={{ background: `linear-gradient(135deg, #FE5C2B 0%, ${ORANGE} 100%)` }}>{segmentLabel}</span>
             )}
-            <span className="inline-flex items-center h-7 px-3 rounded-full bg-white/80 border border-gray-200 text-gray-600 text-xs font-medium">{points.length} endereço{points.length !== 1 ? 's' : ''}</span>
+            <span className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-white border border-gray-200 text-gray-700 text-xs font-semibold shadow-sm">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              {points.length} endereço{points.length !== 1 ? 's' : ''}
+            </span>
           </div>
         </div>
 
         {/* Strategic text */}
         {(data?.strategicTopics || data?.strategicText?.length > 0) && (
-          <div className="rounded-2xl bg-white border border-gray-200/60 shadow-sm p-5 sm:p-6">
-            <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] mb-3" style={{ color: ORANGE }}>Direcionamento Estratégico</h2>
+          <div className="rounded-2xl bg-white border border-gray-200/70 shadow-[0_1px_0_rgba(0,0,0,0.02),0_10px_30px_-15px_rgba(0,0,0,0.1)] p-5 sm:p-6 relative overflow-hidden">
+            <div aria-hidden className="absolute top-0 left-0 w-full h-[2px]" style={{ background: `linear-gradient(90deg, ${ORANGE} 0%, #FE5C2B 100%)` }} />
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] mb-3 inline-flex items-center gap-2" style={{ color: ORANGE }}>
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full" style={{ background: 'rgba(232,89,26,0.12)' }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+              </span>
+              Direcionamento Estratégico
+            </h2>
             {data?.strategicTopics && (
               <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">{data.strategicTopics}</p>
             )}
@@ -438,7 +472,7 @@ export default function PropostaPublica() {
               <ul className="mt-3 space-y-2">
                 {data.strategicText.map((t, i) => (
                   <li key={i} className="flex gap-3 items-start text-sm text-gray-700 leading-relaxed">
-                    <span className="mt-1.5 w-2 h-2 rounded-full shrink-0" style={{ background: ORANGE }} />
+                    <span className="mt-1.5 w-2 h-2 rounded-full shrink-0 shadow-sm" style={{ background: ORANGE }} />
                     {t}
                   </li>
                 ))}
@@ -450,21 +484,27 @@ export default function PropostaPublica() {
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {summaryCards.map(({ label, value }) => (
-            <div key={label} className="rounded-2xl bg-white border border-gray-200/60 shadow-sm p-4 text-center" style={{ borderTop: `3px solid ${ORANGE}` }}>
-              <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-1">{label}</p>
-              <p className="text-lg sm:text-xl font-extrabold text-gray-900">{value}</p>
+            <div
+              key={label}
+              className="group relative rounded-2xl bg-white border border-gray-200/70 shadow-[0_1px_0_rgba(0,0,0,0.02),0_6px_20px_-12px_rgba(0,0,0,0.12)] p-4 text-center transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_1px_0_rgba(0,0,0,0.02),0_14px_30px_-14px_rgba(232,89,26,0.25)] overflow-hidden"
+            >
+              <div aria-hidden className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: `linear-gradient(90deg, #FE5C2B 0%, ${ORANGE} 100%)` }} />
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-1.5 mt-1">{label}</p>
+              <p className="text-lg sm:text-xl font-extrabold text-gray-900 leading-tight">{value}</p>
             </div>
           ))}
         </div>
 
         {/* ── Plano de Investimento & Impacto ────────────────────────────── */}
-        <div className="rounded-2xl bg-white border border-gray-200/60 shadow-sm overflow-hidden">
+        <div className="rounded-2xl bg-white border border-gray-200/70 shadow-[0_1px_0_rgba(0,0,0,0.02),0_10px_30px_-15px_rgba(0,0,0,0.1)] overflow-hidden relative">
+          <div aria-hidden className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(90deg, ${ORANGE} 0%, #FE5C2B 50%, ${ORANGE} 100%)` }} />
           <div className="px-5 pt-5 pb-3 flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <div className="w-1 h-5 rounded-full" style={{ background: ORANGE }} />
+            <div className="flex items-center gap-2.5">
+              <div className="w-1 h-5 rounded-full" style={{ background: `linear-gradient(180deg, #FE5C2B 0%, ${ORANGE} 100%)` }} />
               <h2 className="text-base font-bold text-gray-900">Plano de Investimento & Impacto</h2>
             </div>
-            <span className="inline-flex items-center h-6 px-3 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
+            <span className="inline-flex items-center gap-1.5 h-6 px-3 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: ORANGE }} />
               Total de {points.length} endereços
             </span>
           </div>
@@ -535,29 +575,35 @@ export default function PropostaPublica() {
                 )}
               </div>
 
-              <div className="rounded-xl p-4" style={{ background: 'rgba(232,89,26,0.04)', border: '1px solid rgba(232,89,26,0.12)' }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="inline-flex items-center h-5 px-2 rounded text-[9px] font-bold uppercase tracking-wide text-white" style={{ background: ORANGE }}>Resumo Financeiro</span>
+              <div className="rounded-xl p-4 relative overflow-hidden" style={{ background: 'linear-gradient(145deg, rgba(254,92,43,0.06) 0%, rgba(232,89,26,0.02) 100%)', border: '1px solid rgba(232,89,26,0.18)' }}>
+                <div aria-hidden className="absolute -top-8 -right-8 w-32 h-32 rounded-full" style={{ background: 'radial-gradient(circle, rgba(254,92,43,0.12) 0%, transparent 70%)' }} />
+                <div className="relative">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="inline-flex items-center gap-1.5 h-5 px-2 rounded text-[9px] font-bold uppercase tracking-wide text-white shadow-sm" style={{ background: `linear-gradient(135deg, #FE5C2B 0%, ${ORANGE} 100%)` }}>
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2L12 16.6 5.7 21l2.3-7.2-6-4.4h7.6z"/></svg>
+                      Resumo Financeiro
+                    </span>
+                  </div>
+                  {pricingSummary.hasDiscount && (
+                    <>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs text-gray-500">Valor Original</p>
+                        <p className="text-sm text-gray-400 line-through">{formatCurrency(pricingSummary.originalTotal)}</p>
+                      </div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs text-gray-500">Desconto Aplicado</p>
+                        <p className="text-sm font-bold text-green-600">-{formatCurrency(pricingSummary.discountTotal)}</p>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: 'rgba(232,89,26,0.2)' }}>
+                    <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Total Mensal</p>
+                    <p className="text-2xl font-extrabold" style={{ color: ORANGE, textShadow: '0 1px 0 rgba(255,255,255,0.5)' }}>{formatCurrency(finalTotal)}</p>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-3 leading-relaxed">
+                    {data.duracao_meses ? `Valores válidos para o contrato de ${data.duracao_meses} meses. ` : ''}Negociação válida exclusivamente para o plano e quantidade de endereços apresentados. Para outras condições, os valores deverão ser consultados.
+                  </p>
                 </div>
-                {pricingSummary.hasDiscount && (
-                  <>
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs text-gray-500">Valor Original</p>
-                      <p className="text-sm text-gray-400 line-through">{formatCurrency(pricingSummary.originalTotal)}</p>
-                    </div>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs text-gray-500">Desconto Aplicado</p>
-                      <p className="text-sm font-semibold text-green-600">-{formatCurrency(pricingSummary.discountTotal)}</p>
-                    </div>
-                  </>
-                )}
-                <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: 'rgba(232,89,26,0.15)' }}>
-                  <p className="text-xs font-bold text-gray-700">TOTAL MENSAL</p>
-                  <p className="text-2xl font-extrabold" style={{ color: ORANGE }}>{formatCurrency(finalTotal)}</p>
-                </div>
-                <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
-                  {data.duracao_meses ? `Valores válidos para o contrato de ${data.duracao_meses} meses. ` : ''}Negociação válida exclusivamente para o plano e quantidade de endereços apresentados. Para outras condições, os valores deverão ser consultados.
-                </p>
               </div>
             </div>
           </div>
@@ -583,7 +629,10 @@ export default function PropostaPublica() {
 
         {/* ── Points list (mídia kit style cards) ────────────────────────── */}
         <div>
-          <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500 mb-5">
+          <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-gray-500 mb-5 inline-flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full" style={{ background: 'rgba(232,89,26,0.12)' }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </span>
             Endereços de Mídia
           </h2>
           <div className="space-y-6">
@@ -605,10 +654,17 @@ export default function PropostaPublica() {
           <div className="pb-10">
             <button
               onClick={() => setApproveModal(true)}
-              className="w-full rounded-2xl text-white font-bold py-4 text-base transition-all shadow-lg hover:shadow-xl active:scale-[0.99]"
-              style={{ background: ORANGE }}
+              className="group relative w-full rounded-2xl text-white font-bold py-4 text-base transition-all duration-300 active:scale-[0.99] overflow-hidden"
+              style={{
+                background: `linear-gradient(135deg, #FE5C2B 0%, ${ORANGE} 50%, #C94A1A 100%)`,
+                boxShadow: '0 10px 30px -10px rgba(232,89,26,0.55), 0 4px 12px -3px rgba(232,89,26,0.35), inset 0 1px 0 rgba(255,255,255,0.25)',
+              }}
             >
-              Aprovar esta proposta
+              <span aria-hidden className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'linear-gradient(135deg, #FE5C2B 0%, #FF6B35 50%, #E85A1A 100%)' }} />
+              <span className="relative inline-flex items-center justify-center gap-2.5">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Aprovar esta proposta
+              </span>
             </button>
           </div>
         )}
@@ -616,7 +672,12 @@ export default function PropostaPublica() {
         {/* Footer */}
         <div className="text-center pb-8 space-y-3">
           <img src="/logo-light.png" alt="Intermídia" className="h-6 mx-auto opacity-40" />
-          <p className="text-[11px] text-gray-300">Intermídia OOH + DOOH — Desde 2007</p>
+          <p className="text-[11px] text-gray-400">Intermídia OOH + DOOH — Desde 2007</p>
+          <div className="flex items-center justify-center gap-1.5 opacity-40">
+            <span className="w-1 h-1 rounded-full" style={{ background: ORANGE }} />
+            <span className="w-1 h-1 rounded-full" style={{ background: ORANGE }} />
+            <span className="w-1 h-1 rounded-full" style={{ background: ORANGE }} />
+          </div>
         </div>
       </div>
 

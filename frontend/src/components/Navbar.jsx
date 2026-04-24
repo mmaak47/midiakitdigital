@@ -123,12 +123,18 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => markContactClick('instagram_click', 'navbar_landing_instagram_desktop')}
-              className="flex items-center justify-center w-9 h-9 rounded-lg border-2 transition-all duration-200 border-brand-orange bg-white hover:bg-[#fff3ed]"
+              className="group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-300 hover:scale-[1.08] hover:shadow-lg hover:shadow-[#dc2743]/30"
               aria-label="Instagram"
+              style={{
+                background: 'linear-gradient(135deg, #feda75 0%, #fa7e1e 25%, #d62976 50%, #962fbf 75%, #4f5bd5 100%)',
+                padding: '2px',
+              }}
             >
-              <svg viewBox="0 0 24 24" className="w-4 h-4" aria-hidden="true">
-                <path d={INSTAGRAM_PATH} fill="#fe5c2b" />
-              </svg>
+              <span className="flex items-center justify-center w-full h-full rounded-[6px] bg-white group-hover:bg-transparent transition-colors duration-300">
+                <svg viewBox="0 0 24 24" className="w-4 h-4 transition-colors duration-300" aria-hidden="true">
+                  <path d={INSTAGRAM_PATH} className="fill-[#d62976] group-hover:fill-white transition-colors duration-300" />
+                </svg>
+              </span>
             </a>
           </div>
         )}
@@ -203,12 +209,18 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
                   markContactClick('instagram_click', 'navbar_landing_instagram_mobile');
                   setOpen(false);
                 }}
-                className="flex items-center justify-center w-12 h-12 rounded-xl border-2 transition-colors border-brand-orange bg-white hover:bg-[#fff3ed]"
+                className="group relative flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-300 active:scale-95"
                 aria-label="Instagram"
+                style={{
+                  background: 'linear-gradient(135deg, #feda75 0%, #fa7e1e 25%, #d62976 50%, #962fbf 75%, #4f5bd5 100%)',
+                  padding: '2px',
+                }}
               >
-                <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden="true">
-                  <path d={INSTAGRAM_PATH} fill="#fe5c2b" />
-                </svg>
+                <span className="flex items-center justify-center w-full h-full rounded-[10px] bg-white group-active:bg-transparent transition-colors duration-300">
+                  <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden="true">
+                    <path d={INSTAGRAM_PATH} className="fill-[#d62976] group-active:fill-white transition-colors duration-300" />
+                  </svg>
+                </span>
               </a>
             </div>
           )}

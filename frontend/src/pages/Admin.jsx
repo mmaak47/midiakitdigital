@@ -69,15 +69,16 @@ const ENTORNO_SEGMENTOS = [
 ];
 const USER_ROLES = [
   { value: 'admin', label: 'Admin (acesso total)' },
+  { value: 'diretor', label: 'Diretor (visão executiva: Gestão Comercial, Nova Venda e Vendas)' },
   { value: 'gerente_comercial', label: 'Gerente Comercial (aprova propostas)' },
   { value: 'vendedor', label: 'Vendedor (criar propostas)' }
 ];
 
 const ADMIN_TAB_GROUPS = [
   { key: 'comercial', label: 'Comercial', tabs: [
-    { key: 'vendas',           label: 'Nova Venda',         icon: Zap,           roles: ['admin', 'gerente_comercial', 'vendedor'] },
-    { key: 'historico_vendas', label: 'Vendas',             icon: ClipboardList, roles: ['admin', 'gerente_comercial', 'vendedor'] },
-    { key: 'gestao_comercial', label: 'Gestão Comercial',   icon: Activity,      roles: ['admin', 'gerente_comercial', 'vendedor'], href: '/comercial/gestao' },
+    { key: 'vendas',           label: 'Nova Venda',         icon: Zap,           roles: ['admin', 'diretor', 'gerente_comercial', 'vendedor'] },
+    { key: 'historico_vendas', label: 'Vendas',             icon: ClipboardList, roles: ['admin', 'diretor', 'gerente_comercial', 'vendedor'] },
+    { key: 'gestao_comercial', label: 'Gestão Comercial',   icon: Activity,      roles: ['admin', 'diretor', 'gerente_comercial', 'vendedor'], href: '/comercial/gestao' },
     { key: 'leads',            label: 'Leads',              icon: UserPlus,      roles: ['admin', 'gerente_comercial'] },
     { key: 'propostas',        label: 'Propostas',          icon: FileText,      roles: ['admin', 'gerente_comercial'] },
     { key: 'auditoria_loop',   label: 'Auditoria de Loop',  icon: RefreshCcw,    roles: ['admin', 'gerente_comercial', 'vendedor'] },
@@ -471,6 +472,12 @@ export default function Admin() {
       fetchCurrentUser()
         .then(u => {
           setCurrentUser(u);
+          // Diretor e admin ficam no painel (/comercial) com as abas visíveis.
+          // Gerente comercial e vendedor vão direto para /comercial/gestao.
+          if (location.pathname === '/comercial' && u?.role && u.role !== 'admin' && u.role !== 'diretor') {
+            navigate('/comercial/gestao', { replace: true });
+            return;
+          }
           setActiveTab(prev => {
             const visible = getVisibleGroups(u?.role).flatMap(g => g.tabs);
             if (visible.find(t => t.key === prev)) return prev;
@@ -479,7 +486,7 @@ export default function Admin() {
         })
         .catch(() => {});
     }
-  }, [auth]);
+  }, [auth, location.pathname, navigate]);
 
   useEffect(() => {
     const available = new Set(
@@ -1157,6 +1164,10 @@ export default function Admin() {
               >
                 Entrar
               </button>
+
+              <div className={`rounded-xl border px-3 py-2 text-xs ${isDark ? 'border-white/10 bg-white/[0.02] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
+                Dica rápida: use sempre o link <strong>/gestao</strong>. Após login, gerente e vendedor entram direto na Gestão Comercial.
+              </div>
             </form>
           </motion.div>
         </div>

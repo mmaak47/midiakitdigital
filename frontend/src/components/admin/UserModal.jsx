@@ -129,6 +129,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData, isDark
                 className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white focus:border-brand-orange/40' : 'border-neutral-300 bg-neutral-50 text-neutral-900 focus:border-brand-orange/60'}`}
               >
                 <option value="admin">Admin</option>
+                <option value="diretor">Diretor</option>
                 <option value="gerente_comercial">Gerente Comercial</option>
                 <option value="vendedor">Vendedor</option>
               </select>

@@ -51,7 +51,7 @@ function requireAdminAuth(req, res, next) {
     LIMIT 1
   `).get(Number(claims.sub), String(claims.username || ''));
 
-  if (!user || !['admin', 'gerente_comercial'].includes(user.role)) {
+  if (!user || !['admin', 'diretor', 'gerente_comercial'].includes(user.role)) {
     return res.status(401).json({ error: 'Token inválido.' });
   }
 

@@ -10,13 +10,35 @@ const BRAND_DARK = '#0A0A0A';
 const BRAND_PANEL = '#171717';
 const BRAND_BORDER = 'rgba(255,255,255,0.08)';
 const PROPOSAL_ACCENT = '#E8591A';
-const PROPOSAL_BG = '#FFFFFF';
+const PROPOSAL_BG = '#FBF8F5';
 const PROPOSAL_SURFACE = '#F5F6F8';
 const PROPOSAL_SURFACE_ALT = '#EBEDF0';
 const PROPOSAL_BORDER = 'rgba(0,0,0,0.09)';
 const PROPOSAL_LABEL = 'rgba(0,0,0,0.40)';
 const PROPOSAL_TEXT_SECONDARY = 'rgba(0,0,0,0.60)';
 const PROPOSAL_TEXT = '#1A1A2E';
+
+// Atmospheric background for proposal pages — layered behind main content (z-index:0)
+// Adds subtle warm radial gradients in corners + faint dot pattern + decorative hollow circles
+// to avoid sterile white feel. Does NOT affect calibration (all absolute, pointer-events:none).
+const PROPOSAL_ATMOSPHERE = `
+<div style="position:absolute;right:-80px;top:-60px;width:480px;height:360px;background:radial-gradient(ellipse at top right, rgba(254,92,43,0.12) 0%, rgba(254,92,43,0.05) 40%, rgba(254,92,43,0) 72%);pointer-events:none;z-index:0;"></div>
+<div style="position:absolute;left:-60px;bottom:-40px;width:500px;height:380px;background:radial-gradient(ellipse at bottom left, rgba(232,89,26,0.10) 0%, rgba(232,89,26,0.04) 45%, rgba(232,89,26,0) 75%);pointer-events:none;z-index:0;"></div>
+<div style="position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px, rgba(232,89,26,0.07) 1px, transparent 0);background-size:36px 36px;pointer-events:none;opacity:0.55;z-index:0;"></div>
+<!-- Decorative hollow circles (outline only) -->
+<div style="position:absolute;right:60px;top:130px;width:180px;height:180px;border:1.5px solid rgba(232,89,26,0.18);border-radius:999px;pointer-events:none;z-index:0;"></div>
+<div style="position:absolute;right:120px;top:190px;width:72px;height:72px;border:1.5px solid rgba(232,89,26,0.22);border-radius:999px;pointer-events:none;z-index:0;"></div>
+<div style="position:absolute;left:80px;bottom:110px;width:140px;height:140px;border:1px solid rgba(254,92,43,0.16);border-radius:999px;pointer-events:none;z-index:0;"></div>
+<div style="position:absolute;left:36px;top:46%;width:10px;height:10px;border:1.5px solid rgba(232,89,26,0.35);border-radius:999px;pointer-events:none;z-index:0;"></div>
+<div style="position:absolute;right:44px;bottom:64px;width:6px;height:6px;background:rgba(232,89,26,0.55);border-radius:999px;pointer-events:none;z-index:0;"></div>
+<!-- Diagonal thin line accent -->
+<div style="position:absolute;right:-20px;top:40px;width:140px;height:1px;background:linear-gradient(90deg, rgba(232,89,26,0) 0%, rgba(232,89,26,0.35) 50%, rgba(232,89,26,0) 100%);transform:rotate(-28deg);transform-origin:right center;pointer-events:none;z-index:0;"></div>
+<!-- Top accent line -->
+<div style="position:absolute;left:0;top:0;right:0;height:2px;background:linear-gradient(90deg, rgba(232,89,26,0) 0%, #E8591A 20%, #FE5C2B 50%, #E8591A 80%, rgba(232,89,26,0) 100%);pointer-events:none;z-index:2;"></div>
+`;
+
+// Sharp logo rendering — avoid html2canvas blur + clipped edges
+const LOGO_IMG_STYLE_BASE = 'object-fit:contain;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;padding:2px;box-sizing:content-box;';
 
 const CITY_STATE_MAP = {
   'londrina': 'Paraná',
@@ -1167,12 +1189,14 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
-    <div style="position:absolute;left:0;bottom:0;width:460px;height:260px;background:linear-gradient(145deg,rgba(232,89,26,0.14) 0%,rgba(232,89,26,0.04) 46%,rgba(232,89,26,0) 100%);"></div>
+    <div style="position:absolute;left:0;bottom:0;width:560px;height:360px;background:radial-gradient(ellipse at bottom left, rgba(232,89,26,0.20) 0%, rgba(232,89,26,0.08) 40%, rgba(232,89,26,0) 75%);pointer-events:none;"></div>
+    <div style="position:absolute;right:-60px;top:-40px;width:380px;height:280px;background:radial-gradient(ellipse at top right, rgba(254,92,43,0.10) 0%, rgba(254,92,43,0) 70%);pointer-events:none;"></div>
+    <div style="position:absolute;left:0;top:0;right:0;height:3px;background:linear-gradient(90deg, ${PROPOSAL_ACCENT} 0%, #FE5C2B 50%, ${PROPOSAL_ACCENT} 100%);"></div>
     <div style="position:relative;z-index:1;width:100%;display:grid;grid-template-columns:1.04fr 0.96fr;height:768px;max-height:768px;padding:58px 64px 50px;gap:22px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;flex-direction:column;min-width:0;">
         <div style="display:flex;align-items:center;gap:18px;">
           <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:48px;width:auto;object-fit:contain;" />
-          <div data-calibration-id="proposal.cover.badge" style="display:inline-flex;align-items:center;justify-content:center;height:${layout.badgeMinHeight}px;padding:0 ${layout.badgePaddingX}px;border-radius:100px;background:${PROPOSAL_ACCENT};border:1px solid ${PROPOSAL_ACCENT};font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#fff;line-height:1;text-align:center;">
+          <div data-calibration-id="proposal.cover.badge" style="display:inline-flex;align-items:center;justify-content:center;height:${layout.badgeMinHeight}px;padding:0 ${layout.badgePaddingX}px;border-radius:100px;background:linear-gradient(135deg, #FE5C2B 0%, ${PROPOSAL_ACCENT} 100%);border:1px solid ${PROPOSAL_ACCENT};font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#fff;line-height:1;text-align:center;box-shadow:0 4px 12px -2px rgba(232,89,26,0.40);">
             <span style="display:block;">Proposta comercial</span>
           </div>
         </div>
@@ -1313,11 +1337,12 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
+    ${PROPOSAL_ATMOSPHERE}
 
     <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:38px 48px;box-sizing:border-box;display:grid;grid-template-rows:auto auto 1fr;gap:12px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;">
         <div style="display:flex;align-items:center;gap:14px;">
-          <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;flex-shrink:0;" />
+          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:44px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
           <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border-radius:100px;background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Como ler as métricas</div>
         </div>
         <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(segmentLabel)} • ${formatInt(pointCount)} pontos</div>
@@ -1421,14 +1446,15 @@ function buildProposalPointPage({ point, index, total, image, mapImage, segmento
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
+    ${PROPOSAL_ATMOSPHERE}
     <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:20px 22px 18px;box-sizing:border-box;display:grid;grid-template-columns:${(hasImage || hasMap) ? "minmax(0,1.12fr) minmax(0,0.88fr)" : "1fr"};gap:14px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       
       <!-- LEFT COLUMN -->
       <div style="display:flex;flex-direction:column;gap:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};border-left:6px solid ${PROPOSAL_ACCENT};border-radius:24px;padding:22px 24px 18px;overflow:hidden;box-sizing:border-box;">
         
         <!-- Header: Logo and Pagination -->
-        <div style="display:flex;justify-content:space-between;align-items:center;min-height:32px;flex-shrink:0;">
-          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:32px;width:auto;object-fit:contain;flex-shrink:0;" />
+        <div style="display:flex;justify-content:space-between;align-items:center;min-height:44px;flex-shrink:0;">
+          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:42px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
           <div style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 12px;border-radius:100px;border:1px solid rgba(232,89,26,0.24);background:rgba(232,89,26,0.12);font-size:12px;font-weight:700;color:${PROPOSAL_ACCENT};line-height:1;font-variant-numeric: tabular-nums;">
             <span>${index}</span><span style="opacity:0.6;margin:0 2px;">/</span><span>${total}</span>
           </div>
@@ -1752,11 +1778,12 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
+    ${PROPOSAL_ATMOSPHERE}
 
     <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:42px 56px;box-sizing:border-box;display:grid;grid-template-rows:auto auto auto 1fr;gap:12px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;">
         <div style="display:flex;align-items:center;gap:14px;">
-          <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;flex-shrink:0;" />
+          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:44px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
           <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border-radius:100px;background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Evidências de entorno</div>
         </div>
         <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(proposalCity || 'Múltiplas praças')} • ${escapeHtml(segmentLabel)}</div>
@@ -1889,7 +1916,7 @@ function buildCampaignScorePage({ proposalPoints, segmento, assets }) {
     <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;">
         <div style="display:flex;align-items:center;gap:16px;">
-          <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;flex-shrink:0;" />
+          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:44px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
           <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 18px;border-radius:100px;background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Score da campanha</div>
         </div>
         <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(segmentLabel)}</div>
@@ -1937,11 +1964,12 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
-    <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(254,92,43,0.06) 0%,transparent 40%);"></div>
+    ${PROPOSAL_ATMOSPHERE}
+    <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(254,92,43,0.06) 0%,transparent 40%);z-index:0;"></div>
     <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;">
         <div style="display:flex;align-items:center;gap:16px;">
-          <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:40px;width:auto;object-fit:contain;flex-shrink:0;" />
+          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:44px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
           <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 18px;border-radius:100px;background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Cobertura e presença</div>
         </div>
         <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(segmentLabel)}</div>
@@ -2029,7 +2057,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
       <!-- Header -->
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div style="display:flex;align-items:center;gap:14px;">
-          <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:36px;width:auto;object-fit:contain;" />
+          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:42px;width:auto;${LOGO_IMG_STYLE_BASE}" />
           <div style="width:2px;height:24px;background:${PROPOSAL_BORDER};"></div>
           <div style="font-size:18px;font-weight:600;color:${PROPOSAL_TEXT};letter-spacing:0.02em;">Plano de Investimento & Impacto</div>
         </div>
@@ -2223,7 +2251,7 @@ function buildProposalClosingPage(assets, overviewMapImage) {
     <div style="position:absolute;inset:auto auto -180px -60px;width:560px;height:560px;border-radius:999px;background:radial-gradient(circle,rgba(232,89,26,0.08) 0%,rgba(232,89,26,0.02) 48%,rgba(232,89,26,0) 72%);"></div>
     <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;display:flex;align-items:center;justify-content:center;padding:44px 56px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="width:100%;max-width:1060px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;text-align:center;">
-        <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:56px;width:auto;object-fit:contain;flex-shrink:0;" />
+        <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:64px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
         ${mapHtml}
         <div style="text-align:center;max-width:980px;">
           <div style="font-family:Poppins, system-ui, sans-serif;font-size:56px;font-weight:800;line-height:1.08;letter-spacing:-0.03em;color:${PROPOSAL_TEXT};">

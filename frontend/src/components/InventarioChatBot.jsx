@@ -481,41 +481,91 @@ export default function InventarioChatBot() {
             return !o;
           });
         }}
-        className={`fixed bottom-6 right-6 z-[9989] w-14 h-14 rounded-full shadow-lg
+        className={`fixed bottom-6 right-6 z-[9989] w-14 h-14 rounded-full
           flex items-center justify-center transition-all duration-300 group
           ${aberto
-            ? isDark ? 'bg-brand-gray-800 text-white' : 'bg-gray-600 text-white'
-            : 'bg-brand-orange hover:bg-brand-orange-hover text-white'
+            ? isDark ? 'bg-brand-gray-800 text-white shadow-lg' : 'bg-gray-700 text-white shadow-lg'
+            : 'text-white hover:scale-[1.06]'
           }`}
-        style={{ filter: aberto ? 'none' : 'drop-shadow(0 4px 20px rgba(254,92,43,0.45))' }}
+        style={aberto
+          ? { filter: 'none' }
+          : {
+              background: 'linear-gradient(135deg, #FE5C2B 0%, #E85A1A 55%, #C94A1A 100%)',
+              boxShadow: '0 10px 30px -8px rgba(254, 92, 43, 0.55), 0 4px 12px -2px rgba(254, 92, 43, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25)',
+            }
+        }
         title="Especialista DOOH"
       >
-        <span className={`transition-transform duration-300 ${aberto ? 'rotate-0' : 'group-hover:scale-110'}`}>
-          {aberto ? <X size={22} /> : <MessageCircle size={22} />}
+        {/* Pulse ring — only when closed & there's unread (or always for attention) */}
+        {!aberto && (
+          <>
+            <span className="absolute inset-0 rounded-full bg-brand-orange/40 animate-ping opacity-60" style={{ animationDuration: '2.5s' }} />
+            <span className="absolute inset-0 rounded-full ring-2 ring-white/25" />
+          </>
+        )}
+        <span className={`relative transition-transform duration-300 ${aberto ? 'rotate-0' : 'group-hover:scale-110'}`}>
+          {aberto ? <X size={22} /> : <MessageCircle size={22} strokeWidth={2.2} />}
         </span>
 
         {/* Unread badge */}
         {!aberto && unread > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
             {unread}
           </span>
         )}
       </button>
 
-      {/* Label pill — visible when FAB is closed, hidden on mobile */}
+      {/* Speech-balloon label — visible when FAB is closed, hidden on mobile */}
       {!aberto && (
         <div
           onClick={() => setAberto(true)}
-          className={`fixed bottom-[34px] right-[76px] z-[9988] cursor-pointer
-            px-3 py-1.5 rounded-full shadow-lg text-xs font-semibold whitespace-nowrap
-            transition-all duration-300 animate-fade-in
-            hidden sm:block
-            ${isDark
-              ? 'bg-brand-gray-900 text-brand-gray-300 border border-white/10'
-              : 'bg-white text-gray-700 border border-gray-200 shadow-md'
-            }`}
+          className="fixed bottom-[28px] right-[84px] z-[9988] cursor-pointer
+            hidden sm:flex items-center gap-2 pl-3 pr-4 py-2.5 rounded-2xl
+            whitespace-nowrap transition-all duration-300 hover:-translate-x-0.5
+            animate-fade-in group/balloon"
+          style={{
+            background: isDark
+              ? 'linear-gradient(135deg, rgba(26,26,26,0.96) 0%, rgba(15,15,15,0.96) 100%)'
+              : 'linear-gradient(135deg, #ffffff 0%, #fffaf6 100%)',
+            border: isDark ? '1px solid rgba(254, 92, 43, 0.35)' : '1px solid rgba(254, 92, 43, 0.25)',
+            boxShadow: isDark
+              ? '0 10px 28px -10px rgba(0,0,0,0.55), 0 2px 6px rgba(254,92,43,0.12)'
+              : '0 10px 28px -10px rgba(254, 92, 43, 0.28), 0 2px 6px rgba(0,0,0,0.05)',
+            backdropFilter: 'blur(10px)',
+          }}
         >
-          Fale com nosso especialista DOOH
+          {/* Mini avatar with sparkle */}
+          <span
+            className="flex items-center justify-center w-7 h-7 rounded-full text-white shrink-0 transition-transform duration-300 group-hover/balloon:scale-110 group-hover/balloon:rotate-6"
+            style={{
+              background: 'linear-gradient(135deg, #FE5C2B 0%, #E85A1A 100%)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 2px 6px rgba(254,92,43,0.4)',
+            }}
+          >
+            <i className="ri-sparkling-2-line" style={{ fontSize: 14 }} />
+          </span>
+
+          <div className="flex flex-col leading-tight">
+            <span className={`text-[9px] font-bold uppercase tracking-[0.14em] ${isDark ? 'text-brand-orange' : 'text-[#C94A1A]'}`}>
+              IA · 24h
+            </span>
+            <span className={`text-xs font-semibold ${isDark ? 'text-white' : 'text-neutral-800'}`}>
+              Fale com nosso especialista DOOH
+            </span>
+          </div>
+
+          {/* Balloon tail pointing right toward the FAB */}
+          <span
+            aria-hidden
+            className="absolute top-1/2 -translate-y-1/2 -right-[7px] w-3.5 h-3.5 rotate-45"
+            style={{
+              background: isDark
+                ? 'linear-gradient(135deg, rgba(26,26,26,0.96) 0%, rgba(15,15,15,0.96) 100%)'
+                : 'linear-gradient(135deg, #ffffff 0%, #fffaf6 100%)',
+              borderRight: isDark ? '1px solid rgba(254, 92, 43, 0.35)' : '1px solid rgba(254, 92, 43, 0.25)',
+              borderTop: isDark ? '1px solid rgba(254, 92, 43, 0.35)' : '1px solid rgba(254, 92, 43, 0.25)',
+            }}
+          />
         </div>
       )}
     </>
