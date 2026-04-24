@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+﻿import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -53,7 +53,7 @@ import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimula
 import { generateTechnicalInfoPdf } from '../lib/technicalInfoPdf';
 import { generateTechnicalInfoMobilePdf } from '../lib/technicalInfoMobilePdf';
 
-const DEFAULT_CIDADES = ['Londrina', 'MaringÃ¡', 'BalneÃ¡rio CamboriÃº', 'ItajaÃ­'];
+const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const DEFAULT_TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
 const ELEVADOR_TIPO = 'Elevador';
 const ELEVADOR_CATEGORIAS = ['Comercial', 'Residencial'];
@@ -69,7 +69,7 @@ const ENTORNO_SEGMENTOS = [
 ];
 const USER_ROLES = [
   { value: 'admin', label: 'Admin (acesso total)' },
-  { value: 'diretor', label: 'Diretor (visÃ£o executiva: GestÃ£o Comercial, Nova Venda e Vendas)' },
+  { value: 'diretor', label: 'Diretor (visão executiva: Gestão Comercial, Nova Venda e Vendas)' },
   { value: 'gerente_comercial', label: 'Gerente Comercial (aprova propostas)' },
   { value: 'vendedor', label: 'Vendedor (criar propostas)' }
 ];
@@ -78,19 +78,19 @@ const ADMIN_TAB_GROUPS = [
   { key: 'comercial', label: 'Comercial', tabs: [
     { key: 'vendas',           label: 'Nova Venda',         icon: Zap,           roles: ['admin', 'diretor', 'gerente_comercial', 'vendedor'] },
     { key: 'historico_vendas', label: 'Vendas',             icon: ClipboardList, roles: ['admin', 'diretor', 'gerente_comercial', 'vendedor'] },
-    { key: 'gestao_comercial', label: 'GestÃ£o Comercial',   icon: Activity,      roles: ['admin', 'diretor', 'gerente_comercial', 'vendedor'], href: '/comercial/gestao' },
+    { key: 'gestao_comercial', label: 'Gestão Comercial',   icon: Activity,      roles: ['admin', 'diretor', 'gerente_comercial', 'vendedor'], href: '/comercial/gestao' },
     { key: 'leads',            label: 'Leads',              icon: UserPlus,      roles: ['admin', 'gerente_comercial'] },
     { key: 'propostas',        label: 'Propostas',          icon: FileText,      roles: ['admin', 'gerente_comercial'] },
     { key: 'auditoria_loop',   label: 'Auditoria de Loop',  icon: RefreshCcw,    roles: ['admin', 'gerente_comercial', 'vendedor'] },
   ]},
-  { key: 'pontos_midia', label: 'Pontos & MÃ­dia', tabs: [
+  { key: 'pontos_midia', label: 'Pontos & Mídia', tabs: [
     { key: 'pontos',   label: 'Pontos',             icon: PanelsTopLeft, roles: ['admin', 'gerente_comercial'] },
-    { key: 'entorno',  label: 'AnÃ¡lise de Entorno', icon: MapPinned,     roles: ['admin', 'gerente_comercial'] },
+    { key: 'entorno',  label: 'Análise de Entorno', icon: MapPinned,     roles: ['admin', 'gerente_comercial'] },
   ]},
   { key: 'sistema', label: 'Sistema', tabs: [
-    { key: 'usuarios',      label: 'UsuÃ¡rios',         icon: Users,    roles: ['admin'] },
+    { key: 'usuarios',      label: 'Usuários',         icon: Users,    roles: ['admin'] },
     { key: 'whatsapp_logs', label: 'Envios WhatsApp', icon: Send,     roles: ['admin', 'gerente_comercial'] },
-    { key: 'configuracoes', label: 'ConfiguraÃ§Ãµes',    icon: Settings, roles: ['admin', 'gerente_comercial'] },
+    { key: 'configuracoes', label: 'Configurações',    icon: Settings, roles: ['admin', 'gerente_comercial'] },
   ]},
 ];
 
@@ -107,8 +107,8 @@ function getDefaultTab(role) {
 
 const emptyForm = {
   nome: '', cidade: 'Londrina', tipo: 'Elevador', endereco: '',
-  lat: '', lng: '', horario: '06:00 Ã s 22:00', fluxo: '',
-  insercoes: '', tempo: '15s', loop: '3 min', veiculacao: 'VÃ­deo sem Ã¡udio',
+  lat: '', lng: '', horario: '06:00 às 22:00', fluxo: '',
+  insercoes: '', tempo: '15s', loop: '3 min', veiculacao: 'Vídeo sem áudio',
   publico: 'A/B', telas: '1', preco: '', descricao: '', imagem: '', imagem2: '',
   simulacao_tela: '', simulacao_arte: '', simulacao_preview: '',
   arte_largura: ELEVADOR_ARTE_LARGURA, arte_altura: ELEVADOR_ARTE_ALTURA,
@@ -216,7 +216,7 @@ export default function Admin() {
   const [pdfTestLog, setPdfTestLog] = useState([]);
   const [pdfTestError, setPdfTestError] = useState('');
 
-  // UsuÃ¡rio logado
+  // Usuário logado
   const [currentUser, setCurrentUser] = useState(null);
   const [welcomePopup, setWelcomePopup] = useState(null); // { nome, role, pct, realizado, meta }
   const [savingSettings, setSavingSettings] = useState(false);
@@ -383,10 +383,10 @@ export default function Admin() {
 
   const handleSessionError = (err) => {
     const message = String(err?.message || '');
-    if (/token invÃ¡lido|token invalido|expirad|autentica/i.test(message)) {
+    if (/token inválido|token invalido|expirad|autentica/i.test(message)) {
       sessionStorage.removeItem('admin_token');
       setAuth(false);
-      setLoginError('Sua sessÃ£o expirou. FaÃ§a login novamente.');
+      setLoginError('Sua sessão expirou. Faça login novamente.');
       return true;
     }
     return false;
@@ -458,7 +458,7 @@ export default function Admin() {
       setUsers(Array.isArray(data) ? data : []);
     } catch (err) {
       if (!handleSessionError(err)) {
-        setUsersError(err.message || 'Falha ao carregar usuÃ¡rios');
+        setUsersError(err.message || 'Falha ao carregar usuários');
       }
     } finally {
       setUsersLoading(false);
@@ -469,11 +469,11 @@ export default function Admin() {
     if (auth) {
       loadPontos();
       loadUsers();
-      // Carrega usuÃ¡rio atual e ajusta tab inicial pelo role
+      // Carrega usuário atual e ajusta tab inicial pelo role
       fetchCurrentUser()
         .then(u => {
           setCurrentUser(u);
-          // Mensagem de boas-vindas (1x por dia por sessÃ£o) ao fazer login manual no /comercial
+          // Mensagem de boas-vindas (1x por dia por sessão) ao fazer login manual no /comercial
           try {
             const flagKey = 'welcome_shown_' + new Date().toISOString().slice(0,10);
             if (sessionStorage.getItem('comercial_manual_login') === '1' && !sessionStorage.getItem(flagKey)) {
@@ -494,15 +494,15 @@ export default function Admin() {
                 .catch(() => {});
             }
           } catch {}
-          // Diretor e admin ficam no painel (/comercial) com as abas visÃ­veis.
-          // Gerente comercial e vendedor vÃ£o direto para /comercial/gestao.
+          // Diretor e admin ficam no painel (/comercial) com as abas visíveis.
+          // Gerente comercial e vendedor vão direto para /comercial/gestao.
           if (location.pathname === '/comercial' && u?.role && u.role !== 'admin' && u.role !== 'diretor') {
             navigate('/comercial/gestao', { replace: true });
             return;
           }
           setActiveTab(prev => {
             const visible = getVisibleGroups(u?.role).flatMap(g => g.tabs);
-            // Respect ?tab=... query param (e.g. GestÃ£o Comercial â†’ Nova Venda shortcut)
+            // Respect ?tab=... query param (e.g. Gestão Comercial → Nova Venda shortcut)
             try {
               const search = new URLSearchParams(location.search || '');
               const requested = search.get('tab');
@@ -556,7 +556,7 @@ export default function Admin() {
       insercoes: ponto.insercoes?.toString() || '',
       tempo: ponto.tempo || '15s',
       loop: ponto.loop || '3 min',
-      veiculacao: ponto.veiculacao || 'VÃ­deo sem Ã¡udio',
+      veiculacao: ponto.veiculacao || 'Vídeo sem áudio',
       publico: ponto.publico || 'A/B',
       telas: ponto.telas?.toString() || '1',
       preco: ponto.preco?.toString() || '',
@@ -645,9 +645,9 @@ export default function Admin() {
 
   const handleHardDelete = async (p) => {
     const name = p?.nome || 'este ponto';
-    const confirm1 = confirm(`ATENÃ‡ÃƒO: Excluir PERMANENTEMENTE "${name}"?\n\nEssa aÃ§Ã£o nÃ£o pode ser desfeita e removerÃ¡ o ponto do banco de dados.`);
+    const confirm1 = confirm(`ATENÇÃO: Excluir PERMANENTEMENTE "${name}"?\n\nEssa ação não pode ser desfeita e removerá o ponto do banco de dados.`);
     if (!confirm1) return;
-    const confirm2 = prompt(`Para confirmar a exclusÃ£o permanente, digite EXCLUIR:`);
+    const confirm2 = prompt(`Para confirmar a exclusão permanente, digite EXCLUIR:`);
     if (String(confirm2 || '').trim().toUpperCase() !== 'EXCLUIR') return;
     try {
       await hardDeletePonto(p.id);
@@ -691,20 +691,20 @@ export default function Admin() {
       setUserModalOpen(false);
       setUserModalInitialData(null);
     } catch (err) {
-      setUsersError(err.message || 'Falha ao criar usuÃ¡rio');
+      setUsersError(err.message || 'Falha ao criar usuário');
     } finally {
       setSavingUser(false);
     }
   };
 
   const handleDeleteUser = async (id, usernameValue) => {
-    if (!confirm(`Deseja remover o usuÃ¡rio ${usernameValue}?`)) return;
+    if (!confirm(`Deseja remover o usuário ${usernameValue}?`)) return;
     setUsersError('');
     try {
       await deleteAdminUser(id);
       await loadUsers();
     } catch (err) {
-      setUsersError(err.message || 'Falha ao remover usuÃ¡rio');
+      setUsersError(err.message || 'Falha ao remover usuário');
     }
   };
 
@@ -736,7 +736,7 @@ export default function Admin() {
       setTvPostitGroupJid(data.tv_postit_group_jid || '');
     } catch (err) {
       if (!handleSessionError(err)) {
-        setSettingsError(err.message || 'Falha ao carregar configuraÃ§Ãµes');
+        setSettingsError(err.message || 'Falha ao carregar configurações');
       }
     } finally {
       setSettingsLoading(false);
@@ -751,7 +751,7 @@ export default function Admin() {
       await updateAdminSettings({ lucro_minimo_percentual: Number(lucroMinimoValue) });
       await loadSettings();
     } catch (err) {
-      setSettingsError(err.message || 'Falha ao salvar configuraÃ§Ãµes');
+      setSettingsError(err.message || 'Falha ao salvar configurações');
     } finally {
       setSavingSettings(false);
     }
@@ -770,7 +770,7 @@ export default function Admin() {
         evolution_dest_number: evoDestNumber.trim(),
         evolution_financeiro_number: evoFinanceiroNumber.trim()
       });
-      setEvoSaveMsg('ConfiguraÃ§Ãµes salvas!');
+      setEvoSaveMsg('Configurações salvas!');
       setTimeout(() => setEvoSaveMsg(''), 3000);
     } catch (err) {
       setEvoSaveMsg(`Erro: ${err.message}`);
@@ -788,7 +788,7 @@ export default function Admin() {
         tv_ticker_message: tvTickerMessage.trim(),
         tv_postit_group_jid: tvPostitGroupJid.trim()
       });
-      setTvSaveMsg('ConfiguraÃ§Ãµes do Painel TV salvas!');
+      setTvSaveMsg('Configurações do Painel TV salvas!');
       setTimeout(() => setTvSaveMsg(''), 3000);
     } catch (err) {
       setTvSaveMsg(`Erro: ${err.message}`);
@@ -802,7 +802,7 @@ export default function Admin() {
     setEvoTestMsg('');
     try {
       const data = await testFinanceiroReminder();
-      setEvoTestMsg(`âœ“ Lembrete enviado com ${data.vendaCount} venda(s) pendente(s)`);
+      setEvoTestMsg(`✓ Lembrete enviado com ${data.vendaCount} venda(s) pendente(s)`);
       setTimeout(() => setEvoTestMsg(''), 4000);
     } catch (err) {
       setEvoTestMsg(`Erro: ${err.message}`);
@@ -841,7 +841,7 @@ export default function Admin() {
       setHoursSyncResult(result || null);
     } catch (err) {
       if (!handleSessionError(err)) {
-        setHoursSyncError(err.message || 'Falha na sincronizaÃ§Ã£o de horÃ¡rios');
+        setHoursSyncError(err.message || 'Falha na sincronização de horários');
       }
     } finally {
       setHoursSyncBusy(false);
@@ -873,7 +873,7 @@ export default function Admin() {
     } catch (err) {
       if (!handleSessionError(err)) {
         setArteStats(null);
-        setArteStatsError(err.message || 'Falha ao carregar mÃ©tricas de Arte IA');
+        setArteStatsError(err.message || 'Falha ao carregar métricas de Arte IA');
       }
     } finally {
       setArteStatsLoading(false);
@@ -910,7 +910,7 @@ export default function Admin() {
       const jobsResponse = await fetchEntornoJobs({ limit: 15 });
       setEntornoJobs(Array.isArray(jobsResponse.jobs) ? jobsResponse.jobs : []);
     } catch (err) {
-      setEntornoError(err.message || 'Falha ao enfileirar anÃ¡lise de entorno');
+      setEntornoError(err.message || 'Falha ao enfileirar análise de entorno');
     } finally {
       setEntornoBusy(false);
     }
@@ -921,9 +921,9 @@ export default function Admin() {
     setCensusStatus('');
     try {
       const result = await requestCensusAnalysis({ municipio: censusCidade || null, force });
-      setCensusStatus(result?.message || 'AnÃ¡lise censitÃ¡ria iniciada com sucesso.');
+      setCensusStatus(result?.message || 'Análise censitária iniciada com sucesso.');
     } catch (err) {
-      setCensusStatus(`Erro: ${err.message || 'Falha ao iniciar anÃ¡lise'}`);
+      setCensusStatus(`Erro: ${err.message || 'Falha ao iniciar análise'}`);
     } finally {
       setCensusBusy(false);
     }
@@ -1089,7 +1089,7 @@ export default function Admin() {
   const autoArtPrompt = useMemo(() => {
     if (!artWidth || !artHeight || !form.nome) return '';
     const ratio = artRatioText || `${artWidth}x${artHeight}`;
-    return `Crie uma arte visual atraente com dimensÃµes ${artWidth}x${artHeight}px (proporÃ§Ã£o ${ratio}) para ${form.tipo} localizado em ${form.cidade}. Ponto: "${form.nome}". ${form.descricao ? `Contexto: ${form.descricao}` : ''}. A arte deve chamar atenÃ§Ã£o e ser compatÃ­vel com mÃ­dia digital outdoor.`;
+    return `Crie uma arte visual atraente com dimensões ${artWidth}x${artHeight}px (proporção ${ratio}) para ${form.tipo} localizado em ${form.cidade}. Ponto: "${form.nome}". ${form.descricao ? `Contexto: ${form.descricao}` : ''}. A arte deve chamar atenção e ser compatível com mídia digital outdoor.`;
   }, [artWidth, artHeight, artRatioText, form.nome, form.tipo, form.cidade, form.descricao]);
 
   const handleCopyPrompt = async () => {
@@ -1159,7 +1159,7 @@ export default function Admin() {
 
             <form className="space-y-5" onSubmit={handleLogin}>
               <div>
-                <label className={`mb-1.5 block text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>UsuÃ¡rio ou e-mail</label>
+                <label className={`mb-1.5 block text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Usuário ou e-mail</label>
                 <input
                   type="text"
                   value={username}
@@ -1179,7 +1179,7 @@ export default function Admin() {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     className={`w-full rounded-xl px-4 py-3 pr-10 text-sm transition-colors focus:outline-none ${isDark ? 'border border-white/10 bg-white/5 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/40' : 'border border-neutral-200 bg-neutral-50 text-neutral-900 placeholder:text-neutral-400 focus:border-[#FE5C2B]/60 focus:bg-white'}`}
-                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                    placeholder="••••••••"
                     required
                     autoComplete="current-password"
                   />
@@ -1203,7 +1203,7 @@ export default function Admin() {
               </button>
 
               <div className={`rounded-xl border px-3 py-2.5 text-xs leading-relaxed ${isDark ? 'border-white/10 bg-white/[0.02] text-brand-gray-300' : 'border-[#FFD9C6] bg-[#FFF4EC] text-[#8B3A14]'}`}>
-                ðŸ’¡ <strong>Dica rÃ¡pida:</strong> use sempre <strong>/gestao</strong>. Gerente e vendedor entram direto na GestÃ£o Comercial.
+                💡 <strong>Dica rápida:</strong> use sempre <strong>/gestao</strong>. Gerente e vendedor entram direto na Gestão Comercial.
               </div>
             </form>
           </motion.div>
@@ -1211,14 +1211,14 @@ export default function Admin() {
         <footer className={`relative z-10 px-6 pb-6 text-center text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
           <span className="inline-flex items-center gap-1.5">
             <span>Desenvolvido por</span>
-            <span className="font-semibold text-brand-orange animate-pulse">MaitÃª Doin</span>
+            <span className="font-semibold text-brand-orange animate-pulse">Maitê Doin</span>
           </span>
         </footer>
       </div>
     );
   }
 
-  // Admin panel â€” theme helpers
+  // Admin panel — theme helpers
   const th = {
     card: isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-white shadow-sm',
     inp: isDark
@@ -1274,7 +1274,7 @@ export default function Admin() {
               </h1>
               <p className={`text-sm mt-0.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
                 {currentUser?.role === 'admin' ? 'Acesso total ao sistema'
-                  : currentUser?.role === 'diretor' ? 'VisÃ£o executiva: Nova Venda, Vendas e GestÃ£o Comercial'
+                  : currentUser?.role === 'diretor' ? 'Visão executiva: Nova Venda, Vendas e Gestão Comercial'
                   : currentUser?.role === 'gerente_comercial' ? 'Gerente Comercial'
                   : currentUser?.role === 'vendedor' ? 'Vendedor'
                   : 'Painel comercial'}
@@ -1386,7 +1386,7 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* Formato chips â€” replaces simple select with count per format */}
+            {/* Formato chips — replaces simple select with count per format */}
             <div className="mb-4">
               <div className={`text-[10px] font-bold uppercase tracking-[0.18em] mb-2 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>
                 Filtrar por formato
@@ -1441,7 +1441,7 @@ export default function Admin() {
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
                   {activeFiltersCount} filtro{activeFiltersCount > 1 ? 's' : ''} aplicado{activeFiltersCount > 1 ? 's' : ''}
                 </span>
-                <span className={`text-xs ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>Â·</span>
+                <span className={`text-xs ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>·</span>
                 <span className={`text-xs font-medium ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>
                   {filtered.length} de {pontos.length} pontos
                 </span>
@@ -1489,10 +1489,10 @@ export default function Admin() {
                           </th>
                         );
                       })}
-                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden lg:table-cell`}>ProporÃ§Ã£o</th>
+                      <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs hidden lg:table-cell`}>Proporção</th>
                       <th className={`text-left px-4 py-3 ${th.tableHeadText} font-medium text-xs`}>
                         <button type="button" onClick={() => togglePontosSort('preco')} className={`inline-flex items-center gap-1 uppercase tracking-wide transition-colors ${pontosSortKey === 'preco' ? 'text-brand-orange' : (isDark ? 'hover:text-white' : 'hover:text-neutral-900')}`}>
-                          PreÃ§o
+                          Preço
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: pontosSortKey === 'preco' ? 1 : 0.45 }}>
                             {pontosSortKey === 'preco' ? (pontosSortDir === 'asc' ? <polyline points="18 15 12 9 6 15"/> : <polyline points="6 9 12 15 18 9"/>) : (<><polyline points="7 15 12 20 17 15"/><polyline points="17 9 12 4 7 9"/></>)}
                           </svg>
@@ -1506,7 +1506,7 @@ export default function Admin() {
                           </svg>
                         </button>
                       </th>
-                      <th className={`text-right px-4 py-3 ${th.tableHeadText} font-medium text-xs`}>AÃ§Ãµes</th>
+                      <th className={`text-right px-4 py-3 ${th.tableHeadText} font-medium text-xs`}>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1565,7 +1565,7 @@ export default function Admin() {
                             <button
                               onClick={() => handleDelete(p.id)}
                               className={`p-2 rounded-lg transition-colors ${isDark ? 'text-brand-gray-400 hover:bg-white/10 hover:text-amber-400' : 'text-neutral-500 hover:bg-amber-50 hover:text-amber-600'}`}
-                              title={Number(p.ativo) === 1 ? 'Desativar ponto (soft delete)' : 'Ponto jÃ¡ inativo'}
+                              title={Number(p.ativo) === 1 ? 'Desativar ponto (soft delete)' : 'Ponto já inativo'}
                               disabled={Number(p.ativo) !== 1}
                             >
                               <EyeOff size={14} />
@@ -1610,10 +1610,10 @@ export default function Admin() {
             <section className={`mb-6 rounded-2xl border p-4 sm:p-5 ${th.card}`}>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Perfis CensitÃ¡rios (IBGE + OSM)</h3>
+                  <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Perfis Censitários (IBGE + OSM)</h3>
                   <p className={`text-xs mt-1 ${th.sectionDesc}`}>
-                    Classifica os pontos por perfil de audiÃªncia (Alta Renda, Massa/Varejo, Jovem/UniversitÃ¡rio, Terceira Idade)
-                    usando dados do Censo 2022 (IBGE) e POIs do OpenStreetMap. Use &ldquo;ForÃ§ar ReanÃ¡lise&rdquo; apÃ³s atualizar pontos.
+                    Classifica os pontos por perfil de audiência (Alta Renda, Massa/Varejo, Jovem/Universitário, Terceira Idade)
+                    usando dados do Censo 2022 (IBGE) e POIs do OpenStreetMap. Use &ldquo;Forçar Reanálise&rdquo; após atualizar pontos.
                   </p>
                 </div>
               </div>
@@ -1647,7 +1647,7 @@ export default function Admin() {
                   className="inline-flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-400 hover:bg-amber-500/25 disabled:opacity-50"
                 >
                   {censusBusy ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
-                  ForÃ§ar ReanÃ¡lise (aplicar novo algoritmo)
+                  Forçar Reanálise (aplicar novo algoritmo)
                 </button>
               </div>
               {censusStatus && (
@@ -1663,9 +1663,9 @@ export default function Admin() {
           <section className={`rounded-2xl border p-4 sm:p-5 ${th.card}`}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>MÃ©tricas de geraÃ§Ã£o de Arte IA</h3>
+                <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Métricas de geração de Arte IA</h3>
                 <p className={`text-xs mt-1 ${th.sectionDesc}`}>
-                  Total de geraÃ§Ãµes, custo acumulado e padrÃµes de uso por resoluÃ§Ã£o/ponto.
+                  Total de gerações, custo acumulado e padrões de uso por resolução/ponto.
                 </p>
               </div>
               <button
@@ -1687,7 +1687,7 @@ export default function Admin() {
               <>
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
-                    <div className={`text-[11px] uppercase tracking-wide ${th.sectionDesc}`}>Total de geraÃ§Ãµes</div>
+                    <div className={`text-[11px] uppercase tracking-wide ${th.sectionDesc}`}>Total de gerações</div>
                     <div className={`mt-1 text-xl font-bold ${th.sectionTitle}`}>{Number(arteStats.total_geracoes || 0).toLocaleString('pt-BR')}</div>
                   </div>
                   <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
@@ -1695,14 +1695,14 @@ export default function Admin() {
                     <div className={`mt-1 text-xl font-bold ${th.sectionTitle}`}>US$ {Number(arteStats.custo_total_usd || 0).toFixed(4)}</div>
                   </div>
                   <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
-                    <div className={`text-[11px] uppercase tracking-wide ${th.sectionDesc}`}>Custo mÃ©dio (USD)</div>
+                    <div className={`text-[11px] uppercase tracking-wide ${th.sectionDesc}`}>Custo médio (USD)</div>
                     <div className={`mt-1 text-xl font-bold ${th.sectionTitle}`}>US$ {Number(arteStats.custo_medio_usd || 0).toFixed(4)}</div>
                   </div>
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
                   <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
-                    <h4 className={`text-xs font-semibold uppercase tracking-wide ${th.sectionTitle}`}>ResoluÃ§Ãµes mais geradas</h4>
+                    <h4 className={`text-xs font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Resoluções mais geradas</h4>
                     <div className="mt-2 space-y-1.5">
                       {(arteStats.resolucoes_mais_usadas || []).length === 0 ? (
                         <p className={`text-xs ${th.sectionDesc}`}>Sem dados ainda.</p>
@@ -1710,7 +1710,7 @@ export default function Admin() {
                         (arteStats.resolucoes_mais_usadas || []).map((row) => (
                           <div key={row.res} className="flex items-center justify-between text-sm">
                             <span className={th.sectionTitle}>{row.res}</span>
-                            <span className={th.sectionDesc}>{row.c} geraÃ§Ã£o(Ãµes)</span>
+                            <span className={th.sectionDesc}>{row.c} geração(ões)</span>
                           </div>
                         ))
                       )}
@@ -1718,7 +1718,7 @@ export default function Admin() {
                   </div>
 
                   <div className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
-                    <h4 className={`text-xs font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Pontos com mais regeneraÃ§Ãµes</h4>
+                    <h4 className={`text-xs font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Pontos com mais regenerações</h4>
                     <div className="mt-2 space-y-1.5">
                       {(arteStats.pontos_mais_regenerados || []).length === 0 ? (
                         <p className={`text-xs ${th.sectionDesc}`}>Sem dados ainda.</p>
@@ -1827,7 +1827,7 @@ export default function Admin() {
 
               {tvSaveMsg && (
                 <p className={`text-xs mt-2 px-3 py-2 rounded-lg ${
-                  tvSaveMsg.startsWith('ConfiguraÃ§Ãµes')
+                  tvSaveMsg.startsWith('Configurações')
                     ? `text-green-300 bg-green-500/10 border border-green-500/20`
                     : `text-red-300 bg-red-500/10 border border-red-500/20`
                 }`}>
@@ -1844,8 +1844,8 @@ export default function Admin() {
 
             <section className={`rounded-2xl border p-4 sm:p-5 ${th.card}`}>
               <div>
-                <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>ConfiguraÃ§Ãµes do sistema</h3>
-                <p className={`text-xs mt-1 ${th.sectionDesc}`}>Configure parÃ¢metros globais para propostas e vendas.</p>
+                <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Configurações do sistema</h3>
+                <p className={`text-xs mt-1 ${th.sectionDesc}`}>Configure parâmetros globais para propostas e vendas.</p>
               </div>
 
               {settingsError && <p className="mt-3 text-xs text-red-300">{settingsError}</p>}
@@ -1853,10 +1853,10 @@ export default function Admin() {
               <form onSubmit={handleSaveSettings} className="mt-6 space-y-4 max-w-md">
                 <div>
                   <label className={`block text-xs mb-2 ${th.lbl}`}>
-                    Lucro MÃ­nimo ObrigatÃ³rio (%)
+                    Lucro Mínimo Obrigatório (%)
                   </label>
                   <p className={`text-xs mb-2 ${th.sectionDesc}`}>
-                    Vendedores precisarÃ£o de aprovaÃ§Ã£o do Gerente Comercial se aplicarem desconto acima desse percentual.
+                    Vendedores precisarão de aprovação do Gerente Comercial se aplicarem desconto acima desse percentual.
                   </p>
                   <div className="flex items-end gap-2">
                     <input
@@ -1882,7 +1882,7 @@ export default function Admin() {
 
               <div className={`mt-6 p-4 rounded-xl ${isDark ? 'bg-brand-orange/5 border border-brand-orange/20' : 'bg-orange-50 border border-orange-200'}`}>
                 <p className={`text-xs leading-relaxed ${isDark ? 'text-brand-orange' : 'text-orange-700'}`}>
-                  <strong><Info size={12} className="inline mr-1" />Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro mÃ­nimo obrigatÃ³rio (desconto acima do valor configurado aqui), a proposta fica aguardando aprovaÃ§Ã£o de um Gerente Comercial antes de poder ser finalizada.
+                  <strong><Info size={12} className="inline mr-1" />Como funciona:</strong> Quando um vendedor tenta criar uma proposta com desconto que ultrapassa o lucro mínimo obrigatório (desconto acima do valor configurado aqui), a proposta fica aguardando aprovação de um Gerente Comercial antes de poder ser finalizada.
                 </p>
               </div>
             </section>
@@ -2064,8 +2064,8 @@ export default function Admin() {
                   {showTechnicalPdfFormatPicker && (
                     <div className={`absolute right-0 mt-1.5 w-64 z-50 rounded-xl shadow-xl overflow-hidden border ${isDark ? 'bg-[#1A1A1A] border-white/10' : 'bg-white border-neutral-200'}`}>
                       {[
-                        { value: 'desktop', label: 'VersÃ£o padrÃ£o', sub: 'Layout 16:9 â€” desktop' },
-                        { value: 'mobile', label: 'VersÃ£o mobile', sub: 'Layout 9:16 â€” celular' },
+                        { value: 'desktop', label: 'Versão padrão', sub: 'Layout 16:9 — desktop' },
+                        { value: 'mobile', label: 'Versão mobile', sub: 'Layout 9:16 — celular' },
                       ].map(({ value, label, sub }) => {
                         const sel = technicalPdfFormat === value;
                         return (
@@ -2153,7 +2153,7 @@ export default function Admin() {
                               />
                               <span className="min-w-0 truncate">{point.nome}</span>
                             </label>
-                            <span className={`text-xs ${th.tableCell}`}>{point.cidade} â€¢ {point.tipo}</span>
+                            <span className={`text-xs ${th.tableCell}`}>{point.cidade} • {point.tipo}</span>
                           </li>
                         );
                       })}
@@ -2169,7 +2169,7 @@ export default function Admin() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>Cache de PDFs</h3>
-                  <p className={`text-xs mt-1 ${th.sectionDesc}`}>Controle de combinaÃ§Ãµes de cidades e validade dos PDFs em cache.</p>
+                  <p className={`text-xs mt-1 ${th.sectionDesc}`}>Controle de combinações de cidades e validade dos PDFs em cache.</p>
                 </div>
                 <button
                   type="button"
@@ -2188,13 +2188,13 @@ export default function Admin() {
                 <table className="w-full text-sm">
                   <thead className={`${isDark ? 'bg-white/[0.04] text-brand-gray-400' : 'bg-neutral-50 text-neutral-500'}`}>
                     <tr>
-                      <th className="px-3 py-2 text-left font-medium">CombinaÃ§Ã£o</th>
+                      <th className="px-3 py-2 text-left font-medium">Combinação</th>
                       <th className="px-3 py-2 text-left font-medium">Cidades</th>
                       <th className="px-3 py-2 text-left font-medium">Tamanho</th>
                       <th className="px-3 py-2 text-left font-medium">Gerado em</th>
                       <th className="px-3 py-2 text-left font-medium">Downloads</th>
                       <th className="px-3 py-2 text-left font-medium">Status</th>
-                      <th className="px-3 py-2 text-left font-medium">AÃ§Ã£o</th>
+                      <th className="px-3 py-2 text-left font-medium">Ação</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2246,16 +2246,16 @@ export default function Admin() {
               </div>
             </section>
 
-            {/* WAHA â€” WhatsApp */}
+            {/* WAHA — WhatsApp */}
             <section className={`rounded-2xl border p-4 sm:p-5 ${th.card}`}>
               <div className="flex items-center gap-2 mb-1">
                 <Zap size={15} className="text-brand-orange" />
                 <h3 className={`text-sm font-semibold uppercase tracking-wide ${th.sectionTitle}`}>
-                  IntegraÃ§Ã£o WhatsApp â€” WAHA
+                  Integração WhatsApp — WAHA
                 </h3>
               </div>
               <p className={`text-xs mb-5 ${th.sectionDesc}`}>
-                Configure aqui os dados do WAHA para disparo automÃ¡tico de notificaÃ§Ãµes de nova venda.
+                Configure aqui os dados do WAHA para disparo automático de notificações de nova venda.
                 Preencha e salve antes de usar a aba <strong className={th.lbl}>Nova Venda</strong>.
               </p>
 
@@ -2280,14 +2280,14 @@ export default function Admin() {
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className={`block text-xs mb-1.5 ${th.lbl}`}>InstÃ¢ncia (vendas / avisos)</label>
+                    <label className={`block text-xs mb-1.5 ${th.lbl}`}>Instância (vendas / avisos)</label>
                     <input
                       className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                       value={evoInstance}
                       onChange={e => setEvoInstance(e.target.value)}
                       placeholder="intermidia"
                     />
-                    <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>Usada para notificaÃ§Ãµes de vendas e grupos internos.</p>
+                    <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>Usada para notificações de vendas e grupos internos.</p>
                   </div>
                   <div>
                     <label className={`block text-xs mb-1.5 ${th.lbl}`}>API Key</label>
@@ -2296,12 +2296,12 @@ export default function Admin() {
                       className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                       value={evoApiKey}
                       onChange={e => setEvoApiKey(e.target.value)}
-                      placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                      placeholder="••••••••••••"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>InstÃ¢ncia â€” Envio de PDF TÃ©cnico</label>
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>Instância — Envio de PDF Técnico</label>
                   <input
                     className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                     value={evoPdfInstance}
@@ -2309,12 +2309,12 @@ export default function Admin() {
                     placeholder="aux adm"
                   />
                   <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
-                    InstÃ¢ncia usada para disparar os PDFs tÃ©cnicos ao cliente apÃ³s a venda. Se vazio, usa a instÃ¢ncia principal acima.
+                    Instância usada para disparar os PDFs técnicos ao cliente após a venda. Se vazio, usa a instância principal acima.
                   </p>
                 </div>
                 <div>
                   <label className={`block text-xs mb-1.5 ${th.lbl}`}>
-                    NÃºmero / Grupo de destino
+                    Número / Grupo de destino
                   </label>
                   <input
                     className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
@@ -2323,13 +2323,13 @@ export default function Admin() {
                     placeholder="5543999999999 ou ID do grupo"
                   />
                   <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
-                    Para nÃºmero individual use o formato: 55 + DDD + nÃºmero (ex: 5543999990000).
+                    Para número individual use o formato: 55 + DDD + número (ex: 5543999990000).
                     Para grupos, use o ID do grupo com @g.us (ex: 120363XXXXXX@g.us).
                   </p>
                 </div>
                 <div>
                   <label className={`block text-xs mb-1.5 ${th.lbl}`}>
-                    NÃºmero do Financeiro (lembrete semanal)
+                    Número do Financeiro (lembrete semanal)
                   </label>
                   <input
                     className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
@@ -2338,7 +2338,7 @@ export default function Admin() {
                     placeholder="5543999990000"
                   />
                   <p className={`mt-1.5 text-xs ${th.sectionDesc}`}>
-                    Toda segunda-feira Ã s 08:30 serÃ¡ enviado um lembrete com os contratos pendentes de assinatura.
+                    Toda segunda-feira às 08:30 será enviado um lembrete com os contratos pendentes de assinatura.
                   </p>
                 </div>
                 <button
@@ -2347,7 +2347,7 @@ export default function Admin() {
                   className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 transition-colors ${isDark ? 'border-brand-orange/40 bg-brand-orange/15 text-brand-orange hover:bg-brand-orange/25' : 'border-[#E85A1A] bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white hover:from-[#E85A1A] hover:to-[#C94A1A] shadow-sm shadow-[#FE5C2B]/25'}`}
                 >
                   {evoSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                  {evoSaving ? 'Salvando...' : 'Salvar configuraÃ§Ã£o'}
+                  {evoSaving ? 'Salvando...' : 'Salvar configuração'}
                 </button>
                 <button
                   type="button"
@@ -2360,7 +2360,7 @@ export default function Admin() {
                 </button>
                 {evoTestMsg && (
                   <p className={`text-xs mt-2 px-3 py-2 rounded-lg ${
-                    evoTestMsg.startsWith('âœ“')
+                    evoTestMsg.startsWith('✓')
                       ? `text-green-300 bg-green-500/10 border border-green-500/20`
                       : `text-red-300 bg-red-500/10 border border-red-500/20`
                   }`}>
@@ -2369,21 +2369,21 @@ export default function Admin() {
                 )}
               </form>
 
-              {/* â”€â”€ Teste de envio de PDF tÃ©cnico â”€â”€ */}
+              {/* ── Teste de envio de PDF técnico ── */}
               <div className={`mt-6 pt-6 border-t ${isDark ? 'border-white/8' : 'border-neutral-200'}`}>
                 <h4 className={`text-xs font-semibold uppercase tracking-wide mb-1 ${th.sectionTitle}`}>
-                  Testar envio de PDF tÃ©cnico
+                  Testar envio de PDF técnico
                 </h4>
                 <p className={`text-xs mb-4 ${th.sectionDesc}`}>
-                  Gera os PDFs tÃ©cnicos com os primeiros pontos cadastrados e envia para o nÃºmero informado.
-                  NÃ£o registra venda nem notifica o grupo interno.
+                  Gera os PDFs técnicos com os primeiros pontos cadastrados e envia para o número informado.
+                  Não registra venda nem notifica o grupo interno.
                 </p>
                 <div className="flex gap-2 max-w-lg">
                   <input
                     type="tel"
                     value={pdfTestPhone}
                     onChange={e => setPdfTestPhone(e.target.value)}
-                    placeholder="5543999999999 (DDI+DDD+nÃºmero)"
+                    placeholder="5543999999999 (DDI+DDD+número)"
                     className={`flex-1 px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
                   />
                   <button
@@ -2401,11 +2401,11 @@ export default function Admin() {
                   <div className={`mt-3 rounded-xl p-3 text-xs font-mono space-y-1 max-w-lg ${isDark ? 'bg-black/30 border border-white/8' : 'bg-neutral-50 border border-neutral-200'}`}>
                     {pdfTestLog.map((line, i) => (
                       <div key={i} className={line.startsWith('ERRO') ? 'text-red-400' : isDark ? 'text-green-400' : 'text-green-700'}>
-                        {line.startsWith('ERRO') ? 'âœ—' : 'âœ“'} {line}
+                        {line.startsWith('ERRO') ? '✗' : '✓'} {line}
                       </div>
                     ))}
                     {pdfTestError && (
-                      <div className="text-red-400">âœ— {pdfTestError}</div>
+                      <div className="text-red-400">✗ {pdfTestError}</div>
                     )}
                   </div>
                 )}
@@ -2466,17 +2466,17 @@ export default function Admin() {
                   {form.tipo === ELEVADOR_TIPO ? (
                     <FormSelect label="Categoria do Elevador" value={form.elevador_categoria || 'Comercial'} onChange={v => updateField('elevador_categoria', v)} options={ELEVADOR_CATEGORIAS} />
                   ) : null}
-                  <FormSelect label="PÃºblico" value={form.publico} onChange={v => updateField('publico', v)} options={PUBLICOS} />
+                  <FormSelect label="Público" value={form.publico} onChange={v => updateField('publico', v)} options={PUBLICOS} />
                   <FormSelect label="Tipo de fluxo" value={form.tipo_fluxo} onChange={v => updateField('tipo_fluxo', v)} options={['pessoas', 'veiculos']} />
                   <div className="md:col-span-2">
-                    <label className="block text-xs text-brand-gray-400 mb-1.5">EndereÃ§o</label>
+                    <label className="block text-xs text-brand-gray-400 mb-1.5">Endereço</label>
                     <div className="flex gap-2">
                       <input
                         type="text"
                         value={form.endereco}
                         onChange={e => updateField('endereco', e.target.value)}
                         className={`flex-1 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-purple/50 ${th.inp}`}
-                        placeholder="Ex: Av. HigienÃ³polis, 1234, Londrina"
+                        placeholder="Ex: Av. Higienópolis, 1234, Londrina"
                       />
                       <button
                         type="button"
@@ -2505,12 +2505,12 @@ export default function Admin() {
                   <FormField label="Latitude" value={form.lat} onChange={v => updateField('lat', v)} type="number" step="any" />
                   <FormField label="Longitude" value={form.lng} onChange={v => updateField('lng', v)} type="number" step="any" />
                   <div className="md:col-span-2">
-                    <label className={`block text-xs mb-1.5 ${th.lbl}`}>HorÃ¡rio</label>
+                    <label className={`block text-xs mb-1.5 ${th.lbl}`}>Horário</label>
                     <textarea
                       value={form.horario}
                       onChange={e => updateField('horario', e.target.value)}
                       rows={2}
-                      placeholder="Ex: 09h Ã s 21h de sexta a terÃ§a-feira - Ã€s quintas-feiras, o horÃ¡rio Ã© reduzido, iniciando Ã s 14h e encerrando Ã s 21h"
+                      placeholder="Ex: 09h às 21h de sexta a terça-feira - Às quintas-feiras, o horário é reduzido, iniciando às 14h e encerrando às 21h"
                       className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors resize-y ${th.inp}`}
                     />
                     {form.horario && (
@@ -2523,12 +2523,12 @@ export default function Admin() {
                     )}
                   </div>
                   <FormField label="Fluxo mensal" value={form.fluxo} onChange={v => updateField('fluxo', v)} type="number" />
-                  <FormField label="InserÃ§Ãµes mensais" value={form.insercoes} onChange={v => updateField('insercoes', v)} type="number" />
+                  <FormField label="Inserções mensais" value={form.insercoes} onChange={v => updateField('insercoes', v)} type="number" />
                   <FormField label="Tempo" value={form.tempo} onChange={v => updateField('tempo', v)} />
                   <FormField label="Looping" value={form.loop} onChange={v => updateField('loop', v)} />
-                  <FormField label="VeiculaÃ§Ã£o" value={form.veiculacao} onChange={v => updateField('veiculacao', v)} />
+                  <FormField label="Veiculação" value={form.veiculacao} onChange={v => updateField('veiculacao', v)} />
                   <FormField label="Telas" value={form.telas} onChange={v => updateField('telas', v)} type="number" />
-                  <FormField label="PreÃ§o (R$)" value={form.preco} onChange={v => updateField('preco', v)} type="number" step="0.01" />
+                  <FormField label="Preço (R$)" value={form.preco} onChange={v => updateField('preco', v)} type="number" step="0.01" />
                   <FormField label="Custo Operacional (R$)" value={form.custo_operacional} onChange={v => updateField('custo_operacional', v)} type="number" step="0.01" />
                   <FormField label="Arte largura (px)" value={form.arte_largura} onChange={v => updateField('arte_largura', v)} type="number" min="1" />
                   <FormField label="Arte altura (px)" value={form.arte_altura} onChange={v => updateField('arte_altura', v)} type="number" min="1" />
@@ -2548,7 +2548,7 @@ export default function Admin() {
                                 : isDark ? 'bg-white/5 text-brand-gray-500 border border-white/10' : 'bg-neutral-100 text-neutral-400 border border-neutral-200'
                             }`}
                           >
-                            <Check size={14} /> DisponÃ­vel
+                            <Check size={14} /> Disponível
                           </button>
                           <button
                             type="button"
@@ -2559,7 +2559,7 @@ export default function Admin() {
                                 : isDark ? 'bg-white/5 text-brand-gray-500 border border-white/10' : 'bg-neutral-100 text-neutral-400 border border-neutral-200'
                             }`}
                           >
-                            <X size={14} /> IndisponÃ­vel
+                            <X size={14} /> Indisponível
                           </button>
                         </div>
                       </div>
@@ -2568,7 +2568,7 @@ export default function Admin() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-brand-gray-400 mb-1.5">DescriÃ§Ã£o</label>
+                  <label className="block text-xs text-brand-gray-400 mb-1.5">Descrição</label>
                   <textarea
                     value={form.descricao}
                     onChange={e => updateField('descricao', e.target.value)}
@@ -2599,13 +2599,13 @@ export default function Admin() {
                   </div>
                 </div>
 
-                {/* Imagem 2 upload (Elevador â€” segunda foto) */}
+                {/* Imagem 2 upload (Elevador — segunda foto) */}
                 <div>
-                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>Imagem 2 <span className={th.sectionDesc}>(opcional â€” segunda foto para Elevador)</span></label>
+                  <label className={`block text-xs mb-1.5 ${th.lbl}`}>Imagem 2 <span className={th.sectionDesc}>(opcional — segunda foto para Elevador)</span></label>
                   <div className="flex items-center gap-4">
                     <label className={`flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm cursor-pointer transition-colors ${th.btnOutline}`}>
                       <Upload size={16} />
-                      {imagem2File ? imagem2File.name : 'Upload de 2Âª imagem'}
+                      {imagem2File ? imagem2File.name : 'Upload de 2ª imagem'}
                       <input
                         type="file"
                         accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
@@ -2643,7 +2643,7 @@ export default function Admin() {
                       </div>
                     </div>
                   ) : (
-                    <p className="mb-3 text-xs text-gray-500">A seleÃ§Ã£o da imagem do PDF aparece quando as duas imagens estiverem preenchidas.</p>
+                    <p className="mb-3 text-xs text-gray-500">A seleção da imagem do PDF aparece quando as duas imagens estiverem preenchidas.</p>
                   )}
 
                   <FocalPointSelector
@@ -2655,9 +2655,9 @@ export default function Admin() {
 
                 <section className={`rounded-xl border p-4 space-y-4 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-neutral-50'}`}>
                   <div>
-                    <h3 className="text-sm font-semibold">SimulaÃ§Ã£o do ponto</h3>
+                    <h3 className="text-sm font-semibold">Simulação do ponto</h3>
                     <p className="text-xs text-brand-gray-500 mt-1">
-                      Defina aqui apenas a Ã¡rea Ãºtil da tela. A arte da campanha serÃ¡ enviada no modal de proposta.
+                      Defina aqui apenas a área útil da tela. A arte da campanha será enviada no modal de proposta.
                     </p>
                   </div>
 
@@ -2665,7 +2665,7 @@ export default function Admin() {
                     <div className="space-y-3">
                       <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Faces do painel na simulaÃ§Ã£o</p>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Faces do painel na simulação</p>
                           <div className={`inline-flex rounded-lg border p-1 ${isDark ? 'border-white/10 bg-white/5' : 'border-neutral-200 bg-neutral-50'}`}>
                             <button
                               type="button"
@@ -2708,8 +2708,8 @@ export default function Admin() {
 
                         <p className="text-[11px] text-brand-gray-500">
                           {simulationFaceCount === 2
-                            ? 'Selecione as duas Ã¡reas da tela usando as abas Face 1 e Face 2. A simulaÃ§Ã£o aplicarÃ¡ a arte nas duas.'
-                            : 'Use 2 faces quando o painel tiver mais de uma Ã¡rea visÃ­vel para receber a mesma arte.'}
+                            ? 'Selecione as duas áreas da tela usando as abas Face 1 e Face 2. A simulação aplicará a arte nas duas.'
+                            : 'Use 2 faces quando o painel tiver mais de uma área visível para receber a mesma arte.'}
                         </p>
                       </div>
 
@@ -2723,17 +2723,17 @@ export default function Admin() {
                     </div>
                   ) : (
                     <div className="h-56 rounded-lg border border-dashed border-white/15 flex items-center justify-center text-xs text-brand-gray-500">
-                      Envie a imagem base para habilitar a marcaÃ§Ã£o da tela com o mouse
+                      Envie a imagem base para habilitar a marcação da tela com o mouse
                     </div>
                   )}
 
                   <p className="text-[11px] text-brand-gray-500">
-                    O preview final serÃ¡ gerado no modal de proposta com a arte da campanha selecionada.
+                    O preview final será gerado no modal de proposta com a arte da campanha selecionada.
                   </p>
 
                   <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Enquadramento padrÃ£o no Explorar</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Enquadramento padrão no Explorar</p>
                       <span className="text-[11px] text-brand-gray-500">Salvo junto do ponto</span>
                     </div>
 
@@ -2804,7 +2804,7 @@ export default function Admin() {
                         }}
                         className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-xs text-white transition-colors"
                       >
-                        Usar foco automÃ¡tico da tela marcada
+                        Usar foco automático da tela marcada
                       </button>
                       <button
                         type="button"
@@ -2866,7 +2866,7 @@ export default function Admin() {
                         </>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xs text-brand-gray-500">
-                          Envie a imagem base para prÃ©-visualizar o enquadramento
+                          Envie a imagem base para pré-visualizar o enquadramento
                         </div>
                       )}
                     </div>
@@ -2874,14 +2874,14 @@ export default function Admin() {
 
                   <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-3">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">ProporÃ§Ã£o da arte para este ponto</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-300">Proporção da arte para este ponto</p>
                       <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${isDark ? 'bg-brand-orange/15 text-brand-orange' : 'bg-orange-50 text-orange-700'}`}>
                         {artRatioText || 'Defina largura e altura'}
                       </span>
                     </div>
 
                     <div>
-                      <label className="block text-xs text-brand-gray-400 mb-1.5">Prompt automÃ¡tico para IA generativa</label>
+                      <label className="block text-xs text-brand-gray-400 mb-1.5">Prompt automático para IA generativa</label>
                       <textarea
                         value={autoArtPrompt}
                         readOnly
@@ -3061,8 +3061,8 @@ function EntornoAdminPanel({
     <section className={`mb-6 rounded-2xl border p-4 sm:p-5 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-white shadow-sm'}`}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className={`text-sm font-semibold uppercase tracking-wide ${isDark ? 'text-white' : 'text-neutral-900'}`}>AnÃ¡lise de entorno</h3>
-          <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Reprocessamento manual por segmento e cidade, com fila assÃ­ncrona e monitoramento de jobs.</p>
+          <h3 className={`text-sm font-semibold uppercase tracking-wide ${isDark ? 'text-white' : 'text-neutral-900'}`}>Análise de entorno</h3>
+          <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Reprocessamento manual por segmento e cidade, com fila assíncrona e monitoramento de jobs.</p>
         </div>
         <button
           type="button"
@@ -3120,11 +3120,11 @@ function EntornoAdminPanel({
           <p className={`font-semibold uppercase tracking-wide mb-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Provedores</p>
           {providers ? (
             <>
-              <p>Ordem: {Array.isArray(providers.providerOrder) ? providers.providerOrder.join(' â†’ ') : '-'}</p>
-              <p className="mt-1">DisponÃ­veis: {Object.entries(providers.availableProviders || {}).filter(([, ok]) => !!ok).map(([name]) => name).join(', ') || 'nenhum'}</p>
+              <p>Ordem: {Array.isArray(providers.providerOrder) ? providers.providerOrder.join(' → ') : '-'}</p>
+              <p className="mt-1">Disponíveis: {Object.entries(providers.availableProviders || {}).filter(([, ok]) => !!ok).map(([name]) => name).join(', ') || 'nenhum'}</p>
             </>
           ) : (
-            <p>Carregando configuraÃ§Ã£o...</p>
+            <p>Carregando configuração...</p>
           )}
         </div>
       </div>
@@ -3142,8 +3142,8 @@ function EntornoAdminPanel({
         <div className={`mt-3 rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-black/20 text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
           <p className={`font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Job atual #{currentJob.id}</p>
           <p className="mt-1">Status: <span className={processing ? 'text-brand-orange' : currentStatus === 'failed' ? 'text-red-300' : 'text-green-300'}>{currentJob.status}</span></p>
-          <p className="mt-1">Processados: {currentJob.processed_points || 0}/{currentJob.total_points || 0} â€¢ Erros: {currentJob.error_count || 0}</p>
-          {currentJob.last_error && <p className="mt-1 text-red-300">Ãšltimo erro: {currentJob.last_error}</p>}
+          <p className="mt-1">Processados: {currentJob.processed_points || 0}/{currentJob.total_points || 0} • Erros: {currentJob.error_count || 0}</p>
+          {currentJob.last_error && <p className="mt-1 text-red-300">Último erro: {currentJob.last_error}</p>}
         </div>
       )}
 
@@ -3199,8 +3199,8 @@ function UsersAdminPanel({
     <section className={`rounded-2xl border p-4 sm:p-5 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-white shadow-sm'}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className={`text-sm font-semibold uppercase tracking-wide ${isDark ? 'text-white' : 'text-neutral-900'}`}>Cadastro de usuÃ¡rios admin</h3>
-          <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Gerencie quem pode acessar o painel administrativo e defina permissÃµes.</p>
+          <h3 className={`text-sm font-semibold uppercase tracking-wide ${isDark ? 'text-white' : 'text-neutral-900'}`}>Cadastro de usuários admin</h3>
+          <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Gerencie quem pode acessar o painel administrativo e defina permissões.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -3209,7 +3209,7 @@ function UsersAdminPanel({
             className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold ${isDark ? 'border-[#E8591A]/40 bg-[#E8591A]/15 text-[#E8591A] hover:bg-[#E8591A]/25' : 'border-[#E85A1A] bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white hover:from-[#E85A1A] hover:to-[#C94A1A] shadow-sm shadow-[#FE5C2B]/25'}`}
           >
             <UserPlus size={15} />
-            Adicionar UsuÃ¡rio
+            Adicionar Usuário
           </button>
           <button
             type="button"
@@ -3230,20 +3230,20 @@ function UsersAdminPanel({
             <tr className={`text-left ${isDark ? 'bg-white/[0.03] text-brand-gray-400' : 'bg-neutral-50 text-neutral-500'}`}>
               <th className="px-3 py-2">Foto</th>
               <th className="px-3 py-2">Nome</th>
-              <th className="px-3 py-2">UsuÃ¡rio</th>
+              <th className="px-3 py-2">Usuário</th>
               <th className="px-3 py-2">Contato</th>
               <th className="px-3 py-2">Role</th>
-              <th className="px-3 py-2 text-right">AÃ§Ãµes</th>
+              <th className="px-3 py-2 text-right">Ações</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className={`px-3 py-4 text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Carregando usuÃ¡rios...</td>
+                <td colSpan={6} className={`px-3 py-4 text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Carregando usuários...</td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={6} className={`px-3 py-4 text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Nenhum usuÃ¡rio cadastrado.</td>
+                <td colSpan={6} className={`px-3 py-4 text-center ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Nenhum usuário cadastrado.</td>
               </tr>
             ) : users.map((user) => (
               <tr key={user.id} className={`border-t ${isDark ? 'border-white/5 text-brand-gray-300' : 'border-neutral-100 text-neutral-600'}`}>
@@ -3304,11 +3304,11 @@ function UsersAdminPanel({
       </div>
 
       <div className={`mt-4 p-4 rounded-xl text-xs ${isDark ? 'bg-brand-orange/5 border border-brand-orange/20 text-brand-gray-300' : 'bg-orange-50 border border-orange-200 text-neutral-600'}`}>
-        <p><strong>PermissÃµes por Role:</strong></p>
+        <p><strong>Permissões por Role:</strong></p>
         <ul className="list-disc list-inside mt-2 space-y-1">
           <li><strong>Admin:</strong> Acesso total ao painel administrativo</li>
-          <li><strong>Gerente Comercial:</strong> Pode visualizar e aprovar propostas que excedem lucro mÃ­nimo</li>
-          <li><strong>Vendedor:</strong> Pode criar propostas, mas propostas precisam de aprovaÃ§Ã£o se excederem limite de lucro</li>
+          <li><strong>Gerente Comercial:</strong> Pode visualizar e aprovar propostas que excedem lucro mínimo</li>
+          <li><strong>Vendedor:</strong> Pode criar propostas, mas propostas precisam de aprovação se excederem limite de lucro</li>
         </ul>
       </div>
     </section>
@@ -3363,23 +3363,23 @@ function WelcomePopup({ data, isDark, onClose, onGoToGestao }) {
   let frase;
   let emoji;
   if (meta <= 0) {
-    frase = 'A meta mensal ainda nÃ£o foi cadastrada â€” que tal jÃ¡ comeÃ§ar faturando?';
-    emoji = 'ðŸš€';
+    frase = 'A meta mensal ainda não foi cadastrada — que tal já começar faturando?';
+    emoji = '🚀';
   } else if (pct >= 100) {
     frase = `Meta batida: ${pct}% conquistados! Vamos passar dos 120%?`;
-    emoji = 'ðŸ†';
+    emoji = '🏆';
   } else if (pct >= 75) {
-    frase = `VocÃª jÃ¡ estÃ¡ com ${pct}% da meta. Falta pouco, bora fechar!`;
-    emoji = 'ðŸ”¥';
+    frase = `Você já está com ${pct}% da meta. Falta pouco, bora fechar!`;
+    emoji = '🔥';
   } else if (pct >= 40) {
-    frase = `A meta mensal estÃ¡ ${pct}% concluÃ­da. Ritmo bom, bora acelerar!`;
-    emoji = 'âš¡';
+    frase = `A meta mensal está ${pct}% concluída. Ritmo bom, bora acelerar!`;
+    emoji = '⚡';
   } else if (pct > 0) {
-    frase = `A meta mensal estÃ¡ ${pct}% concluÃ­da. Bora vender, ${primeiroNome}!`;
-    emoji = 'ðŸ’ª';
+    frase = `A meta mensal está ${pct}% concluída. Bora vender, ${primeiroNome}!`;
+    emoji = '💪';
   } else {
-    frase = `Meta mensal zerada por enquanto. Bora abrir o mÃªs com chave de ouro!`;
-    emoji = 'âœ¨';
+    frase = `Meta mensal zerada por enquanto. Bora abrir o mês com chave de ouro!`;
+    emoji = '✨';
   }
 
   return (
@@ -3434,7 +3434,7 @@ function WelcomePopup({ data, isDark, onClose, onGoToGestao }) {
           {meta > 0 && (
             <div className="mt-5">
               <div className="flex justify-between items-baseline mb-1.5">
-                <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Progresso do mÃªs</span>
+                <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Progresso do mês</span>
                 <span className={`text-lg font-bold ${pct >= 100 ? 'text-green-500' : isDark ? 'text-white' : 'text-[#C94A1A]'}`}>{pct}%</span>
               </div>
               <div className={`h-2.5 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-white'}`}>
@@ -3458,7 +3458,7 @@ function WelcomePopup({ data, isDark, onClose, onGoToGestao }) {
               onClick={onGoToGestao}
               className="flex-1 rounded-xl bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] py-2.5 px-4 text-sm font-semibold text-white shadow-lg shadow-[#FE5C2B]/25 transition-all hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]"
             >
-              Ir para GestÃ£o Comercial
+              Ir para Gestão Comercial
             </button>
             <button
               type="button"
