@@ -4910,7 +4910,7 @@ async function sendEvolutionDocument({ apiUrl, instance, apiKey, number, caption
 }
 
 function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantasia, cnpj, pontosNomes, pontosPrecos,
-  valorMensal, tipoValor, cotaContratada, planoFidelidade, periodo, diaPagamento, dataPrimeiraParcela, diaPagamentoDia,
+  valorMensal, tipoValor, cotaContratada, planoFidelidade, periodo, diaPagamento, dataPrimeiraParcela, dataInicioVeiculacao, diaPagamentoDia,
   viaAgencia, agenciaNome, comissaoPct,
   trocaMaterial,
   responsavelNome, responsavelWhatsapp, obs }) {
@@ -4950,6 +4950,7 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantas
   const financeiro = [
     valorMensal ? `💰 Valor mensal: *R$ ${valorMensal}*${tipoValor ? ` _(${tipoValor})_` : ''}` : null,
     periodo     ? `📅 Período: *${periodo}*` : null,
+    dataInicioVeiculacao ? `📺 Data de início da veiculação: *${dataInicioVeiculacao}*` : null,
     dataPrimeiraParcela ? `📆 Data da 1ª parcela: *${dataPrimeiraParcela}*` : null,
     diaPagamentoDia ? `📆 Dia de pagamento: *Dia ${diaPagamentoDia} de cada mês*` : (diaPagamento ? `📆 Dia de pagamento: *dia ${diaPagamento}*` : null),
     cotaContratada ? `⏱️ Cota contratada: *${cotaContratada}*` : null,
@@ -5163,6 +5164,7 @@ const VENDA_DRAFT_FORM_FIELDS = [
   'periodo_inicio',
   'periodo_fim',
   'data_primeira_parcela',
+  'data_inicio_veiculacao',
   'dia_pagamento_dia',
   'responsavel_nome',
   'responsavel_whatsapp',
@@ -5248,6 +5250,7 @@ app.post(
         periodo_fim,
         dia_pagamento,
         data_primeira_parcela,
+        data_inicio_veiculacao,
         dia_pagamento_dia,
         responsavel_nome,
         responsavel_whatsapp,
@@ -5337,6 +5340,7 @@ app.post(
             periodo,
             diaPagamento: dia_pagamento || '',
             dataPrimeiraParcela: data_primeira_parcela || '',
+            dataInicioVeiculacao: data_inicio_veiculacao || '',
             diaPagamentoDia: dia_pagamento_dia || '',
             viaAgencia: via_agencia === 'true' || via_agencia === true,
             agenciaNome: agencia_nome || '',

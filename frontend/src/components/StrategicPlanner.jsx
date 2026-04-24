@@ -193,7 +193,7 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
     const pop = formatPopulacaoCompacta(cityContext.populacao);
     const pib = formatMoedaSemCentavos(cityContext.pibPerCapita);
     if (!cityContext.cityName || !pop || !pib) return '';
-    return `${cityContext.cityName} · População: ${pop} · PIB per capita: ${pib}`;
+    return `${cityContext.cityName} Â· PopulaÃ§Ã£o: ${pop} Â· PIB per capita: ${pib}`;
   }, [cityContext]);
 
   return (
@@ -209,7 +209,7 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
 
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-3">
           <CustomSelect isDark={isDark} label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS} />
-          <CustomSelect isDark={isDark} label="Praça" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={cidades} multiple placeholder="Selecionar uma ou mais praças" />
+          <CustomSelect isDark={isDark} label="PraÃ§a" value={form.cidade} onChange={(v) => setForm((s) => ({ ...s, cidade: v }))} options={cidades} multiple placeholder="Selecionar uma ou mais praÃ§as" />
           <div>
             <label className={`text-[11px] uppercase tracking-wide font-semibold ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Investimento mensal</label>
             <input
@@ -228,14 +228,14 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
           onClick={() => setShowAdvanced((prev) => !prev)}
           className={`mb-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-400 hover:text-white' : 'text-neutral-600 hover:text-neutral-900'}`}
         >
-          <span>{showAdvanced ? 'Ocultar opções avançadas' : 'Personalizar mais'}</span>
+          <span>{showAdvanced ? 'Ocultar opÃ§Ãµes avanÃ§adas' : 'Personalizar mais'}</span>
         </button>
 
         {showAdvanced && (
           <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
             <CustomSelect isDark={isDark} label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} allowCustom customPlaceholder="Digite um objetivo personalizado" />
-            <CustomSelect isDark={isDark} label="Público" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={publicos} multiple placeholder="Selecionar um ou mais públicos" />
-            <CustomSelect isDark={isDark} label="Perfil do público" value={form.audienceTags} onChange={(v) => setForm((s) => ({ ...s, audienceTags: v }))} options={audienceTagOptions} multiple placeholder="Selecionar interesses" />
+            <CustomSelect isDark={isDark} label="PÃºblico" value={form.publico} onChange={(v) => setForm((s) => ({ ...s, publico: v }))} options={publicos} multiple placeholder="Selecionar um ou mais pÃºblicos" />
+            <CustomSelect isDark={isDark} label="Perfil do pÃºblico" value={form.audienceTags} onChange={(v) => setForm((s) => ({ ...s, audienceTags: v }))} options={audienceTagOptions} multiple placeholder="Selecionar interesses" />
             <CustomSelect isDark={isDark} label="Disponibilidade" value={form.availabilityPreference} onChange={(v) => setForm((s) => ({ ...s, availabilityPreference: v }))} options={availabilityOptions} />
           </div>
         )}
@@ -257,26 +257,26 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
             <p className={`text-sm mb-3 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>{suggestion.justificativa}</p>
             <div className={`mb-4 rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-400' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
               <div className="flex flex-wrap items-center gap-2">
-                <span className={`font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>Inteligência regional</span>
+                <span className={`font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>InteligÃªncia regional</span>
                 <button
                   type="button"
                   onClick={() => setEntornoRefreshKey((current) => current + 1)}
                   disabled={entorno.loading}
-                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold ${isDark ? 'border-brand-orange/30 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'} disabled:opacity-50`}
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold ${isDark ? 'border-brand-orange/30 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-[#E85A1A] bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white hover:from-[#E85A1A] hover:to-[#C94A1A] shadow-sm shadow-[#FE5C2B]/25'} disabled:opacity-50`}
                 >
-                  Atualizar análise
+                  Atualizar anÃ¡lise
                 </button>
                 {entorno.loading ? (
                   <span className="inline-flex items-center gap-1 text-brand-orange">
                     <Loader2 size={12} className="animate-spin" />
-                    Atualizando recomendações
+                    Atualizando recomendaÃ§Ãµes
                   </span>
                 ) : null}
               </div>
               <p className="mt-1">
-                As sugestões já consideram fluxo e potencial da região para evitar pontos redundantes e melhorar o alcance da campanha.
+                As sugestÃµes jÃ¡ consideram fluxo e potencial da regiÃ£o para evitar pontos redundantes e melhorar o alcance da campanha.
               </p>
-              {entorno.error && <p className="mt-1 text-red-300">Não foi possível atualizar a análise agora. Você ainda pode montar o plano normalmente.</p>}
+              {entorno.error && <p className="mt-1 text-red-300">NÃ£o foi possÃ­vel atualizar a anÃ¡lise agora. VocÃª ainda pode montar o plano normalmente.</p>}
             </div>
             <div className="flex flex-wrap gap-2.5 mb-1">
               {suggestion.pontos.slice(0, 8).map((p) => (
@@ -302,7 +302,7 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
 
       <div className={`rounded-xl p-4 ${isDark ? 'bg-black/30' : 'bg-neutral-100 border border-neutral-200'}`}>
         <div className="mb-3">
-          <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8591A]">ETAPA 2 — Resumo da seleção</div>
+          <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8591A]">ETAPA 2 â€” Resumo da seleÃ§Ã£o</div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 text-xs">
           <Metric label="Pontos" value={totals.quantidade} isDark={isDark} />
@@ -310,13 +310,13 @@ export default function StrategicPlanner({ pontos = [], publicos = [], cidades =
           <Metric label="Fluxo Total" value={new Intl.NumberFormat('pt-BR').format(totals.fluxoTotal)} isDark={isDark} />
           <Metric label="CPM Estimado" value={`R$ ${totals.cpmEstimado.toFixed(2)}`} isDark={isDark} />
           <Metric label="Reach Efetivo" value={`${suggestion.reachFrequency?.effectiveReachPct?.toFixed?.(1) ?? '0.0'}%`} isDark={isDark} />
-          <Metric label="Freq Média" value={`${suggestion.reachFrequency?.avgFrequency?.toFixed?.(2) ?? '0.00'}x`} isDark={isDark} />
+          <Metric label="Freq MÃ©dia" value={`${suggestion.reachFrequency?.avgFrequency?.toFixed?.(2) ?? '0.00'}x`} isDark={isDark} />
           <Metric label="GRPs" value={String(suggestion.reachFrequency?.grps ?? 0)} isDark={isDark} />
           <Metric label="Uso de Budget" value={`${suggestion.optimizer?.budgetUsagePct ?? 0}%`} isDark={isDark} />
         </div>
         <div className={`mt-4 flex items-center gap-2 text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
           <Target size={13} className="text-brand-orange" />
-          Recomendação automática com base em objetivo, público, faixa de investimento e análise de entorno por segmento.
+          RecomendaÃ§Ã£o automÃ¡tica com base em objetivo, pÃºblico, faixa de investimento e anÃ¡lise de entorno por segmento.
         </div>
       </div>
     </section>

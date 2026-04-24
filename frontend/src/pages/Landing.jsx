@@ -710,17 +710,31 @@ export default function Landing() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 20 }}
               transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-              className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0a0a] p-8 text-center shadow-2xl"
+              className={`relative w-full max-w-lg rounded-2xl border p-8 text-center shadow-2xl ${
+                isDark
+                  ? 'border-white/10 bg-[#0a0a0a]'
+                  : 'border-[#EFE0D8] bg-white'
+              }`}
             >
               {/* Logo / brand */}
-              <div className="mx-auto mb-5 flex h-16 w-auto px-4 items-center justify-center rounded-2xl bg-brand-orange/10 border border-brand-orange/20 py-3">
+              <div className={`mx-auto mb-5 flex h-16 w-auto px-4 items-center justify-center rounded-2xl py-3 ${
+                isDark
+                  ? 'bg-brand-orange/10 border border-brand-orange/20'
+                  : 'bg-[#FFF0EA] border border-[#FFCFB8]'
+              }`}>
                 <img src={isDark ? '/logo.png' : '/logo-light.png'} alt="Intermidia" className="h-8 w-auto" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, Poppins, system-ui', letterSpacing: '-0.01em' }}>
+              <h2
+                className="text-2xl font-bold mb-1"
+                style={{ fontFamily: "'Poppins', system-ui, sans-serif", letterSpacing: '-0.02em', color: isDark ? '#fff' : '#1A1008' }}
+              >
                 Bem-vindo ao<br />
                 <span style={{ color: '#FF6B35' }}>Mídia Kit Digital</span>
               </h2>
-              <p className="text-sm text-brand-gray-400 mb-8 leading-relaxed max-w-sm mx-auto">
+              <p
+                className="text-sm mb-8 leading-relaxed max-w-sm mx-auto"
+                style={{ fontFamily: "'Poppins', system-ui, sans-serif", color: isDark ? 'rgba(255,255,255,0.55)' : '#7A6155' }}
+              >
                 Escolha o que deseja fazer para direcionarmos você à melhor experiência.
               </p>
 
@@ -729,14 +743,20 @@ export default function Landing() {
                 <button
                   type="button"
                   onClick={() => { sessionStorage.setItem('intermidia_welcome_seen', '1'); setShowWelcome(false); }}
-                  className="group flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-5 transition-all hover:border-brand-orange/40 hover:bg-brand-orange/[0.06]"
+                  className={`group flex flex-col items-center gap-3 rounded-xl border p-5 transition-all ${
+                    isDark
+                      ? 'border-white/10 bg-white/[0.03] hover:border-brand-orange/40 hover:bg-brand-orange/[0.06]'
+                      : 'border-[#EFE0D8] bg-white hover:border-[#FF6B35]/40 hover:bg-[#FFF8F3] shadow-sm hover:shadow'
+                  }`}
                 >
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-orange/10 group-hover:bg-brand-orange/20 transition-colors">
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${
+                    isDark ? 'bg-brand-orange/10 group-hover:bg-brand-orange/20' : 'bg-[#FFF0EA] group-hover:bg-[#FFCFB8]'
+                  }`}>
                     <i className="ri-presentation-line text-brand-orange" style={{ fontSize: 22 }} />
                   </div>
-                  <div>
-                    <div className="text-sm font-semibold text-white mb-1">Visualizar o Mídia Kit</div>
-                    <div className="text-[11px] text-brand-gray-500 leading-snug">
+                  <div style={{ fontFamily: "'Poppins', system-ui, sans-serif" }}>
+                    <div className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-[#1A1008]'}`}>Visualizar o Mídia Kit</div>
+                    <div className={`text-[11px] leading-snug ${isDark ? 'text-brand-gray-500' : 'text-[#7A6155]'}`}>
                       Conheça nosso inventário de pontos de impacto, formatos e praças disponíveis.
                     </div>
                   </div>
@@ -746,14 +766,20 @@ export default function Landing() {
                 <button
                   type="button"
                   onClick={() => { sessionStorage.setItem('intermidia_welcome_seen', '1'); setShowWelcome(false); navigate('/planejar'); }}
-                  className="group flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-5 transition-all hover:border-brand-orange/40 hover:bg-brand-orange/[0.06]"
+                  className={`group flex flex-col items-center gap-3 rounded-xl border p-5 transition-all ${
+                    isDark
+                      ? 'border-white/10 bg-white/[0.03] hover:border-brand-orange/40 hover:bg-brand-orange/[0.06]'
+                      : 'border-[#EFE0D8] bg-white hover:border-[#FF6B35]/40 hover:bg-[#FFF8F3] shadow-sm hover:shadow'
+                  }`}
                 >
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-orange/10 group-hover:bg-brand-orange/20 transition-colors">
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${
+                    isDark ? 'bg-brand-orange/10 group-hover:bg-brand-orange/20' : 'bg-[#FFF0EA] group-hover:bg-[#FFCFB8]'
+                  }`}>
                     <i className="ri-route-line text-brand-orange" style={{ fontSize: 22 }} />
                   </div>
-                  <div>
-                    <div className="text-sm font-semibold text-white mb-1">Planejar uma Campanha</div>
-                    <div className="text-[11px] text-brand-gray-500 leading-snug">
+                  <div style={{ fontFamily: "'Poppins', system-ui, sans-serif" }}>
+                    <div className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-[#1A1008]'}`}>Planejar uma Campanha</div>
+                    <div className={`text-[11px] leading-snug ${isDark ? 'text-brand-gray-500' : 'text-[#7A6155]'}`}>
                       Monte seu plano com recomendações inteligentes de pontos de impacto e audiência.
                     </div>
                   </div>
@@ -763,7 +789,8 @@ export default function Landing() {
               <button
                 type="button"
                 onClick={() => { sessionStorage.setItem('intermidia_welcome_seen', '1'); setShowWelcome(false); }}
-                className="mt-5 text-xs text-brand-gray-600 hover:text-brand-gray-400 transition-colors"
+                className={`mt-5 text-xs transition-colors ${isDark ? 'text-brand-gray-600 hover:text-brand-gray-400' : 'text-[#7A6155]/70 hover:text-[#7A6155]'}`}
+                style={{ fontFamily: "'Poppins', system-ui, sans-serif" }}
               >
                 Pular e continuar navegando
               </button>

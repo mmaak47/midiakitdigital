@@ -1,7 +1,8 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  BarChart3, RefreshCcw, ChevronLeft, ChevronRight, Calculator, X, TrendingUp
+  BarChart3, RefreshCcw, ChevronLeft, ChevronRight, Calculator, X, TrendingUp,
+  ArrowLeft, PlusCircle, ListChecks
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import GestaoUnificada from '../components/gestao/GestaoUnificada';
@@ -91,6 +92,45 @@ export default function GestaoComercial() {
               </p>
             </div>
           </div>
+
+          {/* Quick actions: back + shortcuts to Admin painel */}
+          {(currentUser.role === 'admin' || currentUser.role === 'diretor') && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate('/comercial')}
+                className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-all ${
+                  isDark
+                    ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
+                    : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 shadow-sm'
+                }`}
+                title="Voltar ao painel comercial"
+              >
+                <ArrowLeft size={16} />
+                Voltar ao painel
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/comercial?tab=vendas')}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] px-4 py-2 text-sm font-semibold text-white shadow-md shadow-[#FE5C2B]/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <PlusCircle size={16} />
+                Nova Venda
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/comercial?tab=historico_vendas')}
+                className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors ${
+                  isDark
+                    ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/15'
+                    : 'border-[#FFD9C6] bg-white text-[#C94A1A] hover:bg-[#FFF1EA]'
+                }`}
+              >
+                <ListChecks size={16} />
+                Vendas
+              </button>
+            </div>
+          )}
         </div>
 
         {welcome && (

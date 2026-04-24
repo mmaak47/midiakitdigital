@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search, Download, RefreshCcw, Loader2, Wifi, WifiOff, AlertTriangle, Layers, EyeOff, Eye, Printer, FileDown } from 'lucide-react';
 
 function authHeaders() {
@@ -426,7 +426,7 @@ export default function AuditoriaLoopTab({ isDark = true }) {
             {showJson ? 'Ocultar JSON' : 'Ver JSON'}
           </button>
           <button type="button" onClick={downloadJson}
-            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${isDark ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}>
+            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${isDark ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-[#E85A1A] bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white hover:from-[#E85A1A] hover:to-[#C94A1A] shadow-sm shadow-[#FE5C2B]/25'}`}>
             <Download size={13} /> JSON
           </button>
           <button type="button" onClick={printAudit}
@@ -434,7 +434,7 @@ export default function AuditoriaLoopTab({ isDark = true }) {
             <Printer size={13} /> Imprimir
           </button>
           <button type="button" onClick={downloadPdf} disabled={pdfBusy}
-            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold disabled:opacity-50 ${isDark ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}>
+            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold disabled:opacity-50 ${isDark ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-[#E85A1A] bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white hover:from-[#E85A1A] hover:to-[#C94A1A] shadow-sm shadow-[#FE5C2B]/25'}`}>
             {pdfBusy ? <Loader2 size={13} className="animate-spin" /> : <FileDown size={13} />}
             {pdfBusy ? 'Gerando...' : 'PDF'}
           </button>

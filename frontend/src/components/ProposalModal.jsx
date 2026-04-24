@@ -71,7 +71,7 @@ const WIZARD_STEPS = [
   { id: 1, label: 'Dados' },
   { id: 2, label: 'Desconto' },
   { id: 3, label: 'Arte' },
-  { id: 4, label: 'Revisão' },
+  { id: 4, label: 'RevisÃ£o' },
   { id: 5, label: 'Editar PDF' },
   { id: 6, label: 'Gerar' },
 ];
@@ -80,7 +80,7 @@ const STEP_TITLES = {
   1: 'Dados da proposta',
   2: 'Desconto comercial',
   3: 'Arte da campanha',
-  4: 'Revisão da proposta',
+  4: 'RevisÃ£o da proposta',
   5: 'Editar PDF final',
   6: 'Gerar proposta',
 };
@@ -108,7 +108,7 @@ function loadDraft() {
 function saveDraft(data) {
   try {
     localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(data));
-  } catch { /* quota exceeded — ignore */ }
+  } catch { /* quota exceeded â€” ignore */ }
 }
 
 export function clearProposalDraft() {
@@ -119,16 +119,16 @@ const PDF_POINT_EDITABLE_FIELDS = [
   { key: 'nome', label: 'Nome do ponto', type: 'text', placeholder: 'Nome exibido no PDF' },
   { key: 'cidade', label: 'Cidade', type: 'text', placeholder: 'Cidade exibida no PDF' },
   { key: 'tipo', label: 'Tipo', type: 'text', placeholder: 'Ex: Elevador, Painel LED' },
-  { key: 'endereco', label: 'Endereço', type: 'text', placeholder: 'Endereço para o cliente' },
-  { key: 'publico', label: 'Público', type: 'text', placeholder: 'Ex: A/B+, Clínicas' },
+  { key: 'endereco', label: 'EndereÃ§o', type: 'text', placeholder: 'EndereÃ§o para o cliente' },
+  { key: 'publico', label: 'PÃºblico', type: 'text', placeholder: 'Ex: A/B+, ClÃ­nicas' },
   { key: 'fluxo', label: 'Fluxo', type: 'number', placeholder: 'Ex: 120000' },
   { key: 'telas', label: 'Pontos de impacto', type: 'number', placeholder: 'Ex: 4' },
-  { key: 'insercoes', label: 'Inserções mín.', type: 'number', placeholder: 'Ex: 720' },
-  { key: 'tempo', label: 'Tempo da peça', type: 'text', placeholder: 'Ex: 15s' },
+  { key: 'insercoes', label: 'InserÃ§Ãµes mÃ­n.', type: 'number', placeholder: 'Ex: 720' },
+  { key: 'tempo', label: 'Tempo da peÃ§a', type: 'text', placeholder: 'Ex: 15s' },
   { key: 'loop', label: 'Loop', type: 'text', placeholder: 'Ex: 3 min' },
-  { key: 'veiculacao', label: 'Veiculação', type: 'text', placeholder: 'Ex: Vídeo sem áudio' },
-  { key: 'horario', label: 'Horário', type: 'text', placeholder: 'Ex: 6h às 23h' },
-  { key: 'preco', label: 'Investimento/mês', type: 'text', placeholder: 'Ex: 3250 ou 3.250,00' },
+  { key: 'veiculacao', label: 'VeiculaÃ§Ã£o', type: 'text', placeholder: 'Ex: VÃ­deo sem Ã¡udio' },
+  { key: 'horario', label: 'HorÃ¡rio', type: 'text', placeholder: 'Ex: 6h Ã s 23h' },
+  { key: 'preco', label: 'Investimento/mÃªs', type: 'text', placeholder: 'Ex: 3250 ou 3.250,00' },
   { key: 'lat', label: 'Latitude (opcional)', type: 'text', placeholder: 'Ex: -23.30452' },
   { key: 'lng', label: 'Longitude (opcional)', type: 'text', placeholder: 'Ex: -51.16958' }
 ];
@@ -147,7 +147,7 @@ function parseLocaleNumber(rawValue) {
 
 function normalizeStrategicTopicLine(value) {
   return String(value ?? '')
-    .replace(/^([\-*•]+|\d+[.)])\s*/u, '')
+    .replace(/^([\-*â€¢]+|\d+[.)])\s*/u, '')
     .trim();
 }
 
@@ -325,7 +325,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     try { sessionStorage.removeItem('admin_token'); } catch { /* ignore */ }
     setSessionExpiredModal({
       open: true,
-      message: message || 'Sua sessão expirou. Faça login novamente para continuar.'
+      message: message || 'Sua sessÃ£o expirou. FaÃ§a login novamente para continuar.'
     });
   };
 
@@ -468,7 +468,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     return () => URL.revokeObjectURL(nextUrl);
   }, [simulationArtFile]);
 
-  // Cleanup blob URLs only on unmount — NOT on every simulationResults change,
+  // Cleanup blob URLs only on unmount â€” NOT on every simulationResults change,
   // because revoking mid-batch would invalidate earlier blob URLs.
   const simulationResultsRef = useRef(simulationResults);
   simulationResultsRef.current = simulationResults;
@@ -548,14 +548,14 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         }
       } catch (err) {
         if (!active) return;
-        if (handleAuthExpired(err, 'Sua sessão expirou durante a análise de entorno. Faça login novamente para continuar gerando a proposta.')) {
-          setEntorno((prev) => ({ ...prev, loading: false, error: 'Sessão expirada.' }));
+        if (handleAuthExpired(err, 'Sua sessÃ£o expirou durante a anÃ¡lise de entorno. FaÃ§a login novamente para continuar gerando a proposta.')) {
+          setEntorno((prev) => ({ ...prev, loading: false, error: 'SessÃ£o expirada.' }));
           return;
         }
         setEntorno((prev) => ({
           ...prev,
           loading: false,
-          error: err.message || 'Erro ao consultar análise de entorno.'
+          error: err.message || 'Erro ao consultar anÃ¡lise de entorno.'
         }));
       }
     };
@@ -602,13 +602,13 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         });
       } catch (error) {
         if (!active) return;
-        if (handleAuthExpired(error, 'Sua sessão expirou durante a análise do endereço do cliente. Faça login novamente para continuar.')) {
+        if (handleAuthExpired(error, 'Sua sessÃ£o expirou durante a anÃ¡lise do endereÃ§o do cliente. FaÃ§a login novamente para continuar.')) {
           setClientAnalysis({
             loading: false,
             location: null,
             byPoint: {},
             rankedPoints: [],
-            error: 'Sessão expirada.'
+            error: 'SessÃ£o expirada.'
           });
           return;
         }
@@ -617,7 +617,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           location: null,
           byPoint: {},
           rankedPoints: [],
-          error: error.message || 'Falha ao analisar o endereço do cliente.'
+          error: error.message || 'Falha ao analisar o endereÃ§o do cliente.'
         });
       }
     }, 500);
@@ -661,7 +661,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
   const handleAddStrategicTopic = () => {
     const baseTopics = strategicTopicCustom.length ? strategicTopicCustom : strategicTopicSuggestions;
-    commitStrategicTopics([...baseTopics, 'Novo tópico estratégico']);
+    commitStrategicTopics([...baseTopics, 'Novo tÃ³pico estratÃ©gico']);
   };
 
   const handleRemoveStrategicTopic = (index) => {
@@ -722,7 +722,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         clientDistanceKm: clientMetrics?.distanceKm || null,
         clientProximityScore: clientMetrics?.proximityScore || null,
         proposalSimulationPreview: result?.previewUrl || persistedPreview,
-        proposalSimulationStatus: result?.status || (!simulationArtFile ? 'Envie a arte para gerar' : 'Gerar simulação pendente')
+        proposalSimulationStatus: result?.status || (!simulationArtFile ? 'Envie a arte para gerar' : 'Gerar simulaÃ§Ã£o pendente')
       };
     });
   }, [pricing.points, simulationResults, entorno.scoresByPoint, clientAnalysis.byPoint, simulationArtFile]);
@@ -795,20 +795,20 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     }
 
     const geradas = items.filter((item) => String(item.status || '').startsWith('Gerada')).length;
-    const semArea = items.filter((item) => item.status === 'Área da tela não cadastrada no admin').length;
-    const semImagem = items.filter((item) => item.status === 'Imagem base do ponto não cadastrada').length;
+    const semArea = items.filter((item) => item.status === 'Ãrea da tela nÃ£o cadastrada no admin').length;
+    const semImagem = items.filter((item) => item.status === 'Imagem base do ponto nÃ£o cadastrada').length;
     const falhas = items.filter((item) => item.status === 'Falha ao gerar').length;
 
     return [
-      `${geradas} simulação${geradas === 1 ? '' : 'ões'} gerada${geradas === 1 ? '' : 's'}`,
-      semArea ? `${semArea} ponto${semArea === 1 ? '' : 's'} sem área cadastrada` : null,
+      `${geradas} simulaÃ§Ã£o${geradas === 1 ? '' : 'Ãµes'} gerada${geradas === 1 ? '' : 's'}`,
+      semArea ? `${semArea} ponto${semArea === 1 ? '' : 's'} sem Ã¡rea cadastrada` : null,
       semImagem ? `${semImagem} ponto${semImagem === 1 ? '' : 's'} sem imagem base` : null,
       falhas ? `${falhas} falha${falhas === 1 ? '' : 's'} de processamento` : null,
       `brilho ${simulationSettings.brightness.toFixed(2)}`,
       `reflexo ${simulationSettings.reflection.toFixed(2)}`,
       `pixel LED ${simulationSettings.ledPixelIntensity.toFixed(2)}`,
-      `mídia ${mediaParams.mediaMode}`
-    ].filter(Boolean).join(' · ');
+      `mÃ­dia ${mediaParams.mediaMode}`
+    ].filter(Boolean).join(' Â· ');
   }, [simulationArtFile, simulationResults, simulationSettings, mediaParams]);
 
   const previewablePoints = useMemo(() => {
@@ -835,7 +835,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
   const handleGenerate = () => {
     if (!proposalPointsForPdf.length) {
-      setSimulationError('Inclua pelo menos 1 ponto para continuar para a geração do PDF.');
+      setSimulationError('Inclua pelo menos 1 ponto para continuar para a geraÃ§Ã£o do PDF.');
       return;
     }
     setWizardStep(6);
@@ -848,7 +848,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       setPromptCopied(true);
       window.setTimeout(() => setPromptCopied(false), 1800);
     } catch {
-      // Fallback: seleciona o texto no textarea visível
+      // Fallback: seleciona o texto no textarea visÃ­vel
       const textarea = promptTextareaRef.current;
       if (textarea) {
         textarea.focus();
@@ -875,7 +875,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       const pointsWithEntorno = await ensurePointsWithEntorno(proposalPointsForPdf);
       const strategicTopics = String(form.strategicTopics || '')
         .split(/\n+/)
-        .map((line) => line.replace(/^[-•\d.)\s]+/, '').trim())
+        .map((line) => line.replace(/^[-â€¢\d.)\s]+/, '').trim())
         .filter(Boolean);
 
       if (format === 'mobile') {
@@ -995,7 +995,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       ].filter(Boolean);
       setForm((state) => ({ ...state, strategicTopics: stringifyStrategicTopics(lines) }));
     } catch (err) {
-      if (handleAuthExpired(err, 'Sua sessão expirou antes de gerar os argumentos comerciais. Faça login novamente para evitar perda de créditos/tokens.')) {
+      if (handleAuthExpired(err, 'Sua sessÃ£o expirou antes de gerar os argumentos comerciais. FaÃ§a login novamente para evitar perda de crÃ©ditos/tokens.')) {
         return;
       }
       console.error('[ProposalModal] AI text error:', err.message);
@@ -1005,7 +1005,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     }
   };
 
-  // FEAT-1: Criar link público da proposta
+  // FEAT-1: Criar link pÃºblico da proposta
   const handleCompartilhar = async () => {
     setShareBusy(true);
     try {
@@ -1047,7 +1047,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       const result = await criarPropostaPublica(proposalData, 7);
       setShareModal(result);
     } catch (err) {
-      if (handleAuthExpired(err, 'Sua sessão expirou antes de compartilhar a proposta. Faça login novamente para gerar o link público/PDF com segurança.')) {
+      if (handleAuthExpired(err, 'Sua sessÃ£o expirou antes de compartilhar a proposta. FaÃ§a login novamente para gerar o link pÃºblico/PDF com seguranÃ§a.')) {
         return;
       }
       alert(err.message);
@@ -1125,7 +1125,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     ctx.fillText(badgeText, W / 2, badgeY + badgeH / 2);
 
     // Client name
-    const clientName = form.clientName || 'Proposta de Mídia';
+    const clientName = form.clientName || 'Proposta de MÃ­dia';
     ctx.fillStyle = '#111111';
     ctx.font = 'bold 28px "Poppins", system-ui, sans-serif';
     ctx.textAlign = 'center';
@@ -1161,7 +1161,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     ctx.font = '11px "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    const displayUrl = shareModal.url.length > 60 ? shareModal.url.slice(0, 60) + '…' : shareModal.url;
+    const displayUrl = shareModal.url.length > 60 ? shareModal.url.slice(0, 60) + 'â€¦' : shareModal.url;
     ctx.fillText(displayUrl, W / 2, 560);
 
     // Divider
@@ -1177,20 +1177,20 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     ctx.font = 'italic 18px "Poppins", Georgia, serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('"O mundo acontece lá fora."', W / 2, 630);
+    ctx.fillText('"O mundo acontece lÃ¡ fora."', W / 2, 630);
 
     // Expiry
     if (shareModal.expires_at) {
       const exp = new Date(shareModal.expires_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
       ctx.fillStyle = '#BBBBBB';
       ctx.font = '12px "Poppins", system-ui, sans-serif';
-      ctx.fillText(`Válido até ${exp}`, W / 2, 670);
+      ctx.fillText(`VÃ¡lido atÃ© ${exp}`, W / 2, 670);
     }
 
     // Footer
     ctx.fillStyle = '#CCCCCC';
     ctx.font = '10px "Poppins", system-ui, sans-serif';
-    ctx.fillText('Intermídia OOH + DOOH — Desde 2007', W / 2, H - 30);
+    ctx.fillText('IntermÃ­dia OOH + DOOH â€” Desde 2007', W / 2, H - 30);
 
     // Download
     const link = document.createElement('a');
@@ -1216,7 +1216,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       const cleanedClientAddress = String(form.clientAddress || '').trim();
 
       if (!exportClientCoords && cleanedClientAddress) {
-        setMapStatus('Localizando endereço do cliente...');
+        setMapStatus('Localizando endereÃ§o do cliente...');
         try {
           const geoResponse = await fetchClientAddressAnalysis({
             address: cleanedClientAddress,
@@ -1228,7 +1228,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           exportClientCoords = null;
         }
         if (!exportClientCoords) {
-          setSimulationError('Endereço do cliente não localizado — o mapa será gerado sem ele.');
+          setSimulationError('EndereÃ§o do cliente nÃ£o localizado â€” o mapa serÃ¡ gerado sem ele.');
         }
       }
 
@@ -1261,7 +1261,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
   const handleGenerateSimulations = async () => {
     if (!simulationArtUrl) {
-      setSimulationError('Selecione a arte da campanha para gerar as simulações.');
+      setSimulationError('Selecione a arte da campanha para gerar as simulaÃ§Ãµes.');
       return;
     }
 
@@ -1270,16 +1270,16 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
     const nextEntries = await Promise.all(proposalSourcePoints.map(async (point) => {
       if (!point.simulacao_tela) {
-        return [point.id, { status: 'Área da tela não cadastrada no admin', previewUrl: '' }];
+        return [point.id, { status: 'Ãrea da tela nÃ£o cadastrada no admin', previewUrl: '' }];
       }
       if (!point.imagem) {
-        return [point.id, { status: 'Imagem base do ponto não cadastrada', previewUrl: '' }];
+        return [point.id, { status: 'Imagem base do ponto nÃ£o cadastrada', previewUrl: '' }];
       }
 
       try {
         const config = parseSimulationConfig(point.simulacao_tela);
         if (!config?.corners) {
-          return [point.id, { status: 'Área da tela não cadastrada no admin', previewUrl: '' }];
+          return [point.id, { status: 'Ãrea da tela nÃ£o cadastrada no admin', previewUrl: '' }];
         }
         const result = await generateSimulationPreview({
           baseImageUrl: point.imagem,
@@ -1292,11 +1292,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         const persistedPreviewUrl = await persistSimulationPreview(result.blob, result.previewUrl);
         return [point.id, { status: 'Gerada', previewUrl: persistedPreviewUrl }];
       } catch (error) {
-        if (handleAuthExpired(error, 'Sua sessão expirou durante o upload da simulação. Faça login novamente para salvar os previews.')) {
+        if (handleAuthExpired(error, 'Sua sessÃ£o expirou durante o upload da simulaÃ§Ã£o. FaÃ§a login novamente para salvar os previews.')) {
           return [point.id, {
-            status: 'Sessão expirada durante upload da simulação',
+            status: 'SessÃ£o expirada durante upload da simulaÃ§Ã£o',
             previewUrl: '',
-            detail: error?.message || 'Sessão expirada'
+            detail: error?.message || 'SessÃ£o expirada'
           }];
         }
         return [point.id, {
@@ -1309,7 +1309,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
     const failed = nextEntries.find(([, value]) => value.status === 'Falha ao gerar');
     if (failed) {
-      setSimulationError(failed[1].detail || 'Uma ou mais simulações falharam.');
+      setSimulationError(failed[1].detail || 'Uma ou mais simulaÃ§Ãµes falharam.');
     }
 
     clearSimulationResults();
@@ -1321,7 +1321,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     console.log('[handleAiArteEscolhida] START pontoId=', pontoId, 'urlArte=', urlArte);
     const point = proposalSourcePoints.find((p) => String(p.id) === String(pontoId));
     if (!point || !urlArte) {
-      console.warn('[handleAiArteEscolhida] SKIP — point not found or no urlArte', { pontoId, foundPoint: !!point, urlArte });
+      console.warn('[handleAiArteEscolhida] SKIP â€” point not found or no urlArte', { pontoId, foundPoint: !!point, urlArte });
       return;
     }
 
@@ -1334,14 +1334,14 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     if (!point.simulacao_tela || !point.imagem) {
       console.warn('[handleAiArteEscolhida] SEM TELA/IMAGEM pontoId=', pontoId, { simulacao_tela: !!point.simulacao_tela, imagem: !!point.imagem });
       // When the point has no screen image (imagem), applying the arte as preview
-      // would replace the facade photo (imagem2) with the raw banner — wrong.
+      // would replace the facade photo (imagem2) with the raw banner â€” wrong.
       // Leave previewUrl empty so the system falls back to imagem2 naturally.
       setSimulationResults((current) => ({
         ...current,
         [point.id]: {
           status: !point.imagem
-            ? 'Arte IA gerada (ponto sem foto da tela — exibindo fachada)'
-            : 'Arte IA gerada (sem simulação: área da tela não cadastrada)',
+            ? 'Arte IA gerada (ponto sem foto da tela â€” exibindo fachada)'
+            : 'Arte IA gerada (sem simulaÃ§Ã£o: Ã¡rea da tela nÃ£o cadastrada)',
           previewUrl: '',
           geracaoId,
           variacao
@@ -1358,7 +1358,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         setSimulationResults((current) => ({
           ...current,
           [point.id]: {
-            status: 'Arte IA gerada (sem simulação: área não cadastrada)',
+            status: 'Arte IA gerada (sem simulaÃ§Ã£o: Ã¡rea nÃ£o cadastrada)',
             previewUrl: urlArte,
             geracaoId,
             variacao
@@ -1390,21 +1390,21 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         }
       }));
     } catch (error) {
-      if (handleAuthExpired(error, 'Sua sessão expirou durante o upload da simulação IA. Faça login novamente para salvar os previews.')) {
+      if (handleAuthExpired(error, 'Sua sessÃ£o expirou durante o upload da simulaÃ§Ã£o IA. FaÃ§a login novamente para salvar os previews.')) {
         return;
       }
       console.error('[handleAiArteEscolhida] ERROR pontoId=', pontoId, error?.message || error);
       setSimulationResults((current) => ({
         ...current,
         [point.id]: {
-          status: 'Arte IA gerada (falha na simulação)',
+          status: 'Arte IA gerada (falha na simulaÃ§Ã£o)',
           previewUrl: urlArte,
           detail: error?.message || 'Erro desconhecido',
           geracaoId,
           variacao
         }
       }));
-      setSimulationError(error?.message || 'Falha ao aplicar arte IA na simulação do ponto.');
+      setSimulationError(error?.message || 'Falha ao aplicar arte IA na simulaÃ§Ã£o do ponto.');
     }
   };
 
@@ -1435,7 +1435,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
             <X size={18} />
           </button>
 
-          {/* ── Header + Stepper ── */}
+          {/* â”€â”€ Header + Stepper â”€â”€ */}
           <div className="relative flex-shrink-0 p-6 md:px-8 md:pt-8 md:pb-0 space-y-5">
             <div className="flex flex-wrap items-start gap-4 pr-10">
               <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${isDark ? 'bg-brand-orange/15 border border-brand-orange/30 shadow-[0_8px_30px_rgba(254,92,43,0.2)]' : 'bg-orange-50 border border-orange-200'}`}>
@@ -1455,7 +1455,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
               </div>
             </div>
 
-            {/* ── Stepper ── */}
+            {/* â”€â”€ Stepper â”€â”€ */}
             <div className="flex items-center gap-1">
               {WIZARD_STEPS.map((ws, idx) => {
                 const done = wizardStep > ws.id;
@@ -1489,39 +1489,39 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
             </div>
           </div>
 
-          {/* ── Step content (scrollable) ── */}
+          {/* â”€â”€ Step content (scrollable) â”€â”€ */}
           <div className="relative flex-1 overflow-y-auto p-6 md:px-8 md:pb-4 space-y-6">
             <AnimatePresence mode="wait">
-              {/* ═══ STEP 1 — Dados da proposta ═══ */}
+              {/* â•â•â• STEP 1 â€” Dados da proposta â•â•â• */}
               {wizardStep === 1 && (
                 <motion.div key="step1" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
 
-                  {/* CARD 1 — Informações do cliente */}
-                  <Card isDark={isDark} title="Informações do cliente">
+                  {/* CARD 1 â€” InformaÃ§Ãµes do cliente */}
+                  <Card isDark={isDark} title="InformaÃ§Ãµes do cliente">
                     <div className="grid md:grid-cols-2 gap-3">
                       <Input isDark={isDark} label="Nome do cliente" value={form.clientName} onChange={(v) => setForm((s) => ({ ...s, clientName: v }))} />
-                      <Input isDark={isDark} label="Endereço do cliente" value={form.clientAddress} onChange={(v) => setForm((s) => ({ ...s, clientAddress: v }))} />
+                      <Input isDark={isDark} label="EndereÃ§o do cliente" value={form.clientAddress} onChange={(v) => setForm((s) => ({ ...s, clientAddress: v }))} />
                     </div>
                     <div className="grid md:grid-cols-2 gap-3">
-                      <Input isDark={isDark} label="Subtítulo da capa (opcional)" value={form.proposalSubtitle} onChange={(v) => setForm((s) => ({ ...s, proposalSubtitle: v }))} />
-                      <Input isDark={isDark} label="Duração do contrato (meses)" type="number" min="1" value={form.duracao_meses} onChange={(v) => setForm((s) => ({ ...s, duracao_meses: v }))} placeholder="Ex: 6, 12" />
+                      <Input isDark={isDark} label="SubtÃ­tulo da capa (opcional)" value={form.proposalSubtitle} onChange={(v) => setForm((s) => ({ ...s, proposalSubtitle: v }))} />
+                      <Input isDark={isDark} label="DuraÃ§Ã£o do contrato (meses)" type="number" min="1" value={form.duracao_meses} onChange={(v) => setForm((s) => ({ ...s, duracao_meses: v }))} placeholder="Ex: 6, 12" />
                     </div>
                   </Card>
 
-                  {/* CARD 2 — Configuração da campanha */}
-                  <Card isDark={isDark} title="Configuração da campanha">
+                  {/* CARD 2 â€” ConfiguraÃ§Ã£o da campanha */}
+                  <Card isDark={isDark} title="ConfiguraÃ§Ã£o da campanha">
                     <div className="grid md:grid-cols-2 gap-3">
-                      <CustomSelect isDark={isDark} label="Praças" value={form.selectedCities} onChange={(v) => setForm((s) => ({ ...s, selectedCities: v }))} options={availableCities} multiple placeholder="Todas as praças" />
+                      <CustomSelect isDark={isDark} label="PraÃ§as" value={form.selectedCities} onChange={(v) => setForm((s) => ({ ...s, selectedCities: v }))} options={availableCities} multiple placeholder="Todas as praÃ§as" />
                       <CustomSelect isDark={isDark} label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS.map((seg) => ({ value: seg, label: getSegmentDisplayName(seg) }))} allowCustom customPlaceholder="Segmento personalizado" />
                       <CustomSelect isDark={isDark} label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} allowCustom customPlaceholder="Objetivo personalizado" />
-                      <CustomSelect isDark={isDark} label="Públicos" value={form.publicos} onChange={(v) => setForm((s) => ({ ...s, publicos: v }))} options={availablePublicos} multiple placeholder="Públicos estratégicos" />
+                      <CustomSelect isDark={isDark} label="PÃºblicos" value={form.publicos} onChange={(v) => setForm((s) => ({ ...s, publicos: v }))} options={availablePublicos} multiple placeholder="PÃºblicos estratÃ©gicos" />
                     </div>
                   </Card>
 
-                  {/* CARD 3 — Estratégia da campanha */}
-                  <Card isDark={isDark} title="Estratégia da campanha">
+                  {/* CARD 3 â€” EstratÃ©gia da campanha */}
+                  <Card isDark={isDark} title="EstratÃ©gia da campanha">
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Esses tópicos aparecem na narrativa estratégica do PDF.</p>
+                      <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Esses tÃ³picos aparecem na narrativa estratÃ©gica do PDF.</p>
                       <button
                         type="button"
                         onClick={handleGerarTextoIA}
@@ -1545,21 +1545,21 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                             type="text"
                             value={topic}
                             onChange={(event) => handleStrategicTopicChange(index, event.target.value)}
-                            placeholder={`Tópico ${index + 1}`}
+                            placeholder={`TÃ³pico ${index + 1}`}
                             className={`min-w-0 flex-1 bg-transparent text-sm outline-none ${isDark ? 'text-brand-gray-200 placeholder:text-brand-gray-500' : 'text-neutral-800 placeholder:text-neutral-400'}`}
                           />
                           <button
                             type="button"
                             onClick={() => handleRemoveStrategicTopic(index)}
                             className={`mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors ${isDark ? 'text-brand-gray-400 hover:bg-white/10 hover:text-red-300' : 'text-neutral-400 hover:bg-neutral-100 hover:text-red-500'}`}
-                            title="Remover tópico"
+                            title="Remover tÃ³pico"
                           >
                             <Trash2 size={13} />
                           </button>
                         </div>
                       )) : (
                         <div className={`rounded-xl border px-3 py-2.5 text-sm ${isDark ? 'border-white/15 bg-white/[0.06] text-brand-gray-400' : 'border-neutral-200 bg-white text-neutral-500'}`}>
-                          Nenhum tópico disponível. Gere com IA ou adicione manualmente.
+                          Nenhum tÃ³pico disponÃ­vel. Gere com IA ou adicione manualmente.
                         </div>
                       )}
                     </div>
@@ -1571,7 +1571,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                         className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${isDark ? 'border-white/20 text-brand-gray-300 hover:border-brand-orange/45 hover:text-brand-orange' : 'border-neutral-300 text-neutral-600 hover:border-orange-300 hover:text-orange-700'}`}
                       >
                         <Plus size={12} />
-                        Adicionar tópico
+                        Adicionar tÃ³pico
                       </button>
                       {!usingAutoStrategicTopics && (
                         <button
@@ -1579,26 +1579,26 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                           onClick={handleResetStrategicTopics}
                           className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${isDark ? 'border-brand-orange/35 text-brand-orange hover:bg-brand-orange/10' : 'border-orange-300 text-orange-700 hover:bg-orange-50'}`}
                         >
-                          Usar sugestão automática
+                          Usar sugestÃ£o automÃ¡tica
                         </button>
                       )}
                     </div>
 
                     <p className={`text-[11px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
-                      {usingAutoStrategicTopics ? 'Modo automático ativo: os tópicos são derivados da estratégia da proposta.' : 'Modo manual ativo: os tópicos acima serão usados exatamente no PDF.'}
+                      {usingAutoStrategicTopics ? 'Modo automÃ¡tico ativo: os tÃ³picos sÃ£o derivados da estratÃ©gia da proposta.' : 'Modo manual ativo: os tÃ³picos acima serÃ£o usados exatamente no PDF.'}
                     </p>
                   </Card>
 
-                  {/* CARD 4 — Análise de entorno */}
-                  <Card isDark={isDark} title="Análise de entorno">
+                  {/* CARD 4 â€” AnÃ¡lise de entorno */}
+                  <Card isDark={isDark} title="AnÃ¡lise de entorno">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <ScopeButton isDark={isDark} active={analysisMode === 'segmento'} onClick={() => setAnalysisMode('segmento')}>Entorno padrão</ScopeButton>
+                      <ScopeButton isDark={isDark} active={analysisMode === 'segmento'} onClick={() => setAnalysisMode('segmento')}>Entorno padrÃ£o</ScopeButton>
                       <ScopeButton isDark={isDark} active={analysisMode === 'client-address'} onClick={() => setAnalysisMode('client-address')}>Entorno personalizado</ScopeButton>
                       <button
                         type="button"
                         onClick={handleRefreshEntorno}
                         disabled={entorno.loading}
-                        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium disabled:opacity-50 ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+                        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium disabled:opacity-50 ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-[#E85A1A] bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white hover:from-[#E85A1A] hover:to-[#C94A1A] shadow-sm shadow-[#FE5C2B]/25'}`}
                       >
                         {entorno.loading ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
                         {entorno.loading ? 'Atualizando...' : 'Atualizar agora'}
@@ -1608,8 +1608,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
                     {analysisMode === 'segmento' && (
                       <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
-                        Atualização manual · Score por segmento · Cache {(entorno.coverage * 100).toFixed(0)}%
-                        {entorno.updatedAt ? ` · ${new Date(entorno.updatedAt).toLocaleString('pt-BR')}` : ''}
+                        AtualizaÃ§Ã£o manual Â· Score por segmento Â· Cache {(entorno.coverage * 100).toFixed(0)}%
+                        {entorno.updatedAt ? ` Â· ${new Date(entorno.updatedAt).toLocaleString('pt-BR')}` : ''}
                       </p>
                     )}
 
@@ -1619,13 +1619,13 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                         {clientAnalysis.error && <p className="text-red-300">{clientAnalysis.error}</p>}
                         {!clientAnalysis.loading && !clientAnalysis.error && form.clientAddress.trim() && clientAnalysis.rankedPoints.length > 0 && (
                           <div className="space-y-1">
-                            <p className={`font-semibold uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Pontos mais próximos</p>
+                            <p className={`font-semibold uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Pontos mais prÃ³ximos</p>
                             {clientAnalysis.rankedPoints.slice(0, 3).map((pt) => (
-                              <p key={pt.id}>{pt.nome} · {pt.distanceKm.toFixed(1).replace('.', ',')} km</p>
+                              <p key={pt.id}>{pt.nome} Â· {pt.distanceKm.toFixed(1).replace('.', ',')} km</p>
                             ))}
                           </div>
                         )}
-                        {!form.clientAddress.trim() && <p>Preencha o endereço do cliente acima.</p>}
+                        {!form.clientAddress.trim() && <p>Preencha o endereÃ§o do cliente acima.</p>}
                       </div>
                     )}
                     {entorno.error && <p className="text-xs text-red-300">{entorno.error}</p>}
@@ -1633,17 +1633,17 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                 </motion.div>
               )}
 
-              {/* ═══ STEP 2 — Desconto comercial ═══ */}
+              {/* â•â•â• STEP 2 â€” Desconto comercial â•â•â• */}
               {wizardStep === 2 && (
                 <motion.div key="step2" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
                   <div className="grid lg:grid-cols-[1fr_340px] gap-5 items-start">
-                    {/* LEFT — Tipo de desconto */}
+                    {/* LEFT â€” Tipo de desconto */}
                     <Card isDark={isDark} title="Tipo de desconto">
                       <div className="flex flex-wrap gap-2">
                         {[
                           ['none', 'Sem desconto'],
                           ['total', 'No total da proposta'],
-                          ['specific', 'Em pontos específicos'],
+                          ['specific', 'Em pontos especÃ­ficos'],
                           ['individual', 'Individual por ponto']
                         ].map(([mode, label]) => (
                           <ScopeButton isDark={isDark} key={mode} active={discountConfig.mode === mode} onClick={() => setDiscountConfig((c) => ({ ...c, mode }))}>{label}</ScopeButton>
@@ -1702,7 +1702,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       )}
                     </Card>
 
-                    {/* RIGHT — Resumo financeiro */}
+                    {/* RIGHT â€” Resumo financeiro */}
                     <div className={`rounded-2xl border p-5 space-y-4 sticky top-0 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
                       <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Resumo financeiro</h3>
                       <div className="space-y-3">
@@ -1724,11 +1724,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                 </motion.div>
               )}
 
-              {/* ═══ STEP 3 — Arte da campanha ═══ */}
+              {/* â•â•â• STEP 3 â€” Arte da campanha â•â•â• */}
               {wizardStep === 3 && (
                 <motion.div key="step3" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
 
-                  {/* BLOCO 1 — Prompt da arte (colapsável) */}
+                  {/* BLOCO 1 â€” Prompt da arte (colapsÃ¡vel) */}
                   <Card isDark={isDark}>
                     <button type="button" onClick={() => setPromptExpanded(!promptExpanded)} className="w-full flex items-center justify-between gap-3">
                       <div className="text-left">
@@ -1745,7 +1745,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                         {imagePromptGroups.map((group, idx) => (
                           <div key={idx} className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
                             <p className={`text-[11px] uppercase tracking-wide font-semibold mb-2 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
-                              {group.width}x{group.height}{group.aspectRatio ? ` · ${group.aspectRatio}` : ''}
+                              {group.width}x{group.height}{group.aspectRatio ? ` Â· ${group.aspectRatio}` : ''}
                             </p>
                             <textarea ref={idx === 0 ? promptTextareaRef : undefined} value={group.prompt} readOnly rows={4} className={`w-full rounded-lg border px-3 py-2 text-xs outline-none ${isDark ? 'border-white/10 bg-white/5 text-brand-gray-200' : 'border-neutral-200 bg-white text-neutral-700'}`} />
                           </div>
@@ -1758,9 +1758,9 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     )}
                   </Card>
 
-                  {/* BLOCO 2 — Arte e preview (2 colunas) */}
+                  {/* BLOCO 2 â€” Arte e preview (2 colunas) */}
                   <div className="grid lg:grid-cols-2 gap-5">
-                    {/* Coluna esquerda — Upload */}
+                    {/* Coluna esquerda â€” Upload */}
                     <Card isDark={isDark} title="Arte da campanha">
                       <div
                         onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
@@ -1790,11 +1790,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                         disabled={simulationBusy || !proposalSourcePoints.length}
                         className="w-full orange-solid-btn h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover disabled:opacity-50 shadow-[0_10px_24px_rgba(254,92,43,0.28)] mt-3"
                       >
-                        {simulationBusy ? 'Gerando simulações...' : 'Gerar simulações'}
+                        {simulationBusy ? 'Gerando simulaÃ§Ãµes...' : 'Gerar simulaÃ§Ãµes'}
                       </button>
                     </Card>
 
-                    {/* Coluna direita — Preview */}
+                    {/* Coluna direita â€” Preview */}
                     <Card isDark={isDark} title="Preview da arte">
                       {simulationArtUrl ? (
                         <img src={simulationArtUrl} alt="Arte da campanha" className="w-full h-56 object-contain rounded-lg" />
@@ -1810,7 +1810,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     <p className={`text-xs rounded-lg border px-3 py-2 ${isDark ? 'text-red-300 border-red-500/20 bg-red-500/10' : 'text-red-600 border-red-300 bg-red-50'}`}>{simulationError}</p>
                   )}
 
-                  {/* Geração de arte IA por ponto (usa a área de tela já marcada no admin) */}
+                  {/* GeraÃ§Ã£o de arte IA por ponto (usa a Ã¡rea de tela jÃ¡ marcada no admin) */}
                   <ArteAIPanel
                     points={proposalPoints}
                     segmento={form.segmento}
@@ -1821,25 +1821,25 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     onArteEscolhida={handleAiArteEscolhida}
                   />
 
-                  {/* BLOCO 3 — Status da campanha */}
+                  {/* BLOCO 3 â€” Status da campanha */}
                   <div className="grid sm:grid-cols-3 gap-3">
                     <StatusCard isDark={isDark} label="Pontos na proposta" value={proposalSourcePoints.length} tone="default" />
-                    <StatusCard isDark={isDark} label="Simulações geradas" value={Object.values(simulationResults).filter((i) => String(i.status || '').startsWith('Gerada')).length} tone="success" />
-                    <StatusCard isDark={isDark} label="Pendências de cadastro" value={Object.values(simulationResults).filter((i) => i.status === 'Área da tela não cadastrada no admin' || i.status === 'Imagem base do ponto não cadastrada').length} tone="warning" />
+                    <StatusCard isDark={isDark} label="SimulaÃ§Ãµes geradas" value={Object.values(simulationResults).filter((i) => String(i.status || '').startsWith('Gerada')).length} tone="success" />
+                    <StatusCard isDark={isDark} label="PendÃªncias de cadastro" value={Object.values(simulationResults).filter((i) => i.status === 'Ãrea da tela nÃ£o cadastrada no admin' || i.status === 'Imagem base do ponto nÃ£o cadastrada').length} tone="warning" />
                   </div>
 
-                  {/* ── Seletor de Tipo de Mídia ── */}
+                  {/* â”€â”€ Seletor de Tipo de MÃ­dia â”€â”€ */}
                   <Card isDark={isDark}>
                     <div className="flex items-center gap-2 mb-3">
                       <Radio size={15} className={isDark ? 'text-brand-gray-400' : 'text-neutral-500'} />
-                      <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Tipo de mídia</h3>
+                      <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Tipo de mÃ­dia</h3>
                     </div>
 
-                    {/* Botões LED / Backlight / Frontlight */}
+                    {/* BotÃµes LED / Backlight / Frontlight */}
                     <div className="flex gap-2 mb-4">
                       {[
-                        { key: 'led',        label: 'LED',        desc: 'Emissão direta de luz' },
-                        { key: 'backlight',  label: 'Backlight',  desc: 'Lona iluminada por trás' },
+                        { key: 'led',        label: 'LED',        desc: 'EmissÃ£o direta de luz' },
+                        { key: 'backlight',  label: 'Backlight',  desc: 'Lona iluminada por trÃ¡s' },
                         { key: 'frontlight', label: 'Frontlight', desc: 'Lona com holofote frontal' }
                       ].map(({ key, label, desc }) => {
                         const active = mediaParams.mediaMode === key;
@@ -1863,7 +1863,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       })}
                     </div>
 
-                    {/* Parâmetros comuns a backlight e frontlight */}
+                    {/* ParÃ¢metros comuns a backlight e frontlight */}
                     {mediaParams.mediaMode !== 'led' && (
                       <div className="space-y-4">
                         {/* Temperatura de cor */}
@@ -1913,12 +1913,12 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                           />
                         </div>
 
-                        {/* Ângulo da luz — apenas frontlight */}
+                        {/* Ã‚ngulo da luz â€” apenas frontlight */}
                         {mediaParams.mediaMode === 'frontlight' && (
                           <div className="grid md:grid-cols-2 gap-4">
                             <SliderField
                               isDark={isDark}
-                              label="Ângulo da luz (°)"
+                              label="Ã‚ngulo da luz (Â°)"
                               value={mediaParams.lightAngle}
                               min={0} max={180} step={5}
                               onChange={(v) => setMediaParams((p) => ({ ...p, lightAngle: v }))}
@@ -1941,12 +1941,12 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     )}
                   </Card>
 
-                  {/* Ajustes avançados (colapsável) */}
+                  {/* Ajustes avanÃ§ados (colapsÃ¡vel) */}
                   <Card isDark={isDark}>
                     <button type="button" onClick={() => setAdvancedRealismOpen(!advancedRealismOpen)} className="w-full flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <Settings2 size={16} className={isDark ? 'text-brand-gray-400' : 'text-neutral-500'} />
-                        <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Ajustes avançados{mediaParams.mediaMode !== 'led' ? ' (LED)' : ''}</h3>
+                        <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Ajustes avanÃ§ados{mediaParams.mediaMode !== 'led' ? ' (LED)' : ''}</h3>
                       </div>
                       <ChevronDown size={18} className={`shrink-0 transition-transform ${isDark ? 'text-brand-gray-400' : 'text-neutral-400'} ${advancedRealismOpen ? 'rotate-180' : ''}`} />
                     </button>
@@ -1965,23 +1965,23 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                 </motion.div>
               )}
 
-              {/* ═══ STEP 4 — Revisão ═══ */}
+              {/* â•â•â• STEP 4 â€” RevisÃ£o â•â•â• */}
               {wizardStep === 4 && (
                 <motion.div key="step4" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
 
                   {/* Resumo da proposta */}
                   <Card isDark={isDark} title="Resumo da proposta">
                     <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                      <MiniStat isDark={isDark} label="Cliente" value={form.clientName || '—'} />
+                      <MiniStat isDark={isDark} label="Cliente" value={form.clientName || 'â€”'} />
                       <MiniStat isDark={isDark} label="Cidades" value={activeCities.join(', ') || 'Todas'} />
                       <MiniStat isDark={isDark} label="Segmento" value={getSegmentDisplayName(form.segmento)} />
-                      <MiniStat isDark={isDark} label="Públicos" value={form.publicos.length ? form.publicos.join(', ') : 'Todos'} />
+                      <MiniStat isDark={isDark} label="PÃºblicos" value={form.publicos.length ? form.publicos.join(', ') : 'Todos'} />
                       <MiniStat isDark={isDark} label="Pontos no PDF" value={`${proposalPointsForPdf.length}/${proposalPoints.length}`} />
                     </div>
 
                     {hiddenPointsCount > 0 && (
                       <p className={`text-xs mt-2 ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>
-                        {hiddenPointsCount} ponto(s) está(ão) oculto(s) no PDF.
+                        {hiddenPointsCount} ponto(s) estÃ¡(Ã£o) oculto(s) no PDF.
                       </p>
                     )}
 
@@ -1996,17 +1996,17 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       <button
                         type="button"
                         onClick={() => setWizardStep(1)}
-                        className={`h-9 px-3 rounded-xl border text-xs font-medium transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+                        className={`h-9 px-3 rounded-xl border text-xs font-medium transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-[#E85A1A] bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white hover:from-[#E85A1A] hover:to-[#C94A1A] shadow-sm shadow-[#FE5C2B]/25'}`}
                       >
-                        Editar dados gerais (cliente/estratégia)
+                        Editar dados gerais (cliente/estratÃ©gia)
                       </button>
                     </div>
                   </Card>
 
-                  {/* Próximo passo: edição guiada */}
-                  <Card isDark={isDark} title="Edição guiada do PDF (próximo passo)">
+                  {/* PrÃ³ximo passo: ediÃ§Ã£o guiada */}
+                  <Card isDark={isDark} title="EdiÃ§Ã£o guiada do PDF (prÃ³ximo passo)">
                     <p className={`text-sm ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>
-                      No próximo passo você só precisa fazer 3 ações simples para finalizar o PDF.
+                      No prÃ³ximo passo vocÃª sÃ³ precisa fazer 3 aÃ§Ãµes simples para finalizar o PDF.
                     </p>
                     <div className="grid sm:grid-cols-3 gap-2 mt-3">
                       <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-700'}`}>
@@ -2015,7 +2015,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       </div>
                       <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-700'}`}>
                         <p className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-orange' : 'text-orange-600'}`}>2</p>
-                        Clique em Editar e ajuste só o que quiser.
+                        Clique em Editar e ajuste sÃ³ o que quiser.
                       </div>
                       <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-700'}`}>
                         <p className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-orange' : 'text-orange-600'}`}>3</p>
@@ -2027,7 +2027,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       onClick={() => setWizardStep(5)}
                       className="mt-3 inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-brand-orange text-white text-sm font-semibold hover:bg-brand-orange-hover"
                     >
-                      Abrir edição guiada
+                      Abrir ediÃ§Ã£o guiada
                       <ChevronRight size={15} />
                     </button>
                   </Card>
@@ -2037,13 +2037,13 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                 </motion.div>
               )}
 
-              {/* ═══ STEP 5 — Edição final do PDF ═══ */}
+              {/* â•â•â• STEP 5 â€” EdiÃ§Ã£o final do PDF â•â•â• */}
               {wizardStep === 5 && (
                 <motion.div key="step5" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
 
                   <Card isDark={isDark} title="Editar PDF de forma simples">
                     <p className={`text-sm ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>
-                      Pense assim: marcar, editar e gerar. Não altera o cadastro original dos pontos.
+                      Pense assim: marcar, editar e gerar. NÃ£o altera o cadastro original dos pontos.
                     </p>
                     <div className="grid sm:grid-cols-3 gap-2 mt-3">
                       <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-700'}`}>
@@ -2052,11 +2052,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       </div>
                       <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-700'}`}>
                         <p className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-orange' : 'text-orange-600'}`}>Passo 2</p>
-                        Clique em Editar para corrigir nome, cidade, valor e métricas.
+                        Clique em Editar para corrigir nome, cidade, valor e mÃ©tricas.
                       </div>
                       <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-700'}`}>
                         <p className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-orange' : 'text-orange-600'}`}>Passo 3</p>
-                        Clique em Próximo para gerar e compartilhar.
+                        Clique em PrÃ³ximo para gerar e compartilhar.
                       </div>
                     </div>
 
@@ -2071,7 +2071,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       <button
                         type="button"
                         onClick={() => setWizardStep(1)}
-                        className={`h-9 px-3 rounded-xl border text-xs font-medium transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+                        className={`h-9 px-3 rounded-xl border text-xs font-medium transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-[#E85A1A] bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white hover:from-[#E85A1A] hover:to-[#C94A1A] shadow-sm shadow-[#FE5C2B]/25'}`}
                       >
                         Voltar para dados gerais
                       </button>
@@ -2085,10 +2085,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                           <tr className={`text-[11px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
                             <th className="text-left pb-3 pr-3">Incluir</th>
                             <th className="text-left pb-3 pr-3">Ponto</th>
-                            <th className="text-left pb-3 pr-3">Simulação</th>
+                            <th className="text-left pb-3 pr-3">SimulaÃ§Ã£o</th>
                             <th className="text-left pb-3 pr-3">Cidade / Tipo</th>
                             <th className="text-right pb-3 pr-3">Valor</th>
-                            <th className="text-left pb-3">Ações</th>
+                            <th className="text-left pb-3">AÃ§Ãµes</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2102,7 +2102,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                             const previewUrl = getPointPreviewUrl(previewPoint, !!simulationArtFile);
                             const hasPreview = !!previewUrl;
                             const priceValue = Number(previewPoint?.precoFinal ?? previewPoint?.preco);
-                            const priceLabel = Number.isFinite(priceValue) && priceValue > 0 ? formatCurrency(priceValue) : '—';
+                            const priceLabel = Number.isFinite(priceValue) && priceValue > 0 ? formatCurrency(priceValue) : 'â€”';
 
                             const getFieldValue = (fieldKey) => {
                               if (Object.prototype.hasOwnProperty.call(pointEdit, fieldKey)) {
@@ -2129,7 +2129,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                                       onChange={() => togglePointInPdf(pointId)}
                                       className={`h-4 w-4 rounded ${isDark ? 'border-white/20 bg-white/5' : 'border-neutral-300 bg-white'}`}
                                     />
-                                    {isIncluded ? 'Sim' : 'Não'}
+                                    {isIncluded ? 'Sim' : 'NÃ£o'}
                                   </label>
                                 </td>
                                 <td className={`py-2.5 pr-3 align-top font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>
@@ -2144,12 +2144,12 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                                       <img src={previewUrl} alt="" className="w-full h-full object-cover" />
                                     </div>
                                   ) : (
-                                    <span className={`text-xs ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>Sem simulação</span>
+                                    <span className={`text-xs ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>Sem simulaÃ§Ã£o</span>
                                   )}
                                 </td>
                                 <td className={`py-2.5 pr-3 align-top ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
-                                  <div>{previewPoint.cidade || '—'}</div>
-                                  <div className={`text-[11px] mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{previewPoint.tipo || '—'}</div>
+                                  <div>{previewPoint.cidade || 'â€”'}</div>
+                                  <div className={`text-[11px] mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{previewPoint.tipo || 'â€”'}</div>
                                 </td>
                                 <td className={`py-2.5 pr-3 align-top text-right font-semibold ${isDark ? 'text-brand-orange' : 'text-brand-orange'}`}>{priceLabel}</td>
                                 <td className="py-2.5 align-top">
@@ -2159,13 +2159,13 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                                       onClick={() => setEditingPdfPointId(isEditing ? null : pointId)}
                                       className={`h-8 px-2.5 rounded-lg border text-[11px] font-medium ${isDark ? 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.08]' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100'}`}
                                     >
-                                      {isEditing ? 'Fechar edição' : 'Editar'}
+                                      {isEditing ? 'Fechar ediÃ§Ã£o' : 'Editar'}
                                     </button>
                                     {hasCustomEdit && (
                                       <button
                                         type="button"
                                         onClick={() => resetPdfPointEdit(pointId)}
-                                        className={`h-8 px-2.5 rounded-lg border text-[11px] font-medium ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+                                        className={`h-8 px-2.5 rounded-lg border text-[11px] font-medium ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-[#E85A1A] bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white hover:from-[#E85A1A] hover:to-[#C94A1A] shadow-sm shadow-[#FE5C2B]/25'}`}
                                       >
                                         Restaurar
                                       </button>
@@ -2209,19 +2209,19 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                 </motion.div>
               )}
 
-              {/* ═══ STEP 6 — Gerar proposta ═══ */}
+              {/* â•â•â• STEP 6 â€” Gerar proposta â•â•â• */}
               {wizardStep === 6 && (
                 <motion.div key="step6" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
 
-                  {/* Seções opcionais do PDF (cards selecionáveis) */}
-                  <Card isDark={isDark} title="Seções do PDF">
+                  {/* SeÃ§Ãµes opcionais do PDF (cards selecionÃ¡veis) */}
+                  <Card isDark={isDark} title="SeÃ§Ãµes do PDF">
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
                       {[
-                        { key: 'methodology', label: 'Como ler as métricas', Icon: BarChart3 },
+                        { key: 'methodology', label: 'Como ler as mÃ©tricas', Icon: BarChart3 },
                         { key: 'score', label: 'Score da campanha', Icon: Trophy },
-                        { key: 'coverage', label: 'Cobertura e presença', Icon: Radio },
+                        { key: 'coverage', label: 'Cobertura e presenÃ§a', Icon: Radio },
                         { key: 'impact', label: 'Impacto da campanha', Icon: Zap },
-                        { key: 'mapPrint', label: 'Print do mapa da seleção', Icon: Map }
+                        { key: 'mapPrint', label: 'Print do mapa da seleÃ§Ã£o', Icon: Map }
                       ].map(({ key, label, Icon }) => (
                         <button
                           key={key}
@@ -2250,7 +2250,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     <div className="flex flex-wrap items-center gap-4">
                       <label className={`inline-flex items-center gap-2 text-sm ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
                         <input type="checkbox" checked={connectMapPoints} onChange={(e) => setConnectMapPoints(e.target.checked)} className={`h-4 w-4 rounded ${isDark ? 'border-white/20 bg-white/5' : 'border-neutral-300 bg-white'}`} />
-                        Linhas de conexão entre pontos
+                        Linhas de conexÃ£o entre pontos
                       </label>
                       <button
                         onClick={handleExportSelectionMap}
@@ -2269,13 +2269,13 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     )}
                   </Card>
 
-                  {/* Ações principais */}
+                  {/* AÃ§Ãµes principais */}
                   <div className="space-y-3">
                     {simulationError && (
                       <p className={`text-xs rounded-lg border px-3 py-2 ${isDark ? 'text-red-300 border-red-500/20 bg-red-500/10' : 'text-red-600 border-red-300 bg-red-50'}`}>{simulationError}</p>
                     )}
 
-                    {/* PDF export — split button with format picker */}
+                    {/* PDF export â€” split button with format picker */}
                     <div className="relative" ref={pdfFormatPickerRef}>
                       <div className={`flex h-12 rounded-xl overflow-hidden shadow-[0_10px_24px_rgba(254,92,43,0.28)] ${pdfBusy ? 'opacity-50 pointer-events-none' : ''}`}>
                         {/* Main generate button */}
@@ -2313,8 +2313,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                             <p className={`text-xs font-semibold uppercase tracking-widest ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>Formato do PDF</p>
                           </div>
                           {[
-                            { value: 'desktop', label: 'Versão padrão', sub: 'Layout horizontal — desktop e apresentações' },
-                            { value: 'mobile', label: 'Versão mobile', sub: 'Layout vertical 9:16 — leitura no celular' },
+                            { value: 'desktop', label: 'VersÃ£o padrÃ£o', sub: 'Layout horizontal â€” desktop e apresentaÃ§Ãµes' },
+                            { value: 'mobile', label: 'VersÃ£o mobile', sub: 'Layout vertical 9:16 â€” leitura no celular' },
                           ].map(({ value, label, sub }) => {
                             const sel = pdfFormat === value;
                             return (
@@ -2347,15 +2347,15 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     <div className="grid sm:grid-cols-2 gap-3">
                       <button onClick={() => setShowPresentation(true)} className={`h-11 rounded-xl border font-medium inline-flex items-center justify-center gap-2 transition-colors ${isDark ? 'border-white/15 bg-white/[0.03] text-white hover:bg-white/[0.08]' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
                         <Presentation size={16} />
-                        Modo apresentação
+                        Modo apresentaÃ§Ã£o
                       </button>
                       <button onClick={() => setShowQuickPresentation(true)} className={`h-11 rounded-xl border font-medium inline-flex items-center justify-center gap-2 transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange' : 'border-orange-300 bg-orange-50 hover:bg-orange-100 text-orange-700'}`}>
                         <Presentation size={16} />
-                        Apresentação rápida
+                        ApresentaÃ§Ã£o rÃ¡pida
                       </button>
                     </div>
 
-                    {/* Compartilhar — link público */}
+                    {/* Compartilhar â€” link pÃºblico */}
                     <button
                       onClick={handleCompartilhar}
                       disabled={shareBusy || !proposalPointsForPdf.length}
@@ -2370,7 +2370,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
             </AnimatePresence>
           </div>
 
-          {/* ── Navigation footer ── */}
+          {/* â”€â”€ Navigation footer â”€â”€ */}
           <div className={`relative flex-shrink-0 flex items-center justify-between gap-3 border-t p-4 md:px-8 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50/80'}`}>
             <button
               type="button"
@@ -2392,7 +2392,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                 onClick={() => setWizardStep((s) => Math.min(5, s + 1))}
                 className="inline-flex items-center gap-2 h-10 px-5 rounded-xl bg-brand-orange text-white text-sm font-semibold hover:bg-brand-orange-hover shadow-[0_6px_20px_rgba(254,92,43,0.25)] transition-colors"
               >
-                Próximo
+                PrÃ³ximo
                 <ChevronRight size={16} />
               </button>
             )}
@@ -2414,7 +2414,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                 onClick={() => setWizardStep(5)}
                 className={`inline-flex items-center gap-2 h-10 px-4 rounded-xl border text-sm font-medium ${isDark ? 'border-white/15 text-white hover:bg-white/[0.06]' : 'border-neutral-200 text-neutral-700 hover:bg-neutral-100'}`}
               >
-                Voltar para edição do PDF
+                Voltar para ediÃ§Ã£o do PDF
               </button>
             )}
           </div>
@@ -2438,7 +2438,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         <QuickPresentationMode points={proposalPointsForPdf} totals={totalsForPdf} segmento={form.segmento} clientName={form.clientName} pricingSummary={pricingSummaryForPdf} onClose={() => setShowQuickPresentation(false)} />
       )}
 
-      {/* Share modal — link público + QR code */}
+      {/* Share modal â€” link pÃºblico + QR code */}
       {shareModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4" onClick={() => setShareModal(null)}>
           <div
@@ -2476,7 +2476,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
             </div>
 
             <p className={`text-center text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
-              Link válido por 7 dias · O cliente pode aprovar diretamente
+              Link vÃ¡lido por 7 dias Â· O cliente pode aprovar diretamente
             </p>
 
             <button
@@ -2485,7 +2485,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
               style={{ background: '#E8591A' }}
             >
               <Download size={15} />
-              Baixar cartão QR
+              Baixar cartÃ£o QR
             </button>
           </div>
         </div>
@@ -2497,12 +2497,12 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
             className={`w-full max-w-md rounded-2xl border p-6 shadow-2xl ${isDark ? 'bg-[#141414] border-white/10' : 'bg-white border-neutral-200'}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Sessão expirada</h3>
+            <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>SessÃ£o expirada</h3>
             <p className={`mt-2 text-sm leading-relaxed ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
               {sessionExpiredModal.message}
             </p>
             <p className={`mt-2 text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
-              Para evitar perda de trabalho e consumo desnecessário de tokens, faça login novamente antes de continuar.
+              Para evitar perda de trabalho e consumo desnecessÃ¡rio de tokens, faÃ§a login novamente antes de continuar.
             </p>
 
             <div className="mt-5 flex items-center justify-end gap-2">
@@ -2531,7 +2531,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className={`text-xs uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Preview ampliado</p>
-                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{activePreviewPoint.nome} · {activePreviewPoint.cidade}</p>
+                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{activePreviewPoint.nome} Â· {activePreviewPoint.cidade}</p>
               </div>
               <button onClick={() => setShowPreviewLightbox(false)} className={`px-3 py-1.5 rounded-lg border text-sm ${isDark ? 'border-white/20 text-white/80 hover:text-white' : 'border-neutral-300 text-neutral-600 hover:text-neutral-900 bg-white'}`}>Fechar</button>
             </div>
@@ -2552,7 +2552,7 @@ function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand, 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
           <ImageIcon size={16} className="text-brand-orange" />
-          <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Preview da simulação</h3>
+          <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Preview da simulaÃ§Ã£o</h3>
         </div>
         <button type="button" onClick={onExpand} disabled={!activePreviewPoint} className={`px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 bg-white/[0.03] hover:bg-white/[0.08] text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>Ver em tela cheia</button>
       </div>
@@ -2563,7 +2563,7 @@ function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand, 
             <img src={getPointPreviewUrl(activePreviewPoint, requireGeneratedPreview)} alt={`Preview ${activePreviewPoint.nome}`} className="w-full h-[240px] md:h-[320px] object-contain rounded-lg bg-black/35" />
             <div className="px-2 pt-3">
               <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{activePreviewPoint.nome}</p>
-              <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>{activePreviewPoint.cidade} · {activePreviewPoint.tipo}</p>
+              <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>{activePreviewPoint.cidade} Â· {activePreviewPoint.tipo}</p>
             </div>
           </div>
 
@@ -2585,7 +2585,7 @@ function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand, 
                     </div>
                     <div className="min-w-0">
                       <p className={`text-xs font-semibold truncate ${isDark ? 'text-white' : 'text-neutral-900'}`}>{point.nome}</p>
-                      <p className={`text-[11px] mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>{previewUrl ? 'Simulação pronta' : (point.proposalSimulationStatus || 'Sem simulação')}</p>
+                      <p className={`text-[11px] mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>{previewUrl ? 'SimulaÃ§Ã£o pronta' : (point.proposalSimulationStatus || 'Sem simulaÃ§Ã£o')}</p>
                     </div>
                   </div>
                 </button>
@@ -2594,7 +2594,7 @@ function PreviewPanel({ proposalPoints, activePreviewPoint, onSelect, onExpand, 
           </div>
         </div>
       ) : (
-        <div className={`h-36 rounded-xl border border-dashed flex items-center justify-center text-sm ${isDark ? 'border-white/15 text-brand-gray-500 bg-black/25' : 'border-neutral-300 text-neutral-400 bg-neutral-50'}`}>Gere as simulações para visualizar o preview.</div>
+        <div className={`h-36 rounded-xl border border-dashed flex items-center justify-center text-sm ${isDark ? 'border-white/15 text-brand-gray-500 bg-black/25' : 'border-neutral-300 text-neutral-400 bg-neutral-50'}`}>Gere as simulaÃ§Ãµes para visualizar o preview.</div>
       )}
     </section>
   );

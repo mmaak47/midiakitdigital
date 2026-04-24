@@ -50,7 +50,9 @@ const SEGMENT_CATEGORIES_LEGACY = {
   turismo: ['hotel', 'pousada', 'hostel', 'agencia de viagem', 'turismo', 'aluguel de carro'],
   coworking: ['coworking', 'escritorio compartilhado', 'sala comercial', 'centro empresarial'],
   tecnologia: ['tecnologia', 'informatica', 'software', 'startup', 'assistencia tecnica'],
-  outro: []
+  // 'outro' = segmento genérico: usa POIs comerciais genéricos para garantir score não-zero
+  // quando não há um segmento específico configurado.
+  outro: ['restaurante', 'lanchonete', 'supermercado', 'mercado', 'farmacia', 'banco', 'academia', 'shopping', 'loja', 'escritorio', 'posto de combustivel']
 };
 
 // Category search aliases: maps DB category keys to search terms for each provider

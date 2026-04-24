@@ -161,11 +161,11 @@ function StepIndicator({ current, total, isDark }) {
           <div className="flex flex-col items-center gap-1.5">
             <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
               i < current
-                ? 'bg-brand-orange text-white'
+                ? 'bg-gradient-to-br from-[#FE5C2B] to-[#E85A1A] text-white shadow-md shadow-[#FE5C2B]/30'
                 : i === current
                   ? isDark
-                    ? 'bg-brand-orange/20 text-brand-orange ring-2 ring-brand-orange'
-                    : 'bg-brand-orange/15 text-brand-orange ring-2 ring-brand-orange'
+                    ? 'bg-gradient-to-br from-[#FE5C2B] to-[#E85A1A] text-white ring-2 ring-brand-orange/40 shadow-lg shadow-[#FE5C2B]/40 scale-110'
+                    : 'bg-gradient-to-br from-[#FE5C2B] to-[#E85A1A] text-white ring-2 ring-[#FE5C2B]/30 shadow-lg shadow-[#FE5C2B]/30 scale-110'
                   : isDark
                     ? 'bg-white/10 text-white/40'
                     : 'bg-neutral-200 text-neutral-400'
@@ -205,7 +205,7 @@ function StepCard({ children, isDark }) {
       className={`rounded-2xl border p-6 sm:p-8 ${
         isDark
           ? 'bg-white/[0.04] border-white/10'
-          : 'bg-white border-neutral-200 shadow-sm'
+          : 'bg-white border-neutral-200 shadow-[0_4px_20px_-8px_rgba(254,92,43,0.12)]'
       }`}
     >
       {children}
@@ -1609,18 +1609,30 @@ export default function CampaignPlanner() {
 
   return (
     <div
-      className={`min-h-screen ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
+      className={`min-h-screen relative ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
       data-theme={isDark ? 'dark' : 'light'}
     >
+      {/* Accent line + atmospheric radial gradients (consistent with Landing/Explorer/Gestão) */}
+      {!isDark && (
+        <>
+          <div className="pointer-events-none absolute left-0 right-0 top-0 h-[3px] bg-gradient-to-r from-transparent via-[#FE5C2B] to-transparent opacity-80 z-20" />
+          <div className="pointer-events-none fixed -left-40 top-20 w-[520px] h-[520px] rounded-full opacity-60" style={{ background: 'radial-gradient(circle, rgba(254,92,43,0.10) 0%, rgba(254,92,43,0.03) 45%, transparent 72%)' }} />
+          <div className="pointer-events-none fixed -right-40 top-1/2 w-[480px] h-[480px] rounded-full opacity-60" style={{ background: 'radial-gradient(circle, rgba(232,89,26,0.08) 0%, rgba(232,89,26,0.02) 48%, transparent 74%)' }} />
+        </>
+      )}
+
       <Navbar plannerMode isDark={isDark} onToggleTheme={() => setIsDark((prev) => !prev)} />
 
-      <main className="pt-20 pb-16 px-4 sm:px-6">
+      <main className="relative z-10 pt-20 pb-16 px-4 sm:px-6">
         <div className={`mx-auto ${step === 4 ? 'max-w-5xl' : 'max-w-2xl'}`}>
           {/* Title */}
           {(step < 4 || aiPhase === 'done') && (
           <div className="text-center mb-6">
-            <h1 className={`text-2xl sm:text-3xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-              Planejador de Campanha
+            <div className="mx-auto mb-3 inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FE5C2B] to-[#C94A1A] shadow-lg shadow-[#FE5C2B]/30">
+              <Sparkles size={22} className="text-white" />
+            </div>
+            <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+              Planejador de <span className="bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] bg-clip-text text-transparent">Campanha</span>
             </h1>
             <p className={`text-sm mt-2 ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>
               Responda algumas perguntas e receba um plano de mídia personalizado com os melhores pontos.

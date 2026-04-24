@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Upload, X, Send, CheckCircle2, AlertCircle, FileText, MessageCircle, WifiOff, AlertTriangle } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Loader2, Upload, X, Send, CheckCircle2, AlertCircle, FileText, MessageCircle, WifiOff, AlertTriangle, Calendar } from 'lucide-react';
 import { clearNovaVendaDraft, fetchNovaVendaDraft, saveNovaVendaDraft, submitNovaVenda } from '../../lib/api';
 
 const TIPOS_NEGOCIO = ['Nova Venda', 'Renovação', 'Permuta'];
@@ -24,6 +25,7 @@ const emptyForm = {
   periodo_inicio: '',
   periodo_fim: '',
   data_primeira_parcela: '',
+  data_inicio_veiculacao: '',
   dia_pagamento_dia: '',
   responsavel_nome: '',
   responsavel_whatsapp: '',
@@ -79,6 +81,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
   const [draftNotice, setDraftNotice] = useState('');
   const [result, setResult] = useState(null);
   const [err, setErr] = useState('');
+  const [validationErrors, setValidationErrors] = useState(null); // { items: string[] }
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -199,14 +202,46 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
     e.preventDefault();
     setErr('');
     setResult(null);
+    setValidationErrors(null);
 
-    if (!form.razao_social.trim()) return setErr('Preencha a Razão Social.');
-    if (!form.valor_mensal) return setErr('Preencha o Valor Mensal.');
-    if (selectedPontos.length === 0) return setErr('Selecione ao menos um ponto contratado.');
-    if (!form.responsavel_nome.trim()) return setErr('Preencha o nome do Responsável pela compra.');
-    if (!form.responsavel_whatsapp.trim()) return setErr('Preencha o WhatsApp do Responsável.');
-    const phoneErr = validatePhone(form.responsavel_whatsapp);
-    if (phoneErr) return setErr(phoneErr);
+    // Validação completa: TODOS os campos obrigatórios exceto email.
+    // Valor por ponto é obrigatório exceto quando Plano Fidelidade está ativo.
+    const missing = [];
+    if (!form.tipo) missing.push('Tipo de negócio');
+    if (!form.razao_social.trim()) missing.push('Razão Social');
+    if (!form.nome_fantasia.trim()) missing.push('Nome Fantasia');
+    if (!form.cnpj.trim()) missing.push('CNPJ');
+    if (selectedPontos.length === 0) missing.push('Pontos contratados (selecionar ao menos um)');
+    if (!form.plano_fidelidade) {
+      const pontosSemPreco = selectedPontos.filter(p => !pontoPrecos[p.id] || !String(pontoPrecos[p.id]).replace(/\D/g, '').replace(/^0+/, ''));
+      if (pontosSemPreco.length) {
+        missing.push(`Valor por ponto: ${pontosSemPreco.map(p => p.nome).join(', ')}`);
+      }
+    }
+    if (!form.valor_mensal) missing.push('Valor mensal');
+    if (!form.tipo_valor) missing.push('Tipo de valor (Líquido/Bruto)');
+    if (!form.cota_contratada) missing.push('Cota contratada');
+    if (!form.data_primeira_parcela) missing.push('Data da primeira parcela');
+    if (!form.data_inicio_veiculacao) missing.push('Data de início de veiculação');
+    if (!form.dia_pagamento_dia) missing.push('Dia do pagamento');
+    if (form.periodo_tipo === 'meses' && !form.periodo_meses) missing.push('Número de meses');
+    if (form.periodo_tipo === 'datas' && !form.periodo_inicio) missing.push('Data de início do período');
+    if (form.periodo_tipo === 'datas' && !form.periodo_fim) missing.push('Data de término do período');
+    if (form.via_agencia && !form.agencia_nome.trim()) missing.push('Nome da agência');
+    if (form.via_agencia && !form.comissao_pct) missing.push('Comissão da agência');
+    if (!form.responsavel_nome.trim()) missing.push('Nome do responsável pela compra');
+    if (!form.responsavel_whatsapp.trim()) {
+      missing.push('WhatsApp do responsável');
+    } else {
+      const phoneErr = validatePhone(form.responsavel_whatsapp);
+      if (phoneErr) missing.push(`WhatsApp: ${phoneErr}`);
+    }
+    // E-mail é opcional. Observações e P.I. também.
+
+    if (missing.length) {
+      setValidationErrors({ items: missing });
+      return;
+    }
 
     setBusy(true);
     try {
@@ -230,6 +265,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       fd.append('periodo_inicio', form.periodo_inicio);
       fd.append('periodo_fim', form.periodo_fim);
       fd.append('data_primeira_parcela', form.data_primeira_parcela);
+      fd.append('data_inicio_veiculacao', form.data_inicio_veiculacao);
       fd.append('dia_pagamento_dia', form.dia_pagamento_dia);
       // Build dia_pagamento string for backward compat
       fd.append('dia_pagamento', form.dia_pagamento_dia ? `Dia ${form.dia_pagamento_dia} de cada mês` : '');
@@ -291,6 +327,62 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
 
   return (
     <div className="space-y-5 max-w-3xl">
+      <AnimatePresence>
+        {validationErrors && (
+          <motion.div
+            key="validation-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+          >
+            <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={() => setValidationErrors(null)} />
+            <motion.div
+              initial={{ scale: 0.94, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.94, opacity: 0, y: 20 }}
+              transition={{ duration: 0.2 }}
+              className={`relative w-full max-w-md rounded-2xl border-2 shadow-2xl overflow-hidden ${isDark
+                ? 'border-red-500/40 bg-gradient-to-br from-[#1a0a0a] to-[#0a0a0a]'
+                : 'border-red-300 bg-white'}`}
+            >
+              <div className={`flex items-center gap-3 p-5 border-b ${isDark ? 'border-red-500/20 bg-red-500/[0.06]' : 'border-red-100 bg-red-50'}`}>
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isDark ? 'bg-red-500/20' : 'bg-red-100'}`}>
+                  <AlertTriangle size={20} className="text-red-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Campos obrigatórios faltando</h3>
+                  <p className={`text-xs mt-0.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                    Preencha os itens abaixo antes de registrar a venda.
+                  </p>
+                </div>
+                <button type="button" onClick={() => setValidationErrors(null)} className={`p-1.5 rounded-lg ${isDark ? 'text-brand-gray-400 hover:bg-white/10' : 'text-neutral-500 hover:bg-neutral-100'}`}>
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="p-5 max-h-[50vh] overflow-y-auto">
+                <ul className="space-y-1.5">
+                  {validationErrors.items.map((item, i) => (
+                    <li key={i} className={`flex items-start gap-2 text-sm ${isDark ? 'text-brand-gray-200' : 'text-neutral-700'}`}>
+                      <span className="text-red-500 mt-0.5">•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className={`p-4 border-t ${isDark ? 'border-white/10 bg-black/30' : 'border-neutral-100 bg-neutral-50'}`}>
+                <button
+                  type="button"
+                  onClick={() => setValidationErrors(null)}
+                  className="w-full rounded-xl bg-gradient-to-r from-red-500 to-red-600 py-2.5 px-4 text-sm font-semibold text-white shadow-md hover:scale-[1.01] active:scale-[0.99] transition-transform"
+                >
+                  Entendi, vou corrigir
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div>
         <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
           Registrar venda
@@ -423,7 +515,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
               />
             </div>
             <div>
-              <label className={lbl}>Nome Fantasia</label>
+              <label className={lbl}>Nome Fantasia *</label>
               <input
                 className={inp}
                 value={form.nome_fantasia}
@@ -434,7 +526,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className={lbl}>CNPJ</label>
+              <label className={lbl}>CNPJ *</label>
               <input
                 className={inp}
                 value={form.cnpj}
@@ -509,7 +601,9 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
           </div>
           {selectedPontos.length > 0 && (
             <div className="space-y-2 pt-2">
-              <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Valor por ponto</p>
+              <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                Valor por ponto {form.plano_fidelidade ? '(opcional — Plano Fidelidade ativo)' : '*'}
+              </p>
               {selectedPontos.map(p => (
                 <div key={p.id} className="flex items-center gap-3">
                   <span className={`text-sm flex-1 min-w-0 truncate ${isDark ? 'text-white' : 'text-neutral-800'}`}>{p.nome}</span>
@@ -555,7 +649,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className={lbl}>Data da primeira parcela</label>
+              <label className={lbl}>Data da primeira parcela *</label>
               <input
                 type="date"
                 className={inp}
@@ -564,7 +658,19 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
               />
             </div>
             <div>
-              <label className={lbl}>Dia do pagamento</label>
+              <label className={lbl}>Data de início de veiculação *</label>
+              <input
+                type="date"
+                className={inp}
+                value={form.data_inicio_veiculacao}
+                onChange={e => set('data_inicio_veiculacao', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className={lbl}>Dia do pagamento *</label>
               <div className="relative">
                 <select
                   className={inp}
@@ -587,7 +693,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className={lbl}>Cota contratada</label>
+              <label className={lbl}>Cota contratada *</label>
               <select
                 className={inp}
                 value={form.cota_contratada}
@@ -737,11 +843,27 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
                 value={form.responsavel_whatsapp}
                 onChange={e => set('responsavel_whatsapp', fmtPhone(e.target.value))}
                 placeholder="(43) 99999-9999"
+                inputMode="tel"
               />
+              {(() => {
+                const d = form.responsavel_whatsapp.replace(/\D/g, '');
+                if (!d) {
+                  return (
+                    <p className={`text-[11px] mt-1.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                      11 dígitos: DDD + 9 + número. Ex: (43) 99999-9999.
+                    </p>
+                  );
+                }
+                const phoneErr = validatePhone(form.responsavel_whatsapp);
+                if (phoneErr) {
+                  return <p className="text-[11px] mt-1.5 text-red-500 font-medium">{phoneErr}</p>;
+                }
+                return <p className="text-[11px] mt-1.5 text-green-600 font-medium">Celular válido.</p>;
+              })()}
             </div>
           </div>
           <div>
-            <label className={lbl}>Email</label>
+            <label className={lbl}>Email <span className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-400'} font-normal`}>(opcional)</span></label>
             <input
               type="email"
               className={inp}
@@ -817,9 +939,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
             : 'text-red-600 bg-red-50 border-red-200'}`}>
             {err}
           </p>
-        )}
-
-        <div className="flex flex-wrap justify-end gap-2 pt-1">
+        )}        <div className="flex flex-wrap justify-end gap-2 pt-1">
           <button
             type="button"
             onClick={handleSaveDraft}
@@ -883,6 +1003,7 @@ function buildMsgPreview({ form, selectedPontos, pontoPrecos, currentUser }) {
     '💼 *CONDIÇÕES COMERCIAIS*',
     form.valor_mensal ? `💰 Valor mensal: *R$ ${form.valor_mensal}* _(${form.tipo_valor})_` : null,
     periodo ? `📅 Período: *${periodo}*` : null,
+    form.data_inicio_veiculacao ? `📺 Data de início da veiculação: *${fmtDate(form.data_inicio_veiculacao)}*` : null,
     form.data_primeira_parcela ? `📆 Data da 1ª parcela: *${fmtDate(form.data_primeira_parcela)}*` : null,
     form.dia_pagamento_dia ? `📆 Dia de pagamento: *Dia ${form.dia_pagamento_dia} de cada mês*` : null,
     form.cota_contratada ? `⏱️ Cota contratada: *${form.cota_contratada}*` : null,
