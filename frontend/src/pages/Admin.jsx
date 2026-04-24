@@ -218,6 +218,7 @@ export default function Admin() {
 
   // Usuário logado
   const [currentUser, setCurrentUser] = useState(null);
+  const [welcomePopup, setWelcomePopup] = useState(null); // { nome, role, pct, realizado, meta }
   const [savingSettings, setSavingSettings] = useState(false);
   const [pdfCacheRows, setPdfCacheRows] = useState([]);
   const [pdfCacheLoading, setPdfCacheLoading] = useState(false);
@@ -472,6 +473,27 @@ export default function Admin() {
       fetchCurrentUser()
         .then(u => {
           setCurrentUser(u);
+          // Mensagem de boas-vindas (1x por dia por sessão) ao fazer login manual no /comercial
+          try {
+            const flagKey = 'welcome_shown_' + new Date().toISOString().slice(0,10);
+            if (sessionStorage.getItem('comercial_manual_login') === '1' && !sessionStorage.getItem(flagKey)) {
+              const token = sessionStorage.getItem('admin_token');
+              fetch('/api/gestao/monthly-summary', { headers: { Authorization: `Bearer ${token}` } })
+                .then(r => r.ok ? r.json() : null)
+                .then((snap) => {
+                  setWelcomePopup({
+                    nome: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username,
+                    role: u.role,
+                    pct: Number(snap?.pct_mensal || 0),
+                    realizado: Number(snap?.realizado_mensal || 0),
+                    meta: Number(snap?.meta_mensal || 0),
+                  });
+                  sessionStorage.setItem(flagKey, '1');
+                  sessionStorage.removeItem('comercial_manual_login');
+                })
+                .catch(() => {});
+            }
+          } catch {}
           // Diretor e admin ficam no painel (/comercial) com as abas visíveis.
           // Gerente comercial e vendedor vão direto para /comercial/gestao.
           if (location.pathname === '/comercial' && u?.role && u.role !== 'admin' && u.role !== 'diretor') {
@@ -1099,35 +1121,42 @@ export default function Admin() {
   if (!auth) {
     return (
       <div
-        className={`min-h-screen ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
+        className={`min-h-screen relative overflow-hidden ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
         data-theme={isDark ? 'dark' : 'light'}
       >
+        {/* Accent line + atmospheric gradients */}
+        <div className="pointer-events-none absolute left-0 right-0 top-0 h-[3px] bg-gradient-to-r from-transparent via-[#FE5C2B] to-transparent opacity-80 z-20" />
+        <div className={`pointer-events-none fixed -left-40 top-10 w-[520px] h-[520px] rounded-full opacity-70 ${isDark ? '' : ''}`}
+          style={{ background: 'radial-gradient(circle, rgba(254,92,43,0.12) 0%, rgba(254,92,43,0.03) 45%, transparent 72%)' }} />
+        <div className="pointer-events-none fixed -right-40 bottom-10 w-[480px] h-[480px] rounded-full opacity-70"
+          style={{ background: 'radial-gradient(circle, rgba(232,89,26,0.10) 0%, rgba(232,89,26,0.02) 48%, transparent 74%)' }} />
+
         <Navbar commercial isDark={isDark} onToggleTheme={() => setIsDark((prev) => !prev)} />
-        <div className="flex min-h-screen items-center justify-center px-6 pt-24 pb-10">
+        <div className="relative z-10 flex min-h-screen items-center justify-center px-6 pt-24 pb-10">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: 'easeOut' }}
-            className={`w-full max-w-md rounded-3xl border p-8 backdrop-blur ${isDark ? 'border-white/10 bg-white/[0.03] shadow-2xl shadow-black/30' : 'border-neutral-200 bg-white shadow-xl shadow-neutral-200/70'}`}
+            className={`w-full max-w-md rounded-3xl border p-8 backdrop-blur ${isDark ? 'border-white/10 bg-white/[0.03] shadow-2xl shadow-black/30' : 'border-neutral-200/80 bg-white shadow-2xl shadow-[#FE5C2B]/10'}`}
           >
             <div className="mb-8 flex items-center gap-3">
-              <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${isDark ? 'bg-brand-orange/15 text-brand-orange' : 'bg-orange-50 text-orange-600'}`}>
+              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl shadow-lg ${isDark ? 'bg-brand-orange/15 text-brand-orange' : 'bg-gradient-to-br from-[#FE5C2B] to-[#C94A1A] text-white shadow-[#FE5C2B]/30'}`}>
                 <LogIn size={20} />
               </div>
               <div>
-                <h1 className="text-xl font-semibold">Acesso administrativo</h1>
-                <p className="text-sm text-brand-gray-400">Entre para gerenciar pontos, análises e usuários.</p>
+                <h1 className={`text-xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>Bem-vindo de volta</h1>
+                <p className={`text-sm ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Painel comercial Intermidia</p>
               </div>
             </div>
 
             <form className="space-y-5" onSubmit={handleLogin}>
               <div>
-                <label className="mb-1.5 block text-xs text-brand-gray-400">Usuário ou e-mail</label>
+                <label className={`mb-1.5 block text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Usuário ou e-mail</label>
                 <input
                   type="text"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                  className={`w-full rounded-xl px-4 py-3 text-sm transition-colors focus:outline-none ${isDark ? 'border border-white/10 bg-white/5 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/40' : 'border border-neutral-200 bg-neutral-50 text-neutral-900 placeholder:text-neutral-400 focus:border-[#FE5C2B]/60 focus:bg-white'}`}
                   placeholder="admin ou email@empresa.com"
                   required
                   autoComplete="username"
@@ -1135,13 +1164,13 @@ export default function Admin() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs text-brand-gray-400">Senha</label>
+                <label className={`mb-1.5 block text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Senha</label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 pr-10 text-sm text-white placeholder:text-brand-gray-600 focus:outline-none focus:border-brand-orange/40 transition-colors"
+                    className={`w-full rounded-xl px-4 py-3 pr-10 text-sm transition-colors focus:outline-none ${isDark ? 'border border-white/10 bg-white/5 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/40' : 'border border-neutral-200 bg-neutral-50 text-neutral-900 placeholder:text-neutral-400 focus:border-[#FE5C2B]/60 focus:bg-white'}`}
                     placeholder="••••••••"
                     required
                     autoComplete="current-password"
@@ -1149,29 +1178,29 @@ export default function Admin() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray-500 transition-colors hover:text-white"
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${isDark ? 'text-brand-gray-500 hover:text-white' : 'text-neutral-400 hover:text-neutral-700'}`}
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
               </div>
 
-              {loginError ? <p className="text-xs text-red-400">{loginError}</p> : null}
+              {loginError ? <p className="text-xs text-red-500 font-medium">{loginError}</p> : null}
 
               <button
                 type="submit"
-                className="w-full rounded-xl bg-brand-orange py-3 font-semibold text-white transition-all duration-200 hover:scale-[1.01] hover:bg-brand-orange-hover active:scale-[0.99]"
+                className="w-full rounded-xl bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] py-3 font-semibold text-white shadow-lg shadow-[#FE5C2B]/30 transition-all duration-200 hover:scale-[1.01] hover:shadow-xl hover:shadow-[#FE5C2B]/40 active:scale-[0.99]"
               >
                 Entrar
               </button>
 
-              <div className={`rounded-xl border px-3 py-2 text-xs ${isDark ? 'border-white/10 bg-white/[0.02] text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
-                Dica rápida: use sempre o link <strong>/gestao</strong>. Após login, gerente e vendedor entram direto na Gestão Comercial.
+              <div className={`rounded-xl border px-3 py-2.5 text-xs leading-relaxed ${isDark ? 'border-white/10 bg-white/[0.02] text-brand-gray-300' : 'border-[#FFD9C6] bg-[#FFF4EC] text-[#8B3A14]'}`}>
+                💡 <strong>Dica rápida:</strong> use sempre <strong>/gestao</strong>. Gerente e vendedor entram direto na Gestão Comercial.
               </div>
             </form>
           </motion.div>
         </div>
-        <footer className={`px-6 pb-6 text-center text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+        <footer className={`relative z-10 px-6 pb-6 text-center text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
           <span className="inline-flex items-center gap-1.5">
             <span>Desenvolvido por</span>
             <span className="font-semibold text-brand-orange animate-pulse">Maitê Doin</span>
@@ -1207,15 +1236,42 @@ export default function Admin() {
   };
   return (
     <div
-      className={`min-h-screen ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
+      className={`min-h-screen relative ${isDark ? 'bg-black text-white' : 'commercial-light bg-[#f4f5f7] text-neutral-900'}`}
       data-theme={isDark ? 'dark' : 'light'}
     >
+      {/* Accent line + atmospheric gradients */}
+      <div className="pointer-events-none absolute left-0 right-0 top-0 h-[3px] bg-gradient-to-r from-transparent via-[#FE5C2B] to-transparent opacity-80 z-20" />
+      {!isDark && (
+        <>
+          <div className="pointer-events-none fixed -left-40 top-20 w-[520px] h-[520px] rounded-full opacity-60" style={{ background: 'radial-gradient(circle, rgba(254,92,43,0.10) 0%, rgba(254,92,43,0.03) 45%, transparent 72%)' }} />
+          <div className="pointer-events-none fixed -right-40 top-1/2 w-[480px] h-[480px] rounded-full opacity-60" style={{ background: 'radial-gradient(circle, rgba(232,89,26,0.08) 0%, rgba(232,89,26,0.02) 48%, transparent 74%)' }} />
+        </>
+      )}
+
       <Navbar commercial isDark={isDark} onToggleTheme={() => setIsDark((prev) => !prev)} />
-      <div className="pt-20 max-w-7xl mx-auto px-6 pb-12">
-        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">Painel Administrativo</h1>
-            <p className="text-sm text-brand-gray-500 mt-1">Pontos, entorno, calibração de PDF e usuários em menus separados.</p>
+      <AnimatePresence>
+        {welcomePopup && (
+          <WelcomePopup data={welcomePopup} isDark={isDark} onClose={() => setWelcomePopup(null)} onGoToGestao={() => { setWelcomePopup(null); navigate('/comercial/gestao'); }} />
+        )}
+      </AnimatePresence>
+      <div className="relative z-10 pt-20 max-w-7xl mx-auto px-6 pb-12">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className={`inline-flex items-center justify-center w-11 h-11 rounded-2xl ${isDark ? 'bg-white/10' : 'bg-gradient-to-br from-[#FE5C2B] to-[#C94A1A] shadow-lg shadow-[#FE5C2B]/25'}`}>
+              <Settings size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">
+                {currentUser ? `${(() => { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; })()}, ${(currentUser.first_name || currentUser.username || '').split(' ')[0]}` : 'Painel'}
+              </h1>
+              <p className={`text-sm mt-0.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                {currentUser?.role === 'admin' ? 'Acesso total ao sistema'
+                  : currentUser?.role === 'diretor' ? 'Visão executiva: Nova Venda, Vendas e Gestão Comercial'
+                  : currentUser?.role === 'gerente_comercial' ? 'Gerente Comercial'
+                  : currentUser?.role === 'vendedor' ? 'Vendedor'
+                  : 'Painel comercial'}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {currentUser && (
@@ -1235,7 +1291,7 @@ export default function Admin() {
                 </label>
                 <div className="hidden sm:block">
                   <p className={`text-sm font-semibold leading-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>{[currentUser.first_name, currentUser.last_name].filter(Boolean).join(' ') || currentUser.username}</p>
-                  <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>{currentUser.role}</p>
+                  <p className={`text-xs capitalize ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>{String(currentUser.role || '').replace('_', ' ')}</p>
                 </div>
               </div>
             )}
@@ -1246,7 +1302,7 @@ export default function Admin() {
             {activeTab === 'pontos' ? (
               <button
                 onClick={openNew}
-                className="orange-solid-btn flex items-center gap-2 px-5 py-2.5 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
+                className="orange-solid-btn flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white font-semibold rounded-xl shadow-lg shadow-[#FE5C2B]/25 hover:shadow-xl hover:shadow-[#FE5C2B]/35 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
               >
               <Plus size={16} />
               Novo ponto
@@ -1257,7 +1313,7 @@ export default function Admin() {
 
         <div className="mb-6 space-y-2">
           {getVisibleGroups(currentUser?.role).map((group) => (
-            <div key={group.key} className={`rounded-2xl border p-2 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-white shadow-sm'}`}>
+            <div key={group.key} className={`rounded-2xl border p-2 transition-shadow ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200/80 bg-white shadow-[0_2px_12px_-4px_rgba(254,92,43,0.08)] hover:shadow-[0_4px_18px_-6px_rgba(254,92,43,0.14)]'}`}>
               <div className="flex flex-wrap items-center gap-1">
                 <span className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider select-none ${isDark ? 'text-white/30' : 'text-neutral-400'}`}>
                   {group.label}
@@ -1270,7 +1326,7 @@ export default function Admin() {
                       key={tab.key}
                       type="button"
                       onClick={() => tab.href ? navigate(tab.href) : setActiveTab(tab.key)}
-                      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${active ? 'bg-brand-orange text-white' : th.tabInactive}`}
+                      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${active ? 'bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white shadow-md shadow-[#FE5C2B]/25 -translate-y-px' : th.tabInactive}`}
                     >
                       <Icon size={15} />
                       {tab.label}
@@ -3287,4 +3343,125 @@ function formatRatio(width, height) {
 
   const div = gcd(w, h);
   return `${Math.round(w / div)}:${Math.round(h / div)}`;
+}
+
+function WelcomePopup({ data, isDark, onClose, onGoToGestao }) {
+  const { nome, pct, realizado, meta } = data;
+  const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v || 0);
+  const primeiroNome = String(nome || '').split(' ')[0] || 'chefe';
+  const h = new Date().getHours();
+  const saudacao = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+
+  let frase;
+  let emoji;
+  if (meta <= 0) {
+    frase = 'A meta mensal ainda não foi cadastrada — que tal já começar faturando?';
+    emoji = '🚀';
+  } else if (pct >= 100) {
+    frase = `Meta batida: ${pct}% conquistados! Vamos passar dos 120%?`;
+    emoji = '🏆';
+  } else if (pct >= 75) {
+    frase = `Você já está com ${pct}% da meta. Falta pouco, bora fechar!`;
+    emoji = '🔥';
+  } else if (pct >= 40) {
+    frase = `A meta mensal está ${pct}% concluída. Ritmo bom, bora acelerar!`;
+    emoji = '⚡';
+  } else if (pct > 0) {
+    frase = `A meta mensal está ${pct}% concluída. Bora vender, ${primeiroNome}!`;
+    emoji = '💪';
+  } else {
+    frase = `Meta mensal zerada por enquanto. Bora abrir o mês com chave de ouro!`;
+    emoji = '✨';
+  }
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+    >
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        initial={{ scale: 0.92, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.92, opacity: 0, y: 20 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+        className={`relative w-full max-w-md rounded-3xl border overflow-hidden shadow-2xl ${
+          isDark
+            ? 'border-white/10 bg-gradient-to-br from-[#1A0F0A] via-[#231610] to-[#1A0F0A]'
+            : 'border-[#FFD9C6] bg-gradient-to-br from-white via-[#FFF8F3] to-[#FFEAD8]'
+        }`}
+      >
+        <div className="pointer-events-none absolute -right-24 -top-24 w-72 h-72 rounded-full" style={{ background: 'radial-gradient(circle, rgba(254,92,43,0.22) 0%, transparent 70%)' }} />
+        <div className="pointer-events-none absolute -left-16 -bottom-16 w-56 h-56 rounded-full" style={{ background: 'radial-gradient(circle, rgba(254,92,43,0.14) 0%, transparent 70%)' }} />
+
+        <button
+          type="button"
+          onClick={onClose}
+          className={`absolute top-4 right-4 rounded-lg p-1.5 transition-colors ${isDark ? 'text-brand-gray-400 hover:bg-white/10 hover:text-white' : 'text-neutral-500 hover:bg-white hover:text-neutral-800'}`}
+          aria-label="Fechar"
+        >
+          <X size={18} />
+        </button>
+
+        <div className="relative p-7">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#FE5C2B] to-[#C94A1A] text-3xl shadow-lg shadow-[#FE5C2B]/30">
+              {emoji}
+            </div>
+            <div>
+              <p className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-brand-orange/80' : 'text-[#C94A1A]'}`}>Bem-vindo de volta</p>
+              <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                {saudacao}, {primeiroNome}!
+              </h2>
+            </div>
+          </div>
+
+          <p className={`text-[15px] leading-relaxed ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>
+            {frase}
+          </p>
+
+          {meta > 0 && (
+            <div className="mt-5">
+              <div className="flex justify-between items-baseline mb-1.5">
+                <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Progresso do mês</span>
+                <span className={`text-lg font-bold ${pct >= 100 ? 'text-green-500' : isDark ? 'text-white' : 'text-[#C94A1A]'}`}>{pct}%</span>
+              </div>
+              <div className={`h-2.5 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-white'}`}>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                  transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
+                  className={`h-full ${pct >= 100 ? 'bg-gradient-to-r from-green-400 to-green-600' : 'bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A]'}`}
+                />
+              </div>
+              <div className={`flex justify-between text-xs mt-2 ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>
+                <span>Realizado: <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{fmtBRL(realizado)}</strong></span>
+                <span>Meta: <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{fmtBRL(meta)}</strong></span>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 flex flex-col sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={onGoToGestao}
+              className="flex-1 rounded-xl bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] py-2.5 px-4 text-sm font-semibold text-white shadow-lg shadow-[#FE5C2B]/25 transition-all hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]"
+            >
+              Ir para Gestão Comercial
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className={`rounded-xl py-2.5 px-4 text-sm font-semibold transition-colors ${isDark ? 'bg-white/5 text-white hover:bg-white/10 border border-white/10' : 'bg-white text-neutral-700 hover:bg-neutral-50 border border-neutral-200'}`}
+            >
+              Continuar aqui
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
 }
