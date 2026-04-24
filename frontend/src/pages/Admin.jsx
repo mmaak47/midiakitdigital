@@ -59,7 +59,7 @@ const ELEVADOR_TIPO = 'Elevador';
 const ELEVADOR_CATEGORIAS = ['Comercial', 'Residencial'];
 const ELEVADOR_ARTE_LARGURA = '1080';
 const ELEVADOR_ARTE_ALTURA = '1920';
-const PUBLICOS = ['A', 'B', 'A/B'];
+const PUBLICOS = ['A+', 'A', 'A/B+', 'A/B', 'A/B/C', 'B+', 'B', 'B/C+', 'B/C', 'C'];
 const ENTORNO_SEGMENTOS = [
   'clinica', 'hospital', 'educacao', 'escola', 'faculdade',
   'automotivo', 'varejo', 'restaurante', 'imobiliaria',
