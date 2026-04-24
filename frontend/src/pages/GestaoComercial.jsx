@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  BarChart3, RefreshCcw, ChevronLeft, ChevronRight, Calculator
+  BarChart3, RefreshCcw, ChevronLeft, ChevronRight, Calculator, X, TrendingUp
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import GestaoUnificada from '../components/gestao/GestaoUnificada';
@@ -23,11 +23,34 @@ export default function GestaoComercial() {
   const [activeTab, setActiveTab] = useState('vendas');
   const [ano, setAno] = useState(new Date().getFullYear());
   const [currentUser, setCurrentUser] = useState(null);
+  const [welcome, setWelcome] = useState(null); // { nome, pct, realizado, meta }
 
   useEffect(() => {
     const token = sessionStorage.getItem('admin_token');
     if (!token) { navigate('/comercial'); return; }
-    fetchCurrentUser().then(setCurrentUser).catch(() => navigate('/comercial'));
+    fetchCurrentUser().then((u) => {
+      setCurrentUser(u);
+      // Mensagem de boas-vindas 1x por sessão (prioridade para Diretor, mas aparece para todos).
+      try {
+        const flagKey = 'welcome_shown_' + new Date().toISOString().slice(0,10);
+        if (!sessionStorage.getItem(flagKey)) {
+          fetch('/api/gestao/monthly-summary', { headers: { Authorization: `Bearer ${token}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then((snap) => {
+              if (!snap) return;
+              setWelcome({
+                nome: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username,
+                role: u.role,
+                pct: Number(snap.pct_mensal || 0),
+                realizado: Number(snap.realizado_mensal || 0),
+                meta: Number(snap.meta_mensal || 0),
+              });
+              sessionStorage.setItem(flagKey, '1');
+            })
+            .catch(() => {});
+        }
+      } catch {}
+    }).catch(() => navigate('/comercial'));
   }, [navigate]);
 
   useEffect(() => {
@@ -69,6 +92,10 @@ export default function GestaoComercial() {
             </div>
           </div>
         </div>
+
+        {welcome && (
+          <WelcomeBanner welcome={welcome} isDark={isDark} onClose={() => setWelcome(null)} />
+        )}
 
         <div className="mb-6">
           <div className={`flex flex-wrap gap-2 items-center rounded-2xl border p-2 transition-shadow ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200/80 bg-white shadow-[0_2px_12px_-4px_rgba(254,92,43,0.08)] hover:shadow-[0_4px_18px_-6px_rgba(254,92,43,0.14)]'}`}>
@@ -125,6 +152,86 @@ export default function GestaoComercial() {
       </div>
 
       <ComercialChatBot isDark={isDark} />
+    </div>
+  );
+}
+
+function WelcomeBanner({ welcome, isDark, onClose }) {
+  const { nome, pct, realizado, meta, role } = welcome;
+  const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v || 0);
+
+  const primeiroNome = String(nome || '').split(' ')[0] || 'chefe';
+  const saudacao = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Bom dia';
+    if (h < 18) return 'Boa tarde';
+    return 'Boa noite';
+  })();
+
+  let frase;
+  if (meta <= 0) {
+    frase = 'A meta mensal ainda não foi cadastrada — que tal já começar faturando?';
+  } else if (pct >= 100) {
+    frase = `Meta batida: ${pct}% da meta mensal conquistados! Vamos passar dos 120%?`;
+  } else if (pct >= 75) {
+    frase = `Você já está com ${pct}% da meta mensal. Falta pouco, bora fechar!`;
+  } else if (pct >= 40) {
+    frase = `A meta mensal está ${pct}% concluída. Ritmo bom, bora acelerar!`;
+  } else if (pct > 0) {
+    frase = `A meta mensal está ${pct}% concluída. Bora vender, ${primeiroNome}!`;
+  } else {
+    frase = `Meta mensal zerada por enquanto. Bora abrir o mês com chave de ouro, ${primeiroNome}!`;
+  }
+
+  const roleLabel = role === 'diretor' ? 'diretor' : role === 'admin' ? 'chefe' : role === 'gerente_comercial' ? 'gerente' : 'vendedor(a)';
+
+  return (
+    <div
+      className={`relative mb-6 rounded-2xl border overflow-hidden ${
+        isDark
+          ? 'border-white/10 bg-gradient-to-r from-[#2A1610] via-[#1F100B] to-[#150A06]'
+          : 'border-[#FFD9C6] bg-gradient-to-r from-[#FFF4EC] via-[#FFEAD8] to-[#FFF4EC]'
+      }`}
+    >
+      <div className="pointer-events-none absolute -right-20 -top-20 w-64 h-64 rounded-full" style={{ background: 'radial-gradient(circle, rgba(254,92,43,0.18) 0%, transparent 70%)' }} />
+      <div className="relative flex items-start gap-4 p-5">
+        <div className="shrink-0 inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FE5C2B] to-[#C94A1A] text-white shadow-lg shadow-[#FE5C2B]/30">
+          <TrendingUp size={22} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className={`text-lg sm:text-xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+            {saudacao}, {nome || 'chefe'}! Seja bem-vindo(a) de volta.
+          </h2>
+          <p className={`text-sm mt-1 ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>
+            {frase}
+          </p>
+          {meta > 0 && (
+            <div className="mt-3">
+              <div className={`h-2 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-white'}`}>
+                <div
+                  className="h-full bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] transition-all"
+                  style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                />
+              </div>
+              <div className={`flex justify-between text-xs mt-1.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>
+                <span>Realizado: <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{fmtBRL(realizado)}</strong></span>
+                <span>Meta: <strong className={isDark ? 'text-white' : 'text-neutral-900'}>{fmtBRL(meta)}</strong></span>
+              </div>
+            </div>
+          )}
+          <p className={`text-[11px] mt-2 opacity-60 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+            Dados do mês atual · perfil: {roleLabel}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className={`shrink-0 rounded-lg p-1.5 transition-colors ${isDark ? 'text-brand-gray-400 hover:bg-white/10 hover:text-white' : 'text-neutral-500 hover:bg-white hover:text-neutral-800'}`}
+          aria-label="Fechar"
+        >
+          <X size={16} />
+        </button>
+      </div>
     </div>
   );
 }

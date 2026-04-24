@@ -6217,6 +6217,14 @@ app.get('/api/gestao/vendedores', requireRoles(['admin','gerente_comercial','ven
 });
 
 // ─── METAS ───────────────────────────────────────────────────────────────
+app.get('/api/gestao/monthly-summary', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
+  try {
+    res.json(getTvGoalsSnapshot());
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
 app.get('/api/gestao/metas', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
   try {
     const ano = Number(req.query.ano) || new Date().getFullYear();
