@@ -32,6 +32,9 @@ const emptyForm = {
   responsavel_nome: '',
   responsavel_whatsapp: '',
   email: '',
+  criativo_nome: '',
+  criativo_whatsapp: '',
+  criativo_email: '',
   obs: '',
 };
 
@@ -237,6 +240,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
     setForm((prev) => ({
       ...prev,
       plano_fidelidade: true,
+      cota_contratada: prev.cota_contratada || '10 Segundos',
       obs: addPlanoFidelidadeObs(prev.obs),
     }));
 
@@ -310,10 +314,10 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
     }
     if (!form.valor_mensal) missing.push('Valor mensal');
     if (!form.tipo_valor) missing.push('Tipo de valor (Líquido/Bruto)');
-    if (!form.cota_contratada) missing.push('Cota contratada');
+    if (!form.plano_fidelidade && !form.cota_contratada) missing.push('Cota contratada');
     if (!form.data_primeira_parcela) missing.push('Data da primeira parcela');
     if (!form.data_inicio_veiculacao) missing.push('Data de início de veiculação');
-    if (!form.dia_pagamento_dia) missing.push('Dia do pagamento');
+    if (form.tipo !== 'Permuta' && !form.dia_pagamento_dia) missing.push('Dia do pagamento');
     if (form.periodo_tipo === 'meses' && !form.periodo_meses) missing.push('Número de meses');
     if (form.periodo_tipo === 'datas' && !form.periodo_inicio) missing.push('Data de início do período');
     if (form.periodo_tipo === 'datas' && !form.periodo_fim) missing.push('Data de término do período');
@@ -326,6 +330,10 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       const phoneErr = validatePhone(form.responsavel_whatsapp);
       if (phoneErr) missing.push(`WhatsApp: ${phoneErr}`);
     }
+    if (form.criativo_whatsapp.trim()) {
+      const creativePhoneErr = validatePhone(form.criativo_whatsapp);
+      if (creativePhoneErr) missing.push(`WhatsApp (Responsável pelos Criativos): ${creativePhoneErr}`);
+    }
     // E-mail é opcional. Observações e P.I. também.
 
     if (missing.length) {
@@ -336,12 +344,13 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
     setBusy(true);
     try {
       const fd = new FormData();
+      const cotaContratada = form.cota_contratada || (form.plano_fidelidade ? '10 Segundos' : '');
       fd.append('tipo', form.tipo);
       fd.append('razao_social', form.razao_social.trim());
       fd.append('nome_fantasia', form.nome_fantasia.trim());
       fd.append('cnpj', form.cnpj.trim());
       fd.append('valor_mensal', form.valor_mensal.trim());
-      fd.append('cota_contratada', form.cota_contratada);
+      fd.append('cota_contratada', cotaContratada);
       fd.append('plano_fidelidade', form.plano_fidelidade ? 'true' : 'false');
       fd.append('tipo_valor', form.tipo_valor);
       fd.append('via_agencia', form.via_agencia ? 'true' : 'false');
@@ -362,6 +371,9 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       fd.append('responsavel_nome', form.responsavel_nome.trim());
       fd.append('responsavel_whatsapp', form.responsavel_whatsapp.trim());
       fd.append('email', form.email.trim());
+      fd.append('criativo_nome', form.criativo_nome.trim());
+      fd.append('criativo_whatsapp', form.criativo_whatsapp.trim());
+      fd.append('criativo_email', form.criativo_email.trim());
       fd.append('obs', form.obs.trim());
       fd.append('pontos_nomes', JSON.stringify(selectedPontos.map(p => p.nome)));
       fd.append('pontos_precos', JSON.stringify(
@@ -760,7 +772,9 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className={lbl}>Dia do pagamento *</label>
+              <label className={lbl}>
+                Dia do pagamento {form.tipo === 'Permuta' ? <span className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-400'} normal-case font-normal`}>(opcional para Permuta)</span> : '*'}
+              </label>
               <div className="relative">
                 <select
                   className={inp}
@@ -783,7 +797,9 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className={lbl}>Cota contratada *</label>
+              <label className={lbl}>
+                Cota contratada {form.plano_fidelidade ? <span className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-400'} normal-case font-normal`}>(opcional no Plano Fidelidade)</span> : '*'}
+              </label>
               <select
                 className={inp}
                 value={form.cota_contratada}
@@ -961,6 +977,49 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
           </div>
         </section>
 
+        {/* Responsável pelos criativos */}
+        <section className={card}>
+          <h3 className={sectionTitle}>Responsável pelos criativos <span className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-400'} normal-case font-normal`}>(opcional)</span></h3>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className={lbl}>Nome</label>
+              <input
+                className={inp}
+                value={form.criativo_nome}
+                onChange={e => set('criativo_nome', e.target.value)}
+                placeholder="Nome completo"
+              />
+            </div>
+            <div>
+              <label className={lbl}>WhatsApp</label>
+              <input
+                className={inp}
+                value={form.criativo_whatsapp}
+                onChange={e => set('criativo_whatsapp', fmtPhone(e.target.value))}
+                placeholder="(43) 99999-9999"
+                inputMode="tel"
+              />
+              {(() => {
+                const d = form.criativo_whatsapp.replace(/\D/g, '');
+                if (!d) return null;
+                const phoneErr = validatePhone(form.criativo_whatsapp);
+                if (phoneErr) return <p className="text-[11px] mt-1.5 text-red-500 font-medium">{phoneErr}</p>;
+                return <p className="text-[11px] mt-1.5 text-green-600 font-medium">Celular válido.</p>;
+              })()}
+            </div>
+          </div>
+          <div>
+            <label className={lbl}>Email</label>
+            <input
+              type="email"
+              className={inp}
+              value={form.criativo_email}
+              onChange={e => set('criativo_email', e.target.value)}
+              placeholder="email@empresa.com.br"
+            />
+          </div>
+        </section>
+
         {/* Observações */}
         <section className={card}>
           <h3 className={sectionTitle}>Observações</h3>
@@ -1101,6 +1160,11 @@ function buildMsgPreview({ form, selectedPontos, pontoPrecos, currentUser }) {
     form.responsavel_nome || form.responsavel_whatsapp ? '👤 *RESPONSÁVEL PELO CLIENTE*' : null,
     form.responsavel_nome ? `Nome: ${form.responsavel_nome}` : null,
     form.responsavel_whatsapp ? `WhatsApp: ${form.responsavel_whatsapp}` : null,
+    (form.criativo_nome || form.criativo_whatsapp || form.criativo_email) ? '' : null,
+    (form.criativo_nome || form.criativo_whatsapp || form.criativo_email) ? '🎨 *RESPONSÁVEL PELOS CRIATIVOS*' : null,
+    form.criativo_nome ? `Nome: ${form.criativo_nome}` : null,
+    form.criativo_whatsapp ? `WhatsApp: ${form.criativo_whatsapp}` : null,
+    form.criativo_email ? `Email: ${form.criativo_email}` : null,
     form.obs?.trim() ? '' : null,
     form.obs?.trim() ? `📝 *OBS:* ${form.obs.trim()}` : null,
   ].filter(l => l !== null);

@@ -4871,6 +4871,9 @@ try {
   'ALTER TABLE admin_users ADD COLUMN is_vendedor INTEGER DEFAULT 0',
   'ALTER TABLE admin_users ADD COLUMN photo_url TEXT DEFAULT NULL',
   'ALTER TABLE vendas ADD COLUMN email TEXT',
+  'ALTER TABLE vendas ADD COLUMN criativo_nome TEXT',
+  'ALTER TABLE vendas ADD COLUMN criativo_whatsapp TEXT',
+  'ALTER TABLE vendas ADD COLUMN criativo_email TEXT',
   "ALTER TABLE pontos ADD COLUMN disponibilidade TEXT DEFAULT 'disponivel'",
   'ALTER TABLE vendas ADD COLUMN nome_fantasia TEXT',
   'ALTER TABLE vendas ADD COLUMN cota_contratada TEXT',
@@ -5191,6 +5194,32 @@ function sanitizePhoneForWhatsApp(raw) {
   return digits;
 }
 
+function formatDateToBrazil(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return raw;
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+function formatPhoneForMessage(raw) {
+  const digitsOnly = String(raw || '').replace(/\D/g, '');
+  if (!digitsOnly) return '';
+
+  const local = digitsOnly.startsWith('55') && digitsOnly.length >= 12
+    ? digitsOnly.slice(2)
+    : digitsOnly;
+
+  if (local.length === 11) {
+    return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`;
+  }
+  if (local.length === 10) {
+    return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
+  }
+  return raw || digitsOnly;
+}
+
 async function sendEvolutionText({ apiUrl, instance, apiKey, number, text }) {
   const base = apiUrl.replace(/\/$/, '');
   const url = `${base}/message/sendText/${encodeURIComponent(instance)}`;
@@ -5277,6 +5306,8 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantas
   const headerLabel = isRenovacao ? 'RENOVAÇÃO' : 'NOVA VENDA';
 
   const lines = [];
+  const dataInicioVeiculacaoBr = formatDateToBrazil(dataInicioVeiculacao);
+  const dataPrimeiraParcelaBr = formatDateToBrazil(dataPrimeiraParcela);
 
   lines.push(`${headerEmoji} *${headerLabel}* — ${vendedorNome}`);
   lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -5307,8 +5338,8 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantas
   const financeiro = [
     valorMensal ? `💰 Valor mensal: *R$ ${valorMensal}*${tipoValor ? ` _(${tipoValor})_` : ''}` : null,
     periodo     ? `📅 Período: *${periodo}*` : null,
-    dataInicioVeiculacao ? `📺 Data de início da veiculação: *${dataInicioVeiculacao}*` : null,
-    dataPrimeiraParcela ? `📆 Data da 1ª parcela: *${dataPrimeiraParcela}*` : null,
+    dataInicioVeiculacaoBr ? `📺 Data de início da veiculação: *${dataInicioVeiculacaoBr}*` : null,
+    dataPrimeiraParcelaBr ? `📆 Data da 1ª parcela: *${dataPrimeiraParcelaBr}*` : null,
     diaPagamentoDia ? `📆 Dia de pagamento: *Dia ${diaPagamentoDia} de cada mês*` : (diaPagamento ? `📆 Dia de pagamento: *dia ${diaPagamento}*` : null),
     cotaContratada ? `⏱️ Cota contratada: *${cotaContratada}*` : null,
     planoFidelidade ? `🤝 Plano Fidelidade: *Sim*` : null,
@@ -5526,6 +5557,9 @@ const VENDA_DRAFT_FORM_FIELDS = [
   'responsavel_nome',
   'responsavel_whatsapp',
   'email',
+  'criativo_nome',
+  'criativo_whatsapp',
+  'criativo_email',
   'obs',
 ];
 
@@ -5691,6 +5725,9 @@ app.post(
         responsavel_nome,
         responsavel_whatsapp,
         email,
+        criativo_nome,
+        criativo_whatsapp,
+        criativo_email,
         obs,
         pontos_nomes,
         pontos_precos,
@@ -5700,6 +5737,20 @@ app.post(
       if (!razao_social || !String(razao_social).trim()) {
         return res.status(400).json({ error: 'Razão Social é obrigatória.' });
       }
+
+      if (!responsavel_nome || !String(responsavel_nome).trim()) {
+        return res.status(400).json({ error: 'Nome do responsável pela compra é obrigatório.' });
+      }
+
+      if (!responsavel_whatsapp || !String(responsavel_whatsapp).trim()) {
+        return res.status(400).json({ error: 'WhatsApp do responsável pela compra é obrigatório.' });
+      }
+
+      const planoFidelidadeAtivo = plano_fidelidade === 'true' || plano_fidelidade === true;
+      const cotaContratadaFinal = String(cota_contratada || '').trim() || (planoFidelidadeAtivo ? '10 Segundos' : '');
+      const criativoNomeFinal = String(criativo_nome || '').trim();
+      const criativoWhatsappFinal = String(criativo_whatsapp || '').trim();
+      const criativoEmailFinal = String(criativo_email || '').trim();
 
       // Monta string de período
       let periodo = '';
@@ -5718,9 +5769,9 @@ app.post(
           cota_contratada, plano_fidelidade,
           via_agencia, agencia_nome, comissao_pct, troca_material,
           periodo, dia_pagamento, data_primeira_parcela, dia_pagamento_dia,
-          responsavel_nome, responsavel_whatsapp, email,
+          responsavel_nome, responsavel_whatsapp, email, criativo_nome, criativo_whatsapp, criativo_email,
           obs, pi_path, vendedor_id, vendedor_nome, whatsapp_status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
       `);
 
       const dbResult = stmt.run(
@@ -5732,8 +5783,8 @@ app.post(
         pontos_precos || '{}',
         valor_mensal || null,
         tipo_valor || null,
-        cota_contratada || null,
-        plano_fidelidade === 'true' || plano_fidelidade === true ? 1 : 0,
+        cotaContratadaFinal || null,
+        planoFidelidadeAtivo ? 1 : 0,
         via_agencia === 'true' || via_agencia === true ? 1 : 0,
         agencia_nome || null,
         comissao_pct || null,
@@ -5745,6 +5796,9 @@ app.post(
         responsavel_nome || null,
         responsavel_whatsapp || null,
         email || null,
+        criativoNomeFinal || null,
+        criativoWhatsappFinal || null,
+        criativoEmailFinal || null,
         obs || null,
         piPath || null,
         req.authUser?.id || null,
@@ -5771,8 +5825,8 @@ app.post(
             pontosPrecos: pontos_precos || '{}',
             valorMensal: valor_mensal || '',
             tipoValor: tipo_valor || '',
-            cotaContratada: cota_contratada || '',
-            planoFidelidade: plano_fidelidade === 'true' || plano_fidelidade === true,
+            cotaContratada: cotaContratadaFinal || '',
+            planoFidelidade: planoFidelidadeAtivo,
             periodo,
             diaPagamento: dia_pagamento || '',
             dataPrimeiraParcela: data_primeira_parcela || '',
@@ -5914,17 +5968,73 @@ app.post(
             : `Venda registrada. Falha no WhatsApp: ${whatsappError || 'erro desconhecido'}`
       });
 
-      // ─── Disparo assíncrono: PDF técnico para o WhatsApp do cliente ───────
+      // ─── Disparo assíncrono: PDF técnico para o contato correto ───────────
       // Roda em background para não atrasar a resposta ao vendedor.
       setImmediate(() => {
-        sendTechnicalPdfsForVenda({
-          vendaId,
-          responsavelWhatsApp: responsavel_whatsapp,
-          responsavelNome: responsavel_nome,
-          vendedorNome: vendedor_nome || req.authUser?.username || 'nosso time',
-          pontosNomes: pontos_nomes,
-          trigger: 'auto',
-        }).catch((pdfErr) => {
+        (async () => {
+          const vendedorNomeEfetivo = vendedor_nome || req.authUser?.username || 'nosso time';
+          const criativoDestino = sanitizePhoneForWhatsApp(criativoWhatsappFinal);
+          const compradorDestino = sanitizePhoneForWhatsApp(responsavel_whatsapp);
+          const usaContatoCriativo = Boolean(criativoDestino);
+          const destinoPdf = usaContatoCriativo ? criativoWhatsappFinal : responsavel_whatsapp;
+          const nomeDestinoPdf = usaContatoCriativo ? (criativoNomeFinal || 'responsável pelos criativos') : responsavel_nome;
+
+          const pdfResult = await sendTechnicalPdfsForVenda({
+            vendaId,
+            responsavelWhatsApp: destinoPdf,
+            responsavelNome: nomeDestinoPdf,
+            vendedorNome: vendedorNomeEfetivo,
+            pontosNomes: pontos_nomes,
+            trigger: 'auto',
+          });
+
+          if (!usaContatoCriativo || !pdfResult?.ok) {
+            return;
+          }
+
+          if (!compradorDestino || compradorDestino === criativoDestino) {
+            return;
+          }
+
+          const evoSettings = getEvolutionSettings();
+          if (!evoSettings.evolution_api_url || !evoSettings.evolution_instance || !evoSettings.evolution_api_key) {
+            return;
+          }
+
+          const nomeCriativoTexto = criativoNomeFinal || 'responsável pelos criativos';
+          const numeroCriativoTexto = formatPhoneForMessage(criativoWhatsappFinal || criativoDestino);
+          const avisoCriativo = [
+            `Olá! Sou do setor criativo da Intermídia e trabalho com o ${vendedorNomeEfetivo}.`,
+            '',
+            `Enviei os detalhes técnicos de criação para ${nomeCriativoTexto}, no número ${numeroCriativoTexto || criativoDestino}.`,
+            '',
+            'Parabéns pela sua aquisição e conte com a gente para criar uma campanha de alto impacto!'
+          ].join('\n');
+
+          try {
+            await sendEvolutionText({
+              apiUrl: evoSettings.evolution_api_url,
+              instance: evoSettings.evolution_pdf_instance || evoSettings.evolution_instance,
+              apiKey: evoSettings.evolution_api_key,
+              number: compradorDestino,
+              text: avisoCriativo,
+            });
+
+            try {
+              db.prepare('INSERT INTO whatsapp_send_log (venda_id, tipo, destino, status, erro, detalhes) VALUES (?, ?, ?, ?, ?, ?)')
+                .run(vendaId, 'aviso_contato_criativo', compradorDestino, 'enviado', null, `PDF técnico encaminhado para ${nomeCriativoTexto}`);
+            } catch {
+              // non-blocking log failure
+            }
+          } catch (noticeErr) {
+            try {
+              db.prepare('INSERT INTO whatsapp_send_log (venda_id, tipo, destino, status, erro, detalhes) VALUES (?, ?, ?, ?, ?, ?)')
+                .run(vendaId, 'aviso_contato_criativo', compradorDestino, 'falha', noticeErr.message, `Falha ao avisar redirecionamento para ${nomeCriativoTexto}`);
+            } catch {
+              // non-blocking log failure
+            }
+          }
+        })().catch((pdfErr) => {
           console.error(`[vendas/pdf] Falha inesperada no envio assíncrono da venda ${vendaId}:`, pdfErr.message);
         });
       });
@@ -6027,7 +6137,7 @@ app.post('/api/vendas/:id/retry-pdf', requireRoles(['admin', 'gerente_comercial'
     }
 
     const venda = db.prepare(`
-      SELECT id, vendedor_id, vendedor_nome, responsavel_nome, responsavel_whatsapp, pontos_nomes
+      SELECT id, vendedor_id, vendedor_nome, responsavel_nome, responsavel_whatsapp, criativo_nome, criativo_whatsapp, pontos_nomes
       FROM vendas
       WHERE id = ?
     `).get(vendaId);
@@ -6040,11 +6150,14 @@ app.post('/api/vendas/:id/retry-pdf', requireRoles(['admin', 'gerente_comercial'
       return res.status(403).json({ error: 'Você só pode reenviar PDFs das suas próprias vendas.' });
     }
 
+    const destinoWhatsApp = venda.criativo_whatsapp || venda.responsavel_whatsapp;
+    const destinoNome = venda.criativo_nome || venda.responsavel_nome;
+
     const actorName = String(req.authUser?.username || 'usuario').trim();
     const result = await sendTechnicalPdfsForVenda({
       vendaId,
-      responsavelWhatsApp: venda.responsavel_whatsapp,
-      responsavelNome: venda.responsavel_nome,
+      responsavelWhatsApp: destinoWhatsApp,
+      responsavelNome: destinoNome,
       vendedorNome: venda.vendedor_nome || req.authUser?.username || 'nosso time',
       pontosNomes: venda.pontos_nomes,
       trigger: 'manual_retry',
