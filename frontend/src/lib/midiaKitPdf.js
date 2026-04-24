@@ -256,6 +256,30 @@ export function formatPointAddress(address) {
   return main;
 }
 
+function normalizeAddressMetricToken(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+export function getAddressMetricKey(point) {
+  const cidadeToken = normalizeAddressMetricToken(point?.cidade || '');
+  const enderecoBase = formatPointAddress(point?.endereco) || point?.endereco || '';
+  const enderecoToken = normalizeAddressMetricToken(enderecoBase);
+
+  if (!cidadeToken && !enderecoToken) return '';
+  if (!enderecoToken) return `${cidadeToken}|sem-endereco`;
+  return `${cidadeToken}|${enderecoToken}`;
+}
+
+export function countUniqueAddresses(points = []) {
+  const source = Array.isArray(points) ? points : [];
+  return new Set(source.map((point) => getAddressMetricKey(point)).filter(Boolean)).size;
+}
+
 export function pickImageUrl(ponto) {
   const preferred = String(ponto?.pdf_image_source || 'imagem2').trim().toLowerCase();
   if (preferred === 'imagem' && (ponto?.imagem || ponto?.imagem2)) {
@@ -754,7 +778,7 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets, selectedCities
   const estado = getCityState(cidade);
   const totalFormatos = new Set(pontos.map((ponto) => ponto.tipo).filter(Boolean)).size;
   const totalPublicos = new Set(pontos.map((ponto) => ponto.publico).filter(Boolean)).size;
-  const totalEnderecos = new Set(pontos.map((ponto) => `${ponto.cidade || ''}-${ponto.endereco || ''}`.trim()).filter(Boolean)).size;
+  const totalEnderecos = countUniqueAddresses(pontos);
   const heroImage = assets.cityBg || assets.heroBg || assets.showcase || '';
   const normalizedSelectedCities = Array.from(new Set(
     (Array.isArray(selectedCities) ? selectedCities : [])
@@ -764,7 +788,7 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets, selectedCities
   const selectedCitiesLabel = normalizedSelectedCities.join(' · ');
   const isMultiCity = normalizedSelectedCities.length > 1;
   const cards = [
-    { label: 'Pontos ativos', value: formatInt(pontos.length), icon: 'type' },
+    { label: 'Endereços ativos', value: formatInt(totalEnderecos), icon: 'location' },
     { label: 'Pontos de Impacto disponíveis', value: formatInt(resumo.telas), icon: 'type' },
     { label: 'Fluxo mensal', value: formatInt(resumo.fluxo), icon: 'coordinates' },
     { label: 'Formatos no kit', value: formatInt(totalFormatos), icon: 'city' }
@@ -881,8 +905,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
     .sort((a, b) => (b.fluxo - a.fluxo) || (b.pontos - a.pontos))
     .slice(0, 5);
 
-  const totalEnderecos = new Set(pontos.map((p) => `${p.cidade || ''}-${p.endereco || ''}`.trim())).size;
-  const totalPontos = pontos.length;
+  const totalEnderecos = countUniqueAddresses(pontos);
   const resumo = buildResumo(pontos);
   const featuredPoint = [...pontos]
     .map((point) => ({
@@ -893,7 +916,6 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
 
   const cards = [
     { label: 'Endereços', value: formatInt(totalEnderecos), icon: 'location' },
-    { label: 'Pontos', value: formatInt(totalPontos), icon: 'type' },
     { label: 'Pontos de Impacto', value: formatInt(resumo.telas), icon: 'city' },
     { label: 'Ticket médio', value: formatMoney(resumo.ticketMedio), icon: 'money' }
   ];
@@ -915,7 +937,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
 
     <div style="position:absolute;left:70px;right:70px;top:206px;bottom:44px;display:grid;grid-template-columns:1.05fr 0.95fr;gap:24px;align-items:stretch;">
       <div>
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+        <div style="display:grid;grid-template-columns:repeat(${cards.length},minmax(0,1fr));gap:12px;">
           ${cards.map((card) => `
             <div style="padding:16px 18px;border-radius:18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);">
               <div style="display:flex;align-items:center;gap:12px;">
@@ -929,7 +951,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
 
         <div style="margin-top:12px;padding:16px 20px;border-radius:28px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.10);">
           <div style="font-size:11px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND_ORANGE};">Leitura rápida do inventário</div>
-          <div style="margin-top:14px;font-size:17px;line-height:1.42;color:rgba(255,255,255,0.8);">Praça com <strong style="color:#fff;">${formatInt(totalPontos)} pontos</strong>, <strong style="color:#fff;">${formatInt(resumo.telas)} pontos de impacto</strong> e fluxo mensal consolidado de <strong style="color:#fff;">${formatInt(resumo.fluxo)}</strong>. A composição por formato facilita montar uma grade equilibrada entre cobertura e frequência.</div>
+          <div style="margin-top:14px;font-size:17px;line-height:1.42;color:rgba(255,255,255,0.8);">Praça com <strong style="color:#fff;">${formatInt(totalEnderecos)} endereços ativos</strong>, <strong style="color:#fff;">${formatInt(resumo.telas)} pontos de impacto</strong> e fluxo mensal consolidado de <strong style="color:#fff;">${formatInt(resumo.fluxo)}</strong>. A composição por formato facilita montar uma grade equilibrada entre cobertura e frequência.</div>
         </div>
       </div>
 
@@ -2183,7 +2205,7 @@ export async function generateMidiaKitPdf({ praca, pracas, pontos }) {
   const cityStats = {
     cidade,
     totalTelas: resumo.telas,
-    totalEnderecos: new Set(kitPontos.map((p) => `${p.cidade || ''}-${p.endereco || ''}`.trim())).size
+    totalEnderecos: countUniqueAddresses(kitPontos)
   };
 
   // Pré-carrega todas as imagens dos pontos em paralelo com compressão via canvas
@@ -2210,7 +2232,7 @@ export async function generateMidiaKitPdf({ praca, pracas, pontos }) {
     })
     .forEach(([tipo, items]) => {
     const formatTelas = items.reduce((sum, { ponto }) => sum + (Number(ponto.telas) || 0), 0);
-    const formatEnderecos = new Set(items.map(({ ponto }) => `${ponto.cidade || ''}-${ponto.endereco || ''}`.trim())).size;
+    const formatEnderecos = countUniqueAddresses(items.map(({ ponto }) => ponto));
     pages.push(buildMidiaKitFormatDividerPage({ tipo, formatStats: { telas: formatTelas, enderecos: formatEnderecos }, cityStats, assets }));
     items.forEach(({ ponto, index }) => {
       pages.push(buildMidiaKitPointPage({
