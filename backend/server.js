@@ -19,6 +19,7 @@ const multer = require('multer');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = rateLimit;
 const { z } = require('zod');
+const XLSX = require('xlsx');
 const { randomUUID, timingSafeEqual } = require('crypto');
 const db = require('./database');
 const cidadeFotosRouter = require('./routes/cidadeFotos');
@@ -774,6 +775,33 @@ const upload = multer({
     fileSize: 50 * 1024 * 1024,
     files: 4,
     fields: 60
+  }
+});
+
+const POINT_IMPORT_ALLOWED_EXTENSIONS = new Set(['.xlsx', '.xls', '.csv']);
+const POINT_IMPORT_ALLOWED_MIME = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'text/csv',
+  'application/csv'
+]);
+
+const uploadPointImport = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    const ext = String(path.extname(file?.originalname || '') || '').toLowerCase();
+    const isAllowedExt = POINT_IMPORT_ALLOWED_EXTENSIONS.has(ext);
+    const isAllowedMime = POINT_IMPORT_ALLOWED_MIME.has(String(file?.mimetype || '').toLowerCase());
+    if (!isAllowedExt && !isAllowedMime) {
+      cb(new Error('Arquivo inválido. Envie um Excel (.xlsx, .xls) ou CSV.'));
+      return;
+    }
+    cb(null, true);
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+    files: 1,
+    fields: 20
   }
 });
 
@@ -1699,6 +1727,129 @@ function buildAudienceTagCatalog(rows = []) {
 
   return Array.from(map.values())
     .sort((a, b) => (b.count - a.count) || a.label.localeCompare(b.label, 'pt-BR'));
+}
+
+const POINT_IMPORT_TEMPLATE_COLUMNS = [
+  { key: 'nome', label: 'nome *', sample: 'Ed. Exemplo Centro' },
+  { key: 'cidade', label: 'cidade *', sample: 'Londrina' },
+  { key: 'tipo', label: 'tipo *', sample: 'Elevador' },
+  { key: 'endereco', label: 'endereco *', sample: 'Av. Higienopolis, 1234' },
+  { key: 'horario', label: 'horario *', sample: '06:00 as 22:00' },
+  { key: 'fluxo', label: 'fluxo *', sample: 30000 },
+  { key: 'telas', label: 'telas *', sample: 2 },
+  { key: 'preco', label: 'preco *', sample: 1200 },
+  { key: 'publico', label: 'publico *', sample: 'A/B' },
+  { key: 'tempo', label: 'tempo', sample: '15s' },
+  { key: 'loop', label: 'loop', sample: '3 min' },
+  { key: 'veiculacao', label: 'veiculacao', sample: 'Video sem audio' },
+  { key: 'insercoes', label: 'insercoes', sample: '' },
+  { key: 'elevador_categoria', label: 'elevador_categoria', sample: 'Comercial' },
+  { key: 'lat', label: 'lat', sample: -23.3119 },
+  { key: 'lng', label: 'lng', sample: -51.1675 },
+  { key: 'descricao', label: 'descricao', sample: 'Ponto de alta circulacao.' },
+  { key: 'arte_largura', label: 'arte_largura_px', sample: ELEVADOR_ARTE_LARGURA },
+  { key: 'arte_altura', label: 'arte_altura_px', sample: ELEVADOR_ARTE_ALTURA },
+  { key: 'tipo_fluxo', label: 'tipo_fluxo', sample: 'pessoas' },
+  { key: 'midia_largura_m', label: 'midia_largura_m', sample: '' },
+  { key: 'midia_altura_m', label: 'midia_altura_m', sample: '' },
+  { key: 'disponibilidade', label: 'disponibilidade', sample: 'disponivel' }
+];
+
+const POINT_IMPORT_HEADER_ALIASES = {
+  nome: ['nome'],
+  cidade: ['cidade'],
+  tipo: ['tipo'],
+  endereco: ['endereco'],
+  horario: ['horario'],
+  fluxo: ['fluxo'],
+  telas: ['telas'],
+  preco: ['preco'],
+  publico: ['publico'],
+  tempo: ['tempo'],
+  loop: ['loop'],
+  veiculacao: ['veiculacao'],
+  insercoes: ['insercoes'],
+  elevador_categoria: ['elevador_categoria'],
+  lat: ['lat', 'latitude'],
+  lng: ['lng', 'longitude'],
+  descricao: ['descricao'],
+  arte_largura: ['arte_largura_px', 'arte_largura'],
+  arte_altura: ['arte_altura_px', 'arte_altura'],
+  tipo_fluxo: ['tipo_fluxo'],
+  midia_largura_m: ['midia_largura_m'],
+  midia_altura_m: ['midia_altura_m'],
+  disponibilidade: ['disponibilidade']
+};
+
+function normalizeImportHeaderKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function importCellToString(value) {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).trim();
+}
+
+function normalizeImportRow(rawRow = {}) {
+  const normalized = {};
+  Object.entries(rawRow).forEach(([rawKey, rawValue]) => {
+    const key = normalizeImportHeaderKey(rawKey);
+    if (!key) return;
+    normalized[key] = rawValue;
+  });
+  return normalized;
+}
+
+function pickImportValue(row = {}, aliases = []) {
+  for (const alias of aliases) {
+    const value = row[alias];
+    if (value === undefined || value === null) continue;
+    if (typeof value === 'string' && !value.trim()) continue;
+    return value;
+  }
+  return '';
+}
+
+function parseImportInteger(value, fallback = 0) {
+  const parsed = Math.round(parseCurrencyLike(value));
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseImportPhysicalSize(value, fallback = null) {
+  return normalizePhysicalSizeMeters(importCellToString(value), fallback);
+}
+
+function buildPointImportTemplateBuffer() {
+  const headers = POINT_IMPORT_TEMPLATE_COLUMNS.map((column) => column.label);
+  const sampleRow = POINT_IMPORT_TEMPLATE_COLUMNS.map((column) => column.sample ?? '');
+
+  const mainSheet = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+  mainSheet['!cols'] = headers.map((label) => ({ wch: Math.max(14, String(label || '').length + 4) }));
+
+  const instructionRows = [
+    ['Instrucoes de preenchimento'],
+    ['1) Preencha uma linha por ponto. Campos com * sao obrigatorios.'],
+    ['2) Nao e necessario preencher foto/imagem no Excel. A foto pode ser enviada depois no sistema.'],
+    ['3) Para Elevador, use elevador_categoria: Comercial ou Residencial.'],
+    ['4) Para Backlight/Frontlight, voce pode informar midia_largura_m, midia_altura_m e disponibilidade.'],
+    ['5) Formatos aceitos no import: .xlsx, .xls ou .csv (cabecalho na primeira linha).']
+  ];
+  const instructionSheet = XLSX.utils.aoa_to_sheet(instructionRows);
+  instructionSheet['!cols'] = [{ wch: 130 }];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, mainSheet, 'Pontos');
+  XLSX.utils.book_append_sheet(workbook, instructionSheet, 'Instrucoes');
+
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
 }
 
 // ==================== API ROUTES ====================
@@ -3790,6 +3941,212 @@ app.delete('/api/pontos/:id/hard', requireRoles(['admin']), (req, res) => {
     res.json({ success: true, deleted: existing.nome });
   } catch (err) {
     internalError(res, err);
+  }
+});
+
+app.get('/api/admin/pontos/import/template', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const buffer = buildPointImportTemplateBuffer();
+    const fileName = 'modelo-importacao-pontos.xlsx';
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(buffer);
+  } catch (err) {
+    internalError(res, err, 'Falha ao gerar o Excel de exemplo.');
+  }
+});
+
+app.post('/api/admin/pontos/import', requireRoles(['admin', 'gerente_comercial']), uploadPointImport.single('file'), (req, res) => {
+  try {
+    if (!req.file?.buffer) {
+      return res.status(400).json({ error: 'Arquivo não enviado. Selecione um Excel para importar.' });
+    }
+
+    let workbook;
+    try {
+      workbook = XLSX.read(req.file.buffer, { type: 'buffer', raw: false });
+    } catch {
+      return res.status(400).json({ error: 'Não foi possível ler o arquivo. Verifique se é um Excel válido.' });
+    }
+
+    const firstSheetName = workbook?.SheetNames?.[0];
+    if (!firstSheetName) {
+      return res.status(400).json({ error: 'Planilha sem abas. Use o modelo de importação.' });
+    }
+
+    const sheet = workbook.Sheets[firstSheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', blankrows: false });
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: 'Nenhuma linha encontrada na planilha. Preencha ao menos um ponto.' });
+    }
+
+    const stmt = db.prepare(`
+      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, midia_largura_m, midia_altura_m, tipo_fluxo, audience_tags, availability_calendar, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom, foto_focal_point, pdf_image_source, disponibilidade)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const errors = [];
+    const createdIds = [];
+    const touchedCities = new Set();
+    let processedRows = 0;
+
+    rows.forEach((rawRow, idx) => {
+      const rowNumber = idx + 2;
+      const normalizedRow = normalizeImportRow(rawRow);
+
+      const isEmpty = Object.values(normalizedRow).every((value) => !importCellToString(value));
+      if (isEmpty) return;
+
+      processedRows += 1;
+
+      const data = {};
+      Object.entries(POINT_IMPORT_HEADER_ALIASES).forEach(([field, aliases]) => {
+        data[field] = pickImportValue(normalizedRow, aliases);
+      });
+
+      const requiredFields = ['nome', 'cidade', 'tipo', 'endereco', 'horario', 'fluxo', 'telas', 'preco', 'publico'];
+      const missing = requiredFields.filter((field) => !importCellToString(data[field]));
+      if (missing.length > 0) {
+        errors.push({
+          row: rowNumber,
+          error: `Campos obrigatórios faltando: ${missing.join(', ')}`
+        });
+        return;
+      }
+
+      try {
+        const tipo = importCellToString(data.tipo);
+        const nomeOriginal = importCellToString(data.nome);
+        const nome = normalizePointNameByType(nomeOriginal, tipo) || nomeOriginal;
+        const cidade = importCellToString(data.cidade);
+        const endereco = importCellToString(data.endereco);
+        const horario = importCellToString(data.horario);
+        const fluxo = Math.max(0, parseImportInteger(data.fluxo, 0));
+        const telasVal = Math.max(1, parseImportInteger(data.telas, 1));
+        const preco = Math.max(0, parseCurrencyLike(data.preco));
+        const publico = importCellToString(data.publico) || 'A/B';
+
+        const isBackOrFrontLight = tipo === 'Backlight' || tipo === 'Frontlight';
+        const insercoesInformadas = Math.max(0, parseImportInteger(data.insercoes, 0));
+        const insercoes = isBackOrFrontLight
+          ? insercoesInformadas
+          : (calcInsercoesMensal(horario, telasVal) ?? insercoesInformadas);
+
+        const tempo = importCellToString(data.tempo) || '15s';
+        const loop = importCellToString(data.loop) || '3 min';
+        const veiculacao = importCellToString(data.veiculacao) || 'Vídeo sem áudio';
+        const descricao = importCellToString(data.descricao);
+        const latDb = normalizeCoordinateForDb(data.lat, -90, 90, null);
+        const lngDb = normalizeCoordinateForDb(data.lng, -180, 180, null);
+
+        const arteLarguraDefault = tipo === ELEVADOR_TIPO ? ELEVADOR_ARTE_LARGURA : 1920;
+        const arteAlturaDefault = tipo === ELEVADOR_TIPO ? ELEVADOR_ARTE_ALTURA : 1080;
+        const arteLargura = Math.max(1, parseImportInteger(data.arte_largura, arteLarguraDefault));
+        const arteAltura = Math.max(1, parseImportInteger(data.arte_altura, arteAlturaDefault));
+
+        const elevadorCategoria = tipo === ELEVADOR_TIPO
+          ? normalizeElevadorCategoria(importCellToString(data.elevador_categoria))
+          : null;
+
+        const tipoFluxo = importCellToString(data.tipo_fluxo).toLowerCase() === 'veiculos'
+          ? 'veiculos'
+          : 'pessoas';
+
+        const midiaLarguraM = isBackOrFrontLight
+          ? parseImportPhysicalSize(data.midia_largura_m, null)
+          : null;
+        const midiaAlturaM = isBackOrFrontLight
+          ? parseImportPhysicalSize(data.midia_altura_m, null)
+          : null;
+
+        const disponibilidadeRaw = importCellToString(data.disponibilidade).toLowerCase();
+        const disponibilidade = isBackOrFrontLight
+          ? (disponibilidadeRaw === 'indisponivel' ? 'indisponivel' : 'disponivel')
+          : null;
+
+        const audienceTags = normalizeAudienceTagsInput('', publico);
+        const availabilityCalendar = normalizeAvailabilityCalendarInput('', horario);
+
+        const result = stmt.run(
+          nome,
+          cidade,
+          tipo,
+          endereco,
+          latDb,
+          lngDb,
+          horario,
+          fluxo,
+          insercoes,
+          tempo,
+          loop,
+          veiculacao,
+          publico,
+          telasVal,
+          preco,
+          descricao,
+          null,
+          null,
+          null,
+          null,
+          null,
+          arteLargura,
+          arteAltura,
+          midiaLarguraM,
+          midiaAlturaM,
+          tipoFluxo,
+          JSON.stringify(audienceTags),
+          JSON.stringify(availabilityCalendar),
+          elevadorCategoria,
+          50,
+          50,
+          100,
+          'center center',
+          'imagem2',
+          disponibilidade
+        );
+
+        const created = db.prepare('SELECT id, cidade FROM pontos WHERE id = ?').get(result.lastInsertRowid);
+        if (created?.id) {
+          createdIds.push(Number(created.id));
+          const citySlug = slugifyCity(created.cidade);
+          if (citySlug) touchedCities.add(citySlug);
+        }
+      } catch (err) {
+        errors.push({ row: rowNumber, error: err?.message || 'Falha ao inserir ponto.' });
+      }
+    });
+
+    if (processedRows === 0) {
+      return res.status(400).json({ error: 'A planilha está vazia. Preencha ao menos uma linha de ponto.' });
+    }
+
+    createdIds.forEach((id) => invalidatePointCache(id));
+    touchedCities.forEach((citySlug) => invalidateCityCaches(citySlug, db));
+
+    const createdCount = createdIds.length;
+    const maxErrors = 100;
+    const visibleErrors = errors.slice(0, maxErrors);
+
+    if (createdCount === 0) {
+      return res.status(400).json({
+        error: 'Nenhum ponto foi importado. Verifique os erros da planilha.',
+        totalRows: processedRows,
+        createdCount,
+        errorCount: errors.length,
+        errors: visibleErrors
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      totalRows: processedRows,
+      createdCount,
+      errorCount: errors.length,
+      errors: visibleErrors,
+      warning: errors.length > maxErrors ? `Mostrando apenas os primeiros ${maxErrors} erros.` : ''
+    });
+  } catch (err) {
+    internalError(res, err, 'Falha ao importar pontos via Excel.');
   }
 });
 

@@ -37,7 +37,9 @@ import {
   fetchCurrentUser,
   fetchArteStats,
   uploadMyPhoto,
-  uploadUserPhoto
+  uploadUserPhoto,
+  downloadPontosImportTemplate,
+  importPontosFromExcel
 } from '../lib/api';
 import ScreenAreaEditor from '../components/admin/ScreenAreaEditor';
 import FocalPointSelector from '../components/admin/FocalPointSelector';
@@ -232,6 +234,8 @@ export default function Admin() {
   const [technicalPdfFormat, setTechnicalPdfFormat] = useState('desktop'); // 'desktop' | 'mobile'
   const [showTechnicalPdfFormatPicker, setShowTechnicalPdfFormatPicker] = useState(false);
   const technicalPdfFormatPickerRef = useRef(null);
+  const [importExcelBusy, setImportExcelBusy] = useState(false);
+  const importExcelInputRef = useRef(null);
 
   const [entornoForm, setEntornoForm] = useState({
     segmento: 'clinica',
@@ -654,6 +658,47 @@ export default function Admin() {
       loadPontos();
     } catch (err) {
       alert(err.message);
+    }
+  };
+
+  const handleDownloadExcelTemplate = async () => {
+    try {
+      await downloadPontosImportTemplate();
+    } catch (err) {
+      alert(err.message || 'Erro ao baixar o Excel de exemplo.');
+    }
+  };
+
+  const handleOpenExcelImport = () => {
+    if (importExcelBusy) return;
+    importExcelInputRef.current?.click();
+  };
+
+  const handleImportExcelFile = async (event) => {
+    const file = event.target.files?.[0] || null;
+    event.target.value = '';
+    if (!file) return;
+
+    setImportExcelBusy(true);
+    try {
+      const result = await importPontosFromExcel(file);
+      await loadPontos();
+
+      const createdCount = Number(result?.createdCount || 0);
+      const errorCount = Number(result?.errorCount || 0);
+      const firstErrors = Array.isArray(result?.errors) ? result.errors.slice(0, 5) : [];
+      const detail = firstErrors.map((item) => `Linha ${item.row}: ${item.error}`).join('\n');
+
+      alert([
+        `Importação concluída.`,
+        `Pontos criados: ${createdCount}`,
+        `Erros: ${errorCount}`,
+        detail ? `\nPrimeiros erros:\n${detail}` : ''
+      ].filter(Boolean).join('\n'));
+    } catch (err) {
+      alert(err.message || 'Falha ao importar pontos via Excel.');
+    } finally {
+      setImportExcelBusy(false);
     }
   };
 
@@ -1308,14 +1353,48 @@ export default function Admin() {
               <span className="hidden sm:inline">Sair</span>
             </button>
             {activeTab === 'pontos' ? (
-              <button
-                onClick={openNew}
-                className="orange-solid-btn flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white font-semibold rounded-xl shadow-lg shadow-[#FE5C2B]/25 hover:shadow-xl hover:shadow-[#FE5C2B]/35 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
-              >
-              <Plus size={16} />
-              Novo ponto
-            </button>
-          ) : null}
+              <div className="flex items-center gap-2">
+                <input
+                  ref={importExcelInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={handleImportExcelFile}
+                />
+                <button
+                  type="button"
+                  onClick={handleDownloadExcelTemplate}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                    isDark
+                      ? 'border border-white/15 bg-white/5 text-white hover:bg-white/10'
+                      : 'border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 shadow-sm'
+                  }`}
+                >
+                  <Download size={15} />
+                  <span className="hidden sm:inline">Excel exemplo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenExcelImport}
+                  disabled={importExcelBusy}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 ${
+                    isDark
+                      ? 'border border-brand-orange/40 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20'
+                      : 'border border-[#E85A1A] bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white hover:from-[#E85A1A] hover:to-[#C94A1A] shadow-sm shadow-[#FE5C2B]/25'
+                  }`}
+                >
+                  {importExcelBusy ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                  <span className="hidden sm:inline">Importar Excel</span>
+                </button>
+                <button
+                  onClick={openNew}
+                  className="orange-solid-btn flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white font-semibold rounded-xl shadow-lg shadow-[#FE5C2B]/25 hover:shadow-xl hover:shadow-[#FE5C2B]/35 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
+                >
+                  <Plus size={16} />
+                  Novo ponto
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -1348,6 +1427,14 @@ export default function Admin() {
 
         {activeTab === 'pontos' ? (
           <>
+            <div className={`mb-4 rounded-xl border px-3 py-2 text-xs flex items-start gap-2 ${isDark ? 'border-brand-orange/30 bg-brand-orange/10 text-brand-orange' : 'border-[#FFCFB8] bg-[#FFF0EA] text-[#C94A1A]'}`}>
+              <Info size={14} className="mt-0.5 shrink-0" />
+              <span>
+                Importação por Excel: preencha o modelo e envie o arquivo em <strong>.xlsx</strong>, <strong>.xls</strong> ou <strong>.csv</strong>.
+                Foto/imagem não é obrigatória no Excel e pode ser adicionada depois no sistema.
+              </span>
+            </div>
+
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="relative w-full lg:max-w-md">
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray-500" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>

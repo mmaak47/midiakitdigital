@@ -330,6 +330,60 @@ export async function hardDeletePonto(id) {
   return res.json();
 }
 
+function extractFileNameFromDisposition(disposition, fallbackName) {
+  const raw = String(disposition || '');
+  const utf8 = raw.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8?.[1]) return decodeURIComponent(utf8[1]);
+  const basic = raw.match(/filename="?([^";]+)"?/i);
+  if (basic?.[1]) return basic[1];
+  return fallbackName;
+}
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadPontosImportTemplate() {
+  const res = await apiRequest('/admin/pontos/import/template');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao baixar Excel de exemplo');
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get('content-disposition');
+  const fileName = extractFileNameFromDisposition(disposition, 'modelo-importacao-pontos.xlsx');
+  downloadBlob(blob, fileName);
+}
+
+export async function importPontosFromExcel(file) {
+  if (!(file instanceof File)) {
+    throw new Error('Arquivo inválido para importação.');
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await apiRequest('/admin/pontos/import', {
+    method: 'POST',
+    body: formData
+  });
+
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao importar pontos via Excel');
+  }
+
+  return res.json();
+}
+
 export async function fetchEntornoScores({ segmento, raio = 800, cidade, force = false }) {
   const params = new URLSearchParams();
   if (segmento) params.set('segmento', segmento);
