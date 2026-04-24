@@ -5582,6 +5582,85 @@ function normalizeVendaDraftPayload(payload) {
   };
 }
 
+const PLANO_FIDELIDADE_BRAVI_RAZAO_SOCIAL = 'Bravi Comercio de Bebidas e Alimentos LTDA';
+
+function parseVendaPointNames(rawValue) {
+  if (Array.isArray(rawValue)) {
+    return rawValue
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+  }
+
+  const rawText = String(rawValue || '').trim();
+  if (!rawText) return [];
+
+  try {
+    const parsed = JSON.parse(rawText);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map((item) => String(item || '').trim())
+        .filter(Boolean);
+    }
+  } catch {
+    // Legacy rows may contain comma-separated text instead of JSON.
+  }
+
+  return rawText
+    .split(',')
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+}
+
+function getPlanoFidelidadeBraviPoints() {
+  const targetName = normalizeTextForMatch(PLANO_FIDELIDADE_BRAVI_RAZAO_SOCIAL);
+  const rows = db.prepare(`
+    SELECT id, razao_social, pontos_nomes, created_at
+    FROM vendas
+    WHERE COALESCE(TRIM(pontos_nomes), '') <> ''
+    ORDER BY created_at DESC, id DESC
+    LIMIT 500
+  `).all();
+
+  for (const row of rows) {
+    if (normalizeTextForMatch(row?.razao_social) !== targetName) continue;
+
+    const parsedNames = parseVendaPointNames(row?.pontos_nomes);
+    if (parsedNames.length === 0) continue;
+
+    const uniqueNames = Array.from(new Set(parsedNames));
+    if (uniqueNames.length === 0) continue;
+
+    return {
+      found: true,
+      sourceVendaId: row.id,
+      sourceCreatedAt: row.created_at || null,
+      pontosNomes: uniqueNames,
+    };
+  }
+
+  return {
+    found: false,
+    sourceVendaId: null,
+    sourceCreatedAt: null,
+    pontosNomes: [],
+  };
+}
+
+app.get('/api/vendas/plano-fidelidade/pontos', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const payload = getPlanoFidelidadeBraviPoints();
+    res.json({
+      cliente_razao_social: PLANO_FIDELIDADE_BRAVI_RAZAO_SOCIAL,
+      found: payload.found,
+      source_venda_id: payload.sourceVendaId,
+      source_created_at: payload.sourceCreatedAt,
+      pontos_nomes: payload.pontosNomes,
+    });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
 app.post(
   '/api/vendas',
   resolveAuthenticatedUser,

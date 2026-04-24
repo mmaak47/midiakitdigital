@@ -145,24 +145,24 @@ function buildAuditHtml(filtered, filteredStats, filterCidade) {
       ? '<span style="color:#4ade80;font-size:10px">●</span>'
       : '<span style="color:rgba(248,113,113,0.6);font-size:10px">○</span>';
 
-    return `<tr style="border-top:1px solid rgba(255,255,255,0.06)">
+    return `<tr style="border-top:1px solid #e5e7eb">
       <td style="padding:8px 10px">
         <div style="display:flex;align-items:center;gap:6px">
           ${onlineIcon}
           <div>
-            <div class="nome-local" style="font-weight:500;font-size:12px;color:#fff">${item.local || item.nome}${telasTag}${divergeTag}</div>
+            <div class="nome-local" style="font-weight:500;font-size:12px;color:#111827">${item.local || item.nome}${telasTag}${divergeTag}</div>
             <div class="cidade-sub" style="font-size:9px;color:#666">${item.cidade || ''}</div>
           </div>
         </div>
       </td>
-      <td class="val-mono" style="padding:8px 10px;text-align:center;font-family:monospace;font-size:11px;color:#fff">${fmtS(item.ocupado_seg)}</td>
-      <td class="val-ins" style="padding:8px 10px;text-align:center;font-weight:700;color:#fff">${item.insercoes_ativas}</td>
+      <td class="val-mono" style="padding:8px 10px;text-align:center;font-family:monospace;font-size:11px;color:#111827">${fmtS(item.ocupado_seg)}</td>
+      <td class="val-ins" style="padding:8px 10px;text-align:center;font-weight:700;color:#111827">${item.insercoes_ativas}</td>
       <td style="padding:8px 10px;text-align:center">
         <span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;background:${riskBg(item.risk_level)};color:${riskColor(item.risk_level)}">${riskLabel(item.risk_level, item.cotas_livres)}</span>
         <div style="font-size:9px;color:#666;margin-top:2px">${fmtS(item.livre_seg)} livres</div>
       </td>
       <td style="padding:8px 10px;min-width:90px">
-        <div style="width:100%;height:6px;border-radius:99px;background:rgba(255,255,255,0.08);overflow:hidden">
+        <div style="width:100%;height:6px;border-radius:99px;background:#e5e7eb;overflow:hidden">
           <div style="height:100%;border-radius:99px;width:${pct}%;background:${barColor(item.pct_ocupado)}"></div>
         </div>
         <div class="pct-txt" style="font-size:9px;color:#666;text-align:right;margin-top:2px">${item.pct_ocupado}%</div>
@@ -171,16 +171,16 @@ function buildAuditHtml(filtered, filteredStats, filterCidade) {
   }).join('');
 
   function cardStyle(warn, ok, val) {
-    let border = 'rgba(255,255,255,0.08)';
-    let bg = 'rgba(255,255,255,0.02)';
-    if (warn && val > 0) { border = 'rgba(239,68,68,0.3)'; bg = 'rgba(239,68,68,0.05)'; }
-    else if (ok && val > 0) { border = 'rgba(34,197,94,0.3)'; bg = 'rgba(34,197,94,0.05)'; }
+    let border = '#e5e7eb';
+    let bg = '#ffffff';
+    if (warn && val > 0) { border = 'rgba(239,68,68,0.35)'; bg = 'rgba(239,68,68,0.08)'; }
+    else if (ok && val > 0) { border = 'rgba(34,197,94,0.35)'; bg = 'rgba(34,197,94,0.08)'; }
     return `border:1px solid ${border};background:${bg};border-radius:10px;padding:12px;flex:1;min-width:120px`;
   }
   function valColor(warn, ok, val) {
     if (warn && val > 0) return '#f87171';
     if (ok && val > 0) return '#4ade80';
-    return '#fff';
+    return '#111827';
   }
 
   return `<!DOCTYPE html>
@@ -189,9 +189,9 @@ function buildAuditHtml(filtered, filteredStats, filterCidade) {
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Poppins',system-ui,sans-serif;background:#0A0A0A;color:#fff;padding:32px 28px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{font-family:'Poppins',system-ui,sans-serif;background:#ffffff;color:#111827;padding:32px 28px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   table{width:100%;border-collapse:collapse;font-size:12px}
-  @media print{body{padding:16px 12px} @page{size:A4 landscape;margin:10mm} .nome-local{color:#111!important} .cidade-sub{color:#555!important} .val-mono{color:#111!important} .val-ins{color:#111!important} .pct-txt{color:#555!important}}
+  @media print{body{background:#fff!important;color:#111827!important;padding:16px 12px} @page{size:A4 landscape;margin:10mm} .nome-local{color:#111827!important} .cidade-sub{color:#555!important} .val-mono{color:#111827!important} .val-ins{color:#111827!important} .pct-txt{color:#555!important}}
 </style>
 </head><body>
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
@@ -204,26 +204,26 @@ function buildAuditHtml(filtered, filteredStats, filterCidade) {
 
 <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
   <div style="${cardStyle(false, false, 0)}">
-    <div style="font-size:20px;font-weight:700;color:#fff">${filteredStats.total}</div>
-    <div style="font-size:11px;color:#ccc;margin-top:2px">Locais</div>
+    <div style="font-size:20px;font-weight:700;color:#111827">${filteredStats.total}</div>
+    <div style="font-size:11px;color:#6b7280;margin-top:2px">Locais</div>
   </div>
   <div style="${cardStyle(false, true, filteredStats.comCotasLivres)}">
     <div style="font-size:20px;font-weight:700;color:${valColor(false, true, filteredStats.comCotasLivres)}">${filteredStats.comCotasLivres}</div>
-    <div style="font-size:11px;color:#ccc;margin-top:2px">Com espaço</div>
+    <div style="font-size:11px;color:#6b7280;margin-top:2px">Com espaço</div>
   </div>
   <div style="${cardStyle(false, true, filteredStats.totalCotasLivres)}">
     <div style="font-size:20px;font-weight:700;color:${valColor(false, true, filteredStats.totalCotasLivres)}">${filteredStats.totalCotasLivres}</div>
-    <div style="font-size:11px;color:#ccc;margin-top:2px">Cotas livres</div>
+    <div style="font-size:11px;color:#6b7280;margin-top:2px">Cotas livres</div>
   </div>
   <div style="${cardStyle(true, false, filteredStats.lotados)}">
     <div style="font-size:20px;font-weight:700;color:${valColor(true, false, filteredStats.lotados)}">${filteredStats.lotados}</div>
-    <div style="font-size:11px;color:#ccc;margin-top:2px">Lotados</div>
+    <div style="font-size:11px;color:#6b7280;margin-top:2px">Lotados</div>
   </div>
 </div>
 
-<div style="border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden">
+<div style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
   <table>
-    <thead style="background:rgba(255,255,255,0.03)">
+    <thead style="background:#f8fafc">
       <tr>
         <th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:500;color:#888">Local</th>
         <th style="padding:8px 10px;text-align:center;font-size:10px;font-weight:500;color:#888">Ocupado</th>

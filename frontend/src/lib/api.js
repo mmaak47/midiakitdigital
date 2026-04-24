@@ -755,6 +755,15 @@ export async function submitNovaVenda(formData) {
   return res.json();
 }
 
+export async function fetchPlanoFidelidadePontosBravi() {
+  const res = await apiRequest('/vendas/plano-fidelidade/pontos');
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao carregar pontos automáticos do Plano Fidelidade');
+  }
+  return res.json();
+}
+
 // Rascunho da Nova Venda (persistido por vendedor no backend)
 export async function fetchNovaVendaDraft() {
   const res = await apiRequest('/vendas/rascunho');

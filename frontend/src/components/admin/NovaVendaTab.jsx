@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2, Upload, X, Send, CheckCircle2, AlertCircle, FileText, MessageCircle, WifiOff, AlertTriangle, Calendar } from 'lucide-react';
-import { clearNovaVendaDraft, fetchNovaVendaDraft, saveNovaVendaDraft, submitNovaVenda } from '../../lib/api';
+import { clearNovaVendaDraft, fetchNovaVendaDraft, fetchPlanoFidelidadePontosBravi, saveNovaVendaDraft, submitNovaVenda } from '../../lib/api';
 
 const TIPOS_NEGOCIO = ['Nova Venda', 'Renovação', 'Permuta'];
 const TIPOS_VALOR = ['Líquido', 'Bruto'];
 const COTAS_CONTRATADAS = ['10 Segundos', '15 Segundos'];
+const PLANO_FIDELIDADE_CLIENTE = 'Bravi Comercio de Bebidas e Alimentos LTDA';
+const PLANO_FIDELIDADE_AUTO_OBS = 'Cota de 10 Segundos com Loop de 6 Minutos. (Adicionar a mídia em um grupo com outro cliente do Plano Fidelidade. Caso não haja dupla para ele, fazer um grupo com mídias institucionais da Intermidia.)';
 
 const emptyForm = {
   tipo: 'Nova Venda',
@@ -68,6 +70,14 @@ function fmtCurrency(v) {
   return `${formatted},${decPart}`;
 }
 
+function normalizeTextForMatch(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }) {
   const [form, setForm] = useState({ ...emptyForm });
   const [selectedPontos, setSelectedPontos] = useState([]);
@@ -75,6 +85,8 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
   const [search, setSearch] = useState('');
   const [piFile, setPiFile] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [planoFidelidadeBusy, setPlanoFidelidadeBusy] = useState(false);
+  const [planoFidelidadePayload, setPlanoFidelidadePayload] = useState(null);
   const [draftBusy, setDraftBusy] = useState(false);
   const [draftPayload, setDraftPayload] = useState(null);
   const [draftInfo, setDraftInfo] = useState(null);
@@ -195,6 +207,84 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       setErr(e.message || 'Erro ao remover rascunho.');
     } finally {
       setDraftBusy(false);
+    }
+  };
+
+  const addPlanoFidelidadeObs = (obs) => {
+    const trimmedObs = String(obs || '').trim();
+    if (!trimmedObs) return PLANO_FIDELIDADE_AUTO_OBS;
+    if (trimmedObs.includes(PLANO_FIDELIDADE_AUTO_OBS)) return trimmedObs;
+    return `${trimmedObs}\n${PLANO_FIDELIDADE_AUTO_OBS}`;
+  };
+
+  const resolvePlanoFidelidadePayload = async () => {
+    if (planoFidelidadePayload) return planoFidelidadePayload;
+    const payload = await fetchPlanoFidelidadePontosBravi();
+    setPlanoFidelidadePayload(payload || null);
+    return payload;
+  };
+
+  const handleTogglePlanoFidelidade = async () => {
+    if (planoFidelidadeBusy) return;
+
+    const enabling = !form.plano_fidelidade;
+    if (!enabling) {
+      set('plano_fidelidade', false);
+      return;
+    }
+
+    setErr('');
+    setForm((prev) => ({
+      ...prev,
+      plano_fidelidade: true,
+      obs: addPlanoFidelidadeObs(prev.obs),
+    }));
+
+    setPlanoFidelidadeBusy(true);
+    try {
+      const payload = await resolvePlanoFidelidadePayload();
+      const rawNames = Array.isArray(payload?.pontos_nomes) ? payload.pontos_nomes : [];
+      const uniqueNames = Array.from(new Set(rawNames.map((name) => String(name || '').trim()).filter(Boolean)));
+
+      if (uniqueNames.length === 0) {
+        setDraftNotice(`Plano Fidelidade ativado. Nenhum ponto base foi encontrado para ${PLANO_FIDELIDADE_CLIENTE}.`);
+        return;
+      }
+
+      const pontosByName = new Map();
+      for (const ponto of pontos) {
+        const normalizedName = normalizeTextForMatch(ponto?.nome);
+        if (!normalizedName || pontosByName.has(normalizedName)) continue;
+        pontosByName.set(normalizedName, ponto);
+      }
+
+      const matched = [];
+      const missing = [];
+      for (const name of uniqueNames) {
+        const ponto = pontosByName.get(normalizeTextForMatch(name));
+        if (ponto) matched.push(ponto);
+        else missing.push(name);
+      }
+
+      if (matched.length > 0) {
+        setSelectedPontos((prev) => {
+          const merged = new Map(prev.map((item) => [item.id, item]));
+          matched.forEach((item) => merged.set(item.id, item));
+          return Array.from(merged.values());
+        });
+      }
+
+      if (matched.length === 0) {
+        setDraftNotice('Plano Fidelidade ativado, mas os pontos de referência da Bravi não estão disponíveis na lista de pontos ativos.');
+      } else if (missing.length > 0) {
+        setDraftNotice(`Plano Fidelidade ativado: ${matched.length} ponto(s) adicionados automaticamente. ${missing.length} ponto(s) da referência da Bravi não foram encontrados entre os ativos.`);
+      } else {
+        setDraftNotice(`Plano Fidelidade ativado: ${matched.length} ponto(s) da referência da Bravi foram adicionados automaticamente.`);
+      }
+    } catch (e) {
+      setErr(e.message || 'Erro ao aplicar pontos automáticos do Plano Fidelidade.');
+    } finally {
+      setPlanoFidelidadeBusy(false);
     }
   };
 
@@ -709,19 +799,16 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
               <label className={`flex items-center gap-3 cursor-pointer select-none`}>
                 <button
                   type="button"
-                  onClick={() => {
-                    const next = !form.plano_fidelidade;
-                    set('plano_fidelidade', next);
-                    if (next) {
-                      const autoObs = 'Cota de 10 Segundos com Loop de 6 Minutos. (Adicionar a mídia em um grupo com outro cliente do Plano Fidelidade. Caso não haja dupla para ele, fazer um grupo com mídias institucionais da Intermidia.)';
-                      setForm(f => ({ ...f, plano_fidelidade: true, obs: f.obs ? (f.obs.includes(autoObs) ? f.obs : f.obs + '\n' + autoObs) : autoObs }));
-                    }
-                  }}
-                  className={`w-10 h-5 rounded-full transition-colors relative ${form.plano_fidelidade ? 'bg-brand-orange' : isDark ? 'bg-white/20' : 'bg-neutral-300'}`}
+                  onClick={handleTogglePlanoFidelidade}
+                  disabled={planoFidelidadeBusy}
+                  className={`w-10 h-5 rounded-full transition-colors relative disabled:opacity-70 disabled:cursor-wait ${form.plano_fidelidade ? 'bg-brand-orange' : isDark ? 'bg-white/20' : 'bg-neutral-300'}`}
                 >
                   <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.plano_fidelidade ? 'left-5' : 'left-0.5'}`} />
                 </button>
-                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-700'}`}>Plano Fidelidade</span>
+                <span className={`text-sm font-medium inline-flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-neutral-700'}`}>
+                  Plano Fidelidade
+                  {planoFidelidadeBusy ? <Loader2 size={13} className="animate-spin" /> : null}
+                </span>
               </label>
             </div>
           </div>
