@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, RefreshCw, CheckCircle2, XCircle, RotateCcw, Clock, ChevronDown, ChevronUp, MessageCircle, Circle, Trash2, Pencil, X } from 'lucide-react';
-import { fetchVendas, updateVendaStatus, fetchVendaEtapas, deleteVenda, updateVenda } from '../../lib/api';
+import { Search, RefreshCw, CheckCircle2, XCircle, RotateCcw, Clock, ChevronDown, ChevronUp, MessageCircle, Circle, Trash2, Pencil, X, Radio } from 'lucide-react';
+import { fetchVendas, updateVendaStatus, fetchVendaEtapas, deleteVenda, updateVenda, replayVendaOnTv } from '../../lib/api';
 
 // Definição ordenada das etapas pós-venda
 const ETAPAS_DEF = [
@@ -91,6 +91,7 @@ function EditVendaModal({ venda, isDark, onClose, onSaved, pontos = [] }) {
   const [selectedNomes, setSelectedNomes] = useState(() => new Set(parsePontos(venda.pontos_nomes)));
   const [pontoSearch, setPontoSearch] = useState('');
   const [saving, setSaving] = useState(false);
+  const [editErr, setEditErr] = useState('');
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -118,14 +119,15 @@ function EditVendaModal({ venda, isDark, onClose, onSaved, pontos = [] }) {
   const inp = `w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-orange/30 ${isDark ? 'bg-white/5 border-white/10 text-white placeholder:text-brand-gray-500' : 'bg-white border-neutral-200 text-neutral-900 placeholder:text-neutral-400'}`;
 
   async function handleSave() {
-    if (!form.razao_social.trim()) return alert('Razão Social é obrigatória.');
+    if (!form.razao_social.trim()) { setEditErr('Razão Social é obrigatória.'); return; }
+    setEditErr('');
     setSaving(true);
     try {
       await updateVenda(venda.id, { ...form, pontos_nomes: JSON.stringify(Array.from(selectedNomes)) });
       onSaved();
       onClose();
     } catch (e) {
-      alert('Erro ao salvar: ' + e.message);
+      setEditErr('Erro ao salvar: ' + e.message);
     } finally {
       setSaving(false);
     }
@@ -140,6 +142,13 @@ function EditVendaModal({ venda, isDark, onClose, onSaved, pontos = [] }) {
             <p className={`text-sm mt-0.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>#{venda.id} — {venda.razao_social}</p>
           </div>
         </div>
+
+        {editErr && (
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400 flex items-start gap-2">
+            <XCircle size={15} className="mt-0.5 shrink-0" />
+            <span>{editErr}</span>
+          </div>
+        )}
 
         {/* Status */}
         <div className="space-y-1.5">
@@ -329,7 +338,7 @@ function EditVendaModal({ venda, isDark, onClose, onSaved, pontos = [] }) {
   );
 }
 
-function VendaRow({ venda, isDark, onEdit, onDelete }) {
+function VendaRow({ venda, isDark, onEdit, onDelete, onReplayTv, replaying }) {
   const [expanded, setExpanded] = useState(false);
   const [etapas, setEtapas] = useState([]);
   const pontos = parsePontos(venda.pontos_nomes);
@@ -374,6 +383,14 @@ function VendaRow({ venda, isDark, onEdit, onDelete }) {
               className={`text-xs px-2.5 py-1 rounded-lg border transition-colors flex items-center gap-1 ${isDark ? 'border-white/10 text-brand-gray-300 hover:bg-white/5 hover:border-white/20' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100'}`}
             >
               <Pencil size={12} /> Editar
+            </button>
+            <button
+              onClick={() => onReplayTv(venda)}
+              disabled={replaying}
+              title="Disparar popup de nova venda no Painel TV"
+              className={`text-xs px-2.5 py-1 rounded-lg border transition-colors flex items-center gap-1 ${isDark ? 'border-white/10 text-brand-gray-300 hover:bg-white/5 hover:border-white/20 disabled:opacity-60' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 disabled:opacity-60'}`}
+            >
+              <Radio size={12} /> {replaying ? 'Disparando...' : 'Painel TV'}
             </button>
             <button
               onClick={() => onDelete(venda)}
@@ -485,6 +502,8 @@ export default function VendasListTab({ isDark = true, pontos = [], currentUser 
   const [editVenda, setEditVenda] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [replayingId, setReplayingId] = useState(null);
+  const [notice, setNotice] = useState(null); // { msg, type: 'ok'|'err' }
 
   // Admin+vendedor only sees their own sales
   const isAdminVendedor = currentUser && currentUser.role === 'admin' && currentUser.is_vendedor;
@@ -532,10 +551,24 @@ export default function VendasListTab({ isDark = true, pontos = [], currentUser 
       await deleteVenda(deleteTarget.id);
       setDeleteTarget(null);
       load();
+      setNotice({ msg: 'Venda excluída com sucesso.', type: 'ok' });
     } catch (e) {
-      alert('Erro ao deletar: ' + e.message);
+      setNotice({ msg: 'Erro ao deletar: ' + e.message, type: 'err' });
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleReplayTv(venda) {
+    if (!venda?.id) return;
+    setReplayingId(venda.id);
+    try {
+      await replayVendaOnTv(venda.id);
+      setNotice({ msg: 'Popup enviado para o Painel TV.', type: 'ok' });
+    } catch (e) {
+      setNotice({ msg: 'Erro ao disparar popup no Painel TV: ' + e.message, type: 'err' });
+    } finally {
+      setReplayingId(null);
     }
   }
 
@@ -543,6 +576,14 @@ export default function VendasListTab({ isDark = true, pontos = [], currentUser 
     <div className="space-y-4">
       {editVenda && (
         <EditVendaModal venda={editVenda} isDark={isDark} onClose={() => setEditVenda(null)} onSaved={load} pontos={pontos} />
+      )}
+
+      {/* Notice (success / error) */}
+      {notice && (
+        <div className={`rounded-xl border px-4 py-3 text-sm flex items-center justify-between gap-3 ${notice.type === 'ok' ? 'border-green-500/30 bg-green-500/10 text-green-400' : 'border-red-500/30 bg-red-500/10 text-red-400'}`}>
+          <span>{notice.msg}</span>
+          <button onClick={() => setNotice(null)} className="shrink-0 opacity-60 hover:opacity-100"><X size={14} /></button>
+        </div>
       )}
 
       {/* Modal de confirmação de delete */}
@@ -660,7 +701,15 @@ export default function VendasListTab({ isDark = true, pontos = [], currentUser 
               </tr>
             ) : (
               vendas.map(v => (
-                <VendaRow key={v.id} venda={v} isDark={isDark} onEdit={setEditVenda} onDelete={setDeleteTarget} />
+                <VendaRow
+                  key={v.id}
+                  venda={v}
+                  isDark={isDark}
+                  onEdit={setEditVenda}
+                  onDelete={setDeleteTarget}
+                  onReplayTv={handleReplayTv}
+                  replaying={replayingId === v.id}
+                />
               ))
             )}
           </tbody>

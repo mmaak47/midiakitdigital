@@ -1,11 +1,14 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  Bold,
   BarChart3,
   Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Italic,
+  List,
   Copy,
   Download,
   FileText,
@@ -25,6 +28,7 @@ import {
   Trash2,
   Trophy,
   Upload,
+  Underline,
   X,
   Zap
 } from 'lucide-react';
@@ -252,6 +256,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     publicos: [],
     selectedCities: [],
     duracao_meses: '',
+    customCommercialNote: '',
     ...(draft?.form || {})
   }));
   const [analysisMode, setAnalysisMode] = useState(draft?.analysisMode || 'segmento');
@@ -294,7 +299,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [shareBusy, setShareBusy] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [sessionExpiredModal, setSessionExpiredModal] = useState({ open: false, message: '' });
-  const [pdfSections, setPdfSections] = useState({ methodology: true, score: true, coverage: true, impact: true, mapPrint: false });
+  const [pdfSections, setPdfSections] = useState({ methodology: true, coverage: true, impact: true, mapPrint: false });
   const [connectMapPoints, setConnectMapPoints] = useState(true);
   const [mapBusy, setMapBusy] = useState(false);
   const [mapStatus, setMapStatus] = useState('');
@@ -315,6 +320,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     error: ''
   });
   const promptTextareaRef = useRef(null);
+  const customCommercialNoteRef = useRef(null);
 
   const isSessionExpiredError = (error) => {
     const message = String(error?.message || '').toLowerCase();
@@ -338,6 +344,80 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const goToCommercialLogin = () => {
     if (typeof window === 'undefined') return;
     window.location.assign('/comercial');
+  };
+
+  const updateCommercialNoteWithSelection = (builder) => {
+    const textarea = customCommercialNoteRef.current;
+    const currentValue = String(form.customCommercialNote || '');
+    const selectionStart = textarea?.selectionStart ?? currentValue.length;
+    const selectionEnd = textarea?.selectionEnd ?? currentValue.length;
+    const result = builder(currentValue, selectionStart, selectionEnd);
+    if (!result || typeof result.nextValue !== 'string') return;
+
+    setForm((prev) => ({ ...prev, customCommercialNote: result.nextValue }));
+
+    requestAnimationFrame(() => {
+      const target = customCommercialNoteRef.current;
+      if (!target) return;
+      const start = Number.isFinite(result.nextSelectionStart) ? result.nextSelectionStart : result.nextValue.length;
+      const end = Number.isFinite(result.nextSelectionEnd) ? result.nextSelectionEnd : start;
+      target.focus();
+      target.setSelectionRange(start, end);
+    });
+  };
+
+  const wrapCommercialNoteSelection = (leftToken, rightToken, fallbackText) => {
+    updateCommercialNoteWithSelection((value, start, end) => {
+      const selected = value.slice(start, end);
+      const middle = selected || fallbackText;
+      const insertion = `${leftToken}${middle}${rightToken}`;
+      return {
+        nextValue: `${value.slice(0, start)}${insertion}${value.slice(end)}`,
+        nextSelectionStart: start + leftToken.length,
+        nextSelectionEnd: start + leftToken.length + middle.length,
+      };
+    });
+  };
+
+  const addCommercialNoteBulletList = () => {
+    updateCommercialNoteWithSelection((value, start, end) => {
+      const selected = value.slice(start, end);
+      if (selected) {
+        const listed = selected
+          .split('\n')
+          .map((line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return line;
+            return /^-\s+/.test(trimmed) ? line : `- ${line}`;
+          })
+          .join('\n');
+        return {
+          nextValue: `${value.slice(0, start)}${listed}${value.slice(end)}`,
+          nextSelectionStart: start,
+          nextSelectionEnd: start + listed.length,
+        };
+      }
+
+      const bullet = value && !value.endsWith('\n') ? '\n- item' : '- item';
+      const insertionStart = start;
+      return {
+        nextValue: `${value.slice(0, start)}${bullet}${value.slice(end)}`,
+        nextSelectionStart: insertionStart + bullet.length - 4,
+        nextSelectionEnd: insertionStart + bullet.length,
+      };
+    });
+  };
+
+  const addCommercialNoteLineBreak = () => {
+    updateCommercialNoteWithSelection((value, start, end) => {
+      const insertion = '\n';
+      const nextCursor = start + insertion.length;
+      return {
+        nextValue: `${value.slice(0, start)}${insertion}${value.slice(end)}`,
+        nextSelectionStart: nextCursor,
+        nextSelectionEnd: nextCursor,
+      };
+    });
   };
 
   const mergeEntornoMetrics = (points, scoresByPoint = {}) => {
@@ -931,8 +1011,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           overviewMapImage = await buildSelectionMapDataUrl(pointsWithEntorno, {
             connectPoints: true,
             theme: 'light',
-            width: 900,
-            height: 500
+            width: 1800,
+            height: 1000
           });
         } catch {
           overviewMapImage = null;
@@ -958,9 +1038,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         overviewMapImage,
         duracao_meses: form.duracao_meses ? Number(form.duracao_meses) : null,
         showMetricsMethodology: pdfSections.methodology,
-        showCampaignScore: pdfSections.score,
+        showCampaignScore: false,
         showCoverageLayer: pdfSections.coverage,
-        showImpactSection: pdfSections.impact
+        showImpactSection: pdfSections.impact,
+        customCommercialNote: form.customCommercialNote || ''
       });
     } catch (error) {
       console.error('[ProposalModal] PDF export failed:', error);
@@ -2218,7 +2299,6 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
                       {[
                         { key: 'methodology', label: 'Como ler as métricas', Icon: BarChart3 },
-                        { key: 'score', label: 'Score da campanha', Icon: Trophy },
                         { key: 'coverage', label: 'Cobertura e presença', Icon: Radio },
                         { key: 'impact', label: 'Impacto da campanha', Icon: Zap },
                         { key: 'mapPrint', label: 'Print do mapa da seleção', Icon: Map }
@@ -2244,6 +2324,81 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       ))}
                     </div>
                   </Card>
+
+                  {/* Observação comercial customizável (aparece na seção Impacto) */}
+                  {pdfSections.impact && (
+                    <Card isDark={isDark} title="Observação comercial">
+                      <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                        Texto exibido no rodapé do bloco de Resumo Financeiro do PDF. Deixe em branco para usar o padrão.
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => wrapCommercialNoteSelection('**', '**', 'negrito')}
+                          className={`h-8 px-2.5 rounded-lg border text-xs font-semibold inline-flex items-center gap-1.5 transition-colors ${isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
+                          title="Negrito"
+                        >
+                          <Bold size={13} />
+                          Negrito
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => wrapCommercialNoteSelection('*', '*', 'itálico')}
+                          className={`h-8 px-2.5 rounded-lg border text-xs font-semibold inline-flex items-center gap-1.5 transition-colors ${isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
+                          title="Itálico"
+                        >
+                          <Italic size={13} />
+                          Itálico
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => wrapCommercialNoteSelection('__', '__', 'sublinhado')}
+                          className={`h-8 px-2.5 rounded-lg border text-xs font-semibold inline-flex items-center gap-1.5 transition-colors ${isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
+                          title="Sublinhado"
+                        >
+                          <Underline size={13} />
+                          Sublinhado
+                        </button>
+                        <button
+                          type="button"
+                          onClick={addCommercialNoteBulletList}
+                          className={`h-8 px-2.5 rounded-lg border text-xs font-semibold inline-flex items-center gap-1.5 transition-colors ${isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
+                          title="Lista"
+                        >
+                          <List size={13} />
+                          Lista
+                        </button>
+                        <button
+                          type="button"
+                          onClick={addCommercialNoteLineBreak}
+                          className={`h-8 px-2.5 rounded-lg border text-xs font-semibold transition-colors ${isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
+                          title="Quebra de linha"
+                        >
+                          Quebra de linha
+                        </button>
+                      </div>
+                      <p className={`mt-2 text-[11px] leading-4 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                        Dica: também funciona digitando manualmente. Use **texto** para negrito, *texto* para itálico, __texto__ para sublinhado e "- item" para lista.
+                      </p>
+                      <textarea
+                        ref={customCommercialNoteRef}
+                        rows={5}
+                        value={form.customCommercialNote}
+                        onChange={(e) => setForm((s) => ({ ...s, customCommercialNote: e.target.value }))}
+                        placeholder={`${form.duracao_meses ? `Valores válidos para o contrato de ${form.duracao_meses} meses.\n` : ''}Negociação válida exclusivamente para o plano e quantidade de pontos apresentados.\nPara outras condições de compra, os valores deverão ser consultados.\n* Produção de materiais por conta do cliente.`}
+                        className={`mt-2 w-full rounded-xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-orange/30 ${isDark ? 'border-white/10 bg-white/5 text-white placeholder:text-brand-gray-500' : 'border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400'}`}
+                      />
+                      {form.customCommercialNote && (
+                        <button
+                          type="button"
+                          onClick={() => setForm((s) => ({ ...s, customCommercialNote: '' }))}
+                          className={`mt-2 text-xs underline ${isDark ? 'text-brand-gray-400 hover:text-brand-gray-200' : 'text-neutral-500 hover:text-neutral-700'}`}
+                        >
+                          Restaurar texto padrão
+                        </button>
+                      )}
+                    </Card>
+                  )}
 
                   {/* Mapa */}
                   <Card isDark={isDark} title="Print do mapa">

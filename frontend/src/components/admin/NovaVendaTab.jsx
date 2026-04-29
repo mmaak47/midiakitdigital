@@ -14,12 +14,15 @@ const emptyForm = {
   razao_social: '',
   nome_fantasia: '',
   cnpj: '',
+  is_cpf: false,
+  endereco_cep: '',
   valor_mensal: '',
   cota_contratada: '',
   plano_fidelidade: false,
   tipo_valor: 'Líquido',
   via_agencia: false,
   agencia_nome: '',
+  pi_numero: '',
   comissao_pct: '',
   troca_material: false,
   periodo_tipo: 'meses',
@@ -31,6 +34,7 @@ const emptyForm = {
   dia_pagamento_dia: '',
   responsavel_nome: '',
   responsavel_whatsapp: '',
+  responsavel_fixo: '',
   email: '',
   criativo_nome: '',
   criativo_whatsapp: '',
@@ -47,12 +51,33 @@ function fmtCnpj(v) {
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
 }
 
+function fmtCpf(v) {
+  const d = v.replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
 function fmtPhone(v) {
   const d = v.replace(/\D/g, '').slice(0, 11);
   if (d.length <= 2) return d.length ? `(${d}` : '';
   if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
   if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+function fmtFixoPhone(v) {
+  const d = v.replace(/\D/g, '').slice(0, 10);
+  if (d.length <= 2) return d.length ? `(${d}` : '';
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+}
+
+function validateFixoPhone(v) {
+  const d = v.replace(/\D/g, '');
+  if (d.length !== 10) return 'Telefone fixo deve ter 10 dígitos (DDD + 8 dígitos).';
+  return null;
 }
 
 function validatePhone(v) {
@@ -86,7 +111,9 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
   const [selectedPontos, setSelectedPontos] = useState([]);
   const [pontoPrecos, setPontoPrecos] = useState({});
   const [search, setSearch] = useState('');
-  const [piFile, setPiFile] = useState(null);
+  const [pontoFilterCidade, setPontoFilterCidade] = useState('todas');
+  const [pontoFilterTipo, setPontoFilterTipo] = useState('todos');
+  const [piFiles, setPiFiles] = useState([]);
   const [busy, setBusy] = useState(false);
   const [planoFidelidadeBusy, setPlanoFidelidadeBusy] = useState(false);
   const [planoFidelidadePayload, setPlanoFidelidadePayload] = useState(null);
@@ -100,11 +127,17 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const filteredPontos = pontos.filter(p =>
-    !search ||
-    p.nome?.toLowerCase().includes(search.toLowerCase()) ||
-    p.cidade?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredPontos = pontos.filter(p => {
+    const matchSearch = !search
+      || p.nome?.toLowerCase().includes(search.toLowerCase())
+      || p.cidade?.toLowerCase().includes(search.toLowerCase());
+    const matchCidade = pontoFilterCidade === 'todas' || p.cidade === pontoFilterCidade;
+    const matchTipo = pontoFilterTipo === 'todos' || p.tipo === pontoFilterTipo;
+    const isAtivo = p.ativo === undefined ? true : !!p.ativo;
+    return matchSearch && matchCidade && matchTipo && isAtivo;
+  });
+  const pontoCidades = Array.from(new Set(pontos.map(p => p.cidade).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const pontoTipos = Array.from(new Set(pontos.map(p => p.tipo).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
   const togglePonto = p => {
     setSelectedPontos(prev => {
@@ -118,9 +151,11 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
   };
 
   const handlePiChange = e => {
-    const f = e.target.files?.[0];
-    if (f && f.type === 'application/pdf') setPiFile(f);
-    else if (f) setErr('Apenas arquivos PDF são aceitos para o P.I.');
+    const files = Array.from(e.target.files || []);
+    const pdfs = files.filter(f => f.type === 'application/pdf');
+    if (pdfs.length !== files.length) setErr('Apenas arquivos PDF são aceitos para o P.I.');
+    if (pdfs.length) setPiFiles(prev => [...prev, ...pdfs].slice(0, 10));
+    e.target.value = '';
   };
 
   const buildDraftPayload = () => ({
@@ -144,7 +179,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
     setSelectedPontos(draftPoints);
     setPontoPrecos(draftPrecos);
     setSearch(typeof payload.search === 'string' ? payload.search : '');
-    setPiFile(null);
+    setPiFiles([]);
   };
 
   useEffect(() => {
@@ -303,8 +338,10 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
     const missing = [];
     if (!form.tipo) missing.push('Tipo de negócio');
     if (!form.razao_social.trim()) missing.push('Razão Social');
-    if (!form.nome_fantasia.trim()) missing.push('Nome Fantasia');
-    if (!form.cnpj.trim()) missing.push('CNPJ');
+    if (!form.via_agencia && !form.nome_fantasia.trim()) missing.push('Nome Fantasia');
+    if (!form.via_agencia && !form.cnpj.trim()) missing.push(form.is_cpf ? 'CPF' : 'CNPJ');
+    if (form.via_agencia && !form.pi_numero.trim()) missing.push('Número da PI');
+    if (form.is_cpf && !form.endereco_cep.trim()) missing.push('Endereço ou CEP');
     if (selectedPontos.length === 0) missing.push('Pontos contratados (selecionar ao menos um)');
     if (!form.plano_fidelidade) {
       const pontosSemPreco = selectedPontos.filter(p => !pontoPrecos[p.id] || !String(pontoPrecos[p.id]).replace(/\D/g, '').replace(/^0+/, ''));
@@ -315,20 +352,26 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
     if (!form.valor_mensal) missing.push('Valor mensal');
     if (!form.tipo_valor) missing.push('Tipo de valor (Líquido/Bruto)');
     if (!form.plano_fidelidade && !form.cota_contratada) missing.push('Cota contratada');
-    if (!form.data_primeira_parcela) missing.push('Data da primeira parcela');
+    if (!form.data_primeira_parcela && !form.via_agencia) missing.push('Data da primeira parcela');
     if (!form.data_inicio_veiculacao) missing.push('Data de início de veiculação');
-    if (form.tipo !== 'Permuta' && !form.dia_pagamento_dia) missing.push('Dia do pagamento');
+    if (form.tipo !== 'Permuta' && !form.via_agencia && !form.dia_pagamento_dia) missing.push('Dia do pagamento');
     if (form.periodo_tipo === 'meses' && !form.periodo_meses) missing.push('Número de meses');
     if (form.periodo_tipo === 'datas' && !form.periodo_inicio) missing.push('Data de início do período');
     if (form.periodo_tipo === 'datas' && !form.periodo_fim) missing.push('Data de término do período');
     if (form.via_agencia && !form.agencia_nome.trim()) missing.push('Nome da agência');
     if (form.via_agencia && !form.comissao_pct) missing.push('Comissão da agência');
     if (!form.responsavel_nome.trim()) missing.push('Nome do responsável pela compra');
-    if (!form.responsavel_whatsapp.trim()) {
-      missing.push('WhatsApp do responsável');
+    if (!form.responsavel_whatsapp.trim() && !form.responsavel_fixo.trim()) {
+      missing.push('WhatsApp ou Telefone Fixo do responsável');
     } else {
-      const phoneErr = validatePhone(form.responsavel_whatsapp);
-      if (phoneErr) missing.push(`WhatsApp: ${phoneErr}`);
+      if (form.responsavel_whatsapp.trim()) {
+        const phoneErr = validatePhone(form.responsavel_whatsapp);
+        if (phoneErr) missing.push(`WhatsApp: ${phoneErr}`);
+      }
+      if (form.responsavel_fixo.trim()) {
+        const fixoErr = validateFixoPhone(form.responsavel_fixo);
+        if (fixoErr) missing.push(`Telefone Fixo: ${fixoErr}`);
+      }
     }
     if (form.criativo_whatsapp.trim()) {
       const creativePhoneErr = validatePhone(form.criativo_whatsapp);
@@ -349,6 +392,8 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       fd.append('razao_social', form.razao_social.trim());
       fd.append('nome_fantasia', form.nome_fantasia.trim());
       fd.append('cnpj', form.cnpj.trim());
+      fd.append('tipo_documento', form.is_cpf ? 'CPF' : 'CNPJ');
+      if (form.is_cpf) fd.append('endereco_cep', form.endereco_cep.trim());
       fd.append('valor_mensal', form.valor_mensal.trim());
       fd.append('cota_contratada', cotaContratada);
       fd.append('plano_fidelidade', form.plano_fidelidade ? 'true' : 'false');
@@ -357,6 +402,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       if (form.via_agencia) {
         fd.append('agencia_nome', form.agencia_nome.trim());
         fd.append('comissao_pct', form.comissao_pct.trim());
+        fd.append('pi_numero', form.pi_numero.trim());
       }
       fd.append('troca_material', form.troca_material ? 'true' : 'false');
       fd.append('periodo_tipo', form.periodo_tipo);
@@ -370,6 +416,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       fd.append('dia_pagamento', form.dia_pagamento_dia ? `Dia ${form.dia_pagamento_dia} de cada mês` : '');
       fd.append('responsavel_nome', form.responsavel_nome.trim());
       fd.append('responsavel_whatsapp', form.responsavel_whatsapp.trim());
+      fd.append('responsavel_fixo', form.responsavel_fixo.trim());
       fd.append('email', form.email.trim());
       fd.append('criativo_nome', form.criativo_nome.trim());
       fd.append('criativo_whatsapp', form.criativo_whatsapp.trim());
@@ -383,7 +430,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
         ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username || 'Vendedor'
         : 'Vendedor'
       );
-      if (piFile) fd.append('pi', piFile);
+      if (piFiles.length) piFiles.forEach(f => fd.append('pi', f));
 
       const res = await submitNovaVenda(fd);
       setResult({ ok: true, msg: res.message || 'Venda registrada e notificação enviada!', whatsapp: res.whatsapp_status || 'pendente' });
@@ -397,7 +444,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       setForm({ ...emptyForm });
       setSelectedPontos([]);
       setPontoPrecos({});
-      setPiFile(null);
+      setPiFiles([]);
       setSearch('');
       setDraftPayload(null);
       setDraftInfo(null);
@@ -606,18 +653,37 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
         {/* Dados do cliente */}
         <section className={card}>
           <h3 className={sectionTitle}>Dados do cliente</h3>
+
+          {/* Toggle CPF (PJ x PF) */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => set('is_cpf', !form.is_cpf)}
+              className={`w-10 h-5 rounded-full transition-colors relative ${form.is_cpf ? 'bg-brand-orange' : isDark ? 'bg-white/20' : 'bg-neutral-300'}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.is_cpf ? 'left-5' : 'left-0.5'}`} />
+            </button>
+            <label className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+              CPF (Pessoa Física)
+            </label>
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className={lbl}>Razão Social *</label>
+              <label className={lbl}>{form.is_cpf ? 'Nome completo *' : 'Razão Social *'}</label>
               <input
                 className={inp}
                 value={form.razao_social}
                 onChange={e => set('razao_social', e.target.value)}
-                placeholder="Empresa LTDA"
+                placeholder={form.is_cpf ? 'Nome completo do cliente' : 'Empresa LTDA'}
               />
             </div>
             <div>
-              <label className={lbl}>Nome Fantasia *</label>
+              <label className={lbl}>
+                Nome Fantasia {form.via_agencia || form.is_cpf
+                  ? <span className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-400'} normal-case font-normal`}>(opcional)</span>
+                  : '*'}
+              </label>
               <input
                 className={inp}
                 value={form.nome_fantasia}
@@ -628,14 +694,29 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className={lbl}>CNPJ *</label>
+              <label className={lbl}>
+                {form.is_cpf ? 'CPF' : 'CNPJ'} {form.via_agencia
+                  ? <span className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-400'} normal-case font-normal`}>(opcional via agência)</span>
+                  : '*'}
+              </label>
               <input
                 className={inp}
                 value={form.cnpj}
-                onChange={e => set('cnpj', fmtCnpj(e.target.value))}
-                placeholder="00.000.000/0000-00"
+                onChange={e => set('cnpj', form.is_cpf ? fmtCpf(e.target.value) : fmtCnpj(e.target.value))}
+                placeholder={form.is_cpf ? '000.000.000-00' : '00.000.000/0000-00'}
               />
             </div>
+            {form.is_cpf && (
+              <div>
+                <label className={lbl}>Endereço ou CEP *</label>
+                <input
+                  className={inp}
+                  value={form.endereco_cep}
+                  onChange={e => set('endereco_cep', e.target.value)}
+                  placeholder="Rua, número, bairro, cidade — ou CEP"
+                />
+              </div>
+            )}
           </div>
         </section>
 
@@ -665,6 +746,41 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={pontoFilterCidade}
+              onChange={e => setPontoFilterCidade(e.target.value)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors focus:outline-none ${isDark
+                ? 'bg-white/5 border border-white/10 text-white focus:border-brand-orange/40'
+                : 'bg-white border border-neutral-200 text-neutral-900 focus:border-brand-orange/60'}`}
+            >
+              <option value="todas">Todas as cidades</option>
+              {pontoCidades.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select
+              value={pontoFilterTipo}
+              onChange={e => setPontoFilterTipo(e.target.value)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors focus:outline-none ${isDark
+                ? 'bg-white/5 border border-white/10 text-white focus:border-brand-orange/40'
+                : 'bg-white border border-neutral-200 text-neutral-900 focus:border-brand-orange/60'}`}
+            >
+              <option value="todos">Todos os tipos</option>
+              {pontoTipos.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            {(pontoFilterCidade !== 'todas' || pontoFilterTipo !== 'todos') && (
+              <button
+                type="button"
+                onClick={() => { setPontoFilterCidade('todas'); setPontoFilterTipo('todos'); }}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? 'text-brand-gray-400 hover:text-white hover:bg-white/5' : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'}`}
+              >
+                <X size={11} /> Limpar
+              </button>
+            )}
+            <span className={`text-xs ml-auto ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
+              {filteredPontos.length} ponto{filteredPontos.length !== 1 ? 's' : ''}
+            </span>
+          </div>
 
           <div className={`max-h-56 overflow-y-auto rounded-xl border divide-y ${isDark ? 'border-white/10 divide-white/5' : 'border-neutral-200 divide-neutral-100'}`}>
             {filteredPontos.length === 0 ? (
@@ -751,7 +867,9 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className={lbl}>Data da primeira parcela *</label>
+              <label className={lbl}>
+                Data da primeira parcela {form.via_agencia ? <span className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-400'} normal-case font-normal`}>(opcional via agência)</span> : '*'}
+              </label>
               <input
                 type="date"
                 className={inp}
@@ -773,7 +891,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className={lbl}>
-                Dia do pagamento {form.tipo === 'Permuta' ? <span className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-400'} normal-case font-normal`}>(opcional para Permuta)</span> : '*'}
+                Dia do pagamento {form.tipo === 'Permuta' ? <span className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-400'} normal-case font-normal`}>(opcional para Permuta)</span> : form.via_agencia ? <span className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-400'} normal-case font-normal`}>(opcional via agência)</span> : '*'}
               </label>
               <div className="relative">
                 <select
@@ -852,6 +970,15 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
                 <div>
                   <label className={lbl}>Comissão (%)</label>
                   <input className={inp} type="number" min="0" max="100" step="0.1" value={form.comissao_pct} onChange={e => set('comissao_pct', e.target.value)} placeholder="Ex: 15" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className={lbl}>Número da PI *</label>
+                  <input
+                    className={inp}
+                    value={form.pi_numero}
+                    onChange={e => set('pi_numero', e.target.value)}
+                    placeholder="Ex: PI-2026-0001"
+                  />
                 </div>
               </div>
             )}
@@ -940,7 +1067,11 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
               />
             </div>
             <div>
-              <label className={lbl}>WhatsApp *</label>
+              <label className={lbl}>
+                WhatsApp {form.responsavel_fixo.trim()
+                  ? <span className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-400'} normal-case font-normal`}>(opcional — Fixo informado)</span>
+                  : '*'}
+              </label>
               <input
                 className={inp}
                 value={form.responsavel_whatsapp}
@@ -964,6 +1095,35 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
                 return <p className="text-[11px] mt-1.5 text-green-600 font-medium">Celular válido.</p>;
               })()}
             </div>
+          </div>
+          <div>
+            <label className={lbl}>
+              Telefone Fixo {form.responsavel_whatsapp.trim()
+                ? <span className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-400'} normal-case font-normal`}>(opcional — WhatsApp informado)</span>
+                : <span className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-400'} normal-case font-normal`}>(obrigatório se não houver WhatsApp)</span>}
+            </label>
+            <input
+              className={inp}
+              value={form.responsavel_fixo}
+              onChange={e => set('responsavel_fixo', fmtFixoPhone(e.target.value))}
+              placeholder="(43) 3333-4444"
+              inputMode="tel"
+            />
+            {(() => {
+              const d = form.responsavel_fixo.replace(/\D/g, '');
+              if (!d) {
+                return (
+                  <p className={`text-[11px] mt-1.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                    10 dígitos: DDD + 8 dígitos. Ex: (43) 3333-4444.
+                  </p>
+                );
+              }
+              const fixoErr = validateFixoPhone(form.responsavel_fixo);
+              if (fixoErr) {
+                return <p className="text-[11px] mt-1.5 text-red-500 font-medium">{fixoErr}</p>;
+              }
+              return <p className="text-[11px] mt-1.5 text-green-600 font-medium">Telefone fixo válido.</p>;
+            })()}
           </div>
           <div>
             <label className={lbl}>Email <span className={`${isDark ? 'text-brand-gray-500' : 'text-neutral-400'} font-normal`}>(opcional)</span></label>
@@ -1039,34 +1199,40 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
             <span className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Opcional</span>
           </div>
 
-          {piFile ? (
-            <div className={`flex items-center justify-between rounded-xl border px-3 py-2.5 ${isDark ? 'border-brand-orange/30 bg-brand-orange/5' : 'border-orange-200 bg-orange-50'}`}>
-              <div className="flex items-center gap-2 min-w-0">
-                <FileText size={14} className="shrink-0 text-brand-orange" />
-                <span className={`text-sm truncate ${isDark ? 'text-white' : 'text-neutral-900'}`}>{piFile.name}</span>
-                <span className={`text-xs shrink-0 ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
-                  ({(piFile.size / 1024).toFixed(0)} KB)
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPiFile(null)}
-                className={`ml-2 shrink-0 p-1 rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-orange-100'}`}
-              >
-                <X size={14} className={isDark ? 'text-brand-gray-400' : 'text-neutral-500'} />
-              </button>
+          {piFiles.length > 0 && (
+            <div className="space-y-2">
+              {piFiles.map((file, idx) => (
+                <div key={idx} className={`flex items-center justify-between rounded-xl border px-3 py-2.5 ${isDark ? 'border-brand-orange/30 bg-brand-orange/5' : 'border-orange-200 bg-orange-50'}`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText size={14} className="shrink-0 text-brand-orange" />
+                    <span className={`text-sm truncate ${isDark ? 'text-white' : 'text-neutral-900'}`}>{file.name}</span>
+                    <span className={`text-xs shrink-0 ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
+                      ({(file.size / 1024).toFixed(0)} KB)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPiFiles(prev => prev.filter((_, i) => i !== idx))}
+                    className={`ml-2 shrink-0 p-1 rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-orange-100'}`}
+                  >
+                    <X size={14} className={isDark ? 'text-brand-gray-400' : 'text-neutral-500'} />
+                  </button>
+                </div>
+              ))}
             </div>
-          ) : (
-            <label className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed cursor-pointer py-8 transition-colors ${isDark
-              ? 'border-white/10 hover:border-brand-orange/40 hover:bg-brand-orange/5'
-              : 'border-neutral-200 hover:border-brand-orange/40 hover:bg-orange-50'}`}>
-              <Upload size={20} className={isDark ? 'text-brand-gray-400' : 'text-neutral-400'} />
-              <span className={`text-sm ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
-                Clique para anexar o P.I. em PDF
-              </span>
-              <input type="file" accept=".pdf,application/pdf" className="sr-only" onChange={handlePiChange} />
-            </label>
           )}
+          <label className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed cursor-pointer py-6 transition-colors ${isDark
+            ? 'border-white/10 hover:border-brand-orange/40 hover:bg-brand-orange/5'
+            : 'border-neutral-200 hover:border-brand-orange/40 hover:bg-orange-50'}`}>
+            <Upload size={20} className={isDark ? 'text-brand-gray-400' : 'text-neutral-400'} />
+            <span className={`text-sm ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+              {piFiles.length ? 'Adicionar mais PDFs' : 'Clique para anexar o(s) P.I. em PDF'}
+            </span>
+            <span className={`text-[11px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
+              Você pode anexar vários arquivos (até 10).
+            </span>
+            <input type="file" accept=".pdf,application/pdf" multiple className="sr-only" onChange={handlePiChange} />
+          </label>
         </section>
 
         {/* Preview da mensagem */}
@@ -1157,9 +1323,10 @@ function buildMsgPreview({ form, selectedPontos, pontoPrecos, currentUser }) {
     form.via_agencia && form.agencia_nome ? `🤝 Via agência: *${form.agencia_nome}*${form.comissao_pct ? ` · Comissão: *${form.comissao_pct}%*` : ''}` : null,
     isRenovacao ? `🔁 Troca de material: *${form.troca_material ? 'Sim' : 'Não'}*` : null,
     '',
-    form.responsavel_nome || form.responsavel_whatsapp ? '👤 *RESPONSÁVEL PELO CLIENTE*' : null,
+    form.responsavel_nome || form.responsavel_whatsapp || form.responsavel_fixo ? '👤 *RESPONSÁVEL PELO CLIENTE*' : null,
     form.responsavel_nome ? `Nome: ${form.responsavel_nome}` : null,
     form.responsavel_whatsapp ? `WhatsApp: ${form.responsavel_whatsapp}` : null,
+    form.responsavel_fixo ? `Telefone Fixo: ${form.responsavel_fixo}` : null,
     (form.criativo_nome || form.criativo_whatsapp || form.criativo_email) ? '' : null,
     (form.criativo_nome || form.criativo_whatsapp || form.criativo_email) ? '🎨 *RESPONSÁVEL PELOS CRIATIVOS*' : null,
     form.criativo_nome ? `Nome: ${form.criativo_nome}` : null,

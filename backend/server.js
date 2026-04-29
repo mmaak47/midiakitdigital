@@ -56,6 +56,7 @@ const {
   normalizeRadius,
   geocodeAddress,
   enqueueJob,
+  runJobSync,
   getJob,
   listJobs,
   getScoresWithCoverage,
@@ -1673,15 +1674,29 @@ function hydratePontoRow(row) {
   if (!row) return row;
 
   const normalizedName = normalizePointNameByType(row.nome, row.tipo);
+  const normalizedOwnerTag = normalizePointOwnerTag(row.owner_tag);
 
   return {
     ...row,
     nome: normalizedName || row.nome,
+    owner_tag: normalizedOwnerTag,
     foto_focal_point: normalizeFotoFocalPoint(row.foto_focal_point),
     pdf_image_source: normalizePdfImageSource(row.pdf_image_source),
     audience_tags: normalizeAudienceTagsInput(row.audience_tags, row.publico),
     availability_calendar: normalizeAvailabilityCalendarInput(row.availability_calendar, row.horario)
   };
+}
+
+function normalizePointOwnerTag(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return 'Intermídia';
+  return raw.slice(0, 120);
+}
+
+function stripInternalPointFields(point) {
+  if (!point || typeof point !== 'object') return point;
+  const { owner_tag, ...publicPoint } = point;
+  return publicPoint;
 }
 
 // One-time normalization pass at startup to keep persisted point names consistent
@@ -1739,6 +1754,7 @@ const POINT_IMPORT_TEMPLATE_COLUMNS = [
   { key: 'telas', label: 'telas *', sample: 2 },
   { key: 'preco', label: 'preco *', sample: 1200 },
   { key: 'publico', label: 'publico *', sample: 'A/B' },
+  { key: 'owner_tag', label: 'owner_tag', sample: 'Intermídia' },
   { key: 'tempo', label: 'tempo', sample: '15s' },
   { key: 'loop', label: 'loop', sample: '3 min' },
   { key: 'veiculacao', label: 'veiculacao', sample: 'Video sem audio' },
@@ -1765,6 +1781,7 @@ const POINT_IMPORT_HEADER_ALIASES = {
   telas: ['telas'],
   preco: ['preco'],
   publico: ['publico'],
+  owner_tag: ['owner_tag', 'proprietario', 'empresa_proprietaria'],
   tempo: ['tempo'],
   loop: ['loop'],
   veiculacao: ['veiculacao'],
@@ -1923,7 +1940,7 @@ app.get('/api/pontos', (req, res) => {
   sqlParts.push(' ORDER BY cidade, nome');
 
   try {
-    const pontos = db.prepare(sqlParts.join('')).all(...params).map(hydratePontoRow);
+    const pontos = db.prepare(sqlParts.join('')).all(...params).map(hydratePontoRow).map(stripInternalPointFields);
     res.json(pontos);
   } catch (err) {
     internalError(res, err);
@@ -1935,7 +1952,7 @@ app.get('/api/pontos/:id', (req, res) => {
   try {
     const ponto = db.prepare('SELECT * FROM pontos WHERE id = ?').get(req.params.id);
     if (!ponto) return res.status(404).json({ error: 'Ponto não encontrado' });
-    res.json(hydratePontoRow(ponto));
+    res.json(stripInternalPointFields(hydratePontoRow(ponto)));
   } catch (err) {
     internalError(res, err);
   }
@@ -2473,6 +2490,15 @@ function normalizeSellerName(value) {
     .trim();
 }
 
+function isPermutaTipo(value) {
+  const normalized = String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+  return normalized.includes('permuta');
+}
+
 function formatSellerDisplayName(value) {
   const cleaned = String(value || '')
     .replace(/[._-]+/g, ' ')
@@ -2550,7 +2576,7 @@ function getMonthlyVendorRanking() {
     const valContrato = Number(row.total_contrato || 0);
 
     // Track Permuta separately — does not count toward goals/ranking
-    if (String(row.tipo || '').toLowerCase() === 'permuta') {
+    if (isPermutaTipo(row.tipo)) {
       permutaTotal += valMensal;
       permutaTotalContratos += valContrato;
       permutaVendas += 1;
@@ -2690,7 +2716,7 @@ function getTvGoalsSnapshot() {
     WHERE ano = ?
       AND mes = ?
       AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
-      AND LOWER(COALESCE(tipo, 'nova venda')) != 'permuta'
+        AND TRIM(LOWER(COALESCE(tipo, 'nova venda'))) NOT LIKE '%permuta%'
   `).get(ano, mes) || {};
 
   const metaMensal = Number(metaRow.valor_meta || 0);
@@ -2729,6 +2755,13 @@ function getTvRecentActivity(limit = 5) {
     LIMIT 40
   `).all();
 
+  const replayRows = db.prepare(`
+    SELECT id, venda_id, vendedor_nome, cliente, valor_mensal, created_at
+    FROM tv_sale_replays
+    ORDER BY created_at DESC, id DESC
+    LIMIT 40
+  `).all();
+
   const entries = [];
 
   for (const row of salesRows) {
@@ -2756,6 +2789,23 @@ function getTvRecentActivity(limit = 5) {
       valor_total: Number(row.valor_mensal || 0),
       status: status === 'concluida' ? 'Renovação concluída' : 'Renovação pendente',
       data_ref: formatTvShortDate(dateRef),
+      _ts: parseFlexibleDateToTimestamp(dateRef),
+    });
+  }
+
+  for (const row of replayRows) {
+    const dateRef = row.created_at;
+    entries.push({
+      type: 'venda',
+      cliente: row.cliente || 'Cliente',
+      vendedor: row.vendedor_nome || 'Sem vendedor',
+      valor_mensal: Number(row.valor_mensal || 0),
+      valor_total: Number(row.valor_mensal || 0),
+      status: 'Replay TV',
+      data_ref: formatTvShortDate(dateRef),
+      event_key: `tv-replay-${row.id}`,
+      origem: 'tv_replay',
+      venda_id: Number(row.venda_id || 0) || null,
       _ts: parseFlexibleDateToTimestamp(dateRef),
     });
   }
@@ -3117,6 +3167,53 @@ app.get('/api/tv/dashboard', openCors, monitorLimiter, async (req, res) => {
   }
 });
 
+// Dispara manualmente o popup de venda no /painel-tv sem reenviar WhatsApp.
+app.post('/api/tv/replay-sale/:id', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const vendaId = Number(req.params.id);
+    if (!Number.isInteger(vendaId) || vendaId <= 0) {
+      return res.status(400).json({ error: 'ID de venda inválido.' });
+    }
+
+    const venda = db.prepare(`
+      SELECT id, vendedor_id, vendedor_nome, razao_social, valor_mensal
+      FROM vendas
+      WHERE id = ?
+    `).get(vendaId);
+
+    if (!venda) {
+      return res.status(404).json({ error: 'Venda não encontrada.' });
+    }
+
+    if (req.authUser?.role === 'vendedor' && Number(venda.vendedor_id || 0) !== Number(req.authUser?.id || 0)) {
+      return res.status(403).json({ error: 'Você só pode disparar o popup das suas próprias vendas.' });
+    }
+
+    const replayResult = db.prepare(`
+      INSERT INTO tv_sale_replays (venda_id, vendedor_nome, cliente, valor_mensal, created_by, created_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now'))
+    `).run(
+      venda.id,
+      venda.vendedor_nome || req.authUser?.username || 'Vendedor',
+      venda.razao_social || 'Cliente',
+      Number(parseBRLCurrency(venda.valor_mensal) || 0),
+      req.authUser?.id || null
+    );
+
+    res.json({
+      ok: true,
+      replay_id: replayResult.lastInsertRowid,
+      venda_id: venda.id,
+      cliente: venda.razao_social || 'Cliente',
+      vendedor: venda.vendedor_nome || req.authUser?.username || 'Vendedor',
+      valor_mensal: Number(parseBRLCurrency(venda.valor_mensal) || 0),
+      message: 'Popup enviado para o Painel TV com sucesso.',
+    });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
 // ── Contract Actions (WhatsApp commands) ──
 app.get('/api/admin/contract-actions', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
   try {
@@ -3257,14 +3354,15 @@ app.post('/api/pontos', upload.fields([
     const imagemFocoZoom = Number.isFinite(Number(data.imagem_foco_zoom)) ? clamp(Number(data.imagem_foco_zoom), 100, 220) : 100;
     const fotoFocalPoint = normalizeFotoFocalPoint(data.foto_focal_point);
     const pdfImageSource = normalizePdfImageSource(data.pdf_image_source);
+    const ownerTag = normalizePointOwnerTag(data.owner_tag);
 
     const disponibilidade = isBackOrFrontLight
       ? (['disponivel', 'indisponivel'].includes(data.disponibilidade) ? data.disponibilidade : 'disponivel')
       : null;
 
     const stmt = db.prepare(`
-      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, midia_largura_m, midia_altura_m, tipo_fluxo, audience_tags, availability_calendar, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom, foto_focal_point, pdf_image_source, disponibilidade)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, midia_largura_m, midia_altura_m, tipo_fluxo, audience_tags, availability_calendar, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom, foto_focal_point, pdf_image_source, owner_tag, disponibilidade)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const telasVal = parseInt(data.telas) || 1;
@@ -3282,7 +3380,7 @@ app.post('/api/pontos', upload.fields([
       arteLargura, arteAltura, midiaLarguraM, midiaAlturaM, tipoFluxo,
       JSON.stringify(audienceTags), JSON.stringify(availabilityCalendar), elevadorCategoria,
       imagemFocoX, imagemFocoY, imagemFocoZoom,
-      fotoFocalPoint, pdfImageSource, disponibilidade
+      fotoFocalPoint, pdfImageSource, ownerTag, disponibilidade
     );
 
     const ponto = db.prepare('SELECT * FROM pontos WHERE id = ?').get(result.lastInsertRowid);
@@ -3348,6 +3446,7 @@ app.put('/api/pontos/:id', upload.fields([
       : clamp(Number(existing.imagem_foco_zoom) || 100, 100, 220);
     const fotoFocalPoint = normalizeFotoFocalPoint(data.foto_focal_point || existing.foto_focal_point);
     const pdfImageSource = normalizePdfImageSource(data.pdf_image_source || existing.pdf_image_source);
+    const ownerTag = normalizePointOwnerTag(data.owner_tag !== undefined ? data.owner_tag : existing.owner_tag);
 
     const disponibilidade = isBackOrFrontLight
       ? (['disponivel', 'indisponivel'].includes(data.disponibilidade) ? data.disponibilidade : (existing.disponibilidade || 'disponivel'))
@@ -3363,6 +3462,7 @@ app.put('/api/pontos/:id', upload.fields([
         imagem_foco_x = ?, imagem_foco_y = ?, imagem_foco_zoom = ?,
         foto_focal_point = ?,
         pdf_image_source = ?,
+        owner_tag = ?,
         disponibilidade = ?,
         updated_at = datetime('now')
       WHERE id = ?
@@ -3388,6 +3488,7 @@ app.put('/api/pontos/:id', upload.fields([
       arteLargura, arteAltura, midiaLarguraM, midiaAlturaM, tipoFluxo,
       JSON.stringify(audienceTags), JSON.stringify(availabilityCalendar), elevadorCategoria,
       imagemFocoX, imagemFocoY, imagemFocoZoom, fotoFocalPoint, pdfImageSource,
+      ownerTag,
       disponibilidade,
       req.params.id
     );
@@ -3511,20 +3612,27 @@ app.post('/api/entorno/auto/run-now', requireRoles(['admin', 'gerente_comercial'
   }
 });
 
-// Read cached entorno scores. New jobs are queued only on explicit force=true.
-app.get('/api/entorno/scores', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+// Read cached entorno scores. When force=true, processes pontos synchronously
+// (com cap de tempo) para que o vendedor receba a análise já populada na
+// primeira resposta, em vez de ver "cache 0%" enquanto a fila assíncrona roda.
+app.get('/api/entorno/scores', requireRoles(['admin', 'gerente_comercial', 'vendedor']), async (req, res) => {
   try {
     const segmento = normalizeSegment(req.query.segmento);
     const raio = normalizeRadius(req.query.raio || DEFAULT_RADIUS);
     const cidade = parseOptionalCity(req.query.cidade);
     const force = String(req.query.force || '').toLowerCase() === 'true';
 
-    const scores = getScoresWithCoverage({ segment: segmento, radius: raio, city: cidade });
     let job = null;
-
     if (force) {
-      job = enqueueJob({ segment: segmento, radius: raio, city: cidade });
+      try {
+        job = await runJobSync({ segment: segmento, radius: raio, city: cidade, maxWaitMs: 25000 });
+      } catch (err) {
+        console.warn('[entorno/scores] runJobSync falhou, caindo para fila assíncrona:', err?.message || err);
+        job = enqueueJob({ segment: segmento, radius: raio, city: cidade });
+      }
     }
+
+    const scores = getScoresWithCoverage({ segment: segmento, radius: raio, city: cidade });
 
     res.json({
       segmento,
@@ -3981,8 +4089,8 @@ app.post('/api/admin/pontos/import', requireRoles(['admin', 'gerente_comercial']
     }
 
     const stmt = db.prepare(`
-      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, midia_largura_m, midia_altura_m, tipo_fluxo, audience_tags, availability_calendar, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom, foto_focal_point, pdf_image_source, disponibilidade)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pontos (nome, cidade, tipo, endereco, lat, lng, horario, fluxo, insercoes, tempo, loop, veiculacao, publico, telas, preco, descricao, imagem, imagem2, simulacao_tela, simulacao_arte, simulacao_preview, arte_largura, arte_altura, midia_largura_m, midia_altura_m, tipo_fluxo, audience_tags, availability_calendar, elevador_categoria, imagem_foco_x, imagem_foco_y, imagem_foco_zoom, foto_focal_point, pdf_image_source, owner_tag, disponibilidade)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const errors = [];
@@ -4025,6 +4133,7 @@ app.post('/api/admin/pontos/import', requireRoles(['admin', 'gerente_comercial']
         const telasVal = Math.max(1, parseImportInteger(data.telas, 1));
         const preco = Math.max(0, parseCurrencyLike(data.preco));
         const publico = importCellToString(data.publico) || 'A/B';
+        const ownerTag = normalizePointOwnerTag(data.owner_tag);
 
         const isBackOrFrontLight = tipo === 'Backlight' || tipo === 'Frontlight';
         const insercoesInformadas = Math.max(0, parseImportInteger(data.insercoes, 0));
@@ -4102,6 +4211,7 @@ app.post('/api/admin/pontos/import', requireRoles(['admin', 'gerente_comercial']
           100,
           'center center',
           'imagem2',
+          ownerTag,
           disponibilidade
         );
 
@@ -4808,7 +4918,7 @@ const uploadPi = multer({
   },
   // O formulário de venda pode enviar muitos campos (arrays/JSON extras), então
   // evitamos bloquear com LIMIT_FIELD_COUNT ao anexar o P.I.
-  limits: { fileSize: 50 * 1024 * 1024, files: 1, fields: 200 }
+  limits: { fileSize: 50 * 1024 * 1024, files: 10, fields: 200 }
 });
 
 // Inicializa tabela de vendas (se não existir)
@@ -4879,6 +4989,11 @@ try {
   'ALTER TABLE vendas ADD COLUMN cota_contratada TEXT',
   'ALTER TABLE vendas ADD COLUMN plano_fidelidade INTEGER DEFAULT 0',
   'ALTER TABLE vendas ADD COLUMN pontos_precos TEXT',
+  "ALTER TABLE pontos ADD COLUMN owner_tag TEXT DEFAULT 'Intermídia'",
+  'ALTER TABLE vendas ADD COLUMN tipo_documento TEXT',
+  'ALTER TABLE vendas ADD COLUMN pi_numero TEXT',
+  'ALTER TABLE vendas ADD COLUMN endereco_cep TEXT',
+  'ALTER TABLE vendas ADD COLUMN responsavel_fixo TEXT',
 ].forEach(sql => {
   try { db.prepare(sql).run(); } catch { /* coluna já existe */ }
 });
@@ -4917,6 +5032,23 @@ try {
   `).run();
 } catch (dbInitErr) {
   console.error('[whatsapp_send_log] falha ao criar tabela:', dbInitErr.message);
+}
+
+// ─── Eventos manuais de replay para popup do Painel TV ─────────────────────
+try {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS tv_sale_replays (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      venda_id INTEGER REFERENCES vendas(id),
+      vendedor_nome TEXT,
+      cliente TEXT,
+      valor_mensal REAL DEFAULT 0,
+      created_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `).run();
+} catch (dbInitErr) {
+  console.error('[tv_sale_replays] falha ao criar tabela:', dbInitErr.message);
 }
 
 // Backfill: popula whatsapp_send_log a partir de vendas existentes (roda uma vez)
@@ -5065,17 +5197,18 @@ try { db.prepare("ALTER TABLE vendas ADD COLUMN data_primeira_parcela TEXT").run
 // Migration: add dia_pagamento_dia column to vendas (integer day only)
 try { db.prepare("ALTER TABLE vendas ADD COLUMN dia_pagamento_dia INTEGER").run(); } catch {}
 
-// ─── Sync vendas_comercial (current month) → vendas table ──────────────────
-// Creates vendas rows for gestão entries that have no linked venda yet
+// ─── Sync vendas_comercial → vendas (todos os meses) ──────────────────────
+// Cria registros em `vendas` para entradas da Gestão Comercial sem venda_id
+// e migra os status booleanos (status_contrato, status_contrato_assinado, ...)
+// para venda_etapas. Sem isso, vendas adicionadas manualmente aparecem
+// indevidamente nos lembretes do financeiro mesmo após terem sido marcadas
+// como concluídas.
 try {
-  const now = new Date();
-  const syncYear = now.getFullYear();
-  const syncMonth = now.getMonth() + 1;
   const unlinked = db.prepare(`
     SELECT * FROM vendas_comercial
-    WHERE ano = ? AND mes = ? AND (venda_id IS NULL OR venda_id = 0)
-    AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
-  `).all(syncYear, syncMonth);
+    WHERE (venda_id IS NULL OR venda_id = 0)
+    AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES','CLIENTE')
+  `).all();
 
   const insertVenda = db.prepare(`
     INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal,
@@ -5083,12 +5216,27 @@ try {
     VALUES (?, ?, ?, ?, ?, ?, ?, 'nao_configurado', 'ativa', ?, COALESCE(?, datetime('now')))
   `);
   const linkBack = db.prepare(`UPDATE vendas_comercial SET venda_id = ? WHERE id = ?`);
+  const insertEtapa = db.prepare(`
+    INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_at, confirmado_por, removido)
+    VALUES (?, ?, ?, ?, datetime('now'), 'gestao-backfill', 0)
+    ON CONFLICT (venda_id, etapa_key) DO NOTHING
+  `);
+
+  // Mapa local (ETAPAS_VENDA ainda não foi declarado neste ponto do arquivo)
+  const STATUS_BACKFILL = [
+    { col: 'status_contrato',           key: 'contrato_enviado',  label: 'Contrato Enviado',     emoji: '📤' },
+    { col: 'status_contrato_assinado',  key: 'contrato_assinado', label: 'Contrato Assinado',    emoji: '✅' },
+    { col: 'status_conteudo',           key: 'cobranca_material', label: 'Cobrança de Material', emoji: '📦' },
+    { col: 'status_checkin',            key: 'material_recebido', label: 'Material Recebido',    emoji: '🎨' },
+    { col: 'status_faturado',           key: 'veiculando',        label: 'Veiculando',           emoji: '📡' },
+  ];
 
   let syncCount = 0;
+  let etapasMigradas = 0;
   for (const vc of unlinked) {
     try {
       const pontosNomes = vc.pontos_contratados
-        ? JSON.stringify(vc.pontos_contratados.split(',').map(s => s.trim()).filter(Boolean))
+        ? JSON.stringify(String(vc.pontos_contratados).split(',').map(s => s.trim()).filter(Boolean))
         : '[]';
       const periodo = vc.qtde_parcelas > 1 ? `${vc.qtde_parcelas} meses` : null;
       const result = insertVenda.run(
@@ -5102,13 +5250,25 @@ try {
         vc.obs || null,
         vc.data_venda || null
       );
-      linkBack.run(result.lastInsertRowid, vc.id);
+      const newVendaId = result.lastInsertRowid;
+      linkBack.run(newVendaId, vc.id);
       syncCount++;
+
+      for (const item of STATUS_BACKFILL) {
+        if (vc[item.col]) {
+          try {
+            insertEtapa.run(newVendaId, item.key, item.label, item.emoji);
+            etapasMigradas++;
+          } catch { /* ignore conflict */ }
+        }
+      }
     } catch (syncRowErr) {
       console.warn(`[gestão→vendas] sync failed for vc.id=${vc.id}:`, syncRowErr.message);
     }
   }
-  if (syncCount > 0) console.log(`[gestão→vendas] synced ${syncCount} vendas_comercial → vendas for ${syncMonth}/${syncYear}`);
+  if (syncCount > 0) {
+    console.log(`[gestão→vendas] backfill: ${syncCount} venda(s) vinculadas, ${etapasMigradas} etapa(s) migrada(s).`);
+  }
 } catch (e) { console.error('[gestão→vendas] sync failed:', e.message); }
 
 try {
@@ -5299,7 +5459,7 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantas
   valorMensal, tipoValor, cotaContratada, planoFidelidade, periodo, diaPagamento, dataPrimeiraParcela, dataInicioVeiculacao, diaPagamentoDia,
   viaAgencia, agenciaNome, comissaoPct,
   trocaMaterial,
-  responsavelNome, responsavelWhatsapp, obs }) {
+  responsavelNome, responsavelWhatsapp, responsavelFixo, obs }) {
 
   const isRenovacao = tipo === 'Renovação';
   const headerEmoji = isRenovacao ? '🔄' : '🟠';
@@ -5359,10 +5519,11 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantas
     lines.push('');
   }
 
-  if (responsavelNome || responsavelWhatsapp) {
+  if (responsavelNome || responsavelWhatsapp || responsavelFixo) {
     lines.push('👤 *RESPONSÁVEL PELO CLIENTE*');
     if (responsavelNome)      lines.push(`Nome: ${responsavelNome}`);
     if (responsavelWhatsapp)  lines.push(`WhatsApp: ${responsavelWhatsapp}`);
+    if (responsavelFixo)      lines.push(`Telefone Fixo: ${responsavelFixo}`);
   }
 
   if (obs && String(obs).trim()) {
@@ -5371,6 +5532,55 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantas
   }
 
   return lines.join('\n');
+}
+function normalizeNameForGenderGuess(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z\s'-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+function inferPtBrGenderByName(fullName) {
+  const normalized = normalizeNameForGenderGuess(fullName);
+  if (!normalized) return null;
+
+  const firstName = normalized.split(/[\s-]+/)[0] || '';
+  if (!firstName) return null;
+
+  const femaleNames = new Set([
+    'ana', 'maria', 'joana', 'juliana', 'fernanda', 'patricia', 'beatriz', 'camila', 'carla',
+    'gabriela', 'isabela', 'mariana', 'laura', 'leticia', 'amanda', 'aline', 'renata', 'paula',
+    'raquel', 'tatiana', 'monica', 'daniela', 'bruna', 'eduarda'
+  ]);
+  const maleNames = new Set([
+    'joao', 'jose', 'pedro', 'carlos', 'marcos', 'marcio', 'lucas', 'rafael', 'gabriel',
+    'felipe', 'diego', 'gustavo', 'thiago', 'rodrigo', 'leonardo', 'anderson', 'vinicius',
+    'bruno', 'paulo', 'renato', 'daniel', 'eduardo'
+  ]);
+
+  if (femaleNames.has(firstName)) return 'feminino';
+  if (maleNames.has(firstName)) return 'masculino';
+
+  const masculineAExceptions = new Set(['nikola', 'luca', 'josua']);
+  const feminineOExceptions = new Set(['darlene']);
+
+  if (firstName.endsWith('a') && !masculineAExceptions.has(firstName)) return 'feminino';
+  if (firstName.endsWith('o') && !feminineOExceptions.has(firstName)) return 'masculino';
+
+  return null;
+}
+function buildSellerPartnerPhrase(vendedorNome) {
+  const nome = String(vendedorNome || '').trim();
+  if (!nome) return 'junto com nosso time';
+
+  const guessedGender = inferPtBrGenderByName(nome);
+  if (guessedGender === 'feminino') return `junto com a ${nome}`;
+  if (guessedGender === 'masculino') return `junto com o ${nome}`;
+
+  // Fallback neutro para evitar erro de concordancia quando nao houver confianca.
+  return `junto com ${nome}`;
 }
 
 async function sendTechnicalPdfsForVenda({
@@ -5444,7 +5654,8 @@ async function sendTechnicalPdfsForVenda({
 
   const nomeResponsavel = responsavelNome ? String(responsavelNome).trim() : 'cliente';
   const nomeVendedor = vendedorNome || 'nosso time';
-  const caption = `Oi, ${nomeResponsavel}! Tudo bem? 😄\n\nPassando pra te dar os parabens pela escolha dos pontos — excelente decisao!\n\nEu sou o assistente de criacao que trabalha junto com o ${nomeVendedor} e vou te ajudar com tudo que envolver criativos.\n\nTe enviei a proposta tecnica com os detalhes 📄\n\nSe quiser trocar ideias ou precisar de ajuda com as artes, estou por aqui!`;
+  const sellerPartnerPhrase = buildSellerPartnerPhrase(nomeVendedor);
+  const caption = `Oi, ${nomeResponsavel}! Tudo bem? 😄\n\nPassando pra te dar os parabens pela escolha dos pontos — excelente decisao!\n\nEu sou o assistente de criacao que trabalha ${sellerPartnerPhrase} e vou te ajudar com tudo que envolver criativos.\n\nTe enviei a proposta tecnica com os detalhes 📄\n\nSe quiser trocar ideias ou precisar de ajuda com as artes, estou por aqui!`;
 
   let desktopStatus = 'pendente';
   let mobileStatus = 'pendente';
@@ -5698,7 +5909,7 @@ app.get('/api/vendas/plano-fidelidade/pontos', requireRoles(['admin', 'gerente_c
 app.post(
   '/api/vendas',
   resolveAuthenticatedUser,
-  uploadPi.single('pi'),
+  uploadPi.array('pi', 10),
   async (req, res) => {
     try {
       const {
@@ -5713,6 +5924,9 @@ app.post(
         via_agencia,
         agencia_nome,
         comissao_pct,
+        pi_numero,
+        tipo_documento,
+        endereco_cep,
         troca_material,
         periodo_tipo,
         periodo_meses,
@@ -5724,6 +5938,7 @@ app.post(
         dia_pagamento_dia,
         responsavel_nome,
         responsavel_whatsapp,
+        responsavel_fixo,
         email,
         criativo_nome,
         criativo_whatsapp,
@@ -5742,8 +5957,10 @@ app.post(
         return res.status(400).json({ error: 'Nome do responsável pela compra é obrigatório.' });
       }
 
-      if (!responsavel_whatsapp || !String(responsavel_whatsapp).trim()) {
-        return res.status(400).json({ error: 'WhatsApp do responsável pela compra é obrigatório.' });
+      const responsavelWhatsappFinal = String(responsavel_whatsapp || '').trim();
+      const responsavelFixoFinal = String(responsavel_fixo || '').trim();
+      if (!responsavelWhatsappFinal && !responsavelFixoFinal) {
+        return res.status(400).json({ error: 'Informe WhatsApp ou Telefone Fixo do responsável pela compra.' });
       }
 
       const planoFidelidadeAtivo = plano_fidelidade === 'true' || plano_fidelidade === true;
@@ -5761,7 +5978,10 @@ app.post(
         periodo = `${fmt(periodo_inicio)} à ${fmt(periodo_fim)}`;
       }
 
-      const piPath = req.file ? req.file.path : null;
+      const piFilesArr = Array.isArray(req.files) ? req.files : [];
+      const piPaths = piFilesArr.map(f => f.path);
+      const piPath = piPaths[0] || null;
+      const piPathStored = piPaths.length ? JSON.stringify(piPaths) : null;
 
       // Salva no banco
       const stmt = db.prepare(`
@@ -5769,9 +5989,11 @@ app.post(
           cota_contratada, plano_fidelidade,
           via_agencia, agencia_nome, comissao_pct, troca_material,
           periodo, dia_pagamento, data_primeira_parcela, dia_pagamento_dia,
-          responsavel_nome, responsavel_whatsapp, email, criativo_nome, criativo_whatsapp, criativo_email,
-          obs, pi_path, vendedor_id, vendedor_nome, whatsapp_status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
+          responsavel_nome, responsavel_whatsapp, responsavel_fixo, email, criativo_nome, criativo_whatsapp, criativo_email,
+          obs, pi_path, vendedor_id, vendedor_nome,
+          tipo_documento, pi_numero, endereco_cep,
+          whatsapp_status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
       `);
 
       const dbResult = stmt.run(
@@ -5794,15 +6016,19 @@ app.post(
         data_primeira_parcela || null,
         dia_pagamento_dia ? Number(dia_pagamento_dia) : null,
         responsavel_nome || null,
-        responsavel_whatsapp || null,
+        responsavelWhatsappFinal || null,
+        responsavelFixoFinal || null,
         email || null,
         criativoNomeFinal || null,
         criativoWhatsappFinal || null,
         criativoEmailFinal || null,
         obs || null,
-        piPath || null,
+        piPathStored || null,
         req.authUser?.id || null,
-        vendedor_nome || req.authUser?.username || null
+        vendedor_nome || req.authUser?.username || null,
+        tipo_documento ? String(tipo_documento).trim() : null,
+        pi_numero ? String(pi_numero).trim() : null,
+        endereco_cep ? String(endereco_cep).trim() : null
       );
 
       const vendaId = dbResult.lastInsertRowid;
@@ -5837,12 +6063,13 @@ app.post(
             comissaoPct: comissao_pct || '',
             trocaMaterial: troca_material === 'true' || troca_material === true,
             responsavelNome: responsavel_nome || '',
-            responsavelWhatsapp: responsavel_whatsapp || '',
+            responsavelWhatsapp: responsavelWhatsappFinal || '',
+            responsavelFixo: responsavelFixoFinal || '',
             obs: obs || ''
           });
 
           if (piPath) {
-            // Envia o PDF com a mensagem como caption
+            // Envia o primeiro PDF com a mensagem como caption
             const evoResp = await sendEvolutionDocument({
               apiUrl: evo.evolution_api_url,
               instance: evo.evolution_instance,
@@ -5850,9 +6077,25 @@ app.post(
               number: evo.evolution_dest_number,
               caption: mensagem,
               filePath: piPath,
-              fileName: req.file?.originalname || 'PI.pdf'
+              fileName: piFilesArr[0]?.originalname || 'PI.pdf'
             });
             waMsgId = evoResp?.key?.id || evoResp?.[0]?.key?.id || null;
+            // Envia os PDFs adicionais (se houver) sem caption
+            for (let i = 1; i < piFilesArr.length; i += 1) {
+              try {
+                await sendEvolutionDocument({
+                  apiUrl: evo.evolution_api_url,
+                  instance: evo.evolution_instance,
+                  apiKey: evo.evolution_api_key,
+                  number: evo.evolution_dest_number,
+                  caption: '',
+                  filePath: piFilesArr[i].path,
+                  fileName: piFilesArr[i].originalname || `PI-${i + 1}.pdf`
+                });
+              } catch (extraErr) {
+                console.error('[venda] falha ao enviar P.I. adicional:', extraErr?.message || extraErr);
+              }
+            }
           } else {
             const evoResp = await sendEvolutionText({
               apiUrl: evo.evolution_api_url,
@@ -6219,7 +6462,8 @@ app.post('/api/vendas/test-pdf', requireRoles(['admin', 'gerente_comercial']), a
   const destPhone      = sanitizePhoneForWhatsApp(phone) || String(phone).trim();
   const nomeResp       = responsavel_nome ? String(responsavel_nome).trim() : 'cliente teste';
   const nomeVend       = vendedor_nome    ? String(vendedor_nome).trim()    : req.authUser?.username || 'vendedor';
-  const caption        = `Oi, ${nomeResp}! Tudo bem? 😄\n\nPassando pra te dar os parabéns pela escolha dos pontos — excelente decisão!\n\nEu sou o assistente de criação que trabalha junto com o ${nomeVend} e vou te ajudar com tudo que envolver criativos.\n\nTe enviei a proposta técnica com os detalhes 📄\n\nSe quiser trocar ideias ou precisar de ajuda com as artes, estou por aqui!`;
+  const sellerPartnerPhrase = buildSellerPartnerPhrase(nomeVend);
+  const caption        = `Oi, ${nomeResp}! Tudo bem? 😄\n\nPassando pra te dar os parabéns pela escolha dos pontos — excelente decisão!\n\nEu sou o assistente de criação que trabalha ${sellerPartnerPhrase} e vou te ajudar com tudo que envolver criativos.\n\nTe enviei a proposta técnica com os detalhes 📄\n\nSe quiser trocar ideias ou precisar de ajuda com as artes, estou por aqui!`;
   const log            = [];
 
   try {
@@ -6419,11 +6663,15 @@ app.patch('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial', 'vended
 // ─── Deletar venda (apenas admin e gerente_comercial) ────────────────────────
 app.delete('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
   try {
-    const { id } = req.params;
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'ID inválido.' });
     const venda = db.prepare('SELECT id FROM vendas WHERE id = ?').get(id);
     if (!venda) return res.status(404).json({ error: 'Venda não encontrada.' });
     db.prepare('DELETE FROM venda_etapas WHERE venda_id = ?').run(id);
     db.prepare('DELETE FROM whatsapp_send_log WHERE venda_id = ?').run(id);
+    db.prepare('DELETE FROM tv_sale_replays WHERE venda_id = ?').run(id);
+    // Cascade para Gestão Comercial — usa Number(id) para garantir comparação
+    // correta com coluna INTEGER no PostgreSQL (evita mismatch string vs int).
     db.prepare('DELETE FROM vendas_comercial WHERE venda_id = ?').run(id);
     db.prepare('DELETE FROM vendas WHERE id = ?').run(id);
     res.json({ ok: true });
@@ -6964,9 +7212,25 @@ app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','ven
 app.patch('/api/gestao/vendas/:id/status', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { field, value } = req.body;
+    const { field: rawField, value } = req.body;
+
+    // O frontend pode enviar o nome da coluna boolean (status_contrato, …) OU
+    // o etapa_key (contrato_enviado, …). Normalizamos para etapa_key.
+    const COLUMN_TO_ETAPA = {
+      'status_contrato':           'contrato_enviado',
+      'status_contrato_assinado':  'contrato_assinado',
+      'status_conteudo':           'cobranca_material',
+      'status_checkin':            'material_recebido',
+      'status_faturado':           'veiculando',
+    };
     const ETAPA_KEYS = ['contrato_enviado','contrato_assinado','cobranca_material','material_recebido','veiculando'];
-    // Mapping for manual vendas (no venda_id): etapa key → local boolean column
+    // Colunas somente-UI sem etapa_key correspondente (atualizamos só o boolean)
+    const UI_ONLY_COLUMNS = new Set(['status_excel_pastas']);
+
+    // Normaliza para etapa_key
+    const field = COLUMN_TO_ETAPA[rawField] || (ETAPA_KEYS.includes(rawField) ? rawField : null);
+
+    // Mapping etapa key → coluna boolean local em vendas_comercial
     const LOCAL_MAP = {
       'contrato_enviado': 'status_contrato',
       'contrato_assinado': 'status_contrato_assinado',
@@ -6974,32 +7238,94 @@ app.patch('/api/gestao/vendas/:id/status', requireRoles(['admin','gerente_comerc
       'material_recebido': 'status_checkin',
       'veiculando': 'status_faturado',
     };
-    if (!ETAPA_KEYS.includes(field)) return res.status(400).json({ error: 'Campo inválido' });
-    // Check if this vendas_comercial record is linked to a real venda
-    const row = db.prepare('SELECT venda_id FROM vendas_comercial WHERE id = ?').get(id);
+
+    // Campos somente-UI: atualiza apenas o boolean local e retorna
+    if (UI_ONLY_COLUMNS.has(rawField)) {
+      const row = db.prepare('SELECT id FROM vendas_comercial WHERE id = ?').get(id);
+      if (!row) return res.status(404).json({ error: 'Venda não encontrada' });
+      db.prepare(`UPDATE vendas_comercial SET ${rawField} = ?, updated_at = datetime('now') WHERE id = ?`).run(value ? 1 : 0, id);
+      return res.json({ ok: true, venda_id: null });
+    }
+
+    if (!field) return res.status(400).json({ error: 'Campo inválido' });
+
+    const row = db.prepare('SELECT * FROM vendas_comercial WHERE id = ?').get(id);
     if (!row) return res.status(404).json({ error: 'Venda não encontrada' });
 
-    if (row.venda_id) {
-      // Linked venda: toggle in venda_etapas
-      const etapaLabel = ETAPAS_VENDA.find(e => e.key === field)?.label || field;
-      const etapaEmoji = ETAPAS_VENDA.find(e => e.key === field)?.emoji || '';
+    let vendaId = row.venda_id;
+
+    // Backfill preguiçoso: vendas adicionadas manualmente (sem venda_id) precisam de
+    // um registro em `vendas` para que o lembrete do financeiro e os relatórios
+    // baseados em venda_etapas funcionem. Cria a linha + migra os booleans
+    // existentes para venda_etapas, preservando o histórico.
+    const clienteUpper = String(row.cliente || '').toUpperCase().trim();
+    if (!vendaId && !['META BASE','HIPER META','META MÊS','META MES','CLIENTE'].includes(clienteUpper)) {
+      try {
+        const pontosNomes = row.pontos_contratados
+          ? JSON.stringify(String(row.pontos_contratados).split(',').map(s => s.trim()).filter(Boolean))
+          : '[]';
+        const parcelas = Number(row.qtde_parcelas || 1);
+        const periodo = parcelas > 1 ? `${parcelas} meses` : null;
+        const insertRes = db.prepare(`
+          INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal,
+            periodo, vendedor_nome, whatsapp_status, status, obs, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'nao_configurado', 'ativa', ?, COALESCE(?, datetime('now')))
+        `).run(
+          row.tipo || 'Nova Venda',
+          row.cliente,
+          row.cnpj || null,
+          pontosNomes,
+          Number(row.valor_mensal || 0),
+          periodo,
+          String(row.vendedor_nome || ''),
+          row.obs || null,
+          row.data_venda || null
+        );
+        vendaId = insertRes.lastInsertRowid;
+        db.prepare(`UPDATE vendas_comercial SET venda_id = ?, updated_at = datetime('now') WHERE id = ?`).run(vendaId, id);
+
+        // Migra status booleanos pré-existentes para venda_etapas
+        for (const [etapaKey, col] of Object.entries(LOCAL_MAP)) {
+          if (row[col]) {
+            const etapa = ETAPAS_VENDA.find(e => e.key === etapaKey);
+            if (etapa) {
+              db.prepare(`
+                INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_at, confirmado_por, removido)
+                VALUES (?, ?, ?, ?, datetime('now'), 'gestao-backfill', 0)
+                ON CONFLICT (venda_id, etapa_key) DO NOTHING
+              `).run(vendaId, etapa.key, etapa.label, etapa.emoji);
+            }
+          }
+        }
+      } catch (linkErr) {
+        console.warn(`[gestao→vendas] auto-link on PATCH falhou para vc.id=${id}:`, linkErr.message);
+      }
+    }
+
+    if (vendaId) {
+      const etapa = ETAPAS_VENDA.find(e => e.key === field);
+      const etapaLabel = etapa?.label || field;
+      const etapaEmoji = etapa?.emoji || '';
       if (value) {
         db.prepare(`
           INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_at, confirmado_por, removido)
           VALUES (?, ?, ?, ?, datetime('now'), 'gestao', 0)
           ON CONFLICT (venda_id, etapa_key) DO UPDATE SET removido = 0, confirmado_at = datetime('now'), confirmado_por = 'gestao'
-        `).run(row.venda_id, field, etapaLabel, etapaEmoji);
+        `).run(vendaId, field, etapaLabel, etapaEmoji);
       } else {
-        db.prepare(`UPDATE venda_etapas SET removido = 1 WHERE venda_id = ? AND etapa_key = ?`).run(row.venda_id, field);
-      }
-    } else {
-      // Manual venda: toggle local boolean column
-      const col = LOCAL_MAP[field];
-      if (col) {
-        db.prepare(`UPDATE vendas_comercial SET ${col} = ?, updated_at = datetime('now') WHERE id = ?`).run(value ? 1 : 0, id);
+        db.prepare(`UPDATE venda_etapas SET removido = 1 WHERE venda_id = ? AND etapa_key = ?`).run(vendaId, field);
       }
     }
-    res.json({ ok: true });
+
+    // Sempre mantém o boolean local em sincronia (UI da Gestão Comercial usa
+    // estes campos quando não há venda vinculada e mantê-los iguais evita
+    // inconsistência caso o backfill falhe).
+    const col = LOCAL_MAP[field];
+    if (col) {
+      db.prepare(`UPDATE vendas_comercial SET ${col} = ?, updated_at = datetime('now') WHERE id = ?`).run(value ? 1 : 0, id);
+    }
+
+    res.json({ ok: true, venda_id: vendaId || null });
   } catch (err) {
     internalError(res, err);
   }
@@ -7015,6 +7341,7 @@ app.delete('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial'])
     if (vc && vc.venda_id) {
       db.prepare('DELETE FROM venda_etapas WHERE venda_id = ?').run(vc.venda_id);
       db.prepare('DELETE FROM whatsapp_send_log WHERE venda_id = ?').run(vc.venda_id);
+      db.prepare('DELETE FROM tv_sale_replays WHERE venda_id = ?').run(vc.venda_id);
       db.prepare('DELETE FROM vendas WHERE id = ?').run(vc.venda_id);
     }
     res.json({ ok: true });
@@ -7104,7 +7431,7 @@ app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vend
              COALESCE(SUM(total_contrato), 0) as total_contrato
       FROM vendas_comercial
       WHERE ano = ?
-        AND LOWER(COALESCE(tipo, 'nova venda')) != 'permuta'
+        AND TRIM(LOWER(COALESCE(tipo, 'nova venda'))) NOT LIKE '%permuta%'
       GROUP BY vendedor_nome, mes
       ORDER BY vendedor_nome, mes
     `).all(ano);
@@ -7117,7 +7444,7 @@ app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vend
              COALESCE(SUM(total_contrato), 0) as total_contrato
       FROM vendas_comercial
       WHERE ano = ?
-        AND LOWER(COALESCE(tipo, 'nova venda')) = 'permuta'
+        AND TRIM(LOWER(COALESCE(tipo, 'nova venda'))) LIKE '%permuta%'
       GROUP BY mes
       ORDER BY mes
     `).all(ano);

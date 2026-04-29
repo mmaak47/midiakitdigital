@@ -87,6 +87,15 @@ function normalizePhotoUrl(photoUrl) {
   return photoUrl.startsWith('/') ? photoUrl : `/${photoUrl}`;
 }
 
+function isPermutaVendaType(tipo) {
+  const normalized = String(tipo || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+  return normalized.includes('permuta');
+}
+
 /* ─── Progress Card ──────────────────────────────────── */
 function ProgressCard({ title, subtitle, icon, accentBorder, meta, real, pct, isDark, cardBg, text, textMuted }) {
   const hasMeta = meta > 0;
@@ -199,6 +208,16 @@ export default function GestaoUnificada({ isDark, ano }) {
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { fetchPontos().then(pts => setAvailablePontos(pts || [])).catch(() => {}); }, []);
 
+  // Re-busca dados quando o usuário volta para esta aba/janela (garante sincronia
+  // com exclusões feitas na página de Vendas sem precisar recarregar a página).
+  useEffect(() => {
+    const onVisible = () => {
+      if (!document.hidden) loadData();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [loadData]);
+
   /* ─── Derived ─── */
   const vendedorUsernames = useMemo(() => vendedores.map(v => v.username), [vendedores]);
   const vendedorDisplayName = useMemo(() => {
@@ -244,7 +263,7 @@ export default function GestaoUnificada({ isDark, ano }) {
   const monthTotals = useMemo(() => {
     let mensal = 0, contrato = 0;
     vendas.forEach(v => {
-      if (String(v.tipo || '').toLowerCase() === 'permuta') return;
+      if (isPermutaVendaType(v.tipo)) return;
       mensal += Number(v.valor_mensal || 0); contrato += Number(v.total_contrato || 0);
     });
     return { mensal, contrato };
@@ -254,7 +273,7 @@ export default function GestaoUnificada({ isDark, ano }) {
   const permutaTotals = useMemo(() => {
     let mensal = 0, contrato = 0, count = 0;
     vendas.forEach(v => {
-      if (String(v.tipo || '').toLowerCase() !== 'permuta') return;
+      if (!isPermutaVendaType(v.tipo)) return;
       mensal += Number(v.valor_mensal || 0); contrato += Number(v.total_contrato || 0); count++;
     });
     return { mensal, contrato, count };
@@ -489,7 +508,7 @@ export default function GestaoUnificada({ isDark, ano }) {
 
           {vendedorUsernames.map(vendedor => {
             const items = vendasByVendedor[vendedor] || [];
-            const nonPermutaItems = items.filter(v => String(v.tipo || '').toLowerCase() !== 'permuta');
+            const nonPermutaItems = items.filter(v => !isPermutaVendaType(v.tipo));
             const totalMensal = nonPermutaItems.reduce((s, v) => s + Number(v.valor_mensal || 0), 0);
             const totalContrato = nonPermutaItems.reduce((s, v) => s + Number(v.total_contrato || 0), 0);
             const isExpanded = expandedVendedor === vendedor;
@@ -569,7 +588,7 @@ export default function GestaoUnificada({ isDark, ano }) {
                                   <div className="flex-1 min-w-0">
                                     <p className={`font-bold text-base ${text} truncate`}>
                                       {v.cliente}
-                                      {v.tipo === 'Permuta' && (
+                                      {isPermutaVendaType(v.tipo) && (
                                         <span className="ml-2 inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-500/15 text-teal-500 border border-teal-500/30">
                                           <ArrowLeftRight size={10} /> Permuta
                                         </span>

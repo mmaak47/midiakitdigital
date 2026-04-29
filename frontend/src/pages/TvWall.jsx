@@ -99,6 +99,8 @@ export default function TvWall() {
   const isFirstLoadRef = useRef(true);
   const celebratedGoalsRef = useRef(new Set());
   const confettiCanvasRef = useRef(null);
+  const carnivalStopRef = useRef(null);
+  const [carnival, setCarnival] = useState(null); // { label } when active
 
   useEffect(() => {
     let alive = true;
@@ -172,7 +174,7 @@ export default function TvWall() {
     if (isFirstLoadRef.current) {
       // On first load, just record existing sales without popping up
       activities.forEach((item) => {
-        const key = `${item.type}-${item.cliente}-${item.data_ref}-${item.vendedor}`;
+        const key = item.event_key || `${item.type}-${item.cliente}-${item.data_ref}-${item.vendedor}`;
         seenSalesRef.current.add(key);
       });
       isFirstLoadRef.current = false;
@@ -180,7 +182,7 @@ export default function TvWall() {
     }
 
     for (const item of activities) {
-      const key = `${item.type}-${item.cliente}-${item.data_ref}-${item.vendedor}`;
+      const key = item.event_key || `${item.type}-${item.cliente}-${item.data_ref}-${item.vendedor}`;
       if (!seenSalesRef.current.has(key) && item.type === 'venda') {
         seenSalesRef.current.add(key);
         setSalePopup({
@@ -226,66 +228,294 @@ export default function TvWall() {
     return () => clearInterval(timer);
   }, []);
 
-  // ── Confetti launcher ──────────────────────────────────────────────────
-  const launchConfetti = () => {
+  // ── Carnival celebration launcher (META 100%) ──────────────────────────
+  const launchCarnival = (label) => {
     const canvas = confettiCanvasRef.current;
     if (!canvas) return;
+    // Stop any previous run
+    if (carnivalStopRef.current) {
+      try { carnivalStopRef.current(); } catch { /* noop */ }
+      carnivalStopRef.current = null;
+    }
     const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(window.innerWidth * dpr);
+    canvas.height = Math.floor(window.innerHeight * dpr);
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     canvas.style.display = 'block';
-    const COLORS = ['#fe5c2b','#22c55e','#facc15','#3b82f6','#a855f7','#ef4444','#14b8a6'];
-    const pieces = Array.from({ length: 150 }, () => ({
-      x: Math.random() * canvas.width,
-      y: -10 - Math.random() * canvas.height * 0.4,
-      w: 6 + Math.random() * 6,
-      h: 4 + Math.random() * 4,
-      vx: (Math.random() - 0.5) * 6,
-      vy: 2 + Math.random() * 5,
-      rot: Math.random() * Math.PI * 2,
-      rotV: (Math.random() - 0.5) * 0.2,
-      color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      life: 1,
-    }));
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+
+    setCarnival({ label: label || 'META' });
+
+    // Vibrant carnival palette: Brazilian flag + festival neons
+    const COLORS = [
+      '#fe5c2b', '#ff2d87', '#ffd400', '#22c55e', '#009c3b',
+      '#ffdf00', '#3b82f6', '#002776', '#a855f7', '#ef4444',
+      '#14b8a6', '#f97316', '#ec4899', '#84cc16', '#06b6d4',
+    ];
+
+    /** @type {Array<any>} */
+    const pieces = [];
+    /** @type {Array<any>} */
+    const sparks = [];
+    /** @type {Array<any>} */
+    const stars = [];
+
+    const addBurst = (cx, cy, count = 80, power = 1) => {
+      for (let i = 0; i < count; i += 1) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = (3 + Math.random() * 9) * power;
+        sparks.push({
+          x: cx,
+          y: cy,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 1,
+          decay: 0.012 + Math.random() * 0.015,
+          size: 2 + Math.random() * 3,
+          color: COLORS[Math.floor(Math.random() * COLORS.length)],
+        });
+      }
+    };
+
+    const addConfettiBatch = (n) => {
+      for (let i = 0; i < n; i += 1) {
+        const kind = Math.random();
+        const fromLeft = Math.random() < 0.5;
+        const long = kind > 0.85; // streamers
+        pieces.push({
+          x: Math.random() * W,
+          y: -20 - Math.random() * H * 0.6,
+          w: long ? 3 + Math.random() * 3 : 6 + Math.random() * 8,
+          h: long ? 18 + Math.random() * 26 : 5 + Math.random() * 7,
+          vx: (fromLeft ? 1 : -1) * (0.5 + Math.random() * 3.5),
+          vy: 2.5 + Math.random() * 6,
+          rot: Math.random() * Math.PI * 2,
+          rotV: (Math.random() - 0.5) * 0.28,
+          color: COLORS[Math.floor(Math.random() * COLORS.length)],
+          life: 1,
+          shape: long ? 'streamer' : (Math.random() < 0.18 ? 'circle' : 'rect'),
+          wobble: Math.random() * Math.PI * 2,
+          wobbleV: 0.05 + Math.random() * 0.1,
+        });
+      }
+    };
+
+    const addStarTwinkle = (n) => {
+      for (let i = 0; i < n; i += 1) {
+        stars.push({
+          x: Math.random() * W,
+          y: Math.random() * H,
+          r: 1.5 + Math.random() * 2.5,
+          phase: Math.random() * Math.PI * 2,
+          speed: 0.04 + Math.random() * 0.06,
+          color: Math.random() < 0.5 ? '#ffffff' : '#fff5b0',
+          life: 1,
+          decay: 0.0025 + Math.random() * 0.003,
+        });
+      }
+    };
+
+    // Initial blast
+    addConfettiBatch(280);
+    addBurst(W * 0.5, H * 0.45, 120, 1.4);
+    addBurst(W * 0.2, H * 0.35, 80, 1.1);
+    addBurst(W * 0.8, H * 0.35, 80, 1.1);
+    addStarTwinkle(80);
+
+    const startTime = performance.now();
+    const TOTAL_MS = 18000;
+    let lastBatch = 0;
+    let lastBurst = 0;
     let raf;
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      let alive = false;
+    let running = true;
+
+    const drawStar = (x, y, r, color, alpha) => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(x, y);
+      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 4);
+      grad.addColorStop(0, color);
+      grad.addColorStop(0.4, color);
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 4, 0, Math.PI * 2);
+      ctx.fill();
+      // 4-point sparkle cross
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(-r * 3.5, 0); ctx.lineTo(r * 3.5, 0);
+      ctx.moveTo(0, -r * 3.5); ctx.lineTo(0, r * 3.5);
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    const animate = (t) => {
+      if (!running) return;
+      const elapsed = t - startTime;
+      ctx.clearRect(0, 0, W, H);
+
+      // Fireworks bursts every ~700ms during active phase
+      if (elapsed < TOTAL_MS - 2000 && t - lastBurst > 600) {
+        lastBurst = t;
+        const bx = W * (0.1 + Math.random() * 0.8);
+        const by = H * (0.15 + Math.random() * 0.45);
+        addBurst(bx, by, 90 + Math.floor(Math.random() * 60), 1 + Math.random() * 0.6);
+      }
+      // Top-up confetti every ~450ms during active phase
+      if (elapsed < TOTAL_MS - 3000 && t - lastBatch > 420) {
+        lastBatch = t;
+        addConfettiBatch(120);
+      }
+
+      // Twinkling stars (background sparkle layer)
+      for (const s of stars) {
+        s.phase += s.speed;
+        s.life -= s.decay;
+        if (s.life <= 0) continue;
+        const tw = (Math.sin(s.phase) * 0.5 + 0.5) * s.life;
+        drawStar(s.x, s.y, s.r, s.color, tw);
+      }
+
+      // Confetti pieces
       for (const p of pieces) {
         if (p.life <= 0) continue;
-        alive = true;
-        p.x += p.vx;
+        p.wobble += p.wobbleV;
+        p.x += p.vx + Math.sin(p.wobble) * 0.8;
         p.y += p.vy;
         p.vy += 0.12;
         p.rot += p.rotV;
-        p.life -= 0.004;
+        if (p.y > H + 40) p.life = 0;
+        if (p.life <= 0) continue;
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.rot);
-        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.globalAlpha = Math.max(0, Math.min(1, p.life));
         ctx.fillStyle = p.color;
-        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        if (p.shape === 'circle') {
+          ctx.beginPath();
+          ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (p.shape === 'streamer') {
+          ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        } else {
+          ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        }
         ctx.restore();
       }
-      if (alive) { raf = requestAnimationFrame(animate); }
-      else { ctx.clearRect(0, 0, canvas.width, canvas.height); canvas.style.display = 'none'; }
+
+      // Firework sparks with glow trails
+      ctx.globalCompositeOperation = 'lighter';
+      for (const sp of sparks) {
+        if (sp.life <= 0) continue;
+        sp.x += sp.vx;
+        sp.y += sp.vy;
+        sp.vy += 0.08;
+        sp.vx *= 0.985;
+        sp.life -= sp.decay;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, sp.life);
+        const r = sp.size * (1 + (1 - sp.life) * 0.6);
+        const grad = ctx.createRadialGradient(sp.x, sp.y, 0, sp.x, sp.y, r * 4);
+        grad.addColorStop(0, sp.color);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(sp.x, sp.y, r * 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+
+      // Cleanup arrays occasionally
+      if (pieces.length > 1500) {
+        for (let i = pieces.length - 1; i >= 0 && pieces.length > 900; i -= 1) {
+          if (pieces[i].life <= 0) pieces.splice(i, 1);
+        }
+      }
+      if (sparks.length > 1500) {
+        for (let i = sparks.length - 1; i >= 0 && sparks.length > 900; i -= 1) {
+          if (sparks[i].life <= 0) sparks.splice(i, 1);
+        }
+      }
+
+      if (elapsed < TOTAL_MS) {
+        raf = requestAnimationFrame(animate);
+      } else {
+        // Fade-out tail: keep drawing remaining particles until they die
+        let anyAlive = pieces.some((p) => p.life > 0) || sparks.some((s) => s.life > 0);
+        if (anyAlive) {
+          raf = requestAnimationFrame(animate);
+        } else {
+          ctx.clearRect(0, 0, W, H);
+          canvas.style.display = 'none';
+          setCarnival(null);
+          running = false;
+        }
+      }
     };
     raf = requestAnimationFrame(animate);
-    return () => { cancelAnimationFrame(raf); canvas.style.display = 'none'; };
+
+    // Festive samba audio sequence
+    try {
+      const AudioCtor = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtor) {
+        const audioCtx = new AudioCtor();
+        const playNote = (freq, start, dur, type = 'triangle', vol = 0.18) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = type;
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.0001, audioCtx.currentTime + start);
+          gain.gain.exponentialRampToValueAtTime(vol, audioCtx.currentTime + start + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + start + dur);
+          osc.connect(gain).connect(audioCtx.destination);
+          osc.start(audioCtx.currentTime + start);
+          osc.stop(audioCtx.currentTime + start + dur + 0.02);
+        };
+        // Trumpet-ish samba fanfare
+        const seq = [
+          [523.25, 0.0, 0.18], [659.25, 0.18, 0.18], [783.99, 0.36, 0.22],
+          [1046.5, 0.6, 0.32], [783.99, 0.95, 0.18], [1046.5, 1.15, 0.4],
+          [1318.5, 1.6, 0.5],
+        ];
+        for (const [f, s, d] of seq) playNote(f, s, d, 'sawtooth', 0.16);
+        // Bass hits
+        for (let i = 0; i < 8; i += 1) playNote(110, i * 0.3, 0.12, 'sine', 0.22);
+        // Bell sparkle
+        playNote(2093, 1.6, 0.6, 'sine', 0.12);
+        playNote(2637, 1.85, 0.5, 'sine', 0.1);
+      }
+    } catch { /* audio not available */ }
+
+    const stop = () => {
+      running = false;
+      cancelAnimationFrame(raf);
+      ctx.clearRect(0, 0, W, H);
+      canvas.style.display = 'none';
+      setCarnival(null);
+    };
+    carnivalStopRef.current = stop;
+    return stop;
   };
 
-  // ── Trigger confetti when goals hit 100% ────────────────────────────────
+  // ── Trigger carnival celebration when goals hit 100% ───────────────────
   useEffect(() => {
     if (!data?.goals) return;
     const g = data.goals;
     const checks = [
-      { key: 'pct_mensal', value: Number(g.pct_mensal || 0) },
-      { key: 'pct_recorrencia', value: Number(g.pct_recorrencia || 0) },
+      { key: 'pct_mensal', value: Number(g.pct_mensal || 0), label: 'META MENSAL' },
+      { key: 'pct_recorrencia', value: Number(g.pct_recorrencia || 0), label: 'META RECORRÊNCIA' },
     ];
     for (const c of checks) {
       if (c.value >= 100 && !celebratedGoalsRef.current.has(c.key)) {
         celebratedGoalsRef.current.add(c.key);
-        launchConfetti();
+        launchCarnival(c.label);
       }
     }
   }, [data?.goals]);
@@ -1076,7 +1306,7 @@ export default function TvWall() {
         }
         .tv-permuta-subtitle {
           font-size: 0.72rem;
-          color: rgba(255,255,255,0.45);
+          color: #14b8a6;
         }
         .tv-permuta-values {
           display: flex;
@@ -1308,6 +1538,187 @@ export default function TvWall() {
           font-weight: 900;
           letter-spacing: -0.02em;
           border: 1px solid rgba(23, 154, 109, 0.18);
+        }
+
+        /* ── CARNIVAL CELEBRATION (META 100%) ─────────────────────────── */
+        .tv-carnival-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 250;
+          pointer-events: none;
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: radial-gradient(ellipse at center, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.55) 100%);
+          animation: tv-carn-fade 0.6s ease;
+        }
+        @keyframes tv-carn-fade {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+        .tv-carnival-spotlights::before,
+        .tv-carnival-spotlights::after {
+          content: '';
+          position: absolute;
+          top: -30%;
+          left: 50%;
+          width: 60vw;
+          height: 160vh;
+          background: conic-gradient(from 0deg,
+            rgba(255, 212, 0, 0.0) 0deg,
+            rgba(255, 212, 0, 0.18) 12deg,
+            rgba(255, 212, 0, 0.0) 30deg,
+            rgba(0, 156, 59, 0.18) 110deg,
+            rgba(0, 156, 59, 0.0) 130deg,
+            rgba(254, 92, 43, 0.20) 220deg,
+            rgba(254, 92, 43, 0.0) 240deg,
+            rgba(168, 85, 247, 0.18) 320deg,
+            rgba(168, 85, 247, 0.0) 340deg,
+            rgba(255, 212, 0, 0.0) 360deg);
+          transform-origin: 50% 30%;
+          animation: tv-carn-spin 9s linear infinite;
+          mix-blend-mode: screen;
+          filter: blur(28px);
+          opacity: 0.85;
+        }
+        .tv-carnival-spotlights::after {
+          animation-direction: reverse;
+          animation-duration: 13s;
+          opacity: 0.55;
+        }
+        @keyframes tv-carn-spin {
+          to { transform: translateX(-50%) rotate(360deg); }
+        }
+        .tv-carnival-stage {
+          position: relative;
+          padding: 40px 64px;
+          border-radius: 36px;
+          background: rgba(15, 7, 30, 0.55);
+          border: 2px solid rgba(255, 212, 0, 0.45);
+          box-shadow:
+            0 0 80px 20px rgba(255, 212, 0, 0.35),
+            0 0 160px 40px rgba(254, 92, 43, 0.25),
+            inset 0 0 60px rgba(255, 255, 255, 0.08);
+          backdrop-filter: blur(8px);
+          text-align: center;
+          animation: tv-carn-pop 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+                     tv-carn-samba 1.2s ease-in-out infinite 0.7s;
+        }
+        @keyframes tv-carn-pop {
+          0% { opacity: 0; transform: scale(0.4) rotate(-8deg); }
+          60% { opacity: 1; transform: scale(1.12) rotate(3deg); }
+          100% { opacity: 1; transform: scale(1) rotate(0); }
+        }
+        @keyframes tv-carn-samba {
+          0%, 100% { transform: translateY(0) rotate(-1.2deg) scale(1); }
+          25% { transform: translateY(-8px) rotate(1.5deg) scale(1.02); }
+          50% { transform: translateY(0) rotate(-0.8deg) scale(1); }
+          75% { transform: translateY(-4px) rotate(1deg) scale(1.015); }
+        }
+        .tv-carnival-tag {
+          font-size: 22px;
+          font-weight: 900;
+          letter-spacing: 0.45em;
+          text-transform: uppercase;
+          color: #fff;
+          text-shadow: 0 0 12px rgba(255, 212, 0, 0.9), 0 0 24px rgba(254, 92, 43, 0.7);
+          margin-bottom: 8px;
+          animation: tv-carn-tag-pulse 0.9s ease-in-out infinite;
+        }
+        @keyframes tv-carn-tag-pulse {
+          0%, 100% { opacity: 0.9; letter-spacing: 0.42em; }
+          50% { opacity: 1; letter-spacing: 0.5em; }
+        }
+        .tv-carnival-title {
+          font-size: clamp(72px, 12vw, 180px);
+          font-weight: 900;
+          line-height: 0.9;
+          letter-spacing: -0.04em;
+          background: linear-gradient(90deg,
+            #ff2d87 0%, #ffd400 18%, #22c55e 38%, #06b6d4 58%,
+            #a855f7 78%, #fe5c2b 92%, #ff2d87 100%);
+          background-size: 300% 100%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+          color: transparent;
+          text-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
+          animation: tv-carn-rainbow 4s linear infinite, tv-carn-title-bounce 0.6s ease-in-out infinite alternate;
+          filter: drop-shadow(0 6px 24px rgba(0, 0, 0, 0.45));
+        }
+        @keyframes tv-carn-rainbow {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 300% 50%; }
+        }
+        @keyframes tv-carn-title-bounce {
+          0% { transform: translateY(0) scale(1); }
+          100% { transform: translateY(-6px) scale(1.015); }
+        }
+        .tv-carnival-emoji {
+          font-size: clamp(56px, 7vw, 110px);
+          line-height: 1;
+          margin: 0 12px;
+          display: inline-block;
+          animation: tv-carn-emoji-spin 2.4s ease-in-out infinite;
+          filter: drop-shadow(0 4px 16px rgba(255, 212, 0, 0.6));
+        }
+        .tv-carnival-emoji.delay-1 { animation-delay: 0.2s; }
+        .tv-carnival-emoji.delay-2 { animation-delay: 0.4s; }
+        .tv-carnival-emoji.delay-3 { animation-delay: 0.6s; }
+        @keyframes tv-carn-emoji-spin {
+          0%, 100% { transform: rotate(-12deg) scale(1); }
+          25% { transform: rotate(10deg) scale(1.15); }
+          50% { transform: rotate(-8deg) scale(0.95); }
+          75% { transform: rotate(14deg) scale(1.1); }
+        }
+        .tv-carnival-sub {
+          margin-top: 18px;
+          font-size: clamp(24px, 3vw, 44px);
+          font-weight: 900;
+          color: #fff;
+          letter-spacing: 0.04em;
+          text-shadow: 0 0 12px rgba(255, 45, 135, 0.9), 0 0 24px rgba(255, 212, 0, 0.7);
+          animation: tv-carn-sub-glow 1.2s ease-in-out infinite alternate;
+        }
+        @keyframes tv-carn-sub-glow {
+          0% { text-shadow: 0 0 10px rgba(255, 45, 135, 0.7), 0 0 20px rgba(255, 212, 0, 0.5); }
+          100% { text-shadow: 0 0 22px rgba(34, 197, 94, 0.95), 0 0 44px rgba(168, 85, 247, 0.85); }
+        }
+        .tv-carnival-flag {
+          margin-top: 14px;
+          display: inline-flex;
+          gap: 14px;
+          font-size: 38px;
+          letter-spacing: 0.2em;
+          font-weight: 900;
+          color: #ffd400;
+          text-shadow: 0 0 12px rgba(0, 156, 59, 0.9);
+          animation: tv-carn-flag-wave 1.6s ease-in-out infinite;
+        }
+        @keyframes tv-carn-flag-wave {
+          0%, 100% { transform: translateX(0); }
+          50% { transform: translateX(8px) skewX(-4deg); }
+        }
+        .tv-carnival-emoji-rain {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+        .tv-carnival-emoji-rain span {
+          position: absolute;
+          top: -10%;
+          font-size: clamp(28px, 3.4vw, 56px);
+          animation: tv-carn-rain linear infinite;
+          filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
+          will-change: transform;
+        }
+        @keyframes tv-carn-rain {
+          0% { transform: translateY(-20vh) rotate(0deg); opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { transform: translateY(120vh) rotate(720deg); opacity: 0; }
         }
 
         @media (max-width: 1360px) {
@@ -1766,7 +2177,39 @@ export default function TvWall() {
         </div>
       ) : null}
 
-      <canvas ref={confettiCanvasRef} style={{ position: 'fixed', inset: 0, zIndex: 200, pointerEvents: 'none', display: 'none' }} />
+      <canvas ref={confettiCanvasRef} style={{ position: 'fixed', inset: 0, zIndex: 240, pointerEvents: 'none', display: 'none' }} />
+
+      {carnival && (
+        <div className="tv-carnival-overlay">
+          <div className="tv-carnival-spotlights" />
+          <div className="tv-carnival-emoji-rain" aria-hidden="true">
+            {Array.from({ length: 36 }).map((_, i) => {
+              const emojis = ['🎉', '🎊', '🥳', '🎺', '🥁', '✨', '🌟', '💫', '🎭', '🪅', '🎆', '🎇', '🟢', '🟡', '🔵'];
+              const e = emojis[i % emojis.length];
+              const left = (i * 2.7 + (i % 5) * 3) % 100;
+              const dur = 4 + (i % 7);
+              const delay = (i % 11) * 0.35;
+              return (
+                <span key={i} style={{ left: `${left}%`, animationDuration: `${dur}s`, animationDelay: `${delay}s` }}>{e}</span>
+              );
+            })}
+          </div>
+          <div className="tv-carnival-stage">
+            <div className="tv-carnival-tag">{carnival.label || 'META'} ATINGIDA</div>
+            <div>
+              <span className="tv-carnival-emoji">🎉</span>
+              <span className="tv-carnival-title">100%</span>
+              <span className="tv-carnival-emoji delay-2">🎊</span>
+            </div>
+            <div className="tv-carnival-sub">
+              <span className="tv-carnival-emoji delay-1" style={{ fontSize: '0.9em' }}>🥳</span>
+              {' É CARNAVAL NA INTERMÍDIA! '}
+              <span className="tv-carnival-emoji delay-3" style={{ fontSize: '0.9em' }}>🎺</span>
+            </div>
+            <div className="tv-carnival-flag">🇧🇷 PARABÉNS, EQUIPE! 🇧🇷</div>
+          </div>
+        </div>
+      )}
 
       {salePopup && (
         <>

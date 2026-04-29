@@ -741,6 +741,18 @@ export async function updateVenda(id, data) {
   return res.json();
 }
 
+// Reproduz o popup de "nova venda" no Painel TV sem disparar WhatsApp.
+export async function replayVendaOnTv(vendaId) {
+  const res = await apiRequest(`/tv/replay-sale/${vendaId}`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao disparar popup no Painel TV');
+  }
+  return res.json();
+}
+
 // Registra uma nova venda e dispara notificação WhatsApp
 // Aceita FormData (multipart) para suportar upload do P.I. em PDF
 export async function submitNovaVenda(formData) {

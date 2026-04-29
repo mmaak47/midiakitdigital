@@ -57,6 +57,7 @@ import { generateTechnicalInfoMobilePdf } from '../lib/technicalInfoMobilePdf';
 
 const DEFAULT_CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const DEFAULT_TIPOS = ['Elevador', 'Tela Indoor', 'Painel LED', 'Backlight', 'Frontlight', 'Totem Digital', 'Circuito Muffato', 'LED Posto', 'Video Wall'];
+const POINT_OWNER_OPTIONS = ['Intermídia', 'Parceiro'];
 const ELEVADOR_TIPO = 'Elevador';
 const ELEVADOR_CATEGORIAS = ['Comercial', 'Residencial'];
 const ELEVADOR_ARTE_LARGURA = '1080';
@@ -111,7 +112,7 @@ const emptyForm = {
   nome: '', cidade: 'Londrina', tipo: 'Elevador', endereco: '',
   lat: '', lng: '', horario: '06:00 às 22:00', fluxo: '',
   insercoes: '', tempo: '15s', loop: '3 min', veiculacao: 'Vídeo sem áudio',
-  publico: 'A/B', telas: '1', preco: '', descricao: '', imagem: '', imagem2: '',
+  publico: 'A/B', owner_tag: 'Intermídia', telas: '1', preco: '', descricao: '', imagem: '', imagem2: '',
   simulacao_tela: '', simulacao_arte: '', simulacao_preview: '',
   arte_largura: ELEVADOR_ARTE_LARGURA, arte_altura: ELEVADOR_ARTE_ALTURA,
   elevador_categoria: 'Comercial',
@@ -170,6 +171,8 @@ export default function Admin() {
   const [activeSimulationFace, setActiveSimulationFace] = useState(0);
   const [saving, setSaving] = useState(false);
   const [focusDragging, setFocusDragging] = useState(false);
+  const [notice, setNotice] = useState(null); // { type: 'error'|'success'|'info', title?, message }
+  const showNotice = (message, type = 'error', title = null) => setNotice({ type, message: String(message || ''), title });
   const [search, setSearch] = useState('');
   const [filterCidade, setFilterCidade] = useState('todas');
   const [filterTipo, setFilterTipo] = useState('todos');
@@ -427,7 +430,7 @@ export default function Admin() {
       const result = await uploadMyPhoto(file);
       setCurrentUser(prev => prev ? { ...prev, photo_url: result.photo_url } : prev);
     } catch (err) {
-      alert(err.message);
+      showNotice(err.message);
     }
   };
 
@@ -436,7 +439,7 @@ export default function Admin() {
       await uploadUserPhoto(userId, file);
       await loadUsers();
     } catch (err) {
-      alert(err.message);
+      showNotice(err.message);
     }
   };
 
@@ -562,6 +565,7 @@ export default function Admin() {
       loop: ponto.loop || '3 min',
       veiculacao: ponto.veiculacao || 'Vídeo sem áudio',
       publico: ponto.publico || 'A/B',
+      owner_tag: ponto.owner_tag || 'Intermídia',
       telas: ponto.telas?.toString() || '1',
       preco: ponto.preco?.toString() || '',
       descricao: ponto.descricao || '',
@@ -631,7 +635,7 @@ export default function Admin() {
       setEditing(null);
       loadPontos();
     } catch (err) {
-      alert(err.message);
+      showNotice(err.message, 'error', 'Erro ao salvar ponto');
     } finally {
       setSaving(false);
     }
@@ -643,7 +647,7 @@ export default function Admin() {
       await deletePonto(id);
       loadPontos();
     } catch (err) {
-      alert(err.message);
+      showNotice(err.message);
     }
   };
 
@@ -657,7 +661,7 @@ export default function Admin() {
       await hardDeletePonto(p.id);
       loadPontos();
     } catch (err) {
-      alert(err.message);
+      showNotice(err.message);
     }
   };
 
@@ -665,7 +669,7 @@ export default function Admin() {
     try {
       await downloadPontosImportTemplate();
     } catch (err) {
-      alert(err.message || 'Erro ao baixar o Excel de exemplo.');
+      showNotice(err.message || 'Erro ao baixar o Excel de exemplo.');
     }
   };
 
@@ -689,14 +693,13 @@ export default function Admin() {
       const firstErrors = Array.isArray(result?.errors) ? result.errors.slice(0, 5) : [];
       const detail = firstErrors.map((item) => `Linha ${item.row}: ${item.error}`).join('\n');
 
-      alert([
-        `Importação concluída.`,
+      showNotice([
         `Pontos criados: ${createdCount}`,
         `Erros: ${errorCount}`,
         detail ? `\nPrimeiros erros:\n${detail}` : ''
-      ].filter(Boolean).join('\n'));
+      ].filter(Boolean).join('\n'), errorCount > 0 ? 'info' : 'success', 'Importação concluída');
     } catch (err) {
-      alert(err.message || 'Falha ao importar pontos via Excel.');
+      showNotice(err.message || 'Falha ao importar pontos via Excel.');
     } finally {
       setImportExcelBusy(false);
     }
@@ -986,7 +989,8 @@ export default function Admin() {
     const base = pontos.filter((p) => {
       const matchSearch = !searchTerm
         || p.nome.toLowerCase().includes(searchTerm)
-        || p.cidade.toLowerCase().includes(searchTerm);
+        || p.cidade.toLowerCase().includes(searchTerm)
+        || String(p.owner_tag || '').toLowerCase().includes(searchTerm);
       const matchCidade = filterCidade === 'todas' || p.cidade === filterCidade;
       const matchTipo = filterTipo === 'todos' || p.tipo === filterTipo;
       const matchStatus = filterStatus === 'todos'
@@ -998,6 +1002,7 @@ export default function Admin() {
       nome: (a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'),
       cidade: (a, b) => String(a.cidade || '').localeCompare(String(b.cidade || ''), 'pt-BR'),
       tipo: (a, b) => String(a.tipo || '').localeCompare(String(b.tipo || ''), 'pt-BR'),
+      owner_tag: (a, b) => String(a.owner_tag || '').localeCompare(String(b.owner_tag || ''), 'pt-BR'),
       telas: (a, b) => (Number(a.telas) || 0) - (Number(b.telas) || 0),
       preco: (a, b) => (Number(a.preco) || 0) - (Number(b.preco) || 0),
       ativo: (a, b) => (Number(b.ativo) || 0) - (Number(a.ativo) || 0),
@@ -1078,7 +1083,7 @@ export default function Admin() {
 
   const handleGenerateTechnicalPdf = async (formatOverride) => {
     if (!technicalPdfSelectedPoints.length) {
-      alert('Selecione ao menos um ponto para gerar o PDF tecnico.');
+      showNotice('Selecione ao menos um ponto para gerar o PDF tecnico.', 'info', 'Selecione um ponto');
       return;
     }
     const format = formatOverride || technicalPdfFormat;
@@ -1096,7 +1101,7 @@ export default function Admin() {
         });
       }
     } catch (error) {
-      alert(error?.message || 'Falha ao gerar PDF tecnico.');
+      showNotice(error?.message || 'Falha ao gerar PDF tecnico.');
     } finally {
       setTechnicalPdfBusy(false);
       setTimeout(() => setTechnicalPdfStatus(''), 1800);
@@ -1552,6 +1557,7 @@ export default function Admin() {
                         { key: 'nome', label: 'Nome', cls: '' },
                         { key: 'cidade', label: 'Cidade', cls: 'hidden md:table-cell' },
                         { key: 'tipo', label: 'Tipo', cls: 'hidden md:table-cell' },
+                        { key: 'owner_tag', label: 'Origem', cls: 'hidden xl:table-cell' },
                         { key: 'telas', label: 'Telas', cls: 'hidden lg:table-cell' },
                       ].map((col) => {
                         const active = pontosSortKey === col.key;
@@ -1598,9 +1604,9 @@ export default function Admin() {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr><td colSpan={8} className={`px-4 py-12 text-center ${th.sectionDesc}`}>Carregando...</td></tr>
+                      <tr><td colSpan={9} className={`px-4 py-12 text-center ${th.sectionDesc}`}>Carregando...</td></tr>
                     ) : filtered.length === 0 ? (
-                      <tr><td colSpan={8} className={`px-4 py-12 text-center ${th.sectionDesc}`}>Nenhum ponto encontrado</td></tr>
+                      <tr><td colSpan={9} className={`px-4 py-12 text-center ${th.sectionDesc}`}>Nenhum ponto encontrado</td></tr>
                     ) : filtered.map((p) => (
                       <tr key={p.id} className={`${th.tableRow} transition-colors ${!p.ativo ? 'opacity-40' : ''}`}>
                         <td className="px-4 py-3">
@@ -1630,6 +1636,7 @@ export default function Admin() {
                             </span>
                           )}
                         </td>
+                        <td className={`px-4 py-3 ${th.tableCell} hidden xl:table-cell`}>{p.owner_tag || 'Intermídia'}</td>
                         <td className={`px-4 py-3 ${th.tableCell} hidden lg:table-cell`}>{p.telas}</td>
                         <td className={`px-4 py-3 ${th.tableCell} hidden lg:table-cell`}>{formatRatio(p.arte_largura, p.arte_altura) || '-'}</td>
                         <td className="px-4 py-3 text-brand-orange font-medium">
@@ -2550,6 +2557,7 @@ export default function Admin() {
                   <FormField label="Nome *" value={form.nome} onChange={v => updateField('nome', v)} required />
                   <FormSelect label="Cidade" value={form.cidade} onChange={v => updateField('cidade', v)} options={cidades} />
                   <FormSelect label="Tipo" value={form.tipo} onChange={v => updateField('tipo', v)} options={tipos} />
+                  <FormCombo label="Origem do ponto (interno)" value={form.owner_tag || 'Intermídia'} onChange={v => updateField('owner_tag', v)} options={POINT_OWNER_OPTIONS} placeholder="Digite ou selecione" />
                   {form.tipo === ELEVADOR_TIPO ? (
                     <FormSelect label="Categoria do Elevador" value={form.elevador_categoria || 'Comercial'} onChange={v => updateField('elevador_categoria', v)} options={ELEVADOR_CATEGORIAS} />
                   ) : null}
@@ -3012,6 +3020,74 @@ export default function Admin() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* System notice modal (replaces native alerts) */}
+      <AnimatePresence>
+        {notice && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onClick={() => setNotice(null)}
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/55 backdrop-blur-sm px-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 4 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-md rounded-2xl border shadow-2xl ${
+                isDark
+                  ? 'bg-brand-gray-900 border-white/10 text-white'
+                  : 'bg-white border-neutral-200 text-neutral-900'
+              }`}
+            >
+              <div className="flex items-start gap-3 p-5">
+                <div
+                  className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                    notice.type === 'success'
+                      ? (isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-600')
+                      : notice.type === 'info'
+                        ? (isDark ? 'bg-sky-500/15 text-sky-300' : 'bg-sky-50 text-sky-600')
+                        : (isDark ? 'bg-red-500/15 text-red-300' : 'bg-red-50 text-red-600')
+                  }`}
+                >
+                  {notice.type === 'success' ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                  ) : notice.type === 'info' ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base font-bold leading-tight">
+                    {notice.title || (
+                      notice.type === 'success' ? 'Tudo certo'
+                        : notice.type === 'info' ? 'Aviso'
+                        : 'Não foi possível concluir'
+                    )}
+                  </h3>
+                  <p className={`mt-1 text-sm whitespace-pre-line ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
+                    {notice.message}
+                  </p>
+                </div>
+              </div>
+              <div className={`flex justify-end gap-2 px-5 py-3 border-t ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-100 bg-neutral-50'} rounded-b-2xl`}>
+                <button
+                  type="button"
+                  onClick={() => setNotice(null)}
+                  className="px-4 py-2 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-white text-sm font-semibold shadow-sm transition-colors"
+                >
+                  Entendi
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -3420,6 +3496,29 @@ function FormSelect({ label, value, onChange, options }) {
   );
 }
 
+// Combobox: list with predefined suggestions but allows typing custom values.
+function FormCombo({ label, value, onChange, options, placeholder }) {
+  const dark = typeof window !== 'undefined' && localStorage.getItem('intermidia_theme') === 'dark';
+  const listId = `combo-${(label || 'opt').replace(/\s+/g, '-').toLowerCase()}`;
+  return (
+    <div>
+      <label className={`block text-xs mb-1.5 ${dark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>{label}</label>
+      <input
+        list={listId}
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder || ''}
+        className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${dark
+          ? 'bg-white/5 border border-white/10 text-white placeholder:text-brand-gray-500 focus:border-brand-orange/40'
+          : 'bg-white border border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-brand-orange/60'}`}
+      />
+      <datalist id={listId}>
+        {(options || []).map(o => <option key={o} value={o} />)}
+      </datalist>
+    </div>
+  );
+}
+
 function formatRatio(width, height) {
   const w = Number(width) || 0;
   const h = Number(height) || 0;
@@ -3495,7 +3594,7 @@ function WelcomePopup({ data, isDark, onClose, onGoToGestao }) {
         <button
           type="button"
           onClick={onClose}
-          className={`absolute top-4 right-4 rounded-lg p-1.5 transition-colors ${isDark ? 'text-brand-gray-400 hover:bg-white/10 hover:text-white' : 'text-neutral-500 hover:bg-white hover:text-neutral-800'}`}
+          className={`absolute top-4 right-4 z-20 rounded-lg p-1.5 transition-colors ${isDark ? 'text-brand-gray-400 hover:bg-white/10 hover:text-white' : 'text-neutral-500 hover:bg-white hover:text-neutral-800'}`}
           aria-label="Fechar"
         >
           <X size={18} />

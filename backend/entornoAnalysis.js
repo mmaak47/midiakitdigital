@@ -933,6 +933,99 @@ function enqueueJob({ segment, radius, city = '' }) {
   };
 }
 
+// Processa pontos do entorno de forma síncrona (com cap de tempo) —
+// usado pelo endpoint force=true, para que o usuário veja resultado real
+// na primeira resposta ao invés de "cache 0%" enquanto a fila assíncrona
+// ainda não rodou. Pontos já com cache válido são pulados.
+async function runJobSync({ segment, radius, city = '', maxWaitMs = 25000 }) {
+  const normalizedSegment = normalizeSegment(segment);
+  const normalizedRadius = normalizeRadius(radius);
+  const cityValue = city || '';
+
+  const jobId = createJob({
+    segment: normalizedSegment,
+    radius: normalizedRadius,
+    city: cityValue
+  });
+
+  const points = cityValue
+    ? db.prepare('SELECT * FROM pontos WHERE ativo = 1 AND cidade = ? ORDER BY id').all(cityValue)
+    : db.prepare('SELECT * FROM pontos WHERE ativo = 1 ORDER BY id').all();
+
+  updateJobProgress(jobId, {
+    status: 'running',
+    total_points: points.length,
+    processed_points: 0,
+    error_count: 0,
+    last_error: null,
+    started_at: new Date().toISOString()
+  });
+
+  const startedAt = Date.now();
+  let processed = 0;
+  let errors = 0;
+  let timedOut = false;
+
+  for (const point of points) {
+    if (Date.now() - startedAt > maxWaitMs) {
+      timedOut = true;
+      break;
+    }
+    try {
+      if (hasFreshPointCache({ pointId: point.id, segment: normalizedSegment, radius: normalizedRadius })) {
+        continue;
+      }
+      const coords = await ensurePointCoordinates(point);
+      if (!coords) {
+        errors += 1;
+      } else {
+        const metrics = await fetchNearbyForSegment({
+          lat: coords.lat,
+          lng: coords.lng,
+          radius: normalizedRadius,
+          segment: normalizedSegment
+        });
+        upsertEntornoCache({
+          pointId: point.id,
+          lat: coords.lat,
+          lng: coords.lng,
+          segment: normalizedSegment,
+          radius: normalizedRadius,
+          metrics
+        });
+      }
+    } catch (err) {
+      errors += 1;
+      updateJobProgress(jobId, { last_error: String(err?.message || err) });
+    } finally {
+      processed += 1;
+    }
+  }
+
+  updateJobProgress(jobId, {
+    status: timedOut ? 'running' : 'completed',
+    processed_points: processed,
+    error_count: errors,
+    finished_at: timedOut ? null : new Date().toISOString()
+  });
+
+  // Se expirou o tempo, joga o restante para a fila assíncrona continuar.
+  if (timedOut) {
+    jobQueue.push(jobId);
+    setImmediate(processQueue);
+  }
+
+  return {
+    jobId,
+    segment: normalizedSegment,
+    radius: normalizedRadius,
+    city: cityValue,
+    processed,
+    total: points.length,
+    timedOut
+  };
+}
+
 function isExpired(isoString) {
   if (!isoString) return true;
   const date = new Date(isoString);
@@ -1083,6 +1176,7 @@ module.exports = {
   normalizeRadius,
   geocodeAddress,
   enqueueJob,
+  runJobSync,
   getJob,
   listJobs,
   getScoresWithCoverage,

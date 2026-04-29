@@ -24,6 +24,7 @@ db.exec(`
     loop TEXT DEFAULT '3 min',
     veiculacao TEXT DEFAULT 'Vídeo sem áudio',
     publico TEXT DEFAULT 'A/B',
+    owner_tag TEXT DEFAULT 'Intermídia',
     telas INTEGER DEFAULT 1,
     preco REAL DEFAULT 0,
     custo_operacional REAL DEFAULT 0,
@@ -78,6 +79,7 @@ ensureColumn('pontos', 'midia_largura_m', 'REAL');
 ensureColumn('pontos', 'midia_altura_m', 'REAL');
 ensureColumn('pontos', 'custo_operacional', 'REAL DEFAULT 0');
 ensureColumn('pontos', 'tipo_fluxo', "TEXT DEFAULT 'pessoas'");
+ensureColumn('pontos', 'owner_tag', "TEXT DEFAULT 'Intermídia'");
 ensureColumn('pontos', 'audience_tags', "TEXT DEFAULT '[]'");
 ensureColumn('pontos', 'availability_calendar', "TEXT DEFAULT '{}'");
 ensureColumn('pontos', 'elevador_categoria', 'TEXT');

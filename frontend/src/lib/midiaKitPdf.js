@@ -195,6 +195,40 @@ export function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function formatCommercialInlineMarkup(value) {
+  const escaped = escapeHtml(value);
+  const tokens = [];
+  const toToken = (markup) => {
+    const token = `@@FMT_TOKEN_${tokens.length}@@`;
+    tokens.push(markup);
+    return token;
+  };
+
+  let output = escaped;
+  output = output.replace(/\*\*([^*]+)\*\*/g, (_, inner) => toToken(`<strong>${inner}</strong>`));
+  output = output.replace(/__([^_]+)__/g, (_, inner) => toToken(`<u>${inner}</u>`));
+  output = output.replace(/\*([^*\n]+)\*/g, (_, inner) => toToken(`<em>${inner}</em>`));
+
+  return output.replace(/@@FMT_TOKEN_(\d+)@@/g, (_, index) => tokens[Number(index)] || '');
+}
+
+function formatCommercialNoteMarkup(value) {
+  const source = String(value || '').replace(/\r\n/g, '\n').trim();
+  if (!source) return '';
+
+  const lines = source.split('\n');
+  const html = lines.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return '<br>';
+    if (/^-\s+/.test(trimmed)) {
+      return `• ${formatCommercialInlineMarkup(trimmed.replace(/^-\s+/, ''))}<br>`;
+    }
+    return `${formatCommercialInlineMarkup(line)}<br>`;
+  }).join('');
+
+  return html.replace(/(<br>)+$/, '');
+}
+
 async function blobUrlToDataUrl(url) {
   if (!url || !url.startsWith('blob:')) return url;
   try {
@@ -442,6 +476,7 @@ function createPage(content, background = '#050505', options = {}) {
     height: `${pageH}px`,
     minHeight: `${pageH}px`,
     maxHeight: `${pageH}px`,
+    margin: '0',
     position: 'relative',
     overflow: options.height ? 'visible' : 'hidden',
     background,
@@ -561,15 +596,24 @@ async function renderPagesToPdf(pages, fileName, options = {}) {
   const origin = window.location.origin;
   const pdfTitle = String(fileName || 'documento.pdf').replace(/\.pdf$/i, '').trim() || 'Documento';
   const pageHtmlParts = pages.map((p) => p.outerHTML).join('\n');
+  const pageWidthIn = (PAGE_WIDTH / 96).toFixed(4);
+  const pageHeightIn = (PAGE_HEIGHT / 96).toFixed(4);
+  const firstPageBg = String(pages?.[0]?.style?.background || '#FFFFFF').trim();
+  const firstPageBgNorm = firstPageBg.toLowerCase();
+  const isProposalBg = firstPageBgNorm === '#fbf8f5' || firstPageBgNorm.includes('rgb(251, 248, 245)');
+  const documentBackground = isProposalBg
+    ? 'linear-gradient(to bottom, #FBF8F5 0%, #FBF8F5 86%, #FFFFFF 100%)'
+    : firstPageBg;
   // Inject named @page rules for sections that require a non-standard height
   const customPageCss = pages
     .filter((p) => p.dataset?.customHeight && p.className)
     .map((p) => {
       const h = parseInt(p.dataset.customHeight, 10);
+      const hIn = (h / 96).toFixed(4);
       const cls = p.className.split(/\s+/)[0];
       const pageName = cls.replace(/[^a-zA-Z0-9]/g, '_') + '_named';
       return [
-        `@page ${pageName} { size: ${PAGE_WIDTH}px ${h}px; margin: 0; }`,
+        `@page ${pageName} { size: ${pageWidthIn}in ${hIn}in; margin: 0; }`,
         `section.${cls} { page: ${pageName}; height: ${h}px !important; max-height: ${h}px !important; overflow: visible !important; }`,
       ].join('\n');
     })
@@ -580,14 +624,16 @@ async function renderPagesToPdf(pages, fileName, options = {}) {
 <title>${escapeHtml(pdfTitle)}</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; }
-html, body { margin: 0; padding: 0; background: #FFFFFF; width: 1366px; }
-body { margin: 0 auto; }
-@page { size: 1366px 768px; margin: 0; }
+html, body { margin: 0 !important; padding: 0 !important; background: ${documentBackground}; width: ${PAGE_WIDTH}px; }
+body { margin: 0 !important; padding: 0 !important; }
+@page { size: ${pageWidthIn}in ${pageHeightIn}in; margin: 0; }
 section {
   display: block;
-  width: 1366px !important;
-  height: 768px !important;
-  margin: 0 auto;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: ${PAGE_HEIGHT}px;
+  margin: 0 !important;
+  padding: 0 !important;
   overflow: hidden !important;
   page-break-after: always;
   break-after: page;
@@ -598,11 +644,16 @@ section:last-child {
 }
 @media print {
   html, body {
-    width: 1366px;
+    width: 100%;
     height: auto;
-    margin: 0 auto;
-    padding: 0;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: ${documentBackground};
     overflow: visible;
+  }
+  section {
+    margin: 0 !important;
+    page-break-inside: avoid;
   }
 }
 ${customPageCss}
@@ -1184,7 +1235,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   `, '#ECEFF3');
 }
 
-function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, pricingSummary, highlights, strategicTopics, strategicSubtitle, simulationSummary, segmento, assets, showMetricsMethodology = true }) {
+function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, pricingSummary, highlights, strategicTopics, strategicSubtitle, simulationSummary, segmento, assets, showMetricsMethodology = true, customCommercialNote = '', duracao_meses = null }) {
   const layout = getActivePdfLayoutConfig().proposal.cover;
   const segmentLabel = getSegmentDisplayName(segmento);
   const pointsWithEntorno = proposalPoints.filter((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0).length;
@@ -1239,6 +1290,20 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
           `).join('')}
         </div>
 
+        ${(() => {
+          const trimmed = String(customCommercialNote || '').trim();
+          const noteHtml = trimmed
+            ? formatCommercialNoteMarkup(trimmed)
+            : `${duracao_meses ? `Valores válidos para o contrato de <strong>${duracao_meses} meses</strong>. ` : ''}Negociação válida <strong>exclusivamente</strong> para o plano e quantidade de pontos apresentados. Para outras condições, os valores deverão ser consultados. <span style="color:${PROPOSAL_LABEL};">* Produção de materiais por conta do cliente.</span>`;
+          return `
+        <div style="margin-top:14px;padding:12px 14px;border-radius:12px;background:linear-gradient(135deg, rgba(232,89,26,0.05) 0%, rgba(0,0,0,0.02) 100%);border:1px solid rgba(232,89,26,0.18);border-left:3px solid ${PROPOSAL_ACCENT};max-width:680px;">
+          <div style="display:flex;align-items:flex-start;gap:10px;">
+            <div style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:999px;background:rgba(232,89,26,0.16);font-size:11px;font-weight:800;color:${PROPOSAL_ACCENT};">i</div>
+            <div style="font-size:11px;line-height:1.45;color:${PROPOSAL_TEXT_SECONDARY};">${noteHtml}</div>
+          </div>
+        </div>`;
+        })()}
+
         <div data-calibration-id="proposal.cover.metricCards" style="margin-top:auto;">
           ${buildMetricCards(cards, {
               valueSize: layout.metricValueSize,
@@ -1266,7 +1331,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
                 <div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:999px;background:rgba(254,92,43,0.16);">
                   <span style="display:block;width:${layout.strategicDotSize}px;height:${layout.strategicDotSize}px;border-radius:999px;background:${PROPOSAL_ACCENT};"></span>
                 </div>
-                <div style="font-size:17px;line-height:1.35;color:${PROPOSAL_TEXT};word-break:break-word;max-height:4.1em;overflow:hidden;">${escapeHtml(item)}</div>
+                <div style="font-size:17px;line-height:1.35;color:${PROPOSAL_TEXT};word-break:break-word;">${escapeHtml(item)}</div>
               </div>
             `).join('')}
           </div>
@@ -1277,16 +1342,6 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
                 <div style="margin-top:6px;font-size:19px;line-height:1.2;color:${PROPOSAL_TEXT};font-weight:700;word-break:break-word;">${escapeHtml(item.value)}</div>
               </div>
             `).join('')}
-          </div>
-          <div style="margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div style="padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};">
-              <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Segmento priorizado</div>
-              <div style="margin-top:6px;font-size:18px;line-height:1.2;color:${PROPOSAL_TEXT};font-weight:700;word-break:break-word;">${escapeHtml(segmentLabel)}</div>
-            </div>
-            <div style="padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};">
-              <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${hasEntornoData ? 'Entorno aderente' : 'Pontos com simulação'}</div>
-              <div style="margin-top:6px;font-size:18px;line-height:1.2;color:${PROPOSAL_TEXT};font-weight:700;word-break:break-word;">${hasEntornoData ? escapeHtml(`${formatInt(pointsWithEntorno)} ponto${pointsWithEntorno === 1 ? '' : 's'}`) : escapeHtml(`${formatInt(simulatedPoints)} ponto${simulatedPoints === 1 ? '' : 's'}`)}</div>
-            </div>
           </div>
         </div>
       </div>
@@ -1361,42 +1416,36 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
     ${PROPOSAL_ATMOSPHERE}
 
-    <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:38px 48px;box-sizing:border-box;display:grid;grid-template-rows:auto auto 1fr;gap:12px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+    <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:30px 44px;box-sizing:border-box;display:grid;grid-template-rows:auto auto 1fr;gap:10px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;">
         <div style="display:flex;align-items:center;gap:14px;">
-          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:44px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
-          <div style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border-radius:100px;background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Como ler as métricas</div>
+          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:42px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
+          <div style="display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 16px;border-radius:100px;background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Como ler as métricas</div>
         </div>
-        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(segmentLabel)} • ${formatInt(pointCount)} pontos</div>
+        <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(segmentLabel)} • ${formatInt(pointCount)} pontos</div>
       </div>
 
-      <div style="padding:16px 20px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};font-size:13px;line-height:1.45;color:${PROPOSAL_TEXT_SECONDARY};">
+      <div style="padding:12px 16px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};font-size:12px;line-height:1.42;color:${PROPOSAL_TEXT_SECONDARY};">
         As métricas abaixo resumem eficiência comercial e escala de entrega da campanha. Os valores exibidos já refletem esta proposta.
       </div>
 
-      <div style="display:grid;grid-template-columns:1.06fr 0.94fr;gap:12px;min-height:0;">
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));gap:10px;align-content:stretch;">
+      <div style="display:grid;grid-template-columns:${hasEntornoData ? '1.06fr 0.94fr' : '1fr'};gap:10px;min-height:0;">
+        <div style="display:grid;grid-template-columns:repeat(${hasEntornoData ? '2' : '3'},minmax(0,1fr));grid-template-rows:repeat(${hasEntornoData ? '3' : '2'},minmax(0,1fr));gap:10px;align-content:stretch;">
           ${metrics.map((item) => `
-            <div style="padding:12px 12px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};display:grid;grid-template-rows:auto auto auto 1fr auto;gap:6px;height:100%;box-sizing:border-box;">
-              <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(item.name)}</div>
-              <div style="font-size:12px;line-height:1.32;color:${PROPOSAL_TEXT_SECONDARY};word-break:break-word;">${escapeHtml(item.meaning)}</div>
-              <div style="padding:6px 8px;border-radius:8px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};font-size:10px;line-height:1.3;color:${PROPOSAL_TEXT_SECONDARY};word-break:break-word;">${escapeHtml(item.howToRead)}</div>
-              <div style="margin-top:4px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Resultado</div>
-              <div style="font-family:Poppins, system-ui, sans-serif;font-size:30px;line-height:1.02;font-weight:800;color:${PROPOSAL_TEXT};word-break:break-word;">${escapeHtml(item.value)}</div>
+            <div style="position:relative;padding:14px 14px;border-radius:14px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};display:flex;flex-direction:column;gap:8px;height:100%;box-sizing:border-box;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+              <div style="position:absolute;top:0;left:0;width:32px;height:3px;background:linear-gradient(90deg, ${PROPOSAL_ACCENT} 0%, #FE5C2B 100%);border-radius:0 0 3px 0;"></div>
+              <div style="font-size:10.5px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_TEXT};">${escapeHtml(item.name)}</div>
+              <div style="font-size:11px;line-height:1.4;color:${PROPOSAL_TEXT_SECONDARY};word-break:break-word;flex:1;">${escapeHtml(item.howToRead)}</div>
+              <div style="margin-top:auto;padding-top:6px;border-top:1px dashed ${PROPOSAL_BORDER};">
+                <div style="font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Resultado</div>
+                <div style="margin-top:2px;font-family:Poppins, system-ui, sans-serif;font-size:22px;line-height:1.05;font-weight:800;color:${PROPOSAL_ACCENT};word-break:break-word;letter-spacing:-0.01em;">${escapeHtml(item.value)}</div>
+              </div>
             </div>
           `).join('')}
         </div>
 
+        ${hasEntornoData ? `
         <div style="display:grid;gap:8px;align-content:start;">
-          <div style="padding:18px 20px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};border-left:3px solid ${PROPOSAL_ACCENT};">
-            <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Score da campanha</div>
-            <div style="margin-top:8px;font-size:12px;line-height:1.45;color:${PROPOSAL_TEXT_SECONDARY};">
-              Índice de 0 a 10 que combina diversidade de formatos, volume de fluxo, cobertura, presença e aderência ao público/objetivo.
-            </div>
-            <div style="margin-top:10px;padding:10px;border-radius:10px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};font-size:11px;line-height:1.4;color:${PROPOSAL_TEXT_SECONDARY};">Leitura prática: quanto maior a diversidade, o fluxo e a presença, maior o score final da campanha.</div>
-          </div>
-
-          ${hasEntornoData ? `
             <div style="padding:18px 20px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};border-left:3px solid ${PROPOSAL_ACCENT};">
               <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Score do entorno</div>
               <div style="margin-top:8px;font-size:12px;line-height:1.45;color:${PROPOSAL_TEXT_SECONDARY};">
@@ -1414,13 +1463,20 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
                 </div>
               </div>
             </div>
-          ` : ''}
 
           <div style="padding:10px 12px;border-radius:12px;background:rgba(232,89,26,0.06);border:1px solid rgba(232,89,26,0.25);font-size:11px;line-height:1.35;color:${PROPOSAL_TEXT_SECONDARY};">
             Observação: as métricas são estimativas com base no inventário e nos dados cadastrais da campanha. Valores podem variar conforme filtros, objetivo e seleção de pontos.
           </div>
         </div>
+        ` : ''}
       </div>
+
+      ${!hasEntornoData ? `
+        <div style="padding:10px 14px;border-radius:12px;background:rgba(232,89,26,0.06);border:1px solid rgba(232,89,26,0.25);font-size:11px;line-height:1.4;color:${PROPOSAL_TEXT_SECONDARY};display:flex;align-items:flex-start;gap:10px;">
+          <span style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:999px;background:rgba(232,89,26,0.16);font-size:11px;font-weight:800;color:${PROPOSAL_ACCENT};">i</span>
+          <span><strong>Observação:</strong> as métricas são estimativas com base no inventário e nos dados cadastrais da campanha. Valores podem variar conforme filtros, objetivo e seleção de pontos.</span>
+        </div>
+      ` : ''}
     </div>
   `, PROPOSAL_BG);
 }
@@ -2037,7 +2093,7 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
   `, PROPOSAL_BG);
 }
 
-function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico, duracao_meses, assets }) {
+function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico, duracao_meses, assets, customCommercialNote }) {
   const segmentLabel = getSegmentDisplayName(segmento);
   const pointCount = proposalPoints.length;
   const finalTotal = pricingSummary?.finalTotal ?? proposalTotals?.valorTotal ?? 0;
@@ -2071,8 +2127,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
-    <div style="position:absolute;top:-20%;right:-10%;width:800px;height:800px;background:radial-gradient(circle, rgba(232,89,26,0.06) 0%, transparent 60%);border-radius:50%;filter:blur(60px);pointer-events:none;"></div>
-    <div style="position:absolute;bottom:-20%;left:-10%;width:600px;height:600px;background:radial-gradient(circle, rgba(232,89,26,0.04) 0%, transparent 60%);border-radius:50%;filter:blur(60px);pointer-events:none;"></div>
+    ${PROPOSAL_ATMOSPHERE}
 
     <div style="position:relative;z-index:1;width:100%;height:${impactPageHeight}px;max-height:${impactPageHeight}px;padding:42px 52px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:visible;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
 
@@ -2156,32 +2211,45 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
           </div>
 
           <!-- Investment Summary -->
-          <div style="flex:1;border-radius:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};padding:18px;display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.06);">
-            <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_ACCENT};background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.2);padding:6px 12px;border-radius:100px;align-self:flex-start;">
-              Resumo Financeiro
+          <div style="flex:1;border-radius:18px;background:linear-gradient(170deg, ${PROPOSAL_SURFACE} 0%, ${PROPOSAL_SURFACE_ALT} 100%);border:1px solid ${PROPOSAL_BORDER};padding:22px;display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,0.07);">
+            <!-- Decorative corner glow -->
+            <div style="position:absolute;top:-40px;right:-40px;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle, rgba(232,89,26,0.10) 0%, rgba(232,89,26,0) 70%);pointer-events:none;"></div>
+
+            <div style="position:relative;display:flex;align-items:center;gap:8px;">
+              <div style="width:4px;height:18px;border-radius:2px;background:linear-gradient(180deg, #FE5C2B 0%, ${PROPOSAL_ACCENT} 100%);"></div>
+              <div style="font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">
+                Resumo Financeiro
+              </div>
             </div>
 
-            <div style="padding:12px 14px;border-radius:12px;background:${PROPOSAL_SURFACE_ALT};border:1px solid ${PROPOSAL_BORDER};">
-              <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Tabela cheia</div>
-              <div style="margin-top:5px;font-size:24px;line-height:1.05;font-weight:800;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;letter-spacing:-0.02em;word-break:break-word;">${formatMoney(originalTotal)}</div>
+            <!-- Tabela cheia -->
+            <div style="position:relative;padding:14px 16px;border-radius:14px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Tabela cheia</div>
+                <div style="width:6px;height:6px;border-radius:50%;background:${PROPOSAL_LABEL};opacity:0.4;"></div>
+              </div>
+              <div style="margin-top:6px;font-size:26px;line-height:1.05;font-weight:800;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;letter-spacing:-0.025em;word-break:break-word;text-decoration:${hasDiscount ? 'line-through' : 'none'};text-decoration-color:rgba(0,0,0,0.18);">${formatMoney(originalTotal)}</div>
             </div>
 
-            <div style="padding:12px 14px;border-radius:12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.28);">
-              <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#92400e;">Desconto total</div>
-              <div style="margin-top:5px;font-size:24px;line-height:1.05;font-weight:800;color:#b45309;font-family:Poppins, system-ui, sans-serif;letter-spacing:-0.02em;word-break:break-word;">${formatMoney(discountTotal)}</div>
-              <div style="margin-top:4px;font-size:10px;line-height:1.35;color:${PROPOSAL_TEXT_SECONDARY};">${hasDiscount ? 'Condição comercial aplicada neste combo.' : 'Nenhum desconto aplicado neste cenário.'}</div>
+            ${hasDiscount ? `
+            <!-- Desconto -->
+            <div style="position:relative;padding:14px 16px;border-radius:14px;background:linear-gradient(135deg, rgba(245,158,11,0.10) 0%, rgba(245,158,11,0.04) 100%);border:1px solid rgba(245,158,11,0.32);">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#92400e;">Desconto aplicado</div>
+                <div style="font-size:9px;font-weight:700;color:#b45309;background:rgba(245,158,11,0.18);padding:2px 8px;border-radius:100px;">−${Math.round((discountTotal / Math.max(originalTotal, 1)) * 100)}%</div>
+              </div>
+              <div style="margin-top:6px;font-size:26px;line-height:1.05;font-weight:800;color:#b45309;font-family:Poppins, system-ui, sans-serif;letter-spacing:-0.025em;word-break:break-word;">−${formatMoney(discountTotal)}</div>
             </div>
+            ` : ''}
 
-            <div style="padding:14px 14px;border-radius:14px;background:rgba(34,197,94,0.08);border:2px solid rgba(34,197,94,0.34);">
-              <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#166534;">Valor final</div>
-              <div style="margin-top:6px;font-size:32px;line-height:1.04;font-weight:900;color:#15803d;font-family:Poppins, system-ui, sans-serif;letter-spacing:-0.02em;word-break:break-word;">${formatMoney(finalTotal)}</div>
-            </div>
-
-            <div style="margin-top:auto;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,0.02);border:1px solid ${PROPOSAL_BORDER};font-size:9.5px;line-height:1.42;color:${PROPOSAL_LABEL};">
-              ${duracao_meses ? `Valores válidos para o contrato de <strong>${duracao_meses} meses</strong>.<br>` : ''}
-              Negociação válida <strong>exclusivamente</strong> para o plano e quantidade de pontos apresentados.<br>
-              Para outras condições de compra, os valores deverão ser consultados.<br>
-              * Produção de materiais por conta do cliente.
+            <!-- Valor Final (highlight) -->
+            <div style="position:relative;padding:18px 18px;border-radius:16px;background:linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%);border:2px solid rgba(34,197,94,0.40);box-shadow:0 4px 16px rgba(34,197,94,0.10);">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:#15803d;">Valor Final / Mês</div>
+                <div style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:#22c55e;color:#fff;font-size:13px;font-weight:800;">✓</div>
+              </div>
+              <div style="margin-top:8px;font-size:38px;line-height:1.0;font-weight:900;color:#15803d;font-family:Poppins, system-ui, sans-serif;letter-spacing:-0.03em;word-break:break-word;">${formatMoney(finalTotal)}</div>
+              ${duracao_meses ? `<div style="margin-top:6px;font-size:11px;font-weight:600;color:#166534;opacity:0.85;">Plano de ${duracao_meses} ${Number(duracao_meses) === 1 ? 'mês' : 'meses'}</div>` : ''}
             </div>
           </div>
 
@@ -2261,9 +2329,10 @@ export async function generateMidiaKitPdf({ praca, pracas, pontos }) {
 
 function buildProposalClosingPage(assets, overviewMapImage) {
   const mapHtml = overviewMapImage
-    ? `<div style="width:100%;max-width:980px;margin:0 auto;border-radius:20px;overflow:hidden;border:1px solid ${PROPOSAL_BORDER};background:${PROPOSAL_SURFACE};box-shadow:0 12px 36px rgba(0,0,0,0.10);">
-        <div style="width:100%;height:0;padding-top:56%;position:relative;">
-          <img src="${overviewMapImage}" alt="Mapa de cobertura" style="position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;" />
+    ? `<div style="width:100%;max-width:880px;margin:0 auto;border-radius:18px;overflow:hidden;border:1px solid ${PROPOSAL_BORDER};background:${PROPOSAL_SURFACE};box-shadow:0 18px 44px rgba(0,0,0,0.12),0 4px 12px rgba(0,0,0,0.06);">
+        <div style="width:100%;height:0;padding-top:46%;position:relative;">
+          <img src="${overviewMapImage}" alt="Mapa de cobertura" style="position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;image-rendering:-webkit-optimize-contrast;" />
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg, rgba(255,255,255,0) 60%, rgba(0,0,0,0.04) 100%);pointer-events:none;"></div>
         </div>
       </div>`
     : '';
@@ -2271,17 +2340,29 @@ function buildProposalClosingPage(assets, overviewMapImage) {
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
     <div style="position:absolute;inset:auto auto -180px -60px;width:560px;height:560px;border-radius:999px;background:radial-gradient(circle,rgba(232,89,26,0.08) 0%,rgba(232,89,26,0.02) 48%,rgba(232,89,26,0) 72%);"></div>
-    <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;display:flex;align-items:center;justify-content:center;padding:44px 56px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
-      <div style="width:100%;max-width:1060px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;text-align:center;">
-        <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:64px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
+    <div style="position:absolute;inset:-80px -60px auto auto;width:420px;height:420px;border-radius:999px;background:radial-gradient(circle,rgba(254,92,43,0.06) 0%,rgba(254,92,43,0) 70%);"></div>
+    <div style="position:absolute;left:0;top:0;right:0;height:3px;background:linear-gradient(90deg, ${PROPOSAL_ACCENT} 0%, #FE5C2B 50%, ${PROPOSAL_ACCENT} 100%);"></div>
+
+    <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:48px 56px 44px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+      <!-- Header logo -->
+      <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:48px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
+
+      <!-- Map -->
+      <div style="margin-top:32px;width:100%;display:flex;justify-content:center;">
         ${mapHtml}
-        <div style="text-align:center;max-width:980px;">
-          <div style="font-family:Poppins, system-ui, sans-serif;font-size:56px;font-weight:800;line-height:1.08;letter-spacing:-0.03em;color:${PROPOSAL_TEXT};">
+      </div>
+
+      <!-- Tagline block -->
+      <div style="margin-top:auto;padding-top:24px;text-align:center;max-width:980px;width:100%;">
+        <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:100px;background:rgba(232,89,26,0.10);border:1px solid rgba(232,89,26,0.22);font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${PROPOSAL_ACCENT};margin-bottom:16px;">
+          <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${PROPOSAL_ACCENT};"></span>
+          Cobertura inteligente
+        </div>
+        <div style="font-family:Poppins, system-ui, sans-serif;font-size:54px;font-weight:800;line-height:1.06;letter-spacing:-0.035em;color:${PROPOSAL_TEXT};">
           O mundo acontece lá fora<span style="color:${PROPOSAL_ACCENT};">.</span>
-          </div>
-          <div style="margin-top:14px;font-size:14px;font-weight:500;color:${PROPOSAL_TEXT_SECONDARY};letter-spacing:0.08em;text-transform:uppercase;">
-            Intermidia OOH + DOOH — Desde 2007
-          </div>
+        </div>
+        <div style="margin-top:16px;font-size:13px;font-weight:600;color:${PROPOSAL_TEXT_SECONDARY};letter-spacing:0.14em;text-transform:uppercase;">
+          Intermidia · OOH + DOOH · Desde 2007
         </div>
       </div>
     </div>
@@ -2306,7 +2387,8 @@ export async function generateProposalPdf({
   showMetricsMethodology = true,
   showCampaignScore = true,
   showCoverageLayer = true,
-  showImpactSection = true
+  showImpactSection = true,
+  customCommercialNote = ''
 }) {
   activePdfLayoutConfig = await loadPdfLayoutConfig();
   const proposalPoints = Array.isArray(points) ? points : [];
@@ -2338,7 +2420,9 @@ export async function generateProposalPdf({
       simulationSummary,
       segmento,
       assets,
-      showMetricsMethodology
+      showMetricsMethodology,
+      customCommercialNote,
+      duracao_meses
     })
   ];
 
@@ -2374,7 +2458,8 @@ export async function generateProposalPdf({
   }
 
   if (showCampaignScore) {
-    pages.push(buildCampaignScorePage({ proposalPoints, segmento, assets }));
+    // Score da campanha removido do PDF comercial (solicitação: vendedores desabilitavam sempre por ficar zerado).
+    // Mantido como no-op para preservar compatibilidade com chamadas existentes.
   }
 
   if (showCoverageLayer && hasEntornoData) {
@@ -2382,7 +2467,7 @@ export async function generateProposalPdf({
   }
 
   if (showImpactSection) {
-    pages.push(buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico: effectivePublico, duracao_meses, assets }));
+    pages.push(buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico: effectivePublico, duracao_meses, assets, customCommercialNote }));
   }
 
   pages.push(buildProposalClosingPage(assets, overviewMapImage));
