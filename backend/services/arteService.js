@@ -148,9 +148,34 @@ const COMPOSICAO_DESIGN = {
 // ─────────────────────────────────────────
 // GERAÇÃO DE PROMPT — DESIGNER PROFISSIONAL
 // ─────────────────────────────────────────
+
+/**
+ * Resolve a resolução em pixels do ponto para uso em prompt da IA.
+ * Para Backlight/Frontlight (cadastrados em metros), converte os metros
+ * em pixels mantendo a proporção, com lado maior em 2048px.
+ * Para os demais tipos, usa arte_largura/arte_altura cadastrados.
+ */
+function resolveArteResolution(ponto) {
+  const tipo = String(ponto?.tipo || '').toLowerCase().trim();
+  const isBackOrFront = tipo === 'backlight' || tipo === 'frontlight';
+  if (isBackOrFront) {
+    const mw = Number(ponto?.midia_largura_m);
+    const mh = Number(ponto?.midia_altura_m);
+    if (Number.isFinite(mw) && mw > 0 && Number.isFinite(mh) && mh > 0) {
+      const target = 2048;
+      let w; let h;
+      if (mw >= mh) { w = target; h = Math.round((target * mh) / mw); }
+      else { h = target; w = Math.round((target * mw) / mh); }
+      return { w: Math.max(1, w), h: Math.max(1, h), fromMeters: true, mw, mh };
+    }
+  }
+  const w = Number(ponto?.arte_largura || ponto?.resolucao_nativa?.w || 1920);
+  const h = Number(ponto?.arte_altura  || ponto?.resolucao_nativa?.h || 1080);
+  return { w, h, fromMeters: false };
+}
+
 function gerarPrompt(ponto, contexto = {}) {
-  const w = Number(ponto.arte_largura || ponto.resolucao_nativa?.w || 1920);
-  const h = Number(ponto.arte_altura  || ponto.resolucao_nativa?.h || 1080);
+  const { w, h, fromMeters, mw, mh } = resolveArteResolution(ponto);
   const orientacao = detectarOrientacao(w, h);
 
   const segmento    = contexto.segmento || ponto.segmento || 'segmento comercial';
@@ -182,7 +207,10 @@ function gerarPrompt(ponto, contexto = {}) {
     `• Segmento: ${segmento}`,
     `• Objetivo da campanha: ${objetivo}`,
     cidade ? `• Praça: ${cidade}` : '',
-    `• Formato: ${ratioStr} (${w}×${h}px) — ${orientacao}`,
+    fromMeters
+      ? `• Mídia física: ${mw}m × ${mh}m (Backlight/Frontlight) — convertido para ${w}×${h}px mantendo proporção`
+      : `• Formato: ${ratioStr} (${w}×${h}px) — ${orientacao}`,
+    fromMeters ? `• Formato: ${ratioStr} (${w}×${h}px) — ${orientacao}` : '',
     '',
     // DIREÇÃO DE ARTE
     `DIREÇÃO DE ARTE:`,
@@ -552,8 +580,7 @@ function agruparPorResolucao(pontos) {
   const grupos = new Map();
 
   for (const ponto of pontos) {
-    const w = Number(ponto.arte_largura || 1920);
-    const h = Number(ponto.arte_altura  || 1080);
+    const { w, h } = resolveArteResolution(ponto);
     const { w: gw, h: gh } = normalizarResolucao(w, h);
     const key = `${gw}x${gh}`;
 
@@ -570,8 +597,7 @@ function agruparPorResolucao(pontos) {
 // FUNÇÃO PRINCIPAL: gerarArte
 // ─────────────────────────────────────────
 async function gerarArte({ ponto, contexto, promptCustomizado, uploadsDir }) {
-  const wNativo  = Number(ponto.arte_largura || 1920);
-  const hNativo  = Number(ponto.arte_altura  || 1080);
+  const { w: wNativo, h: hNativo } = resolveArteResolution(ponto);
   const { w: wGer, h: hGer, normalizado } = normalizarResolucao(wNativo, hNativo);
 
   const promptFinal = promptCustomizado || gerarPrompt(ponto, contexto);

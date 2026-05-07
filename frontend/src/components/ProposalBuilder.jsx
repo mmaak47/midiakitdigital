@@ -28,6 +28,14 @@ export default function ProposalBuilder({
 }) {
   const formatCurrency = (n) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
   const formatNumber = (n) => new Intl.NumberFormat('pt-BR').format(n || 0);
+  const formatDiscountPercent = (value) => {
+    const numeric = Number(value) || 0;
+    const hasDecimals = Math.abs(numeric % 1) > 0.0001;
+    return `${new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: hasDecimals ? 1 : 0,
+      maximumFractionDigits: 2,
+    }).format(numeric)}%`;
+  };
   const pontosComEntorno = points.filter((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0).length;
   const cityLabel = Array.isArray(city) && city.length ? city.join(', ') : (city || 'Múltiplas praças');
   const publicoLabel = Array.isArray(publico) && publico.length ? publico.join(', ') : (publico || 'Públicos estratégicos');
@@ -89,7 +97,7 @@ export default function ProposalBuilder({
                     <div className="space-y-0.5">
                       <div className="text-xs text-brand-gray-500 line-through">{formatCurrency(p.precoOriginal)}</div>
                       <div className="text-brand-orange font-semibold">{formatCurrency(p.precoFinal)}</div>
-                      <div className="text-[11px] text-green-300">-{p.discountPercent}%</div>
+                      <div className="text-[11px] text-green-300">-{formatDiscountPercent(p.discountPercent)}</div>
                     </div>
                   ) : (
                     <span className="text-brand-orange font-semibold">{formatCurrency(p.precoFinal ?? p.preco)}</span>

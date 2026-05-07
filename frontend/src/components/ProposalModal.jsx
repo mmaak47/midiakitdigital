@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Italic,
   List,
-  Copy,
   Download,
   FileText,
   Image as ImageIcon,
@@ -27,7 +26,6 @@ import {
   Sparkles,
   Trash2,
   Trophy,
-  Upload,
   Underline,
   X,
   Zap
@@ -41,7 +39,7 @@ import {
   OBJETIVOS,
   SEGMENTOS
 } from '../lib/strategy';
-import { buildProposalImagePromptsByFormat, buildProposalPricing } from '../lib/proposal';
+import { buildProposalPricing } from '../lib/proposal';
 import { generateProposalPdf } from '../lib/midiaKitPdf';
 import { generateProposalMobilePdf } from '../lib/midiaKitMobilePdf';
 import {
@@ -74,7 +72,7 @@ const REALISM_PRESET = normalizeDisplaySettings({
 const WIZARD_STEPS = [
   { id: 1, label: 'Dados' },
   { id: 2, label: 'Desconto' },
-  { id: 3, label: 'Arte' },
+  { id: 3, label: 'Artes' },
   { id: 4, label: 'Revisão' },
   { id: 5, label: 'Editar PDF' },
   { id: 6, label: 'Gerar' },
@@ -83,7 +81,7 @@ const WIZARD_STEPS = [
 const STEP_TITLES = {
   1: 'Dados da proposta',
   2: 'Desconto comercial',
-  3: 'Arte da campanha',
+  3: 'Artes por ponto',
   4: 'Revisão da proposta',
   5: 'Editar PDF final',
   6: 'Gerar proposta',
@@ -262,7 +260,9 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [analysisMode, setAnalysisMode] = useState(draft?.analysisMode || 'segmento');
   const [discountConfig, setDiscountConfig] = useState(() => ({
     mode: 'none',
+    valueType: 'percentage',
     percentage: '',
+    amount: '',
     targetPointIds: [],
     perPoint: {},
     ...(draft?.discountConfig || {})
@@ -276,14 +276,14 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     return draft.pdfExcludedPointIds.map((id) => String(id));
   });
   const [editingPdfPointId, setEditingPdfPointId] = useState(null);
-  const [promptCopied, setPromptCopied] = useState(false);
-  const [promptExpanded, setPromptExpanded] = useState(false);
   const [advancedRealismOpen, setAdvancedRealismOpen] = useState(false);
-  const [simulationArtFile, setSimulationArtFile] = useState(null);
-  const [simulationArtUrl, setSimulationArtUrl] = useState('');
   const [simulationBusy, setSimulationBusy] = useState(false);
   const [simulationError, setSimulationError] = useState('');
   const [simulationResults, setSimulationResults] = useState({});
+  const [pointArtAssignments, setPointArtAssignments] = useState(() => {
+    if (!draft?.pointArtAssignments || typeof draft.pointArtAssignments !== 'object') return {};
+    return draft.pointArtAssignments;
+  });
   const [simulationSettings, setSimulationSettings] = useState(REALISM_PRESET);
   const [mediaParams, setMediaParams] = useState({ ...defaultMediaParams });
   const [activePreviewPointId, setActivePreviewPointId] = useState(null);
@@ -299,7 +299,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [shareBusy, setShareBusy] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [sessionExpiredModal, setSessionExpiredModal] = useState({ open: false, message: '' });
-  const [pdfSections, setPdfSections] = useState({ methodology: true, coverage: true, impact: true, mapPrint: false });
+  const [pdfSections, setPdfSections] = useState({ methodology: true, entornoEvidence: true, coverage: true, impact: true, mapPrint: false });
   const [connectMapPoints, setConnectMapPoints] = useState(true);
   const [mapBusy, setMapBusy] = useState(false);
   const [mapStatus, setMapStatus] = useState('');
@@ -319,7 +319,6 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     rankedPoints: [],
     error: ''
   });
-  const promptTextareaRef = useRef(null);
   const customCommercialNoteRef = useRef(null);
 
   const isSessionExpiredError = (error) => {
@@ -460,9 +459,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       analysisMode,
       pdfSections,
       pdfPointEdits,
-      pdfExcludedPointIds
+      pdfExcludedPointIds,
+      pointArtAssignments
     });
-  }, [form, discountConfig, analysisMode, pdfSections, pdfPointEdits, pdfExcludedPointIds]);
+  }, [form, discountConfig, analysisMode, pdfSections, pdfPointEdits, pdfExcludedPointIds, pointArtAssignments]);
 
   useEffect(() => {
     if (!showPdfFormatPicker) return undefined;
@@ -498,11 +498,17 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   useEffect(() => {
     setDiscountConfig((current) => ({
       ...current,
-      targetPointIds: current.targetPointIds.filter((pointId) => sourcePoints.some((point) => point.id === pointId)),
+      targetPointIds: current.targetPointIds.filter((pointId) => sourcePoints.some((point) => String(point.id) === String(pointId))),
       perPoint: Object.fromEntries(
         Object.entries(current.perPoint || {}).filter(([pointId]) => sourcePoints.some((point) => String(point.id) === String(pointId)))
       )
     }));
+  }, [sourcePoints]);
+
+  useEffect(() => {
+    setPointArtAssignments((current) => Object.fromEntries(
+      Object.entries(current || {}).filter(([pointId]) => sourcePoints.some((point) => String(point.id) === String(pointId)))
+    ));
   }, [sourcePoints]);
 
   useEffect(() => {
@@ -523,7 +529,12 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
   const pricing = useMemo(() => buildProposalPricing(proposalSourcePoints, discountConfig), [proposalSourcePoints, discountConfig]);
   const pricingSummary = pricing.summary;
+  const discountValueType = discountConfig.valueType === 'amount' ? 'amount' : 'percentage';
   const totals = useMemo(() => campaignTotals(pricing.points), [pricing.points]);
+  const assignedPointArtCount = useMemo(() => {
+    return proposalSourcePoints.filter((point) => Boolean(pointArtAssignments[String(point.id)])).length;
+  }, [proposalSourcePoints, pointArtAssignments]);
+  const hasPointArtAssignments = assignedPointArtCount > 0;
 
   const clearSimulationResults = () => {
     setSimulationResults((current) => {
@@ -536,17 +547,24 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     });
   };
 
+  // Pre-preencher pra\u00e7as a partir das cidades dos pontos selecionados quando o modal abre.
+  // S\u00f3 dispara enquanto o usu\u00e1rio ainda n\u00e3o tiver feito qualquer escolha de pra\u00e7as.
+  const prefilledCitiesRef = useRef(false);
   useEffect(() => {
-    if (!simulationArtFile) {
-      setSimulationArtUrl('');
+    if (!open) {
+      prefilledCitiesRef.current = false;
       return;
     }
-
-    const nextUrl = URL.createObjectURL(simulationArtFile);
-    setSimulationArtUrl(nextUrl);
-
-    return () => URL.revokeObjectURL(nextUrl);
-  }, [simulationArtFile]);
+    if (prefilledCitiesRef.current) return;
+    if (form.selectedCities && form.selectedCities.length > 0) return;
+    const cidadesDosPontos = Array.from(
+      new Set((sourcePoints || []).map((p) => p?.cidade).filter(Boolean))
+    ).sort();
+    if (cidadesDosPontos.length > 0) {
+      setForm((current) => ({ ...current, selectedCities: cidadesDosPontos }));
+      prefilledCitiesRef.current = true;
+    }
+  }, [open, sourcePoints]);
 
   // Cleanup blob URLs only on unmount — NOT on every simulationResults change,
   // because revoking mid-batch would invalidate earlier blob URLs.
@@ -640,15 +658,16 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       }
     };
 
-    if (entornoRefreshKey > 0) {
-      loadScores(true);
-    }
+    // Auto-carrega na primeira abertura e sempre que o escopo mudar.
+    // Força refresh quando o usuário clica em "Atualizar" (entornoRefreshKey > 0).
+    loadScores(entornoRefreshKey > 0);
 
     return () => {
       active = false;
       if (pollTimer) window.clearTimeout(pollTimer);
     };
-  }, [entornoRefreshKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entornoRefreshKey, proposalSourcePoints.length, activeCities.join('|'), form.segmento]);
 
   useEffect(() => {
     if (analysisMode !== 'client-address') {
@@ -709,8 +728,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   }, [analysisMode, form.clientAddress, proposalSourcePoints, activeCities]);
 
   const argumentos = useMemo(() => {
+    // Usa pontos com desconto aplicado (pricing.points) para que ticket médio e CPM
+    // refletidos na justificativa estratégica considerem o valor negociado, não o de tabela.
     const strategic = generateStrategicJustification({
-      selected: proposalSourcePoints,
+      selected: pricing.points,
       cidade: Array.isArray(activeCities) ? activeCities[0] : activeCities,
       publicoAlvo: form.publicos,
       objetivo: form.objetivo,
@@ -718,7 +739,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       empresa: form.clientName
     });
     return strategic.argumentacaoComercial || [];
-  }, [proposalSourcePoints, activeCities, form.publicos, form.objetivo, form.segmento, form.clientName]);
+  }, [pricing.points, activeCities, form.publicos, form.objetivo, form.segmento, form.clientName]);
 
   const strategicTopicSuggestions = useMemo(() => parseStrategicTopics(argumentos.join('\n'), 8), [argumentos]);
   const strategicTopicCustom = useMemo(() => parseStrategicTopics(form.strategicTopics, 8), [form.strategicTopics]);
@@ -754,45 +775,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     setForm((state) => ({ ...state, strategicTopics: '' }));
   };
 
-  const imagePromptGroups = useMemo(() => {
-    return buildProposalImagePromptsByFormat({
-      clientName: form.clientName,
-      selectedCities: activeCities,
-      selectedPublicos: form.publicos,
-      objetivo: form.objetivo,
-      segmento: getSegmentDisplayName(form.segmento),
-      points: proposalSourcePoints
-    });
-  }, [form.clientName, activeCities, form.publicos, form.objetivo, form.segmento, proposalSourcePoints]);
-
-  const imagePrompt = useMemo(() => {
-    if (!imagePromptGroups.length) return '';
-    if (imagePromptGroups.length === 1) return imagePromptGroups[0].prompt;
-
-    const header = `A campanha possui ${imagePromptGroups.length} formatos de tela. Gere uma arte por formato.`;
-    const blocks = imagePromptGroups.map((group, index) => {
-      const pointNames = group.points
-        .map((point) => point.nome)
-        .filter(Boolean)
-        .slice(0, 4)
-        .join(', ');
-      const morePoints = group.points.length > 4 ? ` (+${group.points.length - 4})` : '';
-      const ratioLabel = group.aspectRatio ? ` | ${group.aspectRatio}` : '';
-
-      return [
-        `Prompt ${index + 1} - ${group.width}x${group.height}${ratioLabel}`,
-        pointNames ? `Pontos: ${pointNames}${morePoints}` : null,
-        group.prompt
-      ].filter(Boolean).join('\n');
-    });
-
-    return [header, ...blocks].join('\n\n');
-  }, [imagePromptGroups]);
-
   const proposalPoints = useMemo(() => {
     return pricing.points.map((point) => {
       const result = simulationResults[point.id];
       const persistedPreview = point.proposalSimulationPreview || point.simulacao_preview || '';
+      const assignedArtUrl = pointArtAssignments[String(point.id)] || '';
       const entornoMetrics = entorno.scoresByPoint[point.id] || entorno.scoresByPoint[String(point.id)] || null;
       const clientMetrics = clientAnalysis.byPoint[point.id] || clientAnalysis.byPoint[String(point.id)] || null;
       return {
@@ -801,11 +788,14 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         clientDistanceMeters: clientMetrics?.distanceMeters || null,
         clientDistanceKm: clientMetrics?.distanceKm || null,
         clientProximityScore: clientMetrics?.proximityScore || null,
+        assignedPointArtUrl: assignedArtUrl,
         proposalSimulationPreview: result?.previewUrl || persistedPreview,
-        proposalSimulationStatus: result?.status || (!simulationArtFile ? 'Envie a arte para gerar' : 'Gerar simulação pendente')
+        proposalSimulationStatus: result?.status || (assignedArtUrl
+          ? 'Arte definida para este ponto'
+          : 'Adicione uma arte para este ponto')
       };
     });
-  }, [pricing.points, simulationResults, entorno.scoresByPoint, clientAnalysis.byPoint, simulationArtFile]);
+  }, [pricing.points, simulationResults, pointArtAssignments, entorno.scoresByPoint, clientAnalysis.byPoint]);
 
   const proposalPointsEditedMap = useMemo(() => {
     const map = {};
@@ -867,34 +857,37 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
   const simulationSummary = useMemo(() => {
     const items = Object.values(simulationResults);
-    if (!simulationArtFile) {
+    if (!hasPointArtAssignments) {
       return '';
     }
     if (!items.length) {
-      return 'Arte carregada. Ajuste brilho, reflexo, spill de luz e pixel LED para aproximar o look do simulador antes de gerar.';
+      return 'Artes ponto a ponto prontas. Clique em gerar para produzir todas as simulações da campanha.';
     }
 
     const geradas = items.filter((item) => String(item.status || '').startsWith('Gerada')).length;
     const semArea = items.filter((item) => item.status === 'Área da tela não cadastrada no admin').length;
     const semImagem = items.filter((item) => item.status === 'Imagem base do ponto não cadastrada').length;
+    const semArte = items.filter((item) => item.status === 'Sem arte ponto a ponto').length;
     const falhas = items.filter((item) => item.status === 'Falha ao gerar').length;
 
     return [
       `${geradas} simulação${geradas === 1 ? '' : 'ões'} gerada${geradas === 1 ? '' : 's'}`,
+      `${assignedPointArtCount} ponto${assignedPointArtCount === 1 ? '' : 's'} com arte atribuída`,
       semArea ? `${semArea} ponto${semArea === 1 ? '' : 's'} sem área cadastrada` : null,
       semImagem ? `${semImagem} ponto${semImagem === 1 ? '' : 's'} sem imagem base` : null,
+      semArte ? `${semArte} ponto${semArte === 1 ? '' : 's'} sem arte` : null,
       falhas ? `${falhas} falha${falhas === 1 ? '' : 's'} de processamento` : null,
       `brilho ${simulationSettings.brightness.toFixed(2)}`,
       `reflexo ${simulationSettings.reflection.toFixed(2)}`,
       `pixel LED ${simulationSettings.ledPixelIntensity.toFixed(2)}`,
       `mídia ${mediaParams.mediaMode}`
     ].filter(Boolean).join(' · ');
-  }, [simulationArtFile, simulationResults, simulationSettings, mediaParams]);
+  }, [hasPointArtAssignments, assignedPointArtCount, simulationResults, simulationSettings, mediaParams]);
 
   const previewablePoints = useMemo(() => {
-    const requireGeneratedPreview = !!simulationArtFile;
+    const requireGeneratedPreview = hasPointArtAssignments;
     return proposalPointsForPdf.filter((point) => getPointPreviewUrl(point, requireGeneratedPreview));
-  }, [proposalPointsForPdf, simulationArtFile]);
+  }, [proposalPointsForPdf, hasPointArtAssignments]);
 
   useEffect(() => {
     if (!previewablePoints.length) {
@@ -921,27 +914,6 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     setWizardStep(6);
   };
 
-  const handleCopyPrompt = async () => {
-    if (!imagePrompt) return;
-    try {
-      await navigator.clipboard.writeText(imagePrompt);
-      setPromptCopied(true);
-      window.setTimeout(() => setPromptCopied(false), 1800);
-    } catch {
-      // Fallback: seleciona o texto no textarea visível
-      const textarea = promptTextareaRef.current;
-      if (textarea) {
-        textarea.focus();
-        textarea.select();
-        document.execCommand('copy');
-        setPromptCopied(true);
-        window.setTimeout(() => setPromptCopied(false), 1800);
-      } else {
-        setSimulationError('Copie manualmente o prompt do campo de texto.');
-      }
-    }
-  };
-
   const handleExportProposalPdf = async (formatOverride) => {
     const format = formatOverride || pdfFormat;
     setShowPdfFormatPicker(false);
@@ -963,10 +935,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         if (proposalPointsForPdf.length > 0) {
           try {
             mobileOverviewMap = await buildSelectionMapDataUrl(pointsWithEntorno, {
-              connectPoints: true,
+              connectPoints: false,
               theme: 'light',
               width: 540,
-              height: 400
+              height: 400,
+              showPointLabels: false
             });
           } catch {
             mobileOverviewMap = null;
@@ -1009,10 +982,11 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       if (pointsWithEntorno.length > 0) {
         try {
           overviewMapImage = await buildSelectionMapDataUrl(pointsWithEntorno, {
-            connectPoints: true,
+            connectPoints: false,
             theme: 'light',
             width: 1800,
-            height: 1000
+            height: 1000,
+            showPointLabels: false
           });
         } catch {
           overviewMapImage = null;
@@ -1039,6 +1013,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         duracao_meses: form.duracao_meses ? Number(form.duracao_meses) : null,
         showMetricsMethodology: pdfSections.methodology,
         showCampaignScore: false,
+        showEntornoEvidence: pdfSections.entornoEvidence,
         showCoverageLayer: pdfSections.coverage,
         showImpactSection: pdfSections.impact,
         customCommercialNote: form.customCommercialNote || ''
@@ -1341,8 +1316,12 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   };
 
   const handleGenerateSimulations = async () => {
-    if (!simulationArtUrl) {
-      setSimulationError('Selecione a arte da campanha para gerar as simulações.');
+    const assignedPointIds = proposalSourcePoints
+      .map((point) => String(point.id))
+      .filter((pointId) => Boolean(pointArtAssignments[pointId]));
+
+    if (!assignedPointIds.length) {
+      setSimulationError('Adicione as artes ponto a ponto antes de gerar as simulações.');
       return;
     }
 
@@ -1350,6 +1329,10 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     setSimulationError('');
 
     const nextEntries = await Promise.all(proposalSourcePoints.map(async (point) => {
+      const pointArtUrl = pointArtAssignments[String(point.id)] || '';
+      if (!pointArtUrl) {
+        return [point.id, { status: 'Sem arte ponto a ponto', previewUrl: '' }];
+      }
       if (!point.simulacao_tela) {
         return [point.id, { status: 'Área da tela não cadastrada no admin', previewUrl: '' }];
       }
@@ -1364,7 +1347,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         }
         const result = await generateSimulationPreview({
           baseImageUrl: point.imagem,
-          creativeImageUrl: simulationArtUrl,
+          creativeImageUrl: pointArtUrl,
           screen: config,
           panelType: point.tipo,
           displaySettings: simulationSettings,
@@ -1398,95 +1381,46 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
     setSimulationBusy(false);
   };
 
-  const handleAiArteEscolhida = async (pontoId, urlArte, geracaoId, variacao) => {
-    console.log('[handleAiArteEscolhida] START pontoId=', pontoId, 'urlArte=', urlArte);
-    const point = proposalSourcePoints.find((p) => String(p.id) === String(pontoId));
-    if (!point || !urlArte) {
-      console.warn('[handleAiArteEscolhida] SKIP — point not found or no urlArte', { pontoId, foundPoint: !!point, urlArte });
+  const handleAiArteEscolhida = (pontoId, urlArte, geracaoId, variacao) => {
+    if (!pontoId || !urlArte) {
       return;
     }
 
-    // Revoke previous blob URL for this point to avoid leaking object URLs.
-    const prevEntry = simulationResults[pontoId];
-    if (prevEntry?.previewUrl?.startsWith('blob:')) {
-      try { URL.revokeObjectURL(prevEntry.previewUrl); } catch { /* ignore */ }
-    }
+    const normalizedPointId = String(pontoId);
+    setPointArtAssignments((current) => ({
+      ...current,
+      [normalizedPointId]: urlArte
+    }));
 
-    if (!point.simulacao_tela || !point.imagem) {
-      console.warn('[handleAiArteEscolhida] SEM TELA/IMAGEM pontoId=', pontoId, { simulacao_tela: !!point.simulacao_tela, imagem: !!point.imagem });
-      // When the point has no screen image (imagem), applying the arte as preview
-      // would replace the facade photo (imagem2) with the raw banner — wrong.
-      // Leave previewUrl empty so the system falls back to imagem2 naturally.
-      setSimulationResults((current) => ({
+    setSimulationResults((current) => {
+      const previous = current[pontoId];
+      if (previous?.previewUrl?.startsWith('blob:')) {
+        try { URL.revokeObjectURL(previous.previewUrl); } catch { /* ignore */ }
+      }
+      return {
         ...current,
-        [point.id]: {
-          status: !point.imagem
-            ? 'Arte IA gerada (ponto sem foto da tela — exibindo fachada)'
-            : 'Arte IA gerada (sem simulação: área da tela não cadastrada)',
+        [pontoId]: {
+          status: 'Arte definida para este ponto',
           previewUrl: '',
           geracaoId,
           variacao
         }
-      }));
-      return;
+      };
+    });
+    setSimulationError('');
+  };
+
+  // Fecha o modal só quando o clique nasce e termina no backdrop.
+  // Evita fechar quando o usuário arrasta uma seleção de texto e solta o mouse fora do modal.
+  const backdropMouseDownRef = useRef(false);
+  const handleBackdropMouseDown = (e) => {
+    backdropMouseDownRef.current = e.target === e.currentTarget;
+  };
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+      onClose?.();
     }
-
-    try {
-      const config = parseSimulationConfig(point.simulacao_tela);
-      console.log('[handleAiArteEscolhida] CONFIG pontoId=', pontoId, { hasCorners: !!config?.corners, hasFaces: !!config?.faces });
-      if (!config?.corners && !config?.faces) {
-        console.warn('[handleAiArteEscolhida] SEM CORNERS/FACES pontoId=', pontoId);
-        setSimulationResults((current) => ({
-          ...current,
-          [point.id]: {
-            status: 'Arte IA gerada (sem simulação: área não cadastrada)',
-            previewUrl: urlArte,
-            geracaoId,
-            variacao
-          }
-        }));
-        return;
-      }
-
-      console.log('[handleAiArteEscolhida] GENERATING SIMULATION pontoId=', pontoId, { baseImageUrl: point.imagem, creativeImageUrl: urlArte });
-      const result = await generateSimulationPreview({
-        baseImageUrl: point.imagem,
-        creativeImageUrl: urlArte,
-        screen: config,
-        panelType: point.tipo,
-        displaySettings: simulationSettings,
-        mediaParams
-      });
-
-      const persistedPreviewUrl = await persistSimulationPreview(result.blob, result.previewUrl);
-
-      console.log('[handleAiArteEscolhida] SUCCESS pontoId=', pontoId, { previewUrl: persistedPreviewUrl?.substring(0, 60) });
-      setSimulationResults((current) => ({
-        ...current,
-        [point.id]: {
-          status: 'Gerada (IA)',
-          previewUrl: persistedPreviewUrl,
-          geracaoId,
-          variacao
-        }
-      }));
-    } catch (error) {
-      if (handleAuthExpired(error, 'Sua sessão expirou durante o upload da simulação IA. Faça login novamente para salvar os previews.')) {
-        return;
-      }
-      console.error('[handleAiArteEscolhida] ERROR pontoId=', pontoId, error?.message || error);
-      setSimulationResults((current) => ({
-        ...current,
-        [point.id]: {
-          status: 'Arte IA gerada (falha na simulação)',
-          previewUrl: urlArte,
-          detail: error?.message || 'Erro desconhecido',
-          geracaoId,
-          variacao
-        }
-      }));
-      setSimulationError(error?.message || 'Falha ao aplicar arte IA na simulação do ponto.');
-    }
+    backdropMouseDownRef.current = false;
   };
 
   return (
@@ -1496,7 +1430,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        onClick={onClose}
+        onMouseDown={handleBackdropMouseDown}
+        onClick={handleBackdropClick}
       >
         <div className={`absolute inset-0 backdrop-blur-md ${isDark ? 'bg-black/70' : 'bg-white/45'}`} />
 
@@ -1545,7 +1480,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                   <div key={ws.id} className="flex items-center flex-1 last:flex-initial">
                     <button
                       type="button"
-                      onClick={() => { if (done) setWizardStep(ws.id); }}
+                      onClick={() => setWizardStep(ws.id)}
+                      title={`Ir para ${ws.label}`}
                       className={`flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold transition-all ${
                         active
                           ? 'bg-brand-orange text-white shadow-[0_4px_16px_rgba(254,92,43,0.35)]'
@@ -1593,8 +1529,28 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                   <Card isDark={isDark} title="Configuração da campanha">
                     <div className="grid md:grid-cols-2 gap-3">
                       <CustomSelect isDark={isDark} label="Praças" value={form.selectedCities} onChange={(v) => setForm((s) => ({ ...s, selectedCities: v }))} options={availableCities} multiple placeholder="Todas as praças" />
-                      <CustomSelect isDark={isDark} label="Segmento" value={form.segmento} onChange={(v) => setForm((s) => ({ ...s, segmento: v }))} options={SEGMENTOS.map((seg) => ({ value: seg, label: getSegmentDisplayName(seg) }))} allowCustom customPlaceholder="Segmento personalizado" />
-                      <CustomSelect isDark={isDark} label="Objetivo" value={form.objetivo} onChange={(v) => setForm((s) => ({ ...s, objetivo: v }))} options={OBJETIVOS} allowCustom customPlaceholder="Objetivo personalizado" />
+                      <CustomSelect
+                        isDark={isDark}
+                        label="Segmento"
+                        multiple
+                        value={form.segmento ? String(form.segmento).split(',').map((s) => s.trim()).filter(Boolean) : []}
+                        onChange={(arr) => setForm((s) => ({ ...s, segmento: (Array.isArray(arr) ? arr : [arr]).filter(Boolean).join(', ') }))}
+                        options={SEGMENTOS.map((seg) => ({ value: seg, label: getSegmentDisplayName(seg) }))}
+                        allowCustom
+                        customPlaceholder="Segmento personalizado"
+                        placeholder="Selecione um ou mais segmentos"
+                      />
+                      <CustomSelect
+                        isDark={isDark}
+                        label="Objetivo"
+                        multiple
+                        value={form.objetivo ? String(form.objetivo).split(',').map((s) => s.trim()).filter(Boolean) : []}
+                        onChange={(arr) => setForm((s) => ({ ...s, objetivo: (Array.isArray(arr) ? arr : [arr]).filter(Boolean).join(', ') }))}
+                        options={OBJETIVOS}
+                        allowCustom
+                        customPlaceholder="Objetivo personalizado"
+                        placeholder="Selecione um ou mais objetivos"
+                      />
                       <CustomSelect isDark={isDark} label="Públicos" value={form.publicos} onChange={(v) => setForm((s) => ({ ...s, publicos: v }))} options={availablePublicos} multiple placeholder="Públicos estratégicos" />
                     </div>
                   </Card>
@@ -1731,9 +1687,61 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                         ))}
                       </div>
 
+                      {discountConfig.mode !== 'none' && (
+                        <div className="space-y-2 mt-3">
+                          <p className={`text-[11px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Valor do desconto</p>
+                          <div className="flex flex-wrap gap-2">
+                            <ScopeButton
+                              isDark={isDark}
+                              active={discountValueType === 'percentage'}
+                              onClick={() => setDiscountConfig((c) => ({
+                                ...c,
+                                valueType: 'percentage',
+                                ...(c.mode === 'individual' && c.valueType !== 'percentage' ? { perPoint: {} } : {})
+                              }))}
+                            >
+                              Percentual (%)
+                            </ScopeButton>
+                            <ScopeButton
+                              isDark={isDark}
+                              active={discountValueType === 'amount'}
+                              onClick={() => setDiscountConfig((c) => ({
+                                ...c,
+                                valueType: 'amount',
+                                ...(c.mode === 'individual' && c.valueType !== 'amount' ? { perPoint: {} } : {})
+                              }))}
+                            >
+                              {discountConfig.mode === 'individual' ? 'Valor final do ponto (R$)' : 'Valor (R$)'}
+                            </ScopeButton>
+                          </div>
+                        </div>
+                      )}
+
                       {(discountConfig.mode === 'total' || discountConfig.mode === 'specific') && (
                         <div className="space-y-3 mt-3">
-                          <Input isDark={isDark} label="Percentual de desconto" value={discountConfig.percentage} onChange={(v) => setDiscountConfig((c) => ({ ...c, percentage: v.replace(',', '.') }))} />
+                          {discountValueType === 'amount' ? (
+                            <Input
+                              isDark={isDark}
+                              label="Valor total do desconto"
+                              value={discountConfig.amount}
+                              onChange={(v) => setDiscountConfig((c) => ({ ...c, amount: v }))}
+                              placeholder="Ex: 1500,00"
+                            />
+                          ) : (
+                            <Input
+                              isDark={isDark}
+                              label="Percentual de desconto"
+                              value={discountConfig.percentage}
+                              onChange={(v) => setDiscountConfig((c) => ({ ...c, percentage: v }))}
+                              placeholder="Ex: 12,5"
+                            />
+                          )}
+
+                          {discountValueType === 'amount' && (
+                            <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                              O valor informado será distribuído proporcionalmente no escopo escolhido em Tipo de desconto.
+                            </p>
+                          )}
 
                           {discountConfig.mode === 'specific' && (
                             <div className={`rounded-xl border p-3 space-y-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
@@ -1743,13 +1751,14 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                                   <span>{pt.nome}</span>
                                   <input
                                     type="checkbox"
-                                    checked={discountConfig.targetPointIds.includes(pt.id)}
+                                    checked={discountConfig.targetPointIds.map(String).includes(String(pt.id))}
                                     onChange={(e) => {
+                                      const pointKey = String(pt.id);
                                       setDiscountConfig((c) => ({
                                         ...c,
                                         targetPointIds: e.target.checked
-                                          ? [...c.targetPointIds, pt.id]
-                                          : c.targetPointIds.filter((i) => i !== pt.id)
+                                          ? [...new Set([...(c.targetPointIds || []).map(String), pointKey])]
+                                          : (c.targetPointIds || []).map(String).filter((i) => i !== pointKey)
                                       }));
                                     }}
                                   />
@@ -1762,23 +1771,63 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
                       {discountConfig.mode === 'individual' && (
                         <div className="grid md:grid-cols-2 gap-3 mt-3">
-                          {proposalSourcePoints.map((pt) => (
-                            <div key={pt.id} className={`rounded-xl border px-3 py-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
-                              <div className="flex items-center justify-between gap-3">
-                                <div>
-                                  <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{pt.nome}</p>
-                                  <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Tabela: {formatCurrency(pt.preco)}</p>
+                          {proposalSourcePoints.map((pt) => {
+                            const rawValue = discountConfig.perPoint[pt.id] ?? '';
+                            const tabela = Number(pt.preco) || 0;
+                            const isAmount = discountValueType === 'amount';
+                            const placeholder = isAmount
+                              ? tabela.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                              : '0%';
+                            const suffix = isAmount ? 'R$' : '%';
+                            // Calcula desconto efetivo apenas no modo "valor final"
+                            let descontoCalculado = null;
+                            if (isAmount && rawValue !== '' && rawValue !== null && rawValue !== undefined) {
+                              const desejado = Math.max(0, Math.min(Number(String(rawValue).replace(',', '.')) || 0, tabela));
+                              const desc = tabela - desejado;
+                              const pctDesc = tabela > 0 ? (desc / tabela) * 100 : 0;
+                              descontoCalculado = { desc, pctDesc };
+                            }
+                            return (
+                              <div key={pt.id} className={`rounded-xl border px-3 py-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-neutral-900'}`}>{pt.nome}</p>
+                                    <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Tabela: {formatCurrency(pt.preco)}</p>
+                                  </div>
+                                  <div className={`flex items-center gap-1 rounded-lg border px-2 ${isDark ? 'border-white/10 bg-white/5' : 'border-neutral-200 bg-white'}`}>
+                                    {isAmount && (
+                                      <span className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>{suffix}</span>
+                                    )}
+                                    <input
+                                      type="text"
+                                      inputMode="decimal"
+                                      value={rawValue}
+                                      onChange={(e) => setDiscountConfig((c) => ({ ...c, perPoint: { ...c.perPoint, [pt.id]: e.target.value } }))}
+                                      className={`w-24 px-1 py-2 text-sm outline-none bg-transparent ${isDark ? 'text-white' : 'text-neutral-800'}`}
+                                      placeholder={placeholder}
+                                      title={isAmount ? 'Digite o valor final desejado para este ponto' : 'Digite o percentual de desconto'}
+                                    />
+                                    {!isAmount && (
+                                      <span className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>{suffix}</span>
+                                    )}
+                                  </div>
                                 </div>
-                                <input
-                                  type="number" min={0} max={100} step={0.1}
-                                  value={discountConfig.perPoint[pt.id] || ''}
-                                  onChange={(e) => setDiscountConfig((c) => ({ ...c, perPoint: { ...c.perPoint, [pt.id]: e.target.value } }))}
-                                  className={`w-24 rounded-lg border px-3 py-2 text-sm outline-none ${isDark ? 'border-white/10 bg-white/5 text-white focus:border-brand-orange/40' : 'border-neutral-200 bg-white text-neutral-800 focus:border-brand-orange/50'}`}
-                                  placeholder="0%"
-                                />
+                                {isAmount && (
+                                  <p className={`mt-2 text-[11px] ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                                    {descontoCalculado && descontoCalculado.desc > 0 ? (
+                                      <>
+                                        Desconto aplicado: <span className={isDark ? 'text-yellow-400 font-semibold' : 'text-yellow-700 font-semibold'}>
+                                          {formatCurrency(descontoCalculado.desc)} ({descontoCalculado.pctDesc.toFixed(1).replace('.', ',')}%)
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <>Digite o <span className="font-semibold">valor final desejado</span> — o desconto é calculado automaticamente.</>
+                                    )}
+                                  </p>
+                                )}
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </Card>
@@ -1805,93 +1854,19 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                 </motion.div>
               )}
 
-              {/* ═══ STEP 3 — Arte da campanha ═══ */}
+              {/* ═══ STEP 3 — Artes por ponto ═══ */}
               {wizardStep === 3 && (
                 <motion.div key="step3" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
 
-                  {/* BLOCO 1 — Prompt da arte (colapsável) */}
-                  <Card isDark={isDark}>
-                    <button type="button" onClick={() => setPromptExpanded(!promptExpanded)} className="w-full flex items-center justify-between gap-3">
-                      <div className="text-left">
-                        <h3 className={`text-xs font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Prompt da arte</h3>
-                        <p className={`text-sm mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
-                          A campanha possui {imagePromptGroups.length} formato{imagePromptGroups.length !== 1 ? 's' : ''} de tela. Um prompt foi gerado automaticamente para cada formato.
-                        </p>
-                      </div>
-                      <ChevronDown size={18} className={`shrink-0 transition-transform ${isDark ? 'text-brand-gray-400' : 'text-neutral-400'} ${promptExpanded ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {promptExpanded && (
-                      <div className="mt-4 space-y-3">
-                        {imagePromptGroups.map((group, idx) => (
-                          <div key={idx} className={`rounded-xl border p-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-neutral-200 bg-neutral-50'}`}>
-                            <p className={`text-[11px] uppercase tracking-wide font-semibold mb-2 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
-                              {group.width}x{group.height}{group.aspectRatio ? ` · ${group.aspectRatio}` : ''}
-                            </p>
-                            <textarea ref={idx === 0 ? promptTextareaRef : undefined} value={group.prompt} readOnly rows={4} className={`w-full rounded-lg border px-3 py-2 text-xs outline-none ${isDark ? 'border-white/10 bg-white/5 text-brand-gray-200' : 'border-neutral-200 bg-white text-neutral-700'}`} />
-                          </div>
-                        ))}
-                        <button type="button" onClick={handleCopyPrompt} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm hover:bg-white/[0.08] transition-colors ${isDark ? 'border-white/15 bg-white/[0.03] text-white' : 'border-neutral-200 bg-white text-neutral-700'}`}>
-                          {promptCopied ? <Check size={15} /> : <Copy size={15} />}
-                          {promptCopied ? 'Copiado!' : 'Copiar prompt'}
-                        </button>
-                      </div>
-                    )}
+                  <Card isDark={isDark} title="Artes por ponto">
+                    <p className={`text-sm ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>
+                      Faça upload da arte em cada ponto. Quando houver mesma proporção, o sistema replica automaticamente para os pontos compatíveis.
+                    </p>
+                    <p className={`text-xs mt-2 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                      Após preencher todos os pontos abaixo, role até o final para gerar todas as simulações de uma só vez.
+                    </p>
                   </Card>
 
-                  {/* BLOCO 2 — Arte e preview (2 colunas) */}
-                  <div className="grid lg:grid-cols-2 gap-5">
-                    {/* Coluna esquerda — Upload */}
-                    <Card isDark={isDark} title="Arte da campanha">
-                      <div
-                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onDrop={(e) => {
-                          e.preventDefault(); e.stopPropagation();
-                          const file = e.dataTransfer.files?.[0];
-                          if (file && file.type.startsWith('image/')) {
-                            setSimulationArtFile(file);
-                            setSimulationError('');
-                            clearSimulationResults();
-                          }
-                        }}
-                        className={`rounded-xl border-2 border-dashed p-6 text-center transition-colors ${isDark ? 'border-white/15 hover:border-brand-orange/30' : 'border-neutral-300 hover:border-brand-orange/40'}`}
-                      >
-                        <Upload size={24} className={`mx-auto mb-2 ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`} />
-                        <p className={`text-sm mb-3 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Arraste a arte ou clique para selecionar</p>
-                        <label className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm cursor-pointer transition-colors ${isDark ? 'border-white/15 bg-white/5 text-brand-gray-300 hover:bg-white/10' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
-                          <ImageIcon size={16} />
-                          {simulationArtFile ? simulationArtFile.name : 'Escolher arte da campanha'}
-                          <input type="file" accept="image/*" onChange={(e) => { setSimulationArtFile(e.target.files?.[0] || null); setSimulationError(''); clearSimulationResults(); }} className="hidden" />
-                        </label>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={handleGenerateSimulations}
-                        disabled={simulationBusy || !proposalSourcePoints.length}
-                        className="w-full orange-solid-btn h-11 rounded-xl bg-brand-orange text-white font-semibold hover:bg-brand-orange-hover disabled:opacity-50 shadow-[0_10px_24px_rgba(254,92,43,0.28)] mt-3"
-                      >
-                        {simulationBusy ? 'Gerando simulações...' : 'Gerar simulações'}
-                      </button>
-                    </Card>
-
-                    {/* Coluna direita — Preview */}
-                    <Card isDark={isDark} title="Preview da arte">
-                      {simulationArtUrl ? (
-                        <img src={simulationArtUrl} alt="Arte da campanha" className="w-full h-56 object-contain rounded-lg" />
-                      ) : (
-                        <div className={`h-56 rounded-xl border border-dashed flex items-center justify-center text-sm ${isDark ? 'border-white/15 text-brand-gray-500 bg-black/20' : 'border-neutral-300 text-neutral-400 bg-neutral-50'}`}>
-                          Nenhuma arte selecionada
-                        </div>
-                      )}
-                    </Card>
-                  </div>
-
-                  {simulationError && (
-                    <p className={`text-xs rounded-lg border px-3 py-2 ${isDark ? 'text-red-300 border-red-500/20 bg-red-500/10' : 'text-red-600 border-red-300 bg-red-50'}`}>{simulationError}</p>
-                  )}
-
-                  {/* Geração de arte IA por ponto (usa a área de tela já marcada no admin) */}
                   <ArteAIPanel
                     points={proposalPoints}
                     segmento={form.segmento}
@@ -1900,14 +1875,42 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     propostaId={null}
                     isDark={isDark}
                     onArteEscolhida={handleAiArteEscolhida}
+                    manualOnly
                   />
 
-                  {/* BLOCO 3 — Status da campanha */}
-                  <div className="grid sm:grid-cols-3 gap-3">
+                  <div className="grid sm:grid-cols-4 gap-3">
                     <StatusCard isDark={isDark} label="Pontos na proposta" value={proposalSourcePoints.length} tone="default" />
+                    <StatusCard isDark={isDark} label="Pontos com arte" value={assignedPointArtCount} tone="default" />
                     <StatusCard isDark={isDark} label="Simulações geradas" value={Object.values(simulationResults).filter((i) => String(i.status || '').startsWith('Gerada')).length} tone="success" />
                     <StatusCard isDark={isDark} label="Pendências de cadastro" value={Object.values(simulationResults).filter((i) => i.status === 'Área da tela não cadastrada no admin' || i.status === 'Imagem base do ponto não cadastrada').length} tone="warning" />
                   </div>
+
+                  {/* ── CTA: Gerar todas as simulações (após upload dos pontos) ── */}
+                  <Card isDark={isDark}>
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div className="min-w-0">
+                        <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Pronto para gerar?</h3>
+                        <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                          {assignedPointArtCount === 0
+                            ? 'Faça upload das artes acima antes de gerar.'
+                            : assignedPointArtCount < proposalSourcePoints.length
+                              ? `${proposalSourcePoints.length - assignedPointArtCount} ponto(s) sem arte. Você ainda pode gerar parcialmente.`
+                              : 'Todos os pontos têm arte atribuída.'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleGenerateSimulations}
+                        disabled={simulationBusy || !proposalSourcePoints.length}
+                        className="h-12 px-6 rounded-xl bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white text-sm font-extrabold tracking-[0.03em] hover:from-[#E85A1A] hover:to-[#C94A1A] disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_12px_26px_rgba(254,92,43,0.35)]"
+                      >
+                        {simulationBusy ? 'Gerando simulações ponto a ponto...' : 'GERAR TODAS AS SIMULAÇÕES PONTO A PONTO'}
+                      </button>
+                    </div>
+                    {simulationError && (
+                      <p className={`text-xs mt-3 rounded-lg border px-3 py-2 ${isDark ? 'text-red-300 border-red-500/20 bg-red-500/10' : 'text-red-600 border-red-300 bg-red-50'}`}>{simulationError}</p>
+                    )}
+                  </Card>
 
                   {/* ── Seletor de Tipo de Mídia ── */}
                   <Card isDark={isDark}>
@@ -2114,7 +2117,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                   </Card>
 
                   {/* Preview ampliado */}
-                  <PreviewPanel proposalPoints={proposalPointsForPdf} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={!!simulationArtFile} isDark={isDark} />
+                  <PreviewPanel proposalPoints={proposalPointsForPdf} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={hasPointArtAssignments} isDark={isDark} />
                 </motion.div>
               )}
 
@@ -2180,7 +2183,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                             const hasCustomEdit = Object.keys(pointEdit).length > 0;
                             const isIncluded = !pdfExcludedPointIds.includes(pointId);
                             const isEditing = String(editingPdfPointId) === pointId;
-                            const previewUrl = getPointPreviewUrl(previewPoint, !!simulationArtFile);
+                            const previewUrl = getPointPreviewUrl(previewPoint, hasPointArtAssignments);
                             const hasPreview = !!previewUrl;
                             const priceValue = Number(previewPoint?.precoFinal ?? previewPoint?.preco);
                             const priceLabel = Number.isFinite(priceValue) && priceValue > 0 ? formatCurrency(priceValue) : '—';
@@ -2286,7 +2289,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     </div>
                   </Card>
 
-                  <PreviewPanel proposalPoints={proposalPointsForPdf} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={!!simulationArtFile} isDark={isDark} />
+                  <PreviewPanel proposalPoints={proposalPointsForPdf} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={hasPointArtAssignments} isDark={isDark} />
                 </motion.div>
               )}
 
@@ -2296,18 +2299,24 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
                   {/* Seções opcionais do PDF (cards selecionáveis) */}
                   <Card isDark={isDark} title="Seções do PDF">
+                    <p className={`mb-3 text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                      Selecione quais seções opcionais devem aparecer no PDF. Passe o mouse sobre cada opção para ver o que ela representa.
+                    </p>
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
                       {[
-                        { key: 'methodology', label: 'Como ler as métricas', Icon: BarChart3 },
-                        { key: 'coverage', label: 'Cobertura e presença', Icon: Radio },
-                        { key: 'impact', label: 'Impacto da campanha', Icon: Zap },
-                        { key: 'mapPrint', label: 'Print do mapa da seleção', Icon: Map }
-                      ].map(({ key, label, Icon }) => (
+                        { key: 'methodology', label: 'Como ler as métricas', Icon: BarChart3, description: 'Página explicativa com a metodologia: como interpretar fluxo, impacto, CPM, inserções e demais métricas usadas na proposta.' },
+                        { key: 'entornoEvidence', label: 'Evidências de entorno', Icon: Map, description: 'Página com mapa geográfico e top 3 pontos com maior aderência ao segmento (estabelecimentos relevantes próximos e score).' },
+                        { key: 'coverage', label: 'Cobertura e presença', Icon: Radio, description: 'Página com indicadores de cobertura (% pontos com entorno analisado, total de locais) e ranking de score por ponto.' },
+                        { key: 'impact', label: 'Impacto da campanha', Icon: Zap, description: 'Página final com tabela de pontos, valores investidos, impacto consolidado e observação comercial.' },
+                        { key: 'mapPrint', label: 'Print do mapa da seleção', Icon: Map, description: 'Adiciona uma página com a captura do mapa interativo da seleção atual de pontos.' }
+                      ].map(({ key, label, Icon, description }) => (
                         <button
                           key={key}
                           type="button"
+                          title={description}
+                          aria-label={`${label}: ${description}`}
                           onClick={() => setPdfSections((s) => ({ ...s, [key]: !s[key] }))}
-                          className={`flex items-center gap-3 rounded-xl border p-3 text-left text-sm font-medium transition-all ${
+                          className={`flex items-start gap-3 rounded-xl border p-3 text-left text-sm font-medium transition-all ${
                             pdfSections[key]
                               ? isDark
                                 ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange shadow-[0_2px_8px_rgba(254,92,43,0.12)]'
@@ -2317,9 +2326,16 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                                 : 'border-neutral-200 bg-neutral-50 text-neutral-500 hover:bg-neutral-100'
                           }`}
                         >
-                          <Icon size={18} className={pdfSections[key] ? (isDark ? 'text-brand-orange' : 'text-orange-600') : isDark ? 'text-brand-gray-500' : 'text-neutral-400'} />
-                          <span>{label}</span>
-                          {pdfSections[key] && <Check size={14} className={`ml-auto ${isDark ? 'text-brand-orange' : 'text-orange-600'}`} />}
+                          <Icon size={18} className={`mt-0.5 flex-shrink-0 ${pdfSections[key] ? (isDark ? 'text-brand-orange' : 'text-orange-600') : isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`} />
+                          <span className="flex-1 min-w-0">
+                            <span className="block leading-tight">{label}</span>
+                            <span className={`mt-1 block text-[10.5px] font-normal leading-snug ${
+                              pdfSections[key]
+                                ? isDark ? 'text-brand-orange/75' : 'text-orange-700/75'
+                                : isDark ? 'text-brand-gray-500' : 'text-neutral-400'
+                            }`}>{description}</span>
+                          </span>
+                          {pdfSections[key] && <Check size={14} className={`mt-0.5 flex-shrink-0 ${isDark ? 'text-brand-orange' : 'text-orange-600'}`} />}
                         </button>
                       ))}
                     </div>
@@ -2537,8 +2553,21 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
               Voltar
             </button>
 
-            <div className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
-              {wizardStep} de {WIZARD_STEPS.length}
+            <div className={`flex flex-col items-center text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>
+              <span>{wizardStep} de {WIZARD_STEPS.length}</span>
+              {(() => {
+                if (wizardStep === 1 && !form.clientName.trim()) {
+                  return <span className={isDark ? 'text-yellow-400' : 'text-yellow-600'}>Informe o nome do cliente</span>;
+                }
+                if (wizardStep === 3 && proposalSourcePoints.length > assignedPointArtCount) {
+                  return <span className={isDark ? 'text-yellow-400' : 'text-yellow-600'}>{proposalSourcePoints.length - assignedPointArtCount} ponto(s) sem arte</span>;
+                }
+                if (wizardStep === 2 && pricingSummary.hasDiscount) {
+                  const pct = pricingSummary.discountPercent || 0;
+                  return <span className={isDark ? 'text-green-400' : 'text-green-600'}>Desconto aplicado: {pct.toFixed(1).replace('.', ',')}%</span>;
+                }
+                return null;
+              })()}
             </div>
 
             {wizardStep < 5 && (
@@ -2692,7 +2721,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
             </div>
 
             <div className={`rounded-2xl border flex-1 p-2 md:p-4 min-h-0 ${isDark ? 'border-white/15 bg-black/45' : 'border-neutral-200 bg-white'}`}>
-              <img src={getPointPreviewUrl(activePreviewPoint, !!simulationArtFile)} alt={`Preview ${activePreviewPoint.nome}`} className="w-full h-full object-contain rounded-xl" />
+              <img src={getPointPreviewUrl(activePreviewPoint, hasPointArtAssignments)} alt={`Preview ${activePreviewPoint.nome}`} className="w-full h-full object-contain rounded-xl" />
             </div>
           </div>
         </div>

@@ -275,6 +275,73 @@ function PointCard({ point, index, total }) {
   );
 }
 
+// ── Compact Point Card (used when proposal has >= 30 points — grid layout) ──
+function CompactPointCard({ point, index, total }) {
+  const img = getPointImage(point);
+  const audience = buildAudienceQualification(point);
+  const tipo = getPointTypeShort(point);
+  const insertionMetric = isStaticPrintPoint(point)
+    ? { label: 'Exibição', value: 'Contínua' }
+    : (point.insercoes > 0 ? { label: 'Inserções', value: formatNumber(point.insercoes) } : null);
+  const value = point.precoFinal || point.preco || 0;
+
+  const stats = [
+    point.fluxo > 0 && { label: 'Pessoas/mês', value: formatNumber(point.fluxo) },
+    point.telas > 0 && { label: 'Telas', value: String(point.telas) },
+    insertionMetric,
+    audience.badge && { label: 'Público', value: audience.badge },
+  ].filter(Boolean);
+
+  return (
+    <div className="rounded-2xl border border-gray-200/80 bg-white shadow-[0_4px_14px_rgba(0,0,0,0.05)] overflow-hidden grid grid-cols-[1fr_140px]" style={{ borderLeft: `4px solid ${ORANGE}`, minHeight: 200 }}>
+      {/* Left: content */}
+      <div className="p-4 flex flex-col min-w-0">
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          {tipo && (
+            <span className="inline-flex items-center h-5 px-2 rounded text-[10px] font-bold uppercase tracking-wide text-white truncate max-w-[60%]" style={{ background: ORANGE }}>
+              {tipo}
+            </span>
+          )}
+          <span className="text-[10px] font-bold tabular-nums px-2 py-0.5 rounded-full" style={{ background: 'rgba(232,89,26,0.10)', border: '1px solid rgba(232,89,26,0.22)', color: ORANGE }}>
+            {index + 1}/{total}
+          </span>
+        </div>
+        <h3 className="text-sm font-extrabold text-gray-900 leading-tight tracking-tight line-clamp-2 break-words">{point.nome}</h3>
+        <p className="text-[11px] text-gray-500 mt-1 line-clamp-2 break-words">
+          {[point.cidade, point.endereco].filter(Boolean).join(' · ') || '—'}
+        </p>
+        {stats.length > 0 && (
+          <div className="grid grid-cols-2 gap-1 mt-2">
+            {stats.map((s) => (
+              <div key={s.label} className="rounded px-2 py-1" style={{ background: 'rgba(0,0,0,0.025)', border: '1px solid rgba(0,0,0,0.05)' }}>
+                <p className="text-[8px] font-bold uppercase tracking-wide text-gray-400 truncate">{s.label}</p>
+                <p className="text-[12px] font-bold text-gray-900 truncate">{s.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="mt-auto pt-2 flex items-end justify-between gap-2">
+          <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: ORANGE }}>Valor mensal</p>
+          {value > 0 && (
+            <p className="text-lg font-extrabold leading-none" style={{ color: ORANGE }}>{formatCurrency(value)}</p>
+          )}
+        </div>
+      </div>
+      {/* Right: image */}
+      <div className="relative bg-gray-100 overflow-hidden">
+        {img ? (
+          <>
+            <img src={img} alt={point.nome} className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: point.foto_focal_point || 'center 38%' }} />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/5 to-black/25" />
+          </>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-[10px] uppercase tracking-wider text-gray-400">sem foto</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function PropostaPublica() {
   const { token } = useParams();
@@ -328,6 +395,7 @@ export default function PropostaPublica() {
   const points = data?.points || [];
   const totals = data?.totals || {};
   const pricingSummary = data?.pricingSummary || {};
+  const useCompactGrid = points.length >= 30;
   const validPoints = useMemo(() => points.filter(p => p.lat && p.lng), [points]);
   const hasDigitalInsertionPoints = useMemo(
     () => points.some((point) => !isStaticPrintPoint(point)),
@@ -543,6 +611,7 @@ export default function PropostaPublica() {
 
             {/* Sidebar */}
             <div className="border-t lg:border-t-0 lg:border-l border-gray-100 p-5 space-y-4">
+              {!useCompactGrid && (
               <div className="rounded-xl border border-gray-100 p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="w-2 h-2 rounded-full" style={{ background: ORANGE }} />
@@ -574,6 +643,7 @@ export default function PropostaPublica() {
                   </div>
                 )}
               </div>
+              )}
 
               <div className="rounded-xl p-4 relative overflow-hidden" style={{ background: 'linear-gradient(145deg, rgba(254,92,43,0.06) 0%, rgba(232,89,26,0.02) 100%)', border: '1px solid rgba(232,89,26,0.18)' }}>
                 <div aria-hidden className="absolute -top-8 -right-8 w-32 h-32 rounded-full" style={{ background: 'radial-gradient(circle, rgba(254,92,43,0.12) 0%, transparent 70%)' }} />
@@ -635,9 +705,11 @@ export default function PropostaPublica() {
             </span>
             Endereços de Mídia
           </h2>
-          <div className="space-y-6">
+          <div className={useCompactGrid ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-6'}>
             {points.map((p, i) => (
-              <PointCard key={p.id || i} point={p} index={i} total={points.length} />
+              useCompactGrid
+                ? <CompactPointCard key={p.id || i} point={p} index={i} total={points.length} />
+                : <PointCard key={p.id || i} point={p} index={i} total={points.length} />
             ))}
           </div>
         </div>

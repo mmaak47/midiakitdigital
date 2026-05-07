@@ -37,8 +37,11 @@ const PROPOSAL_ATMOSPHERE = `
 <div style="position:absolute;left:0;top:0;right:0;height:2px;background:linear-gradient(90deg, rgba(232,89,26,0) 0%, #E8591A 20%, #FE5C2B 50%, #E8591A 80%, rgba(232,89,26,0) 100%);pointer-events:none;z-index:2;"></div>
 `;
 
-// Sharp logo rendering — avoid html2canvas blur + clipped edges
-const LOGO_IMG_STYLE_BASE = 'object-fit:contain;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;padding:2px;box-sizing:content-box;';
+// Sharp logo rendering — avoid html2canvas blur + clipped edges.
+// IMPORTANT: keep padding:0 + box-sizing:border-box so `height:Npx` matches the
+// rendered box exactly (com box-sizing:content-box + padding:2px o logotipo era
+// renderizado em N+4px causando crop nas bordas no print do Puppeteer).
+const LOGO_IMG_STYLE_BASE = 'object-fit:contain;display:block;image-rendering:-webkit-optimize-contrast;padding:0;margin:0;box-sizing:border-box;';
 
 const CITY_STATE_MAP = {
   'londrina': 'Paraná',
@@ -755,7 +758,7 @@ function proposalIcon(kind) {
 }
 
 function formatPointCountLabel(count) {
-  return `${count} ${count === 1 ? 'ponto' : 'pontos'}`;
+  return `${count} ${count === 1 ? 'endereço' : 'endereços'}`;
 }
 
 function buildHeroImageFrame(image, options = {}) {
@@ -855,7 +858,7 @@ function buildMidiaKitCoverPage({ cidade, pontos, resumo, assets, selectedCities
     <div style="position:absolute;left:50%;top:0;bottom:0;width:160px;background:linear-gradient(to right,#07090b 0%,rgba(7,9,11,0.92) 36%,rgba(7,9,11,0.5) 72%,rgba(7,9,11,0) 100%);"></div>
 
     <div style="position:absolute;left:72px;top:68px;right:54%;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;">
-      <img src="${assets.logo || ''}" alt="" style="width:172px;height:auto;object-fit:contain;" />
+      <img src="${assets.logo || ''}" alt="" style="width:172px;height:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
       <span style="display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 16px;border-radius:999px;background:${BRAND_ORANGE};font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#fff;">MIDIA KIT</span>
     </div>
 
@@ -917,7 +920,7 @@ function buildMidiaKitManifestoPage({ assets }) {
       </div>
 
       <div style="flex:1;padding:56px 64px;display:flex;flex-direction:column;justify-content:center;">
-        <img src="${assets.logo || ''}" alt="" style="width:160px;height:auto;object-fit:contain;" />
+        <img src="${assets.logo || ''}" alt="" style="width:160px;height:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
         <div style="margin-top:20px;font-size:12px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:${BRAND_ORANGE};">Visão do mídia kit</div>
         <div style="margin-top:12px;font-family:Poppins, system-ui, sans-serif;font-size:36px;line-height:1.1;font-weight:700;color:#fff;letter-spacing:-0.03em;">Planejamento com repertório, critério e experiência de mercado.</div>
         <div style="margin-top:16px;font-size:15px;line-height:1.45;color:rgba(255,255,255,0.72);">A Intermidia atua desde 2007 no OOH e no DOOH, conectando pontos premium, dados de audiência e leitura comercial para campanhas memoráveis.</div>
@@ -983,7 +986,7 @@ function buildMidiaKitSummaryPage({ cidade, pontos, assets }) {
         <div style="margin-top:12px;font-family:Poppins, system-ui, sans-serif;font-size:72px;line-height:0.95;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:-0.04em;">${escapeHtml(cidade)}</div>
         ${estado ? `<div style="margin-top:8px;font-size:18px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.66);">${escapeHtml(estado)}</div>` : ''}
       </div>
-      <img src="${assets.logo || ''}" alt="" style="width:170px;height:auto;object-fit:contain;opacity:0.98;" />
+      <img src="${assets.logo || ''}" alt="" style="width:170px;height:auto;${LOGO_IMG_STYLE_BASE}opacity:0.98;flex-shrink:0;" />
     </div>
 
     <div style="position:absolute;left:70px;right:70px;top:206px;bottom:44px;display:grid;grid-template-columns:1.05fr 0.95fr;gap:24px;align-items:stretch;">
@@ -1109,7 +1112,7 @@ function buildMidiaKitFormatDividerPage({ tipo, formatStats, cityStats, assets }
           ${lines.map((line) => `<div style="font-family:Poppins, system-ui, sans-serif;font-size:76px;line-height:0.92;font-weight:700;color:#fff;letter-spacing:-0.05em;">${escapeHtml(line)}</div>`).join('')}
         </div>
       </div>
-      <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:52px;width:auto;object-fit:contain;opacity:0.96;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.45));" />
+      <img src="${assets.logoHorizontal || assets.logo || ''}" alt="" style="height:52px;width:auto;${LOGO_IMG_STYLE_BASE}opacity:0.96;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.45));flex-shrink:0;" />
     </div>
 
     <div style="position:absolute;left:82px;right:82px;bottom:84px;display:grid;grid-template-columns:1fr auto;gap:28px;align-items:end;">
@@ -1150,7 +1153,7 @@ function buildMidiaKitEndingPage({ assets }) {
     </div>
 
     <div style="position:absolute;bottom:60px;right:60px;text-align:right;">
-      <img src="${assets.logo07 || assets.logo || ''}" alt="" style="width:120px;height:auto;object-fit:contain;" />
+      <img src="${assets.logo07 || assets.logo || ''}" alt="" style="width:120px;height:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
       <div style="margin-top:8px;font-size:11px;color:rgba(255,255,255,0.25);">© 2026</div>
     </div>
   `, '#0A0A0A');
@@ -1185,7 +1188,7 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
 
       <div style="position:absolute;left:0;top:8px;bottom:0;width:58.5%;display:flex;flex-direction:column;padding:28px 40px 24px 40px;box-sizing:border-box;">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-shrink:0;">
-          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="width:160px;height:auto;object-fit:contain;" />
+          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="width:160px;height:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
           <span style="display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 14px;border-radius:999px;background:rgba(254,92,43,0.10);border:1px solid rgba(254,92,43,0.30);font-size:15px;font-weight:700;color:${BRAND_ORANGE};flex-shrink:0;">${index}/${total}</span>
         </div>
 
@@ -1244,8 +1247,10 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
   const finalTotal = pricingSummary?.finalTotal ?? proposalTotals.valorTotal;
   const ticketMedio = proposalPoints.length > 0 ? finalTotal / proposalPoints.length : 0;
   const simulatedPoints = proposalPoints.filter((point) => Boolean(point?.proposalSimulationPreview || point?.simulacao_preview)).length;
+  const totalTelasProposta = proposalPoints.reduce((sum, p) => sum + (Number(p?.telas) || 0), 0);
   const cards = [
-    { iconHtml: proposalIcon('target'), label: 'Pontos', value: formatInt(proposalPoints.length) },
+    { iconHtml: proposalIcon('target'), label: 'Endereços', value: formatInt(proposalPoints.length) },
+    { iconHtml: proposalIcon('target'), label: 'Pontos de Impacto (telas)', value: formatInt(totalTelasProposta) },
     { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
     { iconHtml: proposalIcon('money'), label: 'Valor Tabela', value: formatMoney(originalTotal) },
     { iconHtml: proposalIcon('money'), label: 'Valor Negociado', value: formatMoney(finalTotal) },
@@ -1268,7 +1273,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
     <div style="position:relative;z-index:1;width:100%;display:grid;grid-template-columns:1.04fr 0.96fr;height:768px;max-height:768px;padding:58px 64px 50px;gap:22px;box-sizing:border-box;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;flex-direction:column;min-width:0;">
         <div style="display:flex;align-items:center;gap:18px;">
-          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:48px;width:auto;object-fit:contain;" />
+          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:48px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
           <div data-calibration-id="proposal.cover.badge" style="display:inline-flex;align-items:center;justify-content:center;height:${layout.badgeMinHeight}px;padding:0 ${layout.badgePaddingX}px;border-radius:100px;background:linear-gradient(135deg, #FE5C2B 0%, ${PROPOSAL_ACCENT} 100%);border:1px solid ${PROPOSAL_ACCENT};font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#fff;line-height:1;text-align:center;box-shadow:0 4px 12px -2px rgba(232,89,26,0.40);">
             <span style="display:block;">Proposta comercial</span>
           </div>
@@ -1306,10 +1311,11 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
 
         <div data-calibration-id="proposal.cover.metricCards" style="margin-top:auto;">
           ${buildMetricCards(cards, {
+              columns: 3,
               valueSize: layout.metricValueSize,
               labelSize: layout.metricLabelSize,
               iconSize: layout.metricIconSize,
-              minHeight: 146,
+              minHeight: 110,
               gap: layout.metricGap,
               padding: layout.metricPadding,
               valueWhiteSpace: 'normal',
@@ -1352,6 +1358,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
 function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, pricingSummary, segmento, assets }) {
   const segmentLabel = getSegmentDisplayName(segmento);
   const pointCount = proposalPoints.length;
+  const totalTelasMethodology = proposalPoints.reduce((sum, p) => sum + (Number(p?.telas) || 0), 0);
   const fluxoTotal = Number(proposalTotals?.fluxoTotal) || 0;
   const hasDigitalInsertionPoints = proposalPoints.some((point) => isInsertionBasedFormat(point?.tipo));
   const digitalInsercoesTotal = getDigitalInsercoesTotal(proposalPoints);
@@ -1367,6 +1374,18 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
     : 0;
 
   const metrics = [
+    {
+      name: 'Endereços',
+      meaning: 'Quantidade de endereços (pontos físicos) selecionados na proposta.',
+      howToRead: 'Total de endereços (pontos físicos) que compõem o plano comercial.',
+      value: formatInt(pointCount)
+    },
+    {
+      name: 'Pontos de Impacto (telas)',
+      meaning: 'Soma das telas (pontos de impacto) disponíveis no conjunto de endereços da proposta.',
+      howToRead: 'Quantidade total de telas que entregarão a campanha — somatório das telas de todos os endereços.',
+      value: formatInt(totalTelasMethodology)
+    },
     {
       name: 'Valor Tabela',
       meaning: 'Soma dos valores mensais dos pontos sem desconto.',
@@ -1422,7 +1441,7 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
           <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:42px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
           <div style="display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 16px;border-radius:100px;background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.24);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Como ler as métricas</div>
         </div>
-        <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(segmentLabel)} • ${formatInt(pointCount)} pontos</div>
+        <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">${escapeHtml(segmentLabel)} • ${formatInt(pointCount)} endereços</div>
       </div>
 
       <div style="padding:12px 16px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};font-size:12px;line-height:1.42;color:${PROPOSAL_TEXT_SECONDARY};">
@@ -1430,7 +1449,7 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
       </div>
 
       <div style="display:grid;grid-template-columns:${hasEntornoData ? '1.06fr 0.94fr' : '1fr'};gap:10px;min-height:0;">
-        <div style="display:grid;grid-template-columns:repeat(${hasEntornoData ? '2' : '3'},minmax(0,1fr));grid-template-rows:repeat(${hasEntornoData ? '3' : '2'},minmax(0,1fr));gap:10px;align-content:stretch;">
+        <div style="display:grid;grid-template-columns:repeat(${hasEntornoData ? '2' : '4'},minmax(0,1fr));grid-template-rows:repeat(${hasEntornoData ? '4' : '2'},minmax(0,1fr));gap:10px;align-content:stretch;">
           ${metrics.map((item) => `
             <div style="position:relative;padding:14px 14px;border-radius:14px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};display:flex;flex-direction:column;gap:8px;height:100%;box-sizing:border-box;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.03);">
               <div style="position:absolute;top:0;left:0;width:32px;height:3px;background:linear-gradient(90deg, ${PROPOSAL_ACCENT} 0%, #FE5C2B 100%);border-radius:0 0 3px 0;"></div>
@@ -1785,43 +1804,159 @@ function buildEntornoEvidenceMapHtml(rows) {
   const pointMarkersHtml = points.map((entry) => {
     const { x, y } = project(entry.lat, entry.lng);
     return `
-      <div style="position:absolute;left:${(x - 10).toFixed(1)}px;top:${(y - 10).toFixed(1)}px;width:20px;height:20px;border-radius:999px;border:1px solid rgba(254,92,43,0.56);background:rgba(254,92,43,0.3);"></div>
-      <div style="position:absolute;left:${(x - 6).toFixed(1)}px;top:${(y - 6).toFixed(1)}px;width:12px;height:12px;border-radius:999px;background:${BRAND_ORANGE};"></div>
-      <div style="position:absolute;left:${(x - 7).toFixed(1)}px;top:${(y - 6).toFixed(1)}px;min-width:14px;text-align:center;font-size:9px;font-weight:700;color:#0a0a0a;line-height:12px;">${entry.index}</div>
+      <div style="position:absolute;left:${(x - 12).toFixed(1)}px;top:${(y - 12).toFixed(1)}px;width:24px;height:24px;border-radius:999px;border:2px solid #ffffff;background:rgba(254,92,43,0.35);box-shadow:0 4px 12px rgba(0,0,0,0.25);"></div>
+      <div style="position:absolute;left:${(x - 7).toFixed(1)}px;top:${(y - 7).toFixed(1)}px;width:14px;height:14px;border-radius:999px;background:${BRAND_ORANGE};box-shadow:0 0 0 2px #ffffff;"></div>
+      <div style="position:absolute;left:${(x - 8).toFixed(1)}px;top:${(y - 7).toFixed(1)}px;min-width:16px;text-align:center;font-size:10px;font-weight:800;color:#ffffff;line-height:14px;font-family:Poppins, system-ui, sans-serif;">${entry.index}</div>
     `;
   }).join('');
 
   const nearbyMarkersHtml = nearbyMarkers.map((marker) => `
-    <div title="${escapeHtml(`${marker.label} • ${Math.round(marker.distance)} m`)}" style="position:absolute;left:${(marker.x - 4).toFixed(1)}px;top:${(marker.y - 4).toFixed(1)}px;width:8px;height:8px;border-radius:999px;background:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.32);"></div>
+    <div title="${escapeHtml(`${marker.label} • ${Math.round(marker.distance)} m`)}" style="position:absolute;left:${(marker.x - 4).toFixed(1)}px;top:${(marker.y - 4).toFixed(1)}px;width:9px;height:9px;border-radius:999px;background:#1f2937;border:2px solid #ffffff;box-shadow:0 1px 2px rgba(0,0,0,0.25);"></div>
   `).join('');
 
-  const gridStep = 110;
-  const gridLines = [];
-  for (let x = gridStep; x < width; x += gridStep) {
-    gridLines.push(`<line x1="${x}" y1="0" x2="${x}" y2="${height}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>`);
+  // NOTA: Antigamente usávamos tiles do OpenStreetMap diretamente
+  // (`https://tile.openstreetmap.org/{z}/{x}/{y}.png`) mas o Puppeteer
+  // frequentemente não aguarda essas imagens carregarem (ou são bloqueadas
+  // por User-Agent/rate limit) e o PDF saía com ícones de imagem quebrada.
+  // Agora geramos um fundo de mapa estilizado, totalmente self-contained,
+  // que sempre renderiza e fica visualmente coerente com a marca.
+
+  // "Quarteirões" estilizados: rede de linhas finas com cruzamentos suaves
+  // em torno dos pontos, dando sensação cartográfica sem depender de rede.
+  const blockLinesHtml = [];
+  const lineSpacing = 38;
+  for (let gx = 0; gx <= width; gx += lineSpacing) {
+    blockLinesHtml.push(`<div style="position:absolute;left:${gx}px;top:0;width:1px;height:100%;background:rgba(15,23,42,0.06);"></div>`);
   }
-  for (let y = gridStep; y < height; y += gridStep) {
-    gridLines.push(`<line x1="0" y1="${y}" x2="${width}" y2="${y}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>`);
+  for (let gy = 0; gy <= height; gy += lineSpacing) {
+    blockLinesHtml.push(`<div style="position:absolute;left:0;top:${gy}px;width:100%;height:1px;background:rgba(15,23,42,0.06);"></div>`);
   }
+  // Algumas avenidas mais marcadas (deterministicamente derivadas dos pontos)
+  // para quebrar o padrão monótono e parecer um traçado urbano real.
+  const avenuesHtml = points.slice(0, 3).map((entry, idx) => {
+    const projected = project(entry.lat, entry.lng);
+    const angleDeg = (idx * 37 + 18) % 180 - 90;
+    return `<div style="position:absolute;left:${(projected.x - width).toFixed(1)}px;top:${projected.y.toFixed(1)}px;width:${(width * 2).toFixed(0)}px;height:2px;background:rgba(15,23,42,0.08);transform:rotate(${angleDeg}deg);transform-origin:center center;"></div>`;
+  }).join('');
+  // Halos suaves ao redor de cada ponto, lembrando bairros / áreas de cobertura.
+  const haloHtml = points.map((entry) => {
+    const { x, y } = project(entry.lat, entry.lng);
+    return `<div style="position:absolute;left:${(x - 90).toFixed(1)}px;top:${(y - 90).toFixed(1)}px;width:180px;height:180px;border-radius:999px;background:radial-gradient(circle at center, rgba(254,92,43,0.12) 0%, rgba(254,92,43,0.05) 45%, rgba(254,92,43,0) 75%);"></div>`;
+  }).join('');
 
   return `
-    <div style="position:relative;width:100%;height:100%;border-radius:16px;overflow:hidden;background:#0b0b0b;" role="img" aria-label="Mapa geográfico de pontos e entorno">
-      <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" preserveAspectRatio="none" style="position:absolute;inset:0;">
-        <rect x="0" y="0" width="${width}" height="${height}" fill="#0a0a0a"/>
-        <rect x="0" y="0" width="${width}" height="${height}" fill="url(#env-grid-grad)"/>
-        <defs>
-          <linearGradient id="env-grid-grad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stop-color="rgba(255,90,31,0.07)"/>
-            <stop offset="100%" stop-color="rgba(255,255,255,0.02)"/>
-          </linearGradient>
-        </defs>
-        ${gridLines.join('')}
-      </svg>
-      <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.05),rgba(0,0,0,0.16));"></div>
+    <div style="position:relative;width:100%;height:100%;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,#f4f6f9 0%,#e9eef3 100%);" role="img" aria-label="Mapa geográfico de pontos e entorno">
+      <div style="position:absolute;inset:0;">
+        ${blockLinesHtml.join('')}
+        ${avenuesHtml}
+      </div>
+      ${haloHtml}
+      <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0) 60%,rgba(251,248,245,0.45) 100%);pointer-events:none;"></div>
       ${nearbyMarkersHtml}
       ${pointMarkersHtml}
     </div>
   `;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPACT GRID LAYOUT — used when proposalPoints.length >= PROPOSAL_GRID_THRESHOLD
+// Renders multiple points per page in a 2×3 grid card layout, preserving
+// identidade visual (PROPOSAL_BG / PROPOSAL_ACCENT). One card never splits between pages.
+// ─────────────────────────────────────────────────────────────────────────────
+const PROPOSAL_GRID_THRESHOLD = 30;
+const PROPOSAL_GRID_COLS = 2;
+const PROPOSAL_GRID_ROWS = 3;
+const PROPOSAL_GRID_PER_PAGE = PROPOSAL_GRID_COLS * PROPOSAL_GRID_ROWS; // 6
+
+function buildProposalGridPointCard({ point, image, globalIndex, totalPoints }) {
+  const audience = buildAudienceQualification(point);
+  const monthlyValue = Number(point?.preco);
+  const monthlyValueLabel = Number.isFinite(monthlyValue) && monthlyValue > 0
+    ? formatMoney(monthlyValue)
+    : '—';
+  const fluxoLabel = isVehicleFlowPoint(point) ? 'veículos/mês' : 'pessoas/mês';
+  const fluxoValue = Number.isFinite(Number(point?.fluxo)) ? formatInt(Number(point.fluxo)) : '—';
+  const insertionMetric = resolveInsertionMetric(point);
+  const telasValue = Number.isFinite(Number(point?.telas)) ? formatInt(Number(point.telas)) : '—';
+  const tipoLabel = getPointTypeLabel(point) || 'Ponto';
+
+  const stats = [
+    { label: fluxoLabel, value: fluxoValue },
+    { label: 'Telas', value: telasValue },
+    { label: insertionMetric.label, value: insertionMetric.value },
+    { label: 'Público', value: audience.badge || 'A/B+' },
+  ];
+
+  return `
+    <div style="position:relative;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};border-left:4px solid ${PROPOSAL_ACCENT};border-radius:18px;overflow:hidden;display:grid;grid-template-columns:1fr 150px;gap:0;box-shadow:0 4px 14px rgba(0,0,0,0.05);">
+      <!-- Left: content -->
+      <div style="padding:14px 16px 12px;display:flex;flex-direction:column;min-width:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+          <span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:5px;background:${PROPOSAL_ACCENT};font-size:9.5px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:0.06em;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%;">${escapeHtml(tipoLabel)}</span>
+          <span style="font-size:10px;font-weight:700;color:${PROPOSAL_ACCENT};background:rgba(232,89,26,0.10);border:1px solid rgba(232,89,26,0.22);padding:2px 8px;border-radius:100px;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap;">${globalIndex}/${totalPoints}</span>
+        </div>
+        <div style="font-size:14px;font-weight:800;color:${PROPOSAL_TEXT};letter-spacing:-0.015em;line-height:1.2;max-height:2.4em;overflow:hidden;word-break:break-word;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
+        <div style="margin-top:3px;font-size:10.5px;color:${PROPOSAL_TEXT_SECONDARY};line-height:1.3;max-height:2.6em;overflow:hidden;word-break:break-word;">${escapeHtml([point.cidade, point.endereco].filter(Boolean).join(' · ') || '—')}</div>
+
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px;margin-top:8px;">
+          ${stats.map((s) => `
+            <div style="background:rgba(0,0,0,0.025);border:1px solid rgba(0,0,0,0.05);border-radius:7px;padding:5px 8px;min-width:0;">
+              <div style="font-size:8px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:${PROPOSAL_LABEL};line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(s.label)}</div>
+              <div style="font-size:12px;font-weight:800;color:${PROPOSAL_TEXT};line-height:1.15;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(s.value)}</div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div style="margin-top:auto;padding-top:8px;display:flex;align-items:flex-end;justify-content:space-between;gap:8px;">
+          <div style="font-size:8px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_ACCENT};line-height:1;">Valor mensal</div>
+          <div style="font-size:18px;font-weight:900;color:${PROPOSAL_ACCENT};line-height:1;letter-spacing:-0.02em;">${escapeHtml(monthlyValueLabel)}</div>
+        </div>
+      </div>
+
+      <!-- Right: image -->
+      <div style="position:relative;background:${PROPOSAL_SURFACE_ALT};overflow:hidden;">
+        ${image ? `
+          <img src="${image}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(point?.foto_focal_point || 'center 38%')};display:block;" />
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.04),rgba(0,0,0,0.18));pointer-events:none;"></div>
+        ` : `
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:${PROPOSAL_LABEL};font-size:10px;letter-spacing:0.08em;text-transform:uppercase;">sem foto</div>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+function buildProposalGridPointsPage({ pointsBatch, imagesBatch, pageIndex, totalPages, totalPoints, startGlobalIndex, assets }) {
+  const cardsHtml = pointsBatch.map((point, i) => buildProposalGridPointCard({
+    point,
+    image: imagesBatch[i],
+    globalIndex: startGlobalIndex + i,
+    totalPoints,
+  })).join('');
+
+  return createPage(`
+    <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
+    ${PROPOSAL_ATMOSPHERE}
+    <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:24px 28px 22px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:34px;width:auto;${LOGO_IMG_STYLE_BASE}" />
+          <div style="width:1.5px;height:22px;background:${PROPOSAL_BORDER};"></div>
+          <div style="font-size:14px;font-weight:700;color:${PROPOSAL_TEXT};letter-spacing:-0.01em;">Endereços da Campanha</div>
+          <div style="font-size:11px;font-weight:600;color:${PROPOSAL_TEXT_SECONDARY};">· ${totalPoints} endereços</div>
+        </div>
+        <div style="display:inline-flex;align-items:center;height:26px;padding:0 12px;border-radius:100px;border:1px solid rgba(232,89,26,0.24);background:rgba(232,89,26,0.10);font-size:11px;font-weight:700;color:${PROPOSAL_ACCENT};line-height:1;font-variant-numeric:tabular-nums;">
+          Página ${pageIndex} / ${totalPages}
+        </div>
+      </div>
+
+      <!-- Grid -->
+      <div style="flex:1;min-height:0;display:grid;grid-template-columns:repeat(${PROPOSAL_GRID_COLS},1fr);grid-template-rows:repeat(${PROPOSAL_GRID_ROWS},1fr);gap:14px;">
+        ${cardsHtml}
+      </div>
+    </div>
+  `, PROPOSAL_BG);
 }
 
 function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmento, assets }) {
@@ -1854,11 +1989,18 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
 
   const evidenceMapSvg = buildEntornoEvidenceMapHtml(rows);
 
+  // Dynamic page height: header/sumário/mapa+cards (~570px) + linhas de detalhes
+  // (até 3 cards, ~95px cada). Garante que nada seja cortado/sobreposto no PDF.
+  const detailRows = Math.min(rows.length, 3);
+  const ENTORNO_OVERHEAD_PX = 560;
+  const ENTORNO_DETAIL_ROW_PX = 95;
+  const entornoPageHeight = Math.max(PAGE_HEIGHT, ENTORNO_OVERHEAD_PX + detailRows * ENTORNO_DETAIL_ROW_PX);
+
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
     ${PROPOSAL_ATMOSPHERE}
 
-    <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:42px 56px;box-sizing:border-box;display:grid;grid-template-rows:auto auto auto 1fr;gap:12px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+    <div style="position:relative;z-index:1;width:100%;height:${entornoPageHeight}px;min-height:${entornoPageHeight}px;padding:42px 56px;box-sizing:border-box;display:grid;grid-template-rows:auto auto auto auto;gap:12px;overflow:visible;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;">
         <div style="display:flex;align-items:center;gap:14px;">
           <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:44px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
@@ -1873,7 +2015,7 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
           <div style="margin-top:6px;font-size:30px;line-height:1;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${formatInt(pointsWithEntorno.length)}</div>
         </div>
         <div>
-          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Total de pontos da proposta</div>
+          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Total de endereços da proposta</div>
           <div style="margin-top:6px;font-size:30px;line-height:1;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${formatInt(proposalPoints.length)}</div>
         </div>
         <div>
@@ -1882,8 +2024,8 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1.05fr 0.95fr;gap:10px;height:280px;">
-        <div style="border-radius:12px;border:1px solid ${PROPOSAL_BORDER};background:${PROPOSAL_SURFACE};overflow:hidden;position:relative;">
+      <div style="display:grid;grid-template-columns:1.05fr 0.95fr;gap:10px;min-height:280px;align-items:stretch;">
+        <div style="border-radius:12px;border:1px solid ${PROPOSAL_BORDER};background:${PROPOSAL_SURFACE};overflow:hidden;position:relative;min-height:280px;">
           <div style="position:absolute;top:10px;left:12px;z-index:2;padding:5px 10px;border-radius:100px;border:1px solid rgba(232,89,26,0.26);background:rgba(232,89,26,0.14);font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Mapa geográfico de evidências</div>
           <div style="position:absolute;right:12px;bottom:10px;z-index:2;display:flex;gap:10px;align-items:center;font-size:11px;color:${PROPOSAL_TEXT_SECONDARY};">
             <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:999px;background:${BRAND_ORANGE};display:inline-block;"></span>Pontos</span>
@@ -1892,22 +2034,21 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
           <div style="position:absolute;inset:0;padding:10px;box-sizing:border-box;">${evidenceMapSvg}</div>
         </div>
 
-        <div style="display:grid;gap:8px;align-content:start;">
+        <div style="display:grid;gap:8px;align-content:stretch;grid-template-rows:repeat(3, minmax(0, 1fr));">
           ${rows.slice(0, 3).map(({ point, totalLocais, score }) => `
-            <div style="padding:12px 12px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};border-left:3px solid ${PROPOSAL_ACCENT};">
-              <div style="font-size:14px;line-height:1.2;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;word-break:break-word;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
-              <div style="margin-top:5px;font-size:12px;color:${PROPOSAL_TEXT_SECONDARY};">${escapeHtml(point.cidade || '-')} • ${escapeHtml(getPointTypeLabel(point) || '-')}</div>
-              <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                <div style="font-size:12px;color:${PROPOSAL_LABEL};">Locais relevantes</div>
-                <div style="font-size:18px;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${formatInt(totalLocais)}</div>
+            <div style="padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};border-left:3px solid ${PROPOSAL_ACCENT};display:grid;grid-template-columns:1fr auto;column-gap:10px;align-items:center;overflow:hidden;">
+              <div style="min-width:0;">
+                <div style="font-size:13px;line-height:1.2;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;word-break:break-word;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;">${escapeHtml(point.nome || 'Ponto sem nome')}</div>
+                <div style="margin-top:3px;font-size:11px;color:${PROPOSAL_TEXT_SECONDARY};line-height:1.2;">${escapeHtml(point.cidade || '-')} • ${escapeHtml(getPointTypeLabel(point) || '-')}</div>
+                <div style="margin-top:5px;font-size:11px;color:${PROPOSAL_LABEL};">Locais relevantes <span style="font-size:13px;font-weight:700;color:${PROPOSAL_TEXT};font-family:Poppins, system-ui, sans-serif;">${formatInt(totalLocais)}</span></div>
               </div>
-              <div style="margin-top:4px;font-size:32px;color:${PROPOSAL_ACCENT};font-weight:800;line-height:1;">${score.toFixed(1).replace('.', ',')}</div>
+              <div style="font-size:22px;color:${PROPOSAL_ACCENT};font-weight:800;line-height:1;font-family:Poppins, system-ui, sans-serif;">${score.toFixed(1).replace('.', ',')}</div>
             </div>
           `).join('')}
         </div>
       </div>
 
-      <div style="display:grid;gap:8px;align-content:start;overflow:hidden;">
+      <div style="display:grid;gap:8px;align-content:start;overflow:visible;">
         ${rows.slice(0, 3).map(({ point, totalLocais, score, places, summary }) => `
           <div style="padding:10px 12px;border-radius:12px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};display:grid;grid-template-columns:2fr 0.8fr 1.5fr;gap:10px;align-items:start;">
             <div>
@@ -1929,7 +2070,7 @@ function buildProposalEntornoEvidencePage({ proposalCity, proposalPoints, segmen
         `).join('')}
       </div>
     </div>
-  `, PROPOSAL_BG);
+  `, PROPOSAL_BG, { height: entornoPageHeight, cssClass: 'entorno-evidence-page' });
 }
 
 export async function loadPdfAssets(cidade = '') {
@@ -2040,11 +2181,17 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
   const coveragePct = proposalPoints.length ? Math.round((withEntorno.length / proposalPoints.length) * 100) : 0;
   const totalLocais = proposalPoints.reduce((s, p) => s + (Number(p?.entornoMetrics?.total_estabelecimentos_relacionados) || 0), 0);
 
+  // Dynamic page height: fixed overhead (header + 4 summary cards + "Presença por ponto" title + paddings)
+  // plus per-row height for every point so we never overflow the page.
+  const COVERAGE_ROW_HEIGHT_PX = 72;
+  const COVERAGE_OVERHEAD_PX = 320;
+  const coveragePageHeight = Math.max(PAGE_HEIGHT, COVERAGE_OVERHEAD_PX + proposalPoints.length * COVERAGE_ROW_HEIGHT_PX);
+
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
     ${PROPOSAL_ATMOSPHERE}
     <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(254,92,43,0.06) 0%,transparent 40%);z-index:0;"></div>
-    <div style="position:relative;z-index:1;width:100%;height:768px;max-height:768px;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+    <div style="position:relative;z-index:1;width:100%;height:${coveragePageHeight}px;min-height:${coveragePageHeight}px;padding:52px 62px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:visible;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;">
         <div style="display:flex;align-items:center;gap:16px;">
           <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:44px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
@@ -2055,7 +2202,7 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
 
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
         ${[
-          { label: 'Pontos na proposta', value: formatInt(proposalPoints.length) },
+          { label: 'Endereços na proposta', value: formatInt(proposalPoints.length) },
           { label: 'Com entorno analisado', value: formatInt(withEntorno.length) },
           { label: 'Cobertura do segmento', value: `${coveragePct}%` },
           { label: 'Total de locais mapeados', value: formatInt(totalLocais) }
@@ -2067,7 +2214,7 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
         `).join('')}
       </div>
 
-      <div style="flex:1;display:grid;gap:12px;align-content:start;overflow:hidden;">
+      <div style="flex:1;display:grid;gap:12px;align-content:start;overflow:visible;">
         <div style="font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};padding-bottom:8px;border-bottom:1px solid ${PROPOSAL_BORDER};">Presença por ponto</div>
         ${proposalPoints.map((point) => {
           const locais = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) || 0;
@@ -2080,8 +2227,8 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
                 <div style="font-size:16px;font-weight:700;color:${PROPOSAL_TEXT};">${escapeHtml(point.nome || 'Ponto')}</div>
                 <div style="margin-top:2px;font-size:12px;color:${PROPOSAL_LABEL};">${escapeHtml(point.cidade || '-')} · ${escapeHtml(getPointTypeLabel(point) || '-')}</div>
               </div>
-              <div style="text-align:center;font-size:22px;font-weight:700;line-height:1;color:${hasData ? PROPOSAL_TEXT : 'rgba(0,0,0,0.25)'};font-family:Poppins;">${formatInt(locais)}</div>
-              <div style="text-align:center;font-size:18px;font-weight:700;line-height:1;color:${score >= 6 ? PROPOSAL_ACCENT : 'rgba(0,0,0,0.30)'};font-family:Poppins;">${score.toFixed(1).replace('.', ',')}</div>
+              <div style="text-align:center;font-size:22px;font-weight:700;line-height:1;color:${hasData ? PROPOSAL_TEXT : 'rgba(0,0,0,0.25)'};font-family:Poppins, system-ui, sans-serif;">${formatInt(locais)}</div>
+              <div style="text-align:center;font-size:18px;font-weight:700;line-height:1;color:${score >= 6 ? PROPOSAL_ACCENT : 'rgba(0,0,0,0.30)'};font-family:Poppins, system-ui, sans-serif;">${score.toFixed(1).replace('.', ',')}</div>
               <div style="display:flex;align-items:center;height:8px;border-radius:100px;background:rgba(0,0,0,0.06);overflow:hidden;">
                 <div style="height:100%;width:${barPct}%;border-radius:100px;background:${score >= 6 ? PROPOSAL_ACCENT : 'rgba(0,0,0,0.25)'};"></div>
               </div>
@@ -2090,10 +2237,10 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
         }).join('')}
       </div>
     </div>
-  `, PROPOSAL_BG);
+  `, PROPOSAL_BG, { height: coveragePageHeight, cssClass: 'coverage-page' });
 }
 
-function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico, duracao_meses, assets, customCommercialNote }) {
+function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico, duracao_meses, assets, customCommercialNote, compactMode = false }) {
   const segmentLabel = getSegmentDisplayName(segmento);
   const pointCount = proposalPoints.length;
   const finalTotal = pricingSummary?.finalTotal ?? proposalTotals?.valorTotal ?? 0;
@@ -2121,7 +2268,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
       <td style="padding:12px 16px;font-size:12px;color:${PROPOSAL_TEXT_SECONDARY};border-bottom:1px solid ${PROPOSAL_BORDER};">${escapeHtml(p.cidade || '—')}</td>
       <td style="padding:12px 16px;font-size:12px;color:${PROPOSAL_TEXT_SECONDARY};border-bottom:1px solid ${PROPOSAL_BORDER};">${escapeHtml(getPointTypeLabel(p) || '—')}</td>
       <td style="padding:12px 16px;font-size:13px;font-weight:700;color:${PROPOSAL_ACCENT};border-bottom:1px solid ${PROPOSAL_BORDER};text-align:right;white-space:nowrap;">${formatMoney(p.precoOriginal ?? p.preco ?? 0)}</td>
-      <td style="padding:12px 16px;font-size:13px;font-weight:700;color:${PROPOSAL_ACCENT};border-bottom:1px solid ${PROPOSAL_BORDER};text-align:right;white-space:nowrap;">${formatMoney(p.precoFinal ?? p.preco ?? 0)}</td>
+      <td style="padding:12px 16px;font-size:13px;font-weight:700;color:#15803d;border-bottom:1px solid ${PROPOSAL_BORDER};text-align:right;white-space:nowrap;">${formatMoney(p.precoFinal ?? p.preco ?? 0)}</td>
     </tr>
   `).join('');
 
@@ -2163,8 +2310,8 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
           <!-- Points table -->
           <div style="flex:1;display:flex;flex-direction:column;border-radius:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};overflow:visible;box-shadow:0 4px 16px rgba(0,0,0,0.06);">
             <div style="padding:14px 20px;background:${PROPOSAL_SURFACE_ALT};border-bottom:1px solid ${PROPOSAL_BORDER};display:flex;align-items:center;justify-content:space-between;">
-              <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Pontos da campanha</div>
-              <div style="font-size:11px;font-weight:700;color:${PROPOSAL_ACCENT};background:rgba(232,89,26,0.10);border:1px solid rgba(232,89,26,0.20);padding:4px 12px;border-radius:100px;">Total de ${pointCount} pontos</div>
+              <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Endereços da campanha</div>
+              <div style="font-size:11px;font-weight:700;color:${PROPOSAL_ACCENT};background:rgba(232,89,26,0.10);border:1px solid rgba(232,89,26,0.20);padding:4px 12px;border-radius:100px;">Total de ${pointCount} endereços</div>
             </div>
             <table style="width:100%;border-collapse:collapse;">
               <thead>
@@ -2188,7 +2335,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
         <div style="width:340px;display:flex;flex-direction:column;gap:20px;">
 
           <!-- Impact Metrics Box -->
-          <div style="border-radius:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};padding:24px;box-shadow:0 4px 16px rgba(0,0,0,0.06);">
+          ${compactMode ? '' : `<div style="border-radius:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};padding:24px;box-shadow:0 4px 16px rgba(0,0,0,0.06);">
             <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_TEXT};margin-bottom:20px;display:flex;align-items:center;gap:8px;">
               <div style="width:6px;height:6px;border-radius:50%;background:${PROPOSAL_ACCENT};box-shadow:0 0 10px ${PROPOSAL_ACCENT};"></div>
               Estimativas de Impacto
@@ -2208,7 +2355,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
                 <div style="font-size:24px;font-weight:800;color:${PROPOSAL_ACCENT};font-family:Poppins, system-ui, sans-serif;">${cpmLabel}</div>
               </div>
             </div>
-          </div>
+          </div>`}
 
           <!-- Investment Summary -->
           <div style="flex:1;border-radius:18px;background:linear-gradient(170deg, ${PROPOSAL_SURFACE} 0%, ${PROPOSAL_SURFACE_ALT} 100%);border:1px solid ${PROPOSAL_BORDER};padding:22px;display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,0.07);">
@@ -2388,6 +2535,7 @@ export async function generateProposalPdf({
   showCampaignScore = true,
   showCoverageLayer = true,
   showImpactSection = true,
+  showEntornoEvidence = true,
   customCommercialNote = ''
 }) {
   activePdfLayoutConfig = await loadPdfLayoutConfig();
@@ -2436,19 +2584,38 @@ export async function generateProposalPdf({
     }));
   }
 
-  proposalPoints.forEach((point, index) => {
-    pages.push(buildProposalPointPage({
-      point,
-      index: index + 1,
-      total: proposalPoints.length,
-      image: proposalImages[index],
-      mapImage: pointMapImages[index] || null,
-      segmento,
-      assets
-    }));
-  });
+  const useGridLayout = proposalPoints.length >= PROPOSAL_GRID_THRESHOLD;
 
-  if (hasEntornoData) {
+  if (useGridLayout) {
+    const totalGridPages = Math.ceil(proposalPoints.length / PROPOSAL_GRID_PER_PAGE);
+    for (let pageIdx = 0; pageIdx < totalGridPages; pageIdx += 1) {
+      const start = pageIdx * PROPOSAL_GRID_PER_PAGE;
+      const end = Math.min(start + PROPOSAL_GRID_PER_PAGE, proposalPoints.length);
+      pages.push(buildProposalGridPointsPage({
+        pointsBatch: proposalPoints.slice(start, end),
+        imagesBatch: proposalImages.slice(start, end),
+        pageIndex: pageIdx + 1,
+        totalPages: totalGridPages,
+        totalPoints: proposalPoints.length,
+        startGlobalIndex: start + 1,
+        assets,
+      }));
+    }
+  } else {
+    proposalPoints.forEach((point, index) => {
+      pages.push(buildProposalPointPage({
+        point,
+        index: index + 1,
+        total: proposalPoints.length,
+        image: proposalImages[index],
+        mapImage: pointMapImages[index] || null,
+        segmento,
+        assets
+      }));
+    });
+  }
+
+  if (showEntornoEvidence && hasEntornoData) {
     pages.push(buildProposalEntornoEvidencePage({
       proposalCity,
       proposalPoints,
@@ -2467,7 +2634,7 @@ export async function generateProposalPdf({
   }
 
   if (showImpactSection) {
-    pages.push(buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico: effectivePublico, duracao_meses, assets, customCommercialNote }));
+    pages.push(buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico: effectivePublico, duracao_meses, assets, customCommercialNote, compactMode: useGridLayout }));
   }
 
   pages.push(buildProposalClosingPage(assets, overviewMapImage));

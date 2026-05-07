@@ -375,6 +375,8 @@ export default function Landing() {
   const [allPontos, setAllPontos] = useState([]);
   const [selectedPracas, setSelectedPracas] = useState([]);
   const [selectedTipos, setSelectedTipos] = useState([]);
+  const [selectedPublicos, setSelectedPublicos] = useState([]);
+  const [selectedElevadorCategorias, setSelectedElevadorCategorias] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pdfStatus, setPdfStatus] = useState(null);
   const [pdfTipIndex, setPdfTipIndex] = useState(0);
@@ -497,6 +499,17 @@ export default function Landing() {
     setSelectedTipos((current) => current.filter((tipo) => tiposDisponiveis.includes(tipo)));
   }, [tiposDisponiveis]);
 
+  const publicosDisponiveis = useMemo(() => {
+    let source = allPontos;
+    if (selectedPracas.length) source = source.filter((p) => selectedPracas.includes(p.cidade));
+    if (selectedTipos.length) source = source.filter((p) => selectedTipos.includes(p.tipo));
+    return Array.from(new Set(source.map((p) => p.publico).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [allPontos, selectedPracas, selectedTipos]);
+
+  useEffect(() => {
+    setSelectedPublicos((current) => current.filter((pub) => publicosDisponiveis.includes(pub)));
+  }, [publicosDisponiveis]);
+
   const selectedPracaLabel = useMemo(() => {
     if (!selectedPracas.length) return 'Todas as praças';
     if (selectedPracas.length === 1) return selectedPracas[0];
@@ -511,8 +524,19 @@ export default function Landing() {
     if (selectedTipos.length) {
       result = result.filter((point) => selectedTipos.includes(point.tipo));
     }
+    if (selectedPublicos.length) {
+      result = result.filter((point) => selectedPublicos.includes(point.publico));
+    }
+    if (selectedElevadorCategorias.length) {
+      result = result.filter((point) => {
+        if (point.tipo !== 'Elevador') return true;
+        const cat = String(point.elevador_categoria || '').trim().toLowerCase();
+        const normalized = cat === 'residencial' ? 'Residencial' : 'Comercial';
+        return selectedElevadorCategorias.includes(normalized);
+      });
+    }
     return result;
-  }, [allPontos, selectedPracas, selectedTipos]);
+  }, [allPontos, selectedPracas, selectedTipos, selectedPublicos, selectedElevadorCategorias]);
 
   const resumo = useMemo(() => {
     const totals = campaignTotals(pontos);
@@ -914,7 +938,7 @@ export default function Landing() {
             }}
           >
             {/* ── 3-column form fields ── */}
-            <div className="grid sm:grid-cols-3 gap-3 mb-5">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
               <CustomSelect
                 label="Praça"
                 value={selectedPracas}
@@ -930,6 +954,15 @@ export default function Landing() {
                 onChange={setSelectedTipos}
                 options={tiposDisponiveis}
                 placeholder="Selecionar um ou mais formatos"
+                multiple
+                isDark={isDark}
+              />
+              <CustomSelect
+                label="Público"
+                value={selectedPublicos}
+                onChange={setSelectedPublicos}
+                options={publicosDisponiveis}
+                placeholder={publicosDisponiveis.length ? 'Selecionar um ou mais públicos' : 'Nenhum disponível'}
                 multiple
                 isDark={isDark}
               />
@@ -952,6 +985,48 @@ export default function Landing() {
                 </div>
               </div>
             </div>
+
+            {tiposDisponiveis.includes('Elevador') && (selectedTipos.length === 0 || selectedTipos.includes('Elevador')) && (
+              <div className="mb-5 flex flex-wrap items-center gap-2">
+                <span
+                  className="font-semibold uppercase mr-1"
+                  style={{ fontSize: '10px', letterSpacing: '0.08em', color: isDark ? '#737373' : '#7A6155' }}
+                >
+                  Categoria do elevador
+                </span>
+                {['Comercial', 'Residencial'].map((categoria) => {
+                  const selected = selectedElevadorCategorias.includes(categoria);
+                  return (
+                    <button
+                      key={categoria}
+                      type="button"
+                      onClick={() => setSelectedElevadorCategorias((cur) =>
+                        cur.includes(categoria) ? cur.filter((c) => c !== categoria) : [...cur, categoria]
+                      )}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                        selected
+                          ? 'bg-brand-orange text-white border border-brand-orange'
+                          : (isDark
+                              ? 'bg-white/5 text-brand-gray-300 border border-white/10 hover:bg-white/10'
+                              : 'bg-white text-[#7A6155] border border-[#DDD0CA] hover:border-[#FF6B35] hover:text-[#C94A1A]')
+                      }`}
+                    >
+                      <i className={categoria === 'Comercial' ? 'ri-building-2-line' : 'ri-home-4-line'} style={{ fontSize: 12 }} />
+                      {categoria}
+                    </button>
+                  );
+                })}
+                {selectedElevadorCategorias.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedElevadorCategorias([])}
+                    className={`text-[11px] font-semibold underline ${isDark ? 'text-brand-gray-400 hover:text-white' : 'text-[#7A6155] hover:text-[#1A1008]'}`}
+                  >
+                    limpar
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* ── Action buttons row — clear hierarchy: ONE primary CTA ── */}
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1421,7 +1496,7 @@ export default function Landing() {
           </div>
 
           {/* Applied filters summary — shows count + quick clear */}
-          {(selectedPracas.length > 0 || selectedTipos.length > 0 || searchQuery) && (
+          {(selectedPracas.length > 0 || selectedTipos.length > 0 || selectedPublicos.length > 0 || selectedElevadorCategorias.length > 0 || searchQuery) && (
             <div className={`mb-4 rounded-xl border p-3 flex flex-wrap items-center gap-2 ${
               isDark ? 'bg-brand-orange/[0.05] border-brand-orange/25' : 'bg-[#FFF0EA] border-[#FFCFB8]'
             }`}>
@@ -1429,7 +1504,7 @@ export default function Landing() {
                 isDark ? 'text-brand-orange' : 'text-[#C94A1A]'
               }`}>
                 <i className="ri-filter-3-fill" style={{ fontSize: 13 }} />
-                {selectedPracas.length + selectedTipos.length + (searchQuery ? 1 : 0)} filtro{selectedPracas.length + selectedTipos.length + (searchQuery ? 1 : 0) > 1 ? 's' : ''} aplicado{selectedPracas.length + selectedTipos.length + (searchQuery ? 1 : 0) > 1 ? 's' : ''}
+                {selectedPracas.length + selectedTipos.length + selectedPublicos.length + selectedElevadorCategorias.length + (searchQuery ? 1 : 0)} filtro{selectedPracas.length + selectedTipos.length + selectedPublicos.length + selectedElevadorCategorias.length + (searchQuery ? 1 : 0) > 1 ? 's' : ''} aplicado{selectedPracas.length + selectedTipos.length + selectedPublicos.length + selectedElevadorCategorias.length + (searchQuery ? 1 : 0) > 1 ? 's' : ''}
               </span>
               <span className={`text-xs ${t.textMuted}`}>·</span>
               {selectedPracas.map((p) => (
@@ -1448,6 +1523,22 @@ export default function Landing() {
                   <i className="ri-close-line" style={{ fontSize: 11 }} />
                 </button>
               ))}
+              {selectedPublicos.map((pb) => (
+                <button key={`pub-${pb}`} onClick={() => setSelectedPublicos((cur) => cur.filter((x) => x !== pb))}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/80 dark:bg-white/10 border border-brand-orange/30 text-[#C94A1A] dark:text-brand-orange hover:bg-brand-orange hover:text-white transition-colors">
+                  <i className="ri-group-line" style={{ fontSize: 10 }} />
+                  {pb}
+                  <i className="ri-close-line" style={{ fontSize: 11 }} />
+                </button>
+              ))}
+              {selectedElevadorCategorias.map((ec) => (
+                <button key={`ec-${ec}`} onClick={() => setSelectedElevadorCategorias((cur) => cur.filter((x) => x !== ec))}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/80 dark:bg-white/10 border border-brand-orange/30 text-[#C94A1A] dark:text-brand-orange hover:bg-brand-orange hover:text-white transition-colors">
+                  <i className={ec === 'Comercial' ? 'ri-building-2-line' : 'ri-home-4-line'} style={{ fontSize: 10 }} />
+                  Elevador {ec}
+                  <i className="ri-close-line" style={{ fontSize: 11 }} />
+                </button>
+              ))}
               {searchQuery && (
                 <button onClick={() => setSearchQuery('')}
                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/80 dark:bg-white/10 border border-brand-orange/30 text-[#C94A1A] dark:text-brand-orange hover:bg-brand-orange hover:text-white transition-colors">
@@ -1457,7 +1548,7 @@ export default function Landing() {
                 </button>
               )}
               <button
-                onClick={() => { setSelectedPracas([]); setSelectedTipos([]); setSearchQuery(''); }}
+                onClick={() => { setSelectedPracas([]); setSelectedTipos([]); setSelectedPublicos([]); setSelectedElevadorCategorias([]); setSearchQuery(''); }}
                 className="ml-auto inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full text-white bg-brand-orange hover:bg-[#E85A25] transition-colors"
               >
                 <i className="ri-close-circle-line" style={{ fontSize: 13 }} />
@@ -1491,21 +1582,21 @@ export default function Landing() {
                 </button>
               )}
             </div>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className={`h-[42px] px-4 rounded-[10px] border text-sm font-medium outline-none transition-colors ${
-                isDark
-                  ? 'bg-white/[0.04] border-white/10 text-white'
-                  : 'bg-white border-[#EFE0D8] text-[#1A1008]'
-              }`}
-            >
-              <option value="tipo">Ordenar: por tipo</option>
-              <option value="fluxo_desc">Maior fluxo</option>
-              <option value="preco_asc">Menor preço</option>
-              <option value="preco_desc">Maior preço</option>
-              <option value="nome">Nome A–Z</option>
-            </select>
+            <div className="w-full sm:w-56 shrink-0">
+              <CustomSelect
+                value={sortBy}
+                onChange={setSortBy}
+                isDark={isDark}
+                placeholder="Ordenar"
+                options={[
+                  { value: 'tipo', label: 'Ordenar: por tipo' },
+                  { value: 'fluxo_desc', label: 'Maior fluxo' },
+                  { value: 'preco_asc', label: 'Menor preço' },
+                  { value: 'preco_desc', label: 'Maior preço' },
+                  { value: 'nome', label: 'Nome A–Z' },
+                ]}
+              />
+            </div>
           </div>
 
           {!loading && (

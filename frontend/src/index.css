@@ -125,6 +125,43 @@ select option {
   color: #ffffff;
 }
 
+/* ===== Standardized native <select> visuals (matches CustomSelect look) ===== */
+/* Apply to ALL native selects across the app for visual consistency.
+   Components can opt-out by adding the "select-bare" class. */
+select:not(.select-bare) {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background-color: rgba(255, 255, 255, 0.06);
+  background-image:
+    linear-gradient(to right, rgba(255,255,255,0.10), rgba(255,255,255,0.05)),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat, no-repeat;
+  background-position: 0 0, right 12px center;
+  background-size: cover, 14px 14px;
+  color: #fff;
+  padding: 10px 38px 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+}
+select:not(.select-bare):hover {
+  border-color: rgba(255, 107, 53, 0.45);
+}
+select:not(.select-bare):focus {
+  outline: none;
+  border-color: rgba(255, 107, 53, 0.65);
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.15);
+}
+select:not(.select-bare):disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* Light mode select */
 .commercial-light select,
 [data-theme="light"] select {
@@ -135,6 +172,20 @@ select option {
 [data-theme="light"] select option {
   background-color: #ffffff;
   color: #171717;
+}
+
+.commercial-light select:not(.select-bare),
+[data-theme="light"] select:not(.select-bare) {
+  background-color: #FDF7F4;
+  background-image:
+    linear-gradient(to right, #FDF7F4, #FDF7F4),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23FF6B35' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  border-color: #EFE0D8;
+  color: #1A1008;
+}
+.commercial-light select:not(.select-bare):hover,
+[data-theme="light"] select:not(.select-bare):hover {
+  border-color: rgba(255, 107, 53, 0.55);
 }
 
   /* ===== Landing Light Mode Overrides ===== */

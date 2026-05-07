@@ -14,6 +14,7 @@ import Navbar from '../components/Navbar';
 import CampaignScore from '../components/CampaignScore';
 import PointCard from '../components/PointCard';
 import PointModal from '../components/PointModal';
+import CustomSelect from '../components/CustomSelect';
 import { fetchPontos, fetchGeoAudienceProfiles, fetchCensusProfiles, fetchAICampaignAnalysis, fetchAIPlanDecision, fetchAICampaignPointInsights } from '../lib/api';
 import { getPrimaryPointDisplayImage } from '../lib/pointImages';
 import { trackEvent } from '../lib/tracking';
@@ -297,7 +298,7 @@ export default function CampaignPlanner() {
   const [objetivos, setObjetivos] = useState([]);
   const [publicoAlvo, setPublicoAlvo] = useState([]);
   const [audienceTags, setAudienceTags] = useState([]);
-  const [cidade, setCidade] = useState('');
+  const [cidade, setCidade] = useState([]); // array de praças (multi)
   const [budget, setBudget] = useState(null);
   const [period, setPeriod] = useState(4);
 
@@ -366,14 +367,14 @@ export default function CampaignPlanner() {
       case 0: return empresa.trim().length >= 2 && segmento;
       case 1: return objetivos.length > 0;
       case 2: return publicoAlvo.length > 0 || audienceTags.length > 0;
-      case 3: return !!cidade && budget !== null;
+      case 3: return Array.isArray(cidade) && cidade.length > 0 && budget !== null;
       default: return false;
     }
   }, [step, empresa, segmento, objetivos, publicoAlvo, audienceTags, cidade, budget]);
 
   const AI_PHASES = [
     { Icon: Brain, label: 'IA analisando briefing da campanha...' },
-    { Icon: Search, label: 'Avaliando pontos do inventário de ' + (cidade || 'sua cidade') + '...' },
+    { Icon: Search, label: 'Avaliando pontos do inventário de ' + (cidade.length ? cidade.join(', ') : 'sua praça') + '...' },
     { Icon: MapPin, label: 'Identificando posicionamento estratégico...' },
     { Icon: Wallet, label: 'Otimizando alocação de orçamento...' },
     { Icon: Bot, label: 'IA selecionando pontos ideais...' },
@@ -405,7 +406,7 @@ export default function CampaignPlanner() {
       selected: selectedPontos,
       totals, reachFrequency,
       optimizer: { budgetUsagePct: totals.valorTotal / Math.max(1, budget || 1) * 100, spendByFormat: {} },
-      empresa, segmento, objetivo, cidade,
+      empresa, segmento, objetivo, cidade: Array.isArray(cidade) ? cidade.join(', ') : cidade,
       budget: budget || 0,
       periodWeeks: period,
       publicoAlvo,
@@ -416,7 +417,7 @@ export default function CampaignPlanner() {
 
     const ranked = rankPointsWithScore({
       pontos: allPts,
-      cidade: cidade || undefined,
+      cidade: undefined,
       publico: publicoAlvo.length ? publicoAlvo : undefined,
       audienceTags: audienceTags.map((key) => ({ key, weight: 1 })),
       objetivo, segmento,
@@ -462,12 +463,23 @@ export default function CampaignPlanner() {
     }
 
     const objetivo = objetivos[0] || '';
-    const cityPontos = allPontos.filter((p) => !cidade || p.cidade === cidade);
+    // Filtra por praça(s) selecionada(s) e remove Backlight/Frontlight indisponíveis (ocupados)
+    const isAvailableForRec = (p) => {
+      const t = String(p?.tipo || '').toLowerCase();
+      if (t === 'backlight' || t === 'frontlight') {
+        return String(p?.disponibilidade || 'disponivel').toLowerCase() !== 'indisponivel';
+      }
+      return true;
+    };
+    const cidadeArr = Array.isArray(cidade) ? cidade : (cidade ? [cidade] : []);
+    const availableAllPontos = allPontos.filter(isAvailableForRec);
+    const cityPontos = availableAllPontos.filter((p) => !cidadeArr.length || cidadeArr.includes(p.cidade));
+    const cidadeLabel = cidadeArr.join(', ');
 
     // 3. Fire AI plan decision (PRIMARY) — 12s timeout
     const aiDecisionPromise = Promise.race([
       fetchAIPlanDecision({
-        cidade: cidade || '',
+        cidade: cidadeLabel,
         segmento,
         objetivo,
         budget: budget || 0,
@@ -484,8 +496,8 @@ export default function CampaignPlanner() {
       requestAnimationFrame(() => {
         setTimeout(() => {
           const plan = suggestIdealPlan({
-            pontos: allPontos,
-            cidade: cidade || undefined,
+            pontos: cityPontos,
+            cidade: undefined,
             publico: publicoAlvo.length ? publicoAlvo : undefined,
             audienceTags: audienceTags.map((key) => ({ key, weight: 1 })),
             objetivo, segmento,
@@ -506,7 +518,7 @@ export default function CampaignPlanner() {
             totals: plan.totals,
             reachFrequency: plan.reachFrequency,
             optimizer: plan.optimizer,
-            empresa, segmento, objetivo, cidade,
+            empresa, segmento, objetivo, cidade: cidadeLabel,
             budget: budget || 0,
             periodWeeks: period,
             publicoAlvo,
@@ -515,8 +527,8 @@ export default function CampaignPlanner() {
             censusProfilesByPoint: censusProfiles,
           });
           const ranked = rankPointsWithScore({
-            pontos: allPontos,
-            cidade: cidade || undefined,
+            pontos: cityPontos,
+            cidade: undefined,
             publico: publicoAlvo.length ? publicoAlvo : undefined,
             audienceTags: audienceTags.map((key) => ({ key, weight: 1 })),
             objetivo, segmento,
@@ -539,7 +551,7 @@ export default function CampaignPlanner() {
 
       // AI-first: use AI decision if valid, else fall back to algorithmic
       if (aiDecision?.mode === 'ai_decision' && aiDecision?.selected_points?.length) {
-        const aiResult = buildResultFromAIDecision(aiDecision, allPontos, cityPontos, objetivo);
+        const aiResult = buildResultFromAIDecision(aiDecision, availableAllPontos, cityPontos, objetivo);
         if (aiResult && aiResult.plan.pontos.length >= 2) {
           finalResult = aiResult;
         }
@@ -552,7 +564,7 @@ export default function CampaignPlanner() {
 
       // 6. Fire AI narrative analysis (uses the final plan, regardless of mode)
       const narrativePromise = fetchAICampaignAnalysis({
-        cidade: cidade || '',
+        cidade: cidadeLabel,
         objetivo,
         segmento,
         empresa,
@@ -589,7 +601,7 @@ export default function CampaignPlanner() {
             id: p.id, nome: p.nome, tipo: p.tipo, fluxo: p.fluxo, preco: p.preco, cidade: p.cidade, publico: p.publico,
           })),
           objetivo, segmento,
-          cidade: cidade || '',
+          cidade: cidadeLabel,
           empresa,
         }).then(data => {
           if (data?.insights) setPointInsights(data.insights);
@@ -767,26 +779,24 @@ export default function CampaignPlanner() {
   const renderStep3 = () => (
     <StepCard isDark={isDark}>
       <h2 className={`text-xl font-bold mb-1 ${isDark ? 'text-white' : 'text-neutral-900'}`}>Praça e investimento</h2>
-      <p className={`text-sm mb-6 ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>Defina a cidade e o orçamento da campanha.</p>
+      <p className={`text-sm mb-6 ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>Selecione uma ou mais praças e o orçamento da campanha.</p>
 
       <div className="space-y-6">
         <div className="space-y-2">
-          <span className={`text-sm font-medium ${isDark ? 'text-white/70' : 'text-neutral-600'}`}>Cidade *</span>
+          <span className={`text-sm font-medium ${isDark ? 'text-white/70' : 'text-neutral-600'}`}>Praça *</span>
           {loadingPontos ? (
             <div className={`flex items-center gap-2 text-sm ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>
-              <Loader2 size={14} className="animate-spin" /> Carregando cidades...
+              <Loader2 size={14} className="animate-spin" /> Carregando praças...
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {cidades.map((c) => (
-                <OptionCard key={c} selected={cidade === c} onClick={() => setCidade(c)} isDark={isDark}>
-                  <div className="flex items-center gap-2">
-                    <MapPin size={14} className={cidade === c ? 'text-brand-orange' : isDark ? 'text-white/40' : 'text-neutral-400'} />
-                    <span className={`text-sm ${cidade === c ? 'text-brand-orange font-semibold' : isDark ? 'text-white/70' : 'text-neutral-600'}`}>{c}</span>
-                  </div>
-                </OptionCard>
-              ))}
-            </div>
+            <CustomSelect
+              isDark={isDark}
+              multiple
+              value={Array.isArray(cidade) ? cidade : (cidade ? [cidade] : [])}
+              onChange={(v) => setCidade(Array.isArray(v) ? v : [])}
+              options={cidades}
+              placeholder="Selecionar uma ou mais praças"
+            />
           )}
         </div>
 

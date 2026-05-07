@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react';
 import { FavoritesProvider } from './context/FavoritesContext';
 import Landing from './pages/Landing';
 import InventarioChatBot from './components/InventarioChatBot';
+import AppLoader, { RouteTransitionOverlay } from './components/AppLoader';
 
 const Explorer = lazy(() => import('./pages/Explorer'));
 const Admin = lazy(() => import('./pages/Admin'));
@@ -23,18 +24,19 @@ function RequireCommercialAuth({ children }) {
 }
 
 function shouldShowInventoryChat() {
-  if (typeof window === 'undefined') return true;
+  if (typeof window === 'undefined') return false;
   const path = String(window.location.pathname || '/');
-  if (path === '/painel-tv') return false;
-  if (path.startsWith('/comercial')) return false;
-  return true;
+  // Chat is shown ONLY on public areas: Landing ("/") and Planejar ("/planejar").
+  // Internal/private areas (/comercial/*, /painel-tv, /p/:token, etc.) never show the chat.
+  return path === '/' || path === '/planejar';
 }
 
 export default function App() {
   return (
     <FavoritesProvider>
       <BrowserRouter>
-        <Suspense fallback={null}>
+        <RouteTransitionOverlay />
+        <Suspense fallback={<AppLoader />}>
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/planejar" element={<CampaignPlanner />} />

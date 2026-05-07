@@ -83,7 +83,12 @@ export async function fetchPontos(filters = {}) {
   const params = new URLSearchParams();
   appendParamValues(params, 'cidade', filters.cidade);
   if (filters.tipo) params.set('tipo', filters.tipo);
-  if (filters.elevador_categoria) params.set('elevador_categoria', filters.elevador_categoria);
+  // elevador_categoria: pass single value only when exactly 1 is selected.
+  // 0 or 2 (both) → no filter (backend includes all elevadores).
+  const elvCats = Array.isArray(filters.elevador_categoria)
+    ? filters.elevador_categoria
+    : (filters.elevador_categoria ? [filters.elevador_categoria] : []);
+  if (elvCats.length === 1) params.set('elevador_categoria', elvCats[0]);
   appendParamValues(params, 'publico', filters.publico);
   appendParamValues(params, 'audience_tag', filters.audience_tag);
   if (filters.availabilityPreference) params.set('availability_preference', filters.availabilityPreference);
@@ -934,6 +939,18 @@ export async function updateAdminUserRole(id, role, isVendedor) {
   if (!res.ok) {
     const message = await parseErrorResponse(res);
     throw new Error(message || 'Erro ao atualizar role do usuário');
+  }
+  return res.json();
+}
+
+export async function updateAdminUser(id, data) {
+  const res = await apiRequest(`/admin/users/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const message = await parseErrorResponse(res);
+    throw new Error(message || 'Erro ao atualizar usuário');
   }
   return res.json();
 }

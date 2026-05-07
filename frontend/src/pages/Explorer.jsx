@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, CheckCircle, ChevronDown, LayoutGrid, Map, Search, SlidersHorizontal } from 'lucide-react';
+import { AlertCircle, CheckCircle, ChevronDown, LayoutGrid, Map, Search, SlidersHorizontal, Sparkles, EyeOff } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import FilterSidebar from '../components/FilterSidebar';
@@ -36,7 +36,7 @@ export default function Explorer() {
   const [pontos, setPontos] = useState([]);
   const [allPontos, setAllPontos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ cidade: initialCidade, tipo: '', elevador_categoria: '', publico: [], search: '' });
+  const [filters, setFilters] = useState({ cidade: initialCidade, tipo: '', elevador_categoria: [], publico: [], search: '' });
   const [view, setView] = useState('grid');
   const [sortBy, setSortBy] = useState('relevancia'); // relevancia | preco-asc | preco-desc | telas-desc | nome-asc
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -45,6 +45,14 @@ export default function Explorer() {
   const [selected, setSelected] = useState(null);
   const [mobileFilters, setMobileFilters] = useState(false);
   const [plannerSuggestion, setPlannerSuggestion] = useState(null);
+  const [showAutomatic, setShowAutomatic] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('intermidia_explorer_auto') === '1';
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('intermidia_explorer_auto', showAutomatic ? '1' : '0');
+  }, [showAutomatic]);
   const { favorites, addFavorites, history, registerView } = useFavorites();
   const [geoProfiles, setGeoProfiles] = useState(null);
   const [censusProfiles, setCensusProfiles] = useState(null);
@@ -176,7 +184,8 @@ export default function Explorer() {
       });
     }
     if (filters.tipo) chips.push({ key: 'tipo', label: filters.tipo, remove: () => setFilters((f) => ({ ...f, tipo: '' })) });
-    if (filters.elevador_categoria) chips.push({ key: 'elv', label: filters.elevador_categoria, remove: () => setFilters((f) => ({ ...f, elevador_categoria: '' })) });
+    const elvCats = Array.isArray(filters.elevador_categoria) ? filters.elevador_categoria : (filters.elevador_categoria ? [filters.elevador_categoria] : []);
+    elvCats.forEach((cat) => chips.push({ key: `elv-${cat}`, label: cat, remove: () => setFilters((f) => ({ ...f, elevador_categoria: (Array.isArray(f.elevador_categoria) ? f.elevador_categoria : []).filter((c) => c !== cat) })) }));
     if (filters.publico?.length) {
       filters.publico.forEach((p) => {
         chips.push({ key: `publico-${p}`, label: p, remove: () => setFilters((f) => ({ ...f, publico: f.publico.filter((x) => x !== p) })) });
@@ -186,7 +195,7 @@ export default function Explorer() {
   }, [filters]);
 
   const clearAllFilters = useCallback(() => {
-    setFilters({ cidade: [], tipo: '', elevador_categoria: '', publico: [], search: '' });
+    setFilters({ cidade: [], tipo: '', elevador_categoria: [], publico: [], search: '' });
   }, []);
 
   useEffect(() => {
@@ -222,6 +231,7 @@ export default function Explorer() {
           mobileOpen={mobileFilters}
           setMobileOpen={setMobileFilters}
           isDark={isDark}
+          cidades={cidades}
         />
 
         {/* Main content */}
@@ -252,36 +262,89 @@ export default function Explorer() {
               </section>
             )}
 
-            <StrategicPlanner
-              pontos={allPontos}
-              cidades={cidades}
-              publicos={publicos}
-              onAddPlan={addFavorites}
-              onSuggestionChange={setPlannerSuggestion}
-              isDark={isDark}
-            />
-
-            <div className={`h-px w-full ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
-
-            <div>
-              <div className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-[#E8591A]">ETAPA 3 — Análise</div>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <div className="lg:col-span-2">
-                  <CoverageMeter coverage={coverage} isDark={isDark} />
+            {!showAutomatic && (
+              <section
+                className={`rounded-2xl border p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
+                  isDark
+                    ? 'border-brand-orange/30 bg-gradient-to-br from-brand-orange/10 via-white/[0.02] to-transparent'
+                    : 'border-orange-200 bg-gradient-to-br from-orange-50 via-white to-white'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-brand-orange/15 flex items-center justify-center shrink-0">
+                    <Sparkles size={20} className="text-brand-orange" />
+                  </div>
+                  <div>
+                    <h2 className={`text-base font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Você quer uma campanha automática?</h2>
+                    <p className={`text-sm mt-1 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
+                      Receba sugestões inteligentes, métricas de eficiência comercial, planejamento estratégico e pontos de impacto recomendados — tudo calculado a partir do seu inventário.
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-4">
-                  <CampaignScore scoreInfo={scoreInfo} isDark={isDark} />
-                  <ImpactSimulator points={cityInventory} onAdd={addFavorites} isDark={isDark} />
+                <button
+                  type="button"
+                  onClick={() => setShowAutomatic(true)}
+                  className="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-brand-orange hover:bg-brand-orange-hover transition-colors shadow-md shadow-brand-orange/30"
+                >
+                  <Sparkles size={16} /> Ativar campanha automática
+                </button>
+              </section>
+            )}
+
+            {showAutomatic && (
+              <>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowAutomatic(false)}
+                    className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                      isDark
+                        ? 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                        : 'bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                    }`}
+                    title="Ocultar planejamento automático"
+                  >
+                    <EyeOff size={12} /> Ocultar planejamento automático
+                  </button>
                 </div>
-              </div>
-            </div>
 
-            <MarketBenchmarksPanel suggestion={plannerSuggestion} isDark={isDark} />
+                <StrategicPlanner
+                  pontos={allPontos}
+                  cidades={cidades}
+                  publicos={publicos}
+                  onAddPlan={addFavorites}
+                  onSuggestionChange={setPlannerSuggestion}
+                  isDark={isDark}
+                />
 
-            <div className={`h-px w-full ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
+                <div className={`h-px w-full ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
 
-            <CampaignMetrics totals={totals} isDark={isDark} />
-            <RecommendationEngine pontos={allPontos} geoProfiles={geoProfiles} censusProfiles={censusProfiles} history={history} onApplyCombo={addFavorites} isDark={isDark} />
+                <div>
+                  <div className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-[#E8591A]">ETAPA 3 — Análise</div>
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                    <div className="lg:col-span-2">
+                      <CoverageMeter
+                        coverage={coverage}
+                        selectedCount={selectedForMetrics.length}
+                        inventoryCount={cityInventory.length}
+                        isDark={isDark}
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <CampaignScore scoreInfo={scoreInfo} isDark={isDark} />
+                      <ImpactSimulator points={cityInventory} onAdd={addFavorites} isDark={isDark} />
+                    </div>
+                  </div>
+                </div>
+
+                <MarketBenchmarksPanel suggestion={plannerSuggestion} isDark={isDark} />
+
+                <div className={`h-px w-full ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`} />
+
+                <CampaignMetrics totals={totals} isDark={isDark} />
+                <RecommendationEngine pontos={allPontos} geoProfiles={geoProfiles} censusProfiles={censusProfiles} history={history} onApplyCombo={addFavorites} isDark={isDark} />
+              </>
+            )}
           </div>
 
           {/* Toolbar */}
@@ -408,8 +471,24 @@ export default function Explorer() {
 
               <button
                 type="button"
+                onClick={() => addFavorites(pontos)}
+                disabled={pontos.length === 0}
+                className={`ml-auto inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full transition-colors ${
+                  pontos.length === 0
+                    ? (isDark ? 'bg-white/5 text-white/30 cursor-not-allowed' : 'bg-neutral-100 text-neutral-400 cursor-not-allowed')
+                    : (isDark
+                        ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25'
+                        : 'bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100')
+                }`}
+                title={`Adicionar todos os ${pontos.length} pontos do filtro à proposta`}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Adicionar todos ({pontos.length})
+              </button>
+              <button
+                type="button"
                 onClick={clearAllFilters}
-                className="ml-auto inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full text-white bg-brand-orange hover:bg-[#E85A25] transition-colors"
+                className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full text-white bg-brand-orange hover:bg-[#E85A25] transition-colors"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 Limpar tudo

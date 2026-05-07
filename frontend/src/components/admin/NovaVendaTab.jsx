@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2, Upload, X, Send, CheckCircle2, AlertCircle, FileText, MessageCircle, WifiOff, AlertTriangle, Calendar } from 'lucide-react';
-import { clearNovaVendaDraft, fetchNovaVendaDraft, fetchPlanoFidelidadePontosBravi, saveNovaVendaDraft, submitNovaVenda } from '../../lib/api';
+import { Loader2, Upload, X, Send, CheckCircle2, AlertCircle, FileText, MessageCircle, WifiOff, AlertTriangle, Calendar, RefreshCw } from 'lucide-react';
+import { clearNovaVendaDraft, fetchNovaVendaDraft, fetchPlanoFidelidadePontosBravi, fetchVendas, saveNovaVendaDraft, submitNovaVenda } from '../../lib/api';
+import CustomSelect from '../CustomSelect';
 
 const TIPOS_NEGOCIO = ['Nova Venda', 'Renovação', 'Permuta'];
 const TIPOS_VALOR = ['Líquido', 'Bruto'];
@@ -124,6 +125,83 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
   const [result, setResult] = useState(null);
   const [err, setErr] = useState('');
   const [validationErrors, setValidationErrors] = useState(null); // { items: string[] }
+
+  // ===== Renovação: lista de vendas anteriores feitas pelo sistema =====
+  const [vendasAnteriores, setVendasAnteriores] = useState([]);
+  const [loadingVendasAnt, setLoadingVendasAnt] = useState(false);
+  const [vendaOrigemId, setVendaOrigemId] = useState('');
+  const isRenovacao = form.tipo === 'Renovação';
+
+  useEffect(() => {
+    if (!isRenovacao) return;
+    if (vendasAnteriores.length || loadingVendasAnt) return;
+    let cancelled = false;
+    setLoadingVendasAnt(true);
+    (async () => {
+      try {
+        const data = await fetchVendas();
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        // Só vendas que vêm do sistema (não renovações de si mesmas para evitar lixo) e ativas/concluídas.
+        const filtered = list.filter((v) => v && v.id && (v.razao_social || v.nome_fantasia));
+        setVendasAnteriores(filtered);
+      } catch (e) {
+        // não bloqueia o formulário
+      } finally {
+        if (!cancelled) setLoadingVendasAnt(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isRenovacao, vendasAnteriores.length, loadingVendasAnt]);
+
+  const vendasAnterioresOptions = useMemo(() => {
+    return vendasAnteriores.map((v) => {
+      const cliente = v.razao_social || v.nome_fantasia || `Venda #${v.id}`;
+      const valor = v.valor_mensal ? ` · R$ ${v.valor_mensal}` : '';
+      const periodo = v.periodo ? ` · ${v.periodo}` : '';
+      return { value: String(v.id), label: `${cliente}${valor}${periodo}` };
+    });
+  }, [vendasAnteriores]);
+
+  const aplicarVendaOrigem = (vendaId) => {
+    setVendaOrigemId(vendaId);
+    if (!vendaId) return;
+    const venda = vendasAnteriores.find((v) => String(v.id) === String(vendaId));
+    if (!venda) return;
+    // Auto-preenche os campos a partir da venda anterior. Mantém tipo='Renovação'.
+    setForm((f) => ({
+      ...f,
+      razao_social: venda.razao_social || f.razao_social,
+      nome_fantasia: venda.nome_fantasia || f.nome_fantasia,
+      cnpj: venda.cnpj || f.cnpj,
+      valor_mensal: venda.valor_mensal || f.valor_mensal,
+      tipo_valor: venda.tipo_valor || f.tipo_valor,
+      cota_contratada: venda.cota_contratada || f.cota_contratada,
+      plano_fidelidade: !!venda.plano_fidelidade,
+      via_agencia: !!venda.via_agencia,
+      agencia_nome: venda.agencia_nome || f.agencia_nome,
+      comissao_pct: venda.comissao_pct || f.comissao_pct,
+      dia_pagamento_dia: venda.dia_pagamento_dia ? String(venda.dia_pagamento_dia) : f.dia_pagamento_dia,
+      responsavel_nome: venda.responsavel_nome || f.responsavel_nome,
+      responsavel_whatsapp: venda.responsavel_whatsapp || f.responsavel_whatsapp,
+      email: venda.email || f.email,
+      // troca_material precisa ser escolhido explicitamente em renovação vinculada
+      troca_material: undefined,
+    }));
+    // Tenta repopular pontos_nomes → selectedPontos quando os IDs casam com o inventário carregado
+    try {
+      const nomes = typeof venda.pontos_nomes === 'string' ? JSON.parse(venda.pontos_nomes) : (Array.isArray(venda.pontos_nomes) ? venda.pontos_nomes : []);
+      if (Array.isArray(nomes) && nomes.length && pontos.length) {
+        const matched = pontos.filter((p) => nomes.includes(p.nome));
+        if (matched.length) setSelectedPontos(matched);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const limparVendaOrigem = () => {
+    setVendaOrigemId('');
+    setForm((f) => ({ ...f, troca_material: false }));
+  };
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -360,6 +438,10 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
     if (form.periodo_tipo === 'datas' && !form.periodo_fim) missing.push('Data de término do período');
     if (form.via_agencia && !form.agencia_nome.trim()) missing.push('Nome da agência');
     if (form.via_agencia && !form.comissao_pct) missing.push('Comissão da agência');
+    // Em renovação vinculada a uma venda anterior, troca de material é obrigatório (Sim/Não).
+    if (isRenovacao && vendaOrigemId && (form.troca_material === undefined || form.troca_material === null || form.troca_material === '')) {
+      missing.push('Haverá troca de material? (Sim/Não)');
+    }
     if (!form.responsavel_nome.trim()) missing.push('Nome do responsável pela compra');
     if (!form.responsavel_whatsapp.trim() && !form.responsavel_fixo.trim()) {
       missing.push('WhatsApp ou Telefone Fixo do responsável');
@@ -648,6 +730,50 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
               </button>
             ))}
           </div>
+
+          {/* Renovação: lista de vendas anteriores realizadas pelo sistema */}
+          {isRenovacao && (
+            <div className={`mt-4 rounded-xl border p-4 ${isDark ? 'border-brand-orange/30 bg-brand-orange/[0.06]' : 'border-orange-200 bg-orange-50/60'}`}>
+              <div className="flex items-start gap-2 mb-3">
+                <RefreshCw size={16} className="text-brand-orange mt-0.5" />
+                <div className="flex-1">
+                  <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Vincular a uma venda anterior</div>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
+                    Escolha uma venda já cadastrada para preencher os dados automaticamente. Caso não queira vincular, deixe em branco e siga o fluxo padrão.
+                  </p>
+                </div>
+              </div>
+              {loadingVendasAnt ? (
+                <div className={`flex items-center gap-2 text-xs ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                  <Loader2 size={14} className="animate-spin" /> Carregando vendas anteriores…
+                </div>
+              ) : vendasAnterioresOptions.length === 0 ? (
+                <p className={`text-xs ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Nenhuma venda anterior disponível.</p>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <CustomSelect
+                      value={vendaOrigemId}
+                      onChange={aplicarVendaOrigem}
+                      options={vendasAnterioresOptions}
+                      placeholder="Selecionar venda anterior…"
+                      isDark={isDark}
+                    />
+                  </div>
+                  {vendaOrigemId && (
+                    <button
+                      type="button"
+                      onClick={limparVendaOrigem}
+                      className={`shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${isDark ? 'bg-white/5 border border-white/10 text-white/80 hover:bg-white/10' : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'}`}
+                      title="Desvincular venda anterior"
+                    >
+                      <X size={12} /> Desvincular
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         {/* Dados do cliente */}
@@ -986,18 +1112,37 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
 
           {/* Troca de material — só para Renovação */}
           {form.tipo === 'Renovação' && (
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => set('troca_material', !form.troca_material)}
-                className={`w-10 h-5 rounded-full transition-colors relative ${form.troca_material ? 'bg-brand-orange' : isDark ? 'bg-white/20' : 'bg-neutral-300'}`}
-              >
-                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.troca_material ? 'left-5' : 'left-0.5'}`} />
-              </button>
-              <label className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                Haverá troca de material
-              </label>
-            </div>
+            vendaOrigemId ? (
+              <div className="max-w-md">
+                <label className={lbl}>Haverá troca de material? *</label>
+                <CustomSelect
+                  value={form.troca_material === true ? 'sim' : form.troca_material === false ? 'nao' : ''}
+                  onChange={(v) => set('troca_material', v === 'sim' ? true : v === 'nao' ? false : undefined)}
+                  options={[
+                    { value: 'sim', label: 'Sim' },
+                    { value: 'nao', label: 'Não' },
+                  ]}
+                  placeholder="Selecionar Sim ou Não…"
+                  isDark={isDark}
+                />
+                <p className={`text-xs mt-1.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                  Obrigatório quando a renovação está vinculada a uma venda anterior.
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => set('troca_material', !form.troca_material)}
+                  className={`w-10 h-5 rounded-full transition-colors relative ${form.troca_material ? 'bg-brand-orange' : isDark ? 'bg-white/20' : 'bg-neutral-300'}`}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.troca_material ? 'left-5' : 'left-0.5'}`} />
+                </button>
+                <label className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                  Haverá troca de material
+                </label>
+              </div>
+            )
           )}
         </section>
 

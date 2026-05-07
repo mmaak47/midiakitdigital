@@ -153,6 +153,7 @@ export default function ArteAICard({
   arteAtualUrl = '',
   onArteEscolhida,
   onManualUpload,
+  manualOnly = false,
 }) {
   // Busca dados frescos do ponto no DB on mount para garantir arte_largura/arte_altura corretos
   const [pontoLocal, setPontoLocal] = useState(null);
@@ -165,8 +166,23 @@ export default function ArteAICard({
       .catch(() => {}); // silencioso — usa fallback do prop
   }, [ponto?.id]);
 
-  const wNativo = Number(pontoAtual?.arte_largura || 1920);
-  const hNativo = Number(pontoAtual?.arte_altura  || 1080);
+  const { wNativo, hNativo } = (() => {
+    const tipo = String(pontoAtual?.tipo || '').toLowerCase().trim();
+    const isBackOrFront = tipo === 'backlight' || tipo === 'frontlight';
+    if (isBackOrFront) {
+      const mw = Number(pontoAtual?.midia_largura_m);
+      const mh = Number(pontoAtual?.midia_altura_m);
+      if (Number.isFinite(mw) && mw > 0 && Number.isFinite(mh) && mh > 0) {
+        const target = 2048;
+        if (mw >= mh) return { wNativo: target, hNativo: Math.max(1, Math.round(target * mh / mw)) };
+        return { wNativo: Math.max(1, Math.round(target * mw / mh)), hNativo: target };
+      }
+    }
+    return {
+      wNativo: Number(pontoAtual?.arte_largura || 1920),
+      hNativo: Number(pontoAtual?.arte_altura  || 1080),
+    };
+  })();
   const orientacao = detectarOrientacao(wNativo, hNativo);
 
   const [estado, setEstado] = useState('idle'); // idle | gerando | sucesso | erro
@@ -355,7 +371,7 @@ export default function ArteAICard({
         </div>
       )}
 
-      {estado === 'sucesso' && variacoes.length > 0 && (
+      {!manualOnly && estado === 'sucesso' && variacoes.length > 0 && (
         <div className="space-y-2">
           {/* Variação selecionada em destaque */}
           {variacaoSelecionada ? (
@@ -387,51 +403,53 @@ export default function ArteAICard({
       )}
 
       {/* Ações */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {(estado === 'idle' || estado === 'erro') && (
-          <button
-            type="button"
-            onClick={() => gerarArte()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-orange text-white text-xs font-semibold hover:bg-orange-500"
-          >
-            <Wand2 size={13} />
-            Gerar arte com IA
-          </button>
-        )}
+      {!manualOnly && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {(estado === 'idle' || estado === 'erro') && (
+            <button
+              type="button"
+              onClick={() => gerarArte()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-orange text-white text-xs font-semibold hover:bg-orange-500"
+            >
+              <Wand2 size={13} />
+              Gerar arte com IA
+            </button>
+          )}
 
-        {(estado === 'sucesso' || estado === 'gerando') && (
+          {(estado === 'sucesso' || estado === 'gerando') && (
+            <button
+              type="button"
+              onClick={() => gerarArte()}
+              disabled={estado === 'gerando'}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium disabled:opacity-50 ${
+                isDark
+                  ? 'border-white/15 text-brand-gray-300 hover:border-white/30 hover:text-white'
+                  : 'border-neutral-300 text-neutral-600 hover:border-neutral-400'
+              }`}
+            >
+              <RefreshCw size={12} className={estado === 'gerando' ? 'animate-spin' : ''} />
+              Regenerar
+            </button>
+          )}
+
           <button
             type="button"
-            onClick={() => gerarArte()}
-            disabled={estado === 'gerando'}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium disabled:opacity-50 ${
+            onClick={handleAbrirEditor}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium ${
               isDark
                 ? 'border-white/15 text-brand-gray-300 hover:border-white/30 hover:text-white'
                 : 'border-neutral-300 text-neutral-600 hover:border-neutral-400'
             }`}
           >
-            <RefreshCw size={12} className={estado === 'gerando' ? 'animate-spin' : ''} />
-            Regenerar
+            <Edit3 size={12} />
+            Editar prompt
+            {mostrarEditor ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
           </button>
-        )}
-
-        <button
-          type="button"
-          onClick={handleAbrirEditor}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium ${
-            isDark
-              ? 'border-white/15 text-brand-gray-300 hover:border-white/30 hover:text-white'
-              : 'border-neutral-300 text-neutral-600 hover:border-neutral-400'
-          }`}
-        >
-          <Edit3 size={12} />
-          Editar prompt
-          {mostrarEditor ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-        </button>
-      </div>
+        </div>
+      )}
 
       {/* Editor de prompt (dropdown) */}
-      {mostrarEditor && (
+      {!manualOnly && mostrarEditor && (
         <PromptEditor
           promptInicial={prompt}
           onGerarComPrompt={handleGerarComPrompt}

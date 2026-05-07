@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize2, Minimize2, Minus, Plus, RefreshCcw, Trash2 } from 'lucide-react';
+import { Maximize2, Minimize2, Minus, Plus, RefreshCcw, Trash2, Shrink, Expand } from 'lucide-react';
 import {
   buildDefaultQuadAt,
   buildRectQuad,
@@ -14,8 +14,11 @@ const EDGE_HIT_STROKE = 1.8;
 const HANDLE_HIT_RADIUS = 2;
 const SELECTION_STROKE = 0.05;
 const GRID_STROKE = 0.05;
-const MIN_ZOOM = 100;
-const MAX_ZOOM = 300;
+// Permite zoom out (25%) para enxergar a foto inteira em telas pequenas
+// quando a imagem do ponto e muito alta/larga, e zoom in ate 400% para
+// ajuste fino dos cantos.
+const MIN_ZOOM = 25;
+const MAX_ZOOM = 400;
 const ZOOM_STEP = 10;
 const ROUNDED_PRESET_RADIUS = 0.18;
 
@@ -158,9 +161,10 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
   const viewportRef = useRef(null);
   const [drag, setDrag] = useState(null);
   const [panDrag, setPanDrag] = useState(null);
-  const [helper, setHelper] = useState('Arraste no fundo para criar a área. Depois ajuste cantos, arestas ou a área inteira.');
+  const [helper, setHelper] = useState('Arraste no fundo para criar a área. Clique num canto para selecioná-lo e use as setas para ajuste fino.');
   const [zoom, setZoom] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [selectedCornerIndex, setSelectedCornerIndex] = useState(null);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -191,6 +195,51 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
     const normalized = normalizeCorners(nextCorners);
     if (normalized) onChange(normalized);
   };
+
+  // Movimenta apenas o canto selecionado em "step" pontos percentuais.
+  const nudgeSelectedCorner = (dx, dy) => {
+    if (!normalizedCorners || selectedCornerIndex === null) return;
+    const next = normalizedCorners.map((corner, idx) => (
+      idx === selectedCornerIndex
+        ? { x: clamp(corner.x + dx, 0, 100), y: clamp(corner.y + dy, 0, 100) }
+        : corner
+    ));
+    applyNext(next);
+  };
+
+  // Encolhe ou expande a seleção inteira em relação ao centroide.
+  // Útil quando aparece uma fina "borda branca" porque a seleção ficou
+  // ligeiramente menor que a tela real na foto.
+  const scaleSelectionFromCentroid = (factor) => {
+    if (!normalizedCorners) return;
+    const cx = normalizedCorners.reduce((acc, p) => acc + p.x, 0) / normalizedCorners.length;
+    const cy = normalizedCorners.reduce((acc, p) => acc + p.y, 0) / normalizedCorners.length;
+    const next = normalizedCorners.map((corner) => ({
+      x: clamp(cx + (corner.x - cx) * factor, 0, 100),
+      y: clamp(cy + (corner.y - cy) * factor, 0, 100)
+    }));
+    applyNext(next);
+  };
+
+  useEffect(() => {
+    if (selectedCornerIndex === null) return undefined;
+    const handler = (event) => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      const target = event.target;
+      const isFormField = target instanceof HTMLElement && (
+        target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      );
+      if (isFormField) return;
+      event.preventDefault();
+      const step = event.shiftKey ? 0.2 : event.altKey ? 5 : 1;
+      const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
+      const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
+      nudgeSelectedCorner(dx, dy);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCornerIndex, normalizedCorners]);
 
   const updateZoom = (nextZoom) => {
     setZoom(clamp(nextZoom, MIN_ZOOM, MAX_ZOOM));
@@ -264,6 +313,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
+    setSelectedCornerIndex(index);
     setDrag({
       kind: 'corner',
       pointerId: event.pointerId,
@@ -271,7 +321,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
       start: toPercentPoint(event),
       startCorners: normalizedCorners.map((point) => ({ ...point }))
     });
-    setHelper('Arraste o canto para ajuste fino da perspectiva.');
+    setHelper('Arraste o canto. Você também pode usar as setas do teclado (Shift = passo fino, Alt = passo grosso).');
   };
 
   const startEdgeDrag = (event, edge) => {
@@ -368,7 +418,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
       }
     }
     setDrag(null);
-    setHelper('Arraste cantos, arestas ou a área interna. Scroll do mouse aplica zoom. Botão do meio move a área ampliada.');
+    setHelper('Arraste cantos, arestas ou a área interna. Scroll do mouse aplica zoom (25%–400%). Botão do meio move a área ampliada.');
   };
 
   const pointMode = activeCorners.length >= 8 ? '8 pontos' : '4 pontos';
@@ -378,7 +428,7 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-gray-400">Editor de tela</p>
-          <p className="text-[11px] text-brand-gray-500">Marcação visual com warp por cantos, pontos intermediários e arestas. Scroll aplica zoom e botão do meio move a área com zoom.</p>
+          <p className="text-[11px] text-brand-gray-500">Marcação visual com warp por cantos, pontos intermediários e arestas. Scroll aplica zoom (25%–400%) e botão do meio move a área com zoom.</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -409,12 +459,35 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
               <Plus size={14} />
             </button>
           </div>
+          <button type="button" onClick={() => updateZoom(50)} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10" title="Reduz para 50% — útil para ver a foto inteira em fotos altas">
+            50%
+          </button>
           <button type="button" onClick={() => updateZoom(100)} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10">
             100%
           </button>
           <button type="button" onClick={() => onChange(buildDefaultQuadAt(bounds.centerX, bounds.centerY))} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10">
             <RefreshCcw size={14} />
             Centralizar
+          </button>
+          <button
+            type="button"
+            disabled={!hasSelection}
+            onClick={() => scaleSelectionFromCentroid(0.98)}
+            title="Encolher 2% — útil quando aparece uma fina borda da tela ao redor do criativo"
+            className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10 disabled:opacity-40"
+          >
+            <Shrink size={14} />
+            Encolher
+          </button>
+          <button
+            type="button"
+            disabled={!hasSelection}
+            onClick={() => scaleSelectionFromCentroid(1.02)}
+            title="Expandir 2% — cobre folgas remanescentes na seleção"
+            className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10 disabled:opacity-40"
+          >
+            <Expand size={14} />
+            Expandir
           </button>
           <button type="button" onClick={() => onChange(null)} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white hover:bg-white/10">
             <Trash2 size={14} />
@@ -478,8 +551,8 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
         >
           <div
             ref={stageRef}
-            className="relative"
-            style={{ width: `${zoom}%`, minWidth: '100%' }}
+            className="relative mx-auto"
+            style={{ width: `${zoom}%`, minWidth: zoom >= 100 ? '100%' : undefined }}
           >
             <img src={imageUrl} alt="Base do ponto" className="block w-full h-auto select-none" draggable="false" />
 
@@ -528,12 +601,41 @@ export default function ScreenAreaEditor({ imageUrl, corners, style, onChange, o
                     />
                   ))}
 
-                  {activeCorners.map((point, index) => (
-                    <g key={`handle-${index}`}>
-                      <circle cx={point.x} cy={point.y} r={HANDLE_HIT_RADIUS} fill="transparent" onPointerDown={(event) => startCornerDrag(event, index)} style={{ cursor: 'grab' }} />
-                      <circle cx={point.x} cy={point.y} r={HANDLE_RADIUS} fill="rgba(0,0,0,0.3)" stroke="rgba(254,92,43,0.35)" strokeWidth="0.16" pointerEvents="none" />
-                    </g>
-                  ))}
+                  {activeCorners.map((point, index) => {
+                    const isSelected = selectedCornerIndex === index;
+                    return (
+                      <g key={`handle-${index}`}>
+                        <circle
+                          cx={point.x}
+                          cy={point.y}
+                          r={HANDLE_HIT_RADIUS}
+                          fill="transparent"
+                          onPointerDown={(event) => startCornerDrag(event, index)}
+                          style={{ cursor: 'grab' }}
+                        />
+                        {isSelected && (
+                          <circle
+                            cx={point.x}
+                            cy={point.y}
+                            r={HANDLE_RADIUS * 1.9}
+                            fill="none"
+                            stroke="rgba(254,92,43,0.95)"
+                            strokeWidth="0.18"
+                            pointerEvents="none"
+                          />
+                        )}
+                        <circle
+                          cx={point.x}
+                          cy={point.y}
+                          r={HANDLE_RADIUS}
+                          fill={isSelected ? 'rgba(254,92,43,0.85)' : 'rgba(0,0,0,0.3)'}
+                          stroke={isSelected ? 'rgba(255,255,255,0.95)' : 'rgba(254,92,43,0.35)'}
+                          strokeWidth="0.16"
+                          pointerEvents="none"
+                        />
+                      </g>
+                    );
+                  })}
                 </>
               )}
             </svg>

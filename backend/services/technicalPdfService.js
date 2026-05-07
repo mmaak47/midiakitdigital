@@ -107,6 +107,58 @@ function normalizeTextForMatch(value) {
     .trim();
 }
 
+function formatDecimal(value, digits = 2) {
+  const numeric = normalizeNumber(value, null);
+  if (numeric === null) return '-';
+  return numeric.toFixed(digits).replace('.', ',');
+}
+
+function isStaticPrintedType(tipo) {
+  const tipoNorm = normalizeTextForMatch(tipo);
+  return tipoNorm.includes('backlight') || tipoNorm.includes('frontlight');
+}
+
+function buildAspectLabel(width, height) {
+  const w = normalizeNumber(width, null);
+  const h = normalizeNumber(height, null);
+  if (w === null || h === null || w <= 0 || h <= 0) return 'Horizontal 16:9';
+
+  const orientation = h >= w ? 'Vertical' : 'Horizontal';
+  const precision = 100;
+  const wInt = Math.max(1, Math.round(w * precision));
+  const hInt = Math.max(1, Math.round(h * precision));
+  const gcd = (a, b) => {
+    let x = Math.abs(a);
+    let y = Math.abs(b);
+    while (y) {
+      const t = y;
+      y = x % y;
+      x = t;
+    }
+    return x || 1;
+  };
+  const d = gcd(wInt, hInt);
+  const rw = Math.max(1, Math.round(wInt / d));
+  const rh = Math.max(1, Math.round(hInt / d));
+  return `${orientation} ${rw}:${rh}`;
+}
+
+function buildAcceptedFileTypesLabel(points = [], { htmlBreak = false } = {}) {
+  const hasStatic = points.some((point) => isStaticPrintedType(point?.tipo));
+  const hasDigital = points.some((point) => !isStaticPrintedType(point?.tipo));
+  if (hasStatic && !hasDigital) {
+    return 'Imagem (jpg, png, pdf)';
+  }
+  if (hasStatic && hasDigital) {
+    return htmlBreak
+      ? 'Video (mp4, mov) para digitais<br/>Imagem (jpg, png, pdf) para midia estatica'
+      : 'Video (mp4, mov) para digitais e Imagem (jpg, png, pdf) para midia estatica';
+  }
+  return htmlBreak
+    ? 'Video (mp4, mov) ou<br/>Imagem (jpg, png, pdf)'
+    : 'Video (mp4, mov) ou Imagem (jpg, png, pdf)';
+}
+
 function toTitleCase(value) {
   const raw = String(value || '').trim().replace(/\s+/g, ' ');
   if (!raw) return '';
@@ -265,6 +317,81 @@ function parseOperatingHours(horario) {
   return 17;
 }
 
+/**
+ * Normaliza o horário bruto vindo do banco (Google weekday_text, OSM, scraper)
+ * para uma string compacta usável no PDF técnico. Mantém formatos simples
+ * intactos (e.g. "06:00 às 22:00"). Em formatos complexos, devolve um resumo
+ * agrupado (e.g. "Seg-Sex 08:00–18:00 · Sáb 08:00–12:00").
+ */
+function normalizeHorarioForPdfBackend(horario, fallback = '6h às 23h') {
+  const raw = String(horario || '').trim();
+  if (!raw || raw === '-') return fallback;
+  if (/^24\s*h/i.test(raw) || raw === '24/7') return '24 horas';
+  // Formatos simples sem dias da semana — entrega como veio (limpo).
+  if (/^\d{1,2}([:.h]\d{2}|h(?!\d))\s*(às|as|–|-|a)\s*\d{1,2}([:.h]\d{2}|h(?!\d))$/i.test(raw)) {
+    return raw
+      .replace(/(\d{1,2})h(\d{2})/gi, '$1:$2')
+      .replace(/(\d{1,2})h(?!\d)/gi, '$1h')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  const DAY_ORDER = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo'];
+  const ABBR = { segunda: 'Seg', terca: 'Ter', quarta: 'Qua', quinta: 'Qui', sexta: 'Sex', sabado: 'Sáb', domingo: 'Dom' };
+  const PT_MAP = {
+    'segunda-feira': 'segunda', segunda: 'segunda', seg: 'segunda',
+    'terça-feira': 'terca', 'terca-feira': 'terca', terça: 'terca', terca: 'terca', ter: 'terca',
+    'quarta-feira': 'quarta', quarta: 'quarta', qua: 'quarta',
+    'quinta-feira': 'quinta', quinta: 'quinta', qui: 'quinta',
+    'sexta-feira': 'sexta', sexta: 'sexta', sex: 'sexta',
+    sábado: 'sabado', sabado: 'sabado', sáb: 'sabado', sab: 'sabado',
+    domingo: 'domingo', dom: 'domingo'
+  };
+
+  const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const cleanTime = (t) => String(t || '')
+    .replace(/(\d{1,2})h(\d{2})/gi, '$1:$2')
+    .replace(/(\d{1,2})h(?!\d)/gi, '$1:00')
+    .replace(/\s*[-–—]\s*/g, '–')
+    .replace(/\s*às\s*/gi, '–')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const map = {};
+  // Google weekday_text: "segunda-feira: 08:00 – 18:00 | terça-feira: ..."
+  if (raw.includes('|') && /feira|sábado|sabado|domingo/i.test(raw)) {
+    raw.split('|').map((s) => s.trim()).filter(Boolean).forEach((entry) => {
+      const m = entry.match(/^([^:]+):\s*(.+)$/);
+      if (!m) return;
+      const day = PT_MAP[norm(m[1])];
+      if (day) map[day] = cleanTime(m[2]);
+    });
+  }
+
+  if (Object.keys(map).length === 0) return raw;
+
+  // Agrupa dias consecutivos com o mesmo horário.
+  const groups = [];
+  let cur = null;
+  for (const day of DAY_ORDER) {
+    const hours = map[day];
+    if (!hours) {
+      if (cur) { groups.push(cur); cur = null; }
+      continue;
+    }
+    if (cur && cur.hours === hours) cur.days.push(day);
+    else { if (cur) groups.push(cur); cur = { days: [day], hours }; }
+  }
+  if (cur) groups.push(cur);
+
+  return groups.map((g) => {
+    const first = ABBR[g.days[0]];
+    const last = ABBR[g.days[g.days.length - 1]];
+    const label = g.days.length === 7 ? 'Todos os dias' : g.days.length === 1 ? first : `${first}-${last}`;
+    return `${label} ${g.hours}`;
+  }).join(' · ');
+}
+
 function isTransientPdfError(err) {
   const message = String(err?.message || err || '');
   return /Target closed|Protocol error|Session closed|Connection closed|Page crashed|Execution context|frame was detached/i.test(message);
@@ -370,6 +497,7 @@ function buildDesktopCoverPage(points) {
   const total = points.length;
   const icons = buildIcons();
   const logoUrl = resolveAssetUrl('/logo.png');
+  const fileTypesLabel = buildAcceptedFileTypesLabel(points, { htmlBreak: true });
 
   return createPage(`
     <div style="position:absolute;inset:0;background:radial-gradient(circle at 100% 0%, rgba(232,89,26,0.3), transparent 50%),linear-gradient(140deg,#090909,#111 46%,#1b120d 100%);"></div>
@@ -390,7 +518,7 @@ function buildDesktopCoverPage(points) {
       </div>
       <div style="margin-top:48px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;">
          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;">
-            ${buildSpecItem('Tipos de arquivo', 'Vídeo (mp4, mov) ou<br/>Imagem (jpg, png, pdf)', icons.file)}
+            ${buildSpecItem('Tipos de arquivo', fileTypesLabel, icons.file)}
          </div>
          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;">
             ${buildSpecItem('Prazo para envio', 'Até 48h antes<br/>do início', icons.calendar)}
@@ -427,14 +555,15 @@ function buildDesktopPointPage(point, index, total, options = {}) {
 
   const widthPx  = Math.max(1, Math.round(normalizeNumber(point?.arte_largura, 1080) || 1080));
   const heightPx = Math.max(1, Math.round(normalizeNumber(point?.arte_altura, 1920) || 1920));
-  const isVertical = heightPx >= widthPx;
-  const formatAspect = (() => {
-    const g = (a, b) => { let x = Math.abs(a), y = Math.abs(b); while (y) { const t = y; y = x % y; x = t; } return x || 1; };
-    const d = g(widthPx, heightPx);
-    const rw = Math.round(widthPx / d), rh = Math.round(heightPx / d);
-    const orientation = isVertical ? 'Vertical' : 'Horizontal';
-    return `${orientation} ${rw}:${rh}`;
-  })();
+  const isStaticPoint = isStaticPrintedType(point?.tipo);
+
+  const mwM = Number(point?.midia_largura_m);
+  const mhM = Number(point?.midia_altura_m);
+  const hasMeters = isStaticPoint && Number.isFinite(mwM) && mwM > 0 && Number.isFinite(mhM) && mhM > 0;
+  const formatAspect = buildAspectLabel(hasMeters ? mwM : widthPx, hasMeters ? mhM : heightPx);
+  const resolucaoLabel = hasMeters
+    ? `${formatDecimal(mwM, 2)}m x ${formatDecimal(mhM, 2)}m`
+    : `${widthPx}x${heightPx} px`;
 
   const icons = buildIcons();
 
@@ -448,17 +577,23 @@ function buildDesktopPointPage(point, index, total, options = {}) {
 
   const insercoesMes = parseInt(String(point?.insercoes || '').replace(/\D/g, ''), 10);
   let insercoesHoraLabel = '';
-  if (!isNaN(insercoesMes) && insercoesMes > 0) {
+  if (isStaticPoint) {
+    insercoesHoraLabel = 'Exposicao continua';
+  } else if (!isNaN(insercoesMes) && insercoesMes > 0) {
     const horasPorDia      = parseOperatingHours(point?.horario);
     const insercoesPorHora = Math.round((insercoesMes / 30) / horasPorDia);
-    insercoesHoraLabel = `${insercoesPorHora} inserções/h`;
+    insercoesHoraLabel = `${insercoesPorHora} insercoes/h`;
   } else {
     const loopSeg   = parseDuracaoText(point?.loop) || 180;
-    insercoesHoraLabel = `${Math.floor(3600 / loopSeg)} inserções/h`;
+    insercoesHoraLabel = `${Math.floor(3600 / loopSeg)} insercoes/h`;
   }
 
-  const duracaoItem = escapeHtml(point?.tempo && String(point.tempo).trim() !== '' ? point.tempo : '15s');
-  const loopLabel   = escapeHtml(point?.loop  && String(point.loop).trim()  !== '' ? point.loop  : '180s');
+  const duracaoItem = isStaticPoint
+    ? 'Exibicao continua (midia estatica)'
+    : escapeHtml(point?.tempo && String(point.tempo).trim() !== '' ? point.tempo : '15s');
+  const loopLabel = isStaticPoint
+    ? 'Nao se aplica'
+    : escapeHtml(point?.loop && String(point.loop).trim() !== '' ? point.loop : '180s');
 
   return createPage(`
     <div style="display:flex;height:100%;background:#0A0A0A;">
@@ -499,12 +634,12 @@ function buildDesktopPointPage(point, index, total, options = {}) {
               ${buildSpecItem('Exibição Média', insercoesHoraLabel, icons.activity)}
             </div>
             <div style="display:flex;flex-direction:column;gap:28px;">
-              ${buildSpecItem('Resolução', `${widthPx}x${heightPx} px`, icons.res)}
+              ${buildSpecItem('Resolucao', resolucaoLabel, icons.res)}
               ${buildSpecItem('Tamanho máximo', '50MB', icons.weight)}
               ${buildSpecItem('Loop Estimado', loopLabel, icons.loop)}
             </div>
             <div style="grid-column: 1 / -1; display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px;">
-              ${buildSpecItem('Funcionamento', escapeHtml(point?.horario && point.horario !== '' ? point.horario : '6h às 23h'), icons.sun)}
+              ${buildSpecItem('Funcionamento', escapeHtml(normalizeHorarioForPdfBackend(point?.horario)), icons.sun)}
             </div>
             <div style="grid-column: 1 / -1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;margin-top:12px;">
               ${buildSpecItem('Regras criativas', 'Texto curto, alto contraste e logo em destaque', icons.alert)}
@@ -575,6 +710,7 @@ function mSpecCard(items) {
 function buildMobileCoverPage(points) {
   const count   = points.length;
   const logoUrl = resolveAssetUrl('/logo.png');
+  const fileTypesLabel = buildAcceptedFileTypesLabel(points);
 
   return `
     <section style="display:block;width:${MOBILE_W}px;height:${MOBILE_H}px;min-height:${MOBILE_H}px;max-height:${MOBILE_H}px;position:relative;overflow:hidden;background:${M_BLACK};color:${M_TEXT};font-family:Poppins,system-ui,sans-serif;box-sizing:border-box;page-break-after:always;break-after:page;">
@@ -594,7 +730,7 @@ function buildMobileCoverPage(points) {
         <div style="flex:1;display:flex;flex-direction:column;gap:10px;overflow:hidden;">
           <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${M_MUTED};margin-bottom:4px;">Especificações gerais</div>
           ${mSpecCard([
-            mSpecItem('Formatos aceitos', 'MP4, AVI, MOV, GIF, JPG, PNG'),
+            mSpecItem('Formatos aceitos', fileTypesLabel),
             mSpecItem('Prazo de envio', '48h antes da veiculação'),
             mSpecItem('Peso máximo', '50 MB por arquivo'),
             mSpecItem('Áudio', 'Sem áudio (mídia indoor silenciosa)'),
@@ -614,21 +750,36 @@ function buildMobilePointPage(point, index, total, options = {}) {
   const focalPt  = String(point?.foto_focal_point || 'center center').trim();
   const nome     = escapeHtml(point?._pdfDisplayName || point?.nome || 'Sem Nome');
   const tipoLabel = escapeHtml(point?._pdfTipoLabel || point?.tipo || 'Outros');
+  const isStaticPoint = isStaticPrintedType(point?.tipo);
+
   const durSec   = parseDuracaoText(point?.tempo || point?.duracao);
   const parsedLoopSec = parseDuracaoText(point?.loop);
   const loopSec = parsedLoopSec > 0 ? parsedLoopSec : (durSec * 5 || 30);
-  const loopLabel = loopSec >= 60 ? `${Math.round(loopSec / 60)} min` : `${loopSec}s`;
-  const durLabel  = durSec >= 60
-    ? `${Math.floor(durSec / 60)}min${durSec % 60 > 0 ? ` ${durSec % 60}s` : ''}`
-    : (durSec > 0 ? `${durSec}s` : '-');
+  const loopLabel = isStaticPoint
+    ? 'Nao se aplica'
+    : (loopSec >= 60 ? `${Math.round(loopSec / 60)} min` : `${loopSec}s`);
+  const durLabel  = isStaticPoint
+    ? 'Exibicao continua (midia estatica)'
+    : (durSec >= 60
+      ? `${Math.floor(durSec / 60)}min${durSec % 60 > 0 ? ` ${durSec % 60}s` : ''}`
+      : (durSec > 0 ? `${durSec}s` : '-'));
 
   const hoursDay       = parseOperatingHours(point?.horario);
   const insPerDay      = durSec > 0 ? Math.round((hoursDay * 3600) / durSec) : null;
-  const insercoesLabel = insPerDay ? `≈ ${insPerDay}/dia` : '-';
+  const insercoesLabel = isStaticPoint ? 'Exposicao continua' : (insPerDay ? `~ ${insPerDay}/dia` : '-');
 
   const widthPx  = Number(point?.arte_largura || point?.largura_px || 0);
   const heightPx = Number(point?.arte_altura  || point?.altura_px  || 0);
-  const resolucao = widthPx && heightPx ? `${widthPx}×${heightPx} px` : '-';
+  const mwM = Number(point?.midia_largura_m);
+  const mhM = Number(point?.midia_altura_m);
+  const hasMeters = isStaticPoint && Number.isFinite(mwM) && mwM > 0 && Number.isFinite(mhM) && mhM > 0;
+  const resolucao = hasMeters
+    ? `${formatDecimal(mwM, 2)}m x ${formatDecimal(mhM, 2)}m`
+    : (widthPx && heightPx ? `${widthPx}x${heightPx} px` : '-');
+  const formatAspect = buildAspectLabel(
+    hasMeters ? mwM : (widthPx || 16),
+    hasMeters ? mhM : (heightPx || 9)
+  );
 
   const photoHtml = img
     ? `<img src="${img}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(focalPt)};" />`
@@ -654,11 +805,12 @@ function buildMobilePointPage(point, index, total, options = {}) {
         <div style="flex:1;overflow:hidden;">
           <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${M_MUTED};margin-bottom:8px;">Especificações técnicas</div>
           ${mSpecCard([
-            mSpecItem('Resolução', resolucao),
+            mSpecItem('Formato', formatAspect),
+            mSpecItem('Resolucao', resolucao),
             mSpecItem('Duração do spot', durLabel),
             mSpecItem('Exibição média', insercoesLabel),
             mSpecItem('Loop estimado', loopLabel),
-            mSpecItem('Funcionamento', point?.horario || '6h às 23h'),
+            mSpecItem('Funcionamento', normalizeHorarioForPdfBackend(point?.horario)),
             mSpecItem('Peso máximo', '50 MB'),
           ])}
         </div>
@@ -729,72 +881,30 @@ async function generatePdfsFromPointNames(db, nomes) {
 
   const sortedByCategory = normalizeAndSortPoints(ordered);
 
-  const canFallbackCompact = sortedByCategory.length >= TECH_PDF_LARGE_SALE_THRESHOLD;
-  const canFallbackLite = sortedByCategory.length >= TECH_PDF_FORCE_COMPACT_THRESHOLD;
-
+  // Sempre gera com fotos completas — usuário prefere aguardar mais a usar fallback sem imagens.
+  // Os thresholds preventivos (TECH_PDF_FORCE_COMPACT_THRESHOLD / TECH_PDF_FORCE_LITE_THRESHOLD)
+  // foram desativados intencionalmente.
   let photoMode = 'full';
-  if (sortedByCategory.length >= TECH_PDF_FORCE_LITE_THRESHOLD) {
-    photoMode = 'none';
-  } else if (sortedByCategory.length >= TECH_PDF_FORCE_COMPACT_THRESHOLD) {
-    photoMode = 'compact';
-  }
 
   let desktop, mobile;
-
-  if (photoMode === 'compact') {
-    console.warn(`[technical-pdf] venda com ${sortedByCategory.length} ponto(s): modo de fotos compactas ativado preventivamente.`);
-  }
-  if (photoMode === 'none') {
-    console.warn(`[technical-pdf] venda com ${sortedByCategory.length} ponto(s): modo leve sem fotos ativado preventivamente.`);
-  }
 
   try {
     // Renderiza em sequência para reduzir picos de memória do Chromium,
     // especialmente em vendas com muitas imagens/pontos.
-    try {
-      desktop = await generateWithRetry(
-        photoMode === 'none' ? 'pdf_desktop_lite' : photoMode === 'compact' ? 'pdf_desktop_compact' : 'pdf_desktop',
-        () => generateDesktopPdfBuffer(sortedByCategory, { photoMode })
-      );
-    } catch (err) {
-      if (isTransientPdfError(err) && photoMode === 'full' && canFallbackCompact) {
-        photoMode = 'compact';
-        console.warn(`[technical-pdf] fallback para fotos compactas no desktop (${sortedByCategory.length} ponto(s)): ${err.message}`);
-        _imgCache.clear();
-        desktop = await generateWithRetry('pdf_desktop_compact', () => generateDesktopPdfBuffer(sortedByCategory, { photoMode }), 2);
-      } else if (isTransientPdfError(err) && photoMode !== 'none' && canFallbackLite) {
-        photoMode = 'none';
-        console.warn(`[technical-pdf] fallback para modo leve no desktop (${sortedByCategory.length} ponto(s)): ${err.message}`);
-        _imgCache.clear();
-        desktop = await generateWithRetry('pdf_desktop_lite', () => generateDesktopPdfBuffer(sortedByCategory, { photoMode }), 2);
-      } else {
-        throw err;
-      }
-    }
+    desktop = await generateWithRetry(
+      'pdf_desktop',
+      () => generateDesktopPdfBuffer(sortedByCategory, { photoMode }),
+      5
+    );
 
     // Limpa cache antes da versão mobile para aliviar memória entre renders.
     _imgCache.clear();
 
-    try {
-      mobile = await generateWithRetry(
-        photoMode === 'none' ? 'pdf_mobile_lite' : photoMode === 'compact' ? 'pdf_mobile_compact' : 'pdf_mobile',
-        () => generateMobilePdfBuffer(sortedByCategory, { photoMode })
-      );
-    } catch (err) {
-      if (isTransientPdfError(err) && photoMode === 'full' && canFallbackCompact) {
-        photoMode = 'compact';
-        console.warn(`[technical-pdf] fallback para fotos compactas no mobile (${sortedByCategory.length} ponto(s)): ${err.message}`);
-        _imgCache.clear();
-        mobile = await generateWithRetry('pdf_mobile_compact', () => generateMobilePdfBuffer(sortedByCategory, { photoMode }), 2);
-      } else if (isTransientPdfError(err) && photoMode !== 'none' && canFallbackLite) {
-        photoMode = 'none';
-        console.warn(`[technical-pdf] fallback para modo leve no mobile (${sortedByCategory.length} ponto(s)): ${err.message}`);
-        _imgCache.clear();
-        mobile = await generateWithRetry('pdf_mobile_lite', () => generateMobilePdfBuffer(sortedByCategory, { photoMode }), 2);
-      } else {
-        throw err;
-      }
-    }
+    mobile = await generateWithRetry(
+      'pdf_mobile',
+      () => generateMobilePdfBuffer(sortedByCategory, { photoMode }),
+      5
+    );
   } finally {
     _imgCache.clear(); // libera base64 das fotos da memória após geração
   }

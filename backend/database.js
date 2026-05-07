@@ -79,10 +79,12 @@ function createPostgresCompat() {
   }
 
   function runPsql(sql) {
+    // Pass SQL via stdin (-f -) instead of -c to avoid ARG_MAX/E2BIG limit
+    // when SQL contains large payloads (e.g. proposta pública JSON).
     const output = execFileSync(
       'psql',
-      [psqlConnectionString, '-X', '-t', '-A', '-v', 'ON_ERROR_STOP=1', '-c', sql],
-      { encoding: 'utf8' }
+      [psqlConnectionString, '-X', '-t', '-A', '-v', 'ON_ERROR_STOP=1', '-f', '-'],
+      { encoding: 'utf8', input: sql, maxBuffer: 256 * 1024 * 1024 }
     );
     return String(output || '').trim();
   }

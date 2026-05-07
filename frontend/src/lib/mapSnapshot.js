@@ -298,7 +298,8 @@ function drawClientMarker(ctx, clientPoint) {
   ctx.restore();
 }
 
-function drawPointMarkers(ctx, points) {
+function drawPointMarkers(ctx, points, options = {}) {
+  const showLabels = options.showLabels !== false;
   points.forEach((point, index) => {
     ctx.save();
 
@@ -323,7 +324,7 @@ function drawPointMarkers(ctx, points) {
 
     // Name label
     const rawName = point.point?.nome || point.point?.name || '';
-    if (rawName) {
+    if (showLabels && rawName) {
       const label = rawName.length > 24 ? rawName.slice(0, 22) + '…' : rawName;
       ctx.font = 'bold 11px Arial';
       ctx.textAlign = 'center';
@@ -445,17 +446,22 @@ export async function buildSelectionMapCanvas(points = [], options = {}) {
     drawRouteLine(ctx, projectedPoints);
   }
 
+  // Hide point name labels automatically when too many points to avoid overlap.
+  const showPointLabels = options.showPointLabels !== undefined
+    ? !!options.showPointLabels
+    : projectedPoints.length <= 20;
+
   if (clientCoords) {
     const projectedClient = {
       x: projectToViewport(clientCoords.lat, clientCoords.lng, zoom, viewport).x,
       y: projectToViewport(clientCoords.lat, clientCoords.lng, zoom, viewport).y
     };
     drawClientLines(ctx, projectedClient, projectedPoints);
-    drawPointMarkers(ctx, projectedPoints);
+    drawPointMarkers(ctx, projectedPoints, { showLabels: showPointLabels });
     drawClientMarker(ctx, projectedClient);
     drawLegend(ctx, width, height, connectPoints, true);
   } else {
-    drawPointMarkers(ctx, projectedPoints);
+    drawPointMarkers(ctx, projectedPoints, { showLabels: showPointLabels });
     drawLegend(ctx, width, height, connectPoints, false);
   }
 

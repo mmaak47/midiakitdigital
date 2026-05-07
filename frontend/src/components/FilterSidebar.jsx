@@ -5,6 +5,7 @@ import {
   ShoppingCart, Fuel, Search, X, SlidersHorizontal
 } from 'lucide-react';
 import { fetchPublicos } from '../lib/api';
+import CustomSelect from './CustomSelect';
 
 const CIDADES = ['Londrina', 'Maringá', 'Balneário Camboriú', 'Itajaí'];
 const TIPOS = [
@@ -19,13 +20,17 @@ const TIPOS = [
   { value: 'Frontlight', icon: Sun, help: 'Painel iluminado por refletores frontais.' },
 ];
 
-export default function FilterSidebar({ filters, setFilters, total, mobileOpen, setMobileOpen, isDark = true }) {
+export default function FilterSidebar({ filters, setFilters, total, mobileOpen, setMobileOpen, isDark = true, cidades }) {
   const [publicos, setPublicos] = useState([]);
+  const cidadeOptions = (Array.isArray(cidades) && cidades.length > 0) ? cidades : CIDADES;
 
   useEffect(() => {
     fetchPublicos().then(setPublicos).catch(() => setPublicos([]));
   }, []);
-  const hasFilters = filters.cidade.length || filters.tipo || filters.elevador_categoria || filters.publico.length || filters.search;
+  const elevadorCategoriasFilter = Array.isArray(filters.elevador_categoria)
+    ? filters.elevador_categoria
+    : (filters.elevador_categoria ? [filters.elevador_categoria] : []);
+  const hasFilters = filters.cidade.length || filters.tipo || elevadorCategoriasFilter.length || filters.publico.length || filters.search;
 
   const updateFilter = (key, value) => {
     setFilters(prev => ({
@@ -40,12 +45,12 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
     setFilters((prev) => ({
       ...prev,
       tipo: prev.tipo === value ? '' : value,
-      elevador_categoria: (prev.tipo === value || value !== 'Elevador') ? '' : prev.elevador_categoria
+      elevador_categoria: (prev.tipo === value || value !== 'Elevador') ? [] : prev.elevador_categoria
     }));
   };
 
   const clearAll = () => {
-    setFilters({ cidade: [], tipo: '', elevador_categoria: '', publico: [], search: '' });
+    setFilters({ cidade: [], tipo: '', elevador_categoria: [], publico: [], search: '' });
   };
 
   const content = (
@@ -77,31 +82,34 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
         )}
       </div>
 
-      {/* Cidades */}
+      {/* Público (topo) */}
+      <div>
+        <h3 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+          Público
+        </h3>
+        <CustomSelect
+          value={filters.publico}
+          onChange={(next) => setFilters((prev) => ({ ...prev, publico: Array.isArray(next) ? next : [] }))}
+          options={publicos}
+          placeholder={publicos.length ? 'Selecionar um ou mais públicos' : 'Carregando…'}
+          multiple
+          isDark={isDark}
+        />
+      </div>
+
+      {/* Cidades (dropdown multi) */}
       <div>
         <h3 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
           Cidade
         </h3>
-        <div className="space-y-1">
-          {CIDADES.map(cidade => (
-            <button
-              key={cidade}
-              onClick={() => updateFilter('cidade', cidade)}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
-                filters.cidade.includes(cidade)
-                  ? isDark
-                    ? 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20'
-                    : 'bg-orange-50 text-orange-700 border border-orange-200'
-                  : isDark
-                    ? 'text-brand-gray-300 hover:bg-white/5 border border-transparent'
-                    : 'text-neutral-600 hover:bg-neutral-100 border border-transparent'
-              }`}
-            >
-              <MapPin size={14} />
-              {cidade}
-            </button>
-          ))}
-        </div>
+        <CustomSelect
+          value={filters.cidade}
+          onChange={(next) => setFilters((prev) => ({ ...prev, cidade: Array.isArray(next) ? next : [] }))}
+          options={cidadeOptions}
+          placeholder="Selecionar uma ou mais cidades"
+          multiple
+          isDark={isDark}
+        />
       </div>
 
       {/* Tipo */}
@@ -140,50 +148,32 @@ export default function FilterSidebar({ filters, setFilters, total, mobileOpen, 
             Categoria do Elevador
           </h3>
           <div className="flex flex-wrap gap-2">
-            {['Comercial', 'Residencial'].map((categoria) => (
-              <button
-                key={categoria}
-                onClick={() => setFilters((prev) => ({
-                  ...prev,
-                  elevador_categoria: prev.elevador_categoria === categoria ? '' : categoria
-                }))}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
-                  filters.elevador_categoria === categoria
-                    ? 'bg-brand-orange text-white'
-                    : isDark
-                      ? 'bg-white/5 text-brand-gray-400 hover:bg-white/10 border border-white/5'
-                      : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200 border border-neutral-200'
-                }`}
-              >
-                {categoria}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Público */}
-      {publicos.length > 0 && (
-        <div>
-          <h3 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
-            Público
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {publicos.map(p => (
-              <button
-                key={p}
-                onClick={() => updateFilter('publico', p)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
-                  filters.publico.includes(p)
-                    ? 'bg-brand-orange text-white'
-                    : isDark
-                      ? 'bg-white/5 text-brand-gray-400 hover:bg-white/10 border border-white/5'
-                      : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200 border border-neutral-200'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
+            {['Comercial', 'Residencial'].map((categoria) => {
+              const selected = elevadorCategoriasFilter.includes(categoria);
+              return (
+                <button
+                  key={categoria}
+                  onClick={() => setFilters((prev) => {
+                    const current = Array.isArray(prev.elevador_categoria)
+                      ? prev.elevador_categoria
+                      : (prev.elevador_categoria ? [prev.elevador_categoria] : []);
+                    const next = current.includes(categoria)
+                      ? current.filter((c) => c !== categoria)
+                      : [...current, categoria];
+                    return { ...prev, elevador_categoria: next };
+                  })}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
+                    selected
+                      ? 'bg-brand-orange text-white'
+                      : isDark
+                        ? 'bg-white/5 text-brand-gray-400 hover:bg-white/10 border border-white/5'
+                        : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200 border border-neutral-200'
+                  }`}
+                >
+                  {categoria}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

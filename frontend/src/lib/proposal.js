@@ -1,5 +1,19 @@
 function toNumber(value) {
-  return Number(value) || 0;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  const raw = String(value ?? '').trim();
+  if (!raw) return 0;
+
+  const normalized = raw
+    .replace(/\s+/g, '')
+    .replace(/R\$/gi, '')
+    .replace(/\.(?=\d{3}(\D|$))/g, '')
+    .replace(',', '.');
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function clampDiscount(value) {
@@ -20,20 +34,57 @@ function formatList(values = [], fallback = '') {
 
 export function buildProposalPricing(points = [], discountConfig = {}) {
   const mode = discountConfig?.mode || 'none';
+  const valueType = discountConfig?.valueType === 'amount' ? 'amount' : 'percentage';
   const globalPercentage = clampDiscount(discountConfig?.percentage);
-  const specificPointIds = new Set(normalizeValues(discountConfig?.targetPointIds));
+  const globalAmount = Math.max(0, toNumber(discountConfig?.amount));
+  const specificPointIds = new Set(normalizeValues(discountConfig?.targetPointIds).map((id) => String(id)));
   const perPointDiscounts = discountConfig?.perPoint || {};
+
+  // For amount-based discount, convert the entered value to an equivalent
+  // percentage inside the selected scope (all points or specific points).
+  const scopedOriginalTotal = points.reduce((sum, point) => {
+    const originalPrice = toNumber(point.preco);
+
+    if (mode === 'total') return sum + originalPrice;
+    if (mode === 'specific') {
+      return specificPointIds.has(String(point.id)) ? sum + originalPrice : sum;
+    }
+    return sum;
+  }, 0);
+
+  const cappedGlobalAmount = Math.min(globalAmount, scopedOriginalTotal);
+  const globalEquivalentPercentage = scopedOriginalTotal > 0
+    ? clampDiscount((cappedGlobalAmount / scopedOriginalTotal) * 100)
+    : 0;
+  const effectiveGlobalPercentage = valueType === 'amount'
+    ? globalEquivalentPercentage
+    : globalPercentage;
 
   const pricedPoints = points.map((point) => {
     const originalPrice = toNumber(point.preco);
     let discountPercent = 0;
 
     if (mode === 'total') {
-      discountPercent = globalPercentage;
+      discountPercent = effectiveGlobalPercentage;
     } else if (mode === 'specific') {
-      discountPercent = specificPointIds.has(point.id) ? globalPercentage : 0;
+      discountPercent = specificPointIds.has(String(point.id)) ? effectiveGlobalPercentage : 0;
     } else if (mode === 'individual') {
-      discountPercent = clampDiscount(perPointDiscounts[point.id]);
+      const rawValue = perPointDiscounts[point.id];
+      if (valueType === 'amount') {
+        // No modo "Valor (R$)" individual o usuário digita o PREÇO FINAL desejado
+        // para o ponto, e o sistema calcula o desconto correspondente.
+        // Se o campo estiver vazio, considera sem desconto (mantém preço de tabela).
+        const hasInput = rawValue !== undefined && rawValue !== null && String(rawValue).trim() !== '';
+        if (hasInput && originalPrice > 0) {
+          const finalDesired = Math.max(0, Math.min(toNumber(rawValue), originalPrice));
+          const computedDiscount = originalPrice - finalDesired;
+          discountPercent = clampDiscount((computedDiscount / originalPrice) * 100);
+        } else {
+          discountPercent = 0;
+        }
+      } else {
+        discountPercent = clampDiscount(rawValue);
+      }
     }
 
     const discountAmount = originalPrice * (discountPercent / 100);
@@ -52,14 +103,17 @@ export function buildProposalPricing(points = [], discountConfig = {}) {
   const originalTotal = pricedPoints.reduce((sum, point) => sum + toNumber(point.precoOriginal), 0);
   const discountTotal = pricedPoints.reduce((sum, point) => sum + toNumber(point.discountAmount), 0);
   const finalTotal = pricedPoints.reduce((sum, point) => sum + toNumber(point.precoFinal), 0);
+  const discountPercent = originalTotal > 0 ? (discountTotal / originalTotal) * 100 : 0;
 
   return {
     mode,
+    valueType,
     points: pricedPoints,
     summary: {
       originalTotal,
       discountTotal,
       finalTotal,
+      discountPercent,
       hasDiscount: discountTotal > 0,
       appliedPoints: pricedPoints.filter((point) => point.discountPercent > 0).length
     }

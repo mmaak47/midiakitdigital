@@ -94,12 +94,60 @@ function parseHorario(horario) {
   return 17;
 }
 
+function formatDecimal(value, digits = 2) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '-';
+  return numeric.toFixed(digits).replace('.', ',');
+}
+
 function normalizeTextForMatch(value) {
   return String(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim();
+}
+
+function isStaticPrintedType(tipo) {
+  const tipoNorm = normalizeTextForMatch(tipo);
+  return tipoNorm.includes('backlight') || tipoNorm.includes('frontlight');
+}
+
+function buildAspectLabel(width, height) {
+  const w = Number(width);
+  const h = Number(height);
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return 'Horizontal 16:9';
+
+  const orientation = h >= w ? 'Vertical' : 'Horizontal';
+  const precision = 100;
+  const wInt = Math.max(1, Math.round(w * precision));
+  const hInt = Math.max(1, Math.round(h * precision));
+  const gcd = (a, b) => {
+    let x = Math.abs(a);
+    let y = Math.abs(b);
+    while (y) {
+      const t = y;
+      y = x % y;
+      x = t;
+    }
+    return x || 1;
+  };
+  const d = gcd(wInt, hInt);
+  const rw = Math.max(1, Math.round(wInt / d));
+  const rh = Math.max(1, Math.round(hInt / d));
+  return `${orientation} ${rw}:${rh}`;
+}
+
+function buildAcceptedFileTypesLabel(points = []) {
+  const hasStatic = points.some((point) => isStaticPrintedType(point?.tipo));
+  const hasDigital = points.some((point) => !isStaticPrintedType(point?.tipo));
+  if (hasStatic && !hasDigital) {
+    return 'Imagem (jpg, png, pdf)';
+  }
+  if (hasStatic && hasDigital) {
+    return 'Vídeo (mp4, mov) para digitais e Imagem (jpg, png, pdf) para mídia estática';
+  }
+  return 'Vídeo (mp4, mov) ou Imagem (jpg, png, pdf)';
 }
 
 function toPointTitleCase(value) {
@@ -241,6 +289,7 @@ function specCard(items) {
 
 function buildTechMobileCoverPage(points) {
   const count = points.length;
+  const fileTypesLabel = buildAcceptedFileTypesLabel(points);
 
   return createMobilePage(`
     <div style="position:absolute;inset:0;background:linear-gradient(160deg,${SURFACE} 0%,${BLACK} 100%);"></div>
@@ -266,7 +315,7 @@ function buildTechMobileCoverPage(points) {
       <div style="flex:1;display:flex;flex-direction:column;gap:10px;overflow:hidden;">
         <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};margin-bottom:4px;">Especificações gerais</div>
         ${specCard([
-          specItem('Tipos de arquivo', 'Vídeo (mp4, mov) ou Imagem (jpg, png, pdf)'),
+          specItem('Tipos de arquivo', fileTypesLabel),
           specItem('Prazo para envio', 'Até 48h antes do início'),
           specItem('Áudio', 'Campanhas sem áudio'),
         ])}
@@ -287,6 +336,7 @@ function buildTechMobilePointPage(point, index, total) {
   const img        = pickImg(point);
   const focalPt    = String(point?.foto_focal_point || 'center center').trim();
   const nome       = escHtml(point?._pdfDisplayName || point?.nome || 'Ponto');
+  const isStaticPoint = isStaticPrintedType(point?.tipo);
 
   // Ambiente + Perfil (matching desktop)
   const ambiente   = escHtml((point?.ambiente && String(point.ambiente).trim() !== '') ? point.ambiente : 'Indoor');
@@ -302,32 +352,43 @@ function buildTechMobilePointPage(point, index, total) {
   // Formato / aspect ratio (matching desktop)
   const widthPx    = Math.max(1, Math.round(Number(point?.arte_largura || 1080) || 1080));
   const heightPx   = Math.max(1, Math.round(Number(point?.arte_altura || 1920) || 1920));
-  const isVertical = heightPx >= widthPx;
-  const formatAspect = isVertical ? 'Vertical 9:16' : 'Horizontal 16:9';
 
-  const resolucao  = `${widthPx}×${heightPx} px`;
+  // Para Backlight/Frontlight, usar dimensoes fisicas em metros (nao pixels)
+  const mwM = Number(point?.midia_largura_m);
+  const mhM = Number(point?.midia_altura_m);
+  const hasMeters = isStaticPoint && Number.isFinite(mwM) && mwM > 0 && Number.isFinite(mhM) && mhM > 0;
+  const formatAspect = buildAspectLabel(hasMeters ? mwM : widthPx, hasMeters ? mhM : heightPx);
+  const resolucao  = hasMeters ? `${formatDecimal(mwM, 2)}m x ${formatDecimal(mhM, 2)}m` : `${widthPx}x${heightPx} px`;
 
-  // Duration — use point.tempo (matching desktop), NOT point.duracao
-  const duracaoItem = (point?.tempo && String(point.tempo).trim() !== '') ? escHtml(point.tempo) : '15s';
+  // Duracao
+  const duracaoItem = isStaticPoint
+    ? 'Exibicao continua (midia estatica)'
+    : ((point?.tempo && String(point.tempo).trim() !== '') ? escHtml(point.tempo) : '15s');
 
-  // Insertions per hour — matching desktop formula
-  const insercoesMesTxt = String(point?.insercoes || '').replace(/\\D/g, '');
+  // Insercoes por hora
+  const insercoesMesTxt = String(point?.insercoes || '').replace(/\D/g, '');
   const insercoesMes = parseInt(insercoesMesTxt, 10);
   let insercoesLabel = '';
-  if (!isNaN(insercoesMes) && insercoesMes > 0) {
+  if (isStaticPoint) {
+    insercoesLabel = 'Exposicao continua';
+  } else if (!isNaN(insercoesMes) && insercoesMes > 0) {
     const hoursDay = parseHorario(point?.horario);
     const perDay   = insercoesMes / 30;
     const perHour  = Math.round(perDay / hoursDay);
-    insercoesLabel = `${perHour} inserções/h`;
+    insercoesLabel = `${perHour} insercoes/h`;
   } else {
     const loopSeg = parseDuracao(point?.loop) || 180;
-    insercoesLabel = `${Math.floor(3600 / loopSeg)} inserções/h`;
+    insercoesLabel = `${Math.floor(3600 / loopSeg)} insercoes/h`;
   }
 
-  // Loop — simple display matching desktop
-  const loopLabel = (point?.loop && String(point.loop).trim() !== '') ? escHtml(point.loop) : '180s';
-  const parsedLoopSec = parseDuracao(point?.loop);
-  const loopLabelNormalized = parsedLoopSec > 0 ? formatDuracaoLabel(parsedLoopSec) : loopLabel;
+  // Loop
+  const loopLabelNormalized = isStaticPoint
+    ? 'Nao se aplica'
+    : (() => {
+      const loopLabel = (point?.loop && String(point.loop).trim() !== '') ? escHtml(point.loop) : '180s';
+      const parsedLoopSec = parseDuracao(point?.loop);
+      return parsedLoopSec > 0 ? formatDuracaoLabel(parsedLoopSec) : loopLabel;
+    })();
 
   return createMobilePage(`
     <!-- Photo panel: top 38% -->

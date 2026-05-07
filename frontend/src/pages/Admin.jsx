@@ -24,6 +24,7 @@ import {
   requestCensusAnalysis,
   fetchAdminUsers,
   createAdminUser,
+  updateAdminUser,
   deleteAdminUser,
   updateAdminUserRole,
   fetchAdminSettings,
@@ -51,6 +52,7 @@ import AuditoriaLoopTab from '../components/admin/AuditoriaLoopTab';
 import LeadsTab from '../components/admin/LeadsTab';
 import PropostasTab from '../components/admin/PropostasTab';
 import WhatsappLogsTab from '../components/admin/WhatsappLogsTab';
+import CustomSelect from '../components/CustomSelect';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
 import { generateTechnicalInfoPdf } from '../lib/technicalInfoPdf';
 import { generateTechnicalInfoMobilePdf } from '../lib/technicalInfoMobilePdf';
@@ -721,7 +723,19 @@ export default function Admin() {
     setUsersError('');
     try {
       if (userModalInitialData?.id) {
-        await updateAdminUserRole(userModalInitialData.id, formData.tipoUsuario || 'vendedor', formData.isVendedor);
+        const parsedEdit = splitName(formData.nome, formData.login);
+        const editPayload = {
+          firstName: parsedEdit.firstName,
+          lastName: parsedEdit.lastName,
+          username: String(formData.login || '').trim(),
+          email: String(formData.email || '').trim(),
+          role: formData.tipoUsuario || 'vendedor',
+          is_vendedor: formData.isVendedor,
+        };
+        if (String(formData.senha || '').trim()) {
+          editPayload.password = String(formData.senha).trim();
+        }
+        await updateAdminUser(userModalInitialData.id, editPayload);
       } else {
         const parsed = splitName(formData.nome, formData.login);
         const normalizedEmail = String(formData.email || '').trim() || `${String(formData.login || '').trim()}@intermidia.local`;
@@ -1453,28 +1467,37 @@ export default function Admin() {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-                <select
-                  value={filterCidade}
-                  onChange={(e) => setFilterCidade(e.target.value)}
-                  className={`w-full sm:w-52 px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
-                >
-                  <option value="todas" className={th.selectOpt}>Todas as cidades</option>
-                  {cidades.map((cidade) => (
-                    <option key={cidade} value={cidade} className={th.selectOpt}>
-                      {cidade}
-                    </option>
-                  ))}
-                </select>
+                <div className="w-full sm:w-52">
+                  <CustomSelect
+                    value={filterCidade === 'todas' ? '' : filterCidade}
+                    onChange={(v) => setFilterCidade(v || 'todas')}
+                    options={[
+                      { value: '', label: 'Todas as cidades' },
+                      ...Array.from(new Set([
+                        ...cidades,
+                        ...pontos.map((p) => p.cidade).filter(Boolean)
+                      ]))
+                        .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+                        .map((c) => ({ value: c, label: c }))
+                    ]}
+                    placeholder="Todas as cidades"
+                    isDark={isDark}
+                  />
+                </div>
 
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className={`w-full sm:w-40 px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${th.inp}`}
-                >
-                  <option value="todos" className={th.selectOpt}>Todos os status</option>
-                  <option value="ativo" className={th.selectOpt}>Apenas ativos</option>
-                  <option value="inativo" className={th.selectOpt}>Apenas inativos</option>
-                </select>
+                <div className="w-full sm:w-40">
+                  <CustomSelect
+                    value={filterStatus === 'todos' ? '' : filterStatus}
+                    onChange={(v) => setFilterStatus(v || 'todos')}
+                    options={[
+                      { value: '', label: 'Todos os status' },
+                      { value: 'ativo', label: 'Apenas ativos' },
+                      { value: 'inativo', label: 'Apenas inativos' },
+                    ]}
+                    placeholder="Todos os status"
+                    isDark={isDark}
+                  />
+                </div>
               </div>
             </div>
 

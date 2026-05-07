@@ -132,6 +132,52 @@ function normalizeTextForMatch(value) {
     .trim();
 }
 
+function isStaticPrintedType(tipo) {
+  const tipoNorm = normalizeTextForMatch(tipo);
+  return tipoNorm.includes('backlight') || tipoNorm.includes('frontlight');
+}
+
+function buildAspectLabel(width, height) {
+  const w = normalizeNumber(width, null);
+  const h = normalizeNumber(height, null);
+  if (w === null || h === null || w <= 0 || h <= 0) return 'Horizontal 16:9';
+
+  const orientation = h >= w ? 'Vertical' : 'Horizontal';
+  const precision = 100;
+  const wInt = Math.max(1, Math.round(w * precision));
+  const hInt = Math.max(1, Math.round(h * precision));
+  const gcd = (a, b) => {
+    let x = Math.abs(a);
+    let y = Math.abs(b);
+    while (y) {
+      const t = y;
+      y = x % y;
+      x = t;
+    }
+    return x || 1;
+  };
+  const d = gcd(wInt, hInt);
+  const rw = Math.max(1, Math.round(wInt / d));
+  const rh = Math.max(1, Math.round(hInt / d));
+  return `${orientation} ${rw}:${rh}`;
+}
+
+function buildAcceptedFileTypesLabel(points = [], { htmlBreak = false } = {}) {
+  const hasStatic = points.some((point) => isStaticPrintedType(point?.tipo));
+  const hasDigital = points.some((point) => !isStaticPrintedType(point?.tipo));
+  if (hasStatic && !hasDigital) {
+    return 'Imagem (jpg, png, pdf)';
+  }
+  if (hasStatic && hasDigital) {
+    return htmlBreak
+      ? 'Vídeo (mp4, mov) para digitais<br/>Imagem (jpg, png, pdf) para mídia estática'
+      : 'Vídeo (mp4, mov) para digitais e Imagem (jpg, png, pdf) para mídia estática';
+  }
+  return htmlBreak
+    ? 'Vídeo (mp4, mov) ou<br/>Imagem (jpg, png, pdf)'
+    : 'Vídeo (mp4, mov) ou Imagem (jpg, png, pdf)';
+}
+
 function toPointTitleCase(value) {
   const raw = String(value || '').trim().replace(/\s+/g, ' ');
   if (!raw) return '';
@@ -292,6 +338,7 @@ function buildHeroImageFrame(image, focalPoint) {
 function buildCoverPage(points) {
   const total = points.length;
   const icons = buildIcons();
+  const fileTypesLabel = buildAcceptedFileTypesLabel(points, { htmlBreak: true });
 
   return createPage(`
     <div style="position:absolute;inset:0;background:radial-gradient(circle at 100% 0%, rgba(232,89,26,0.3), transparent 50%),linear-gradient(140deg,#090909,#111 46%,#1b120d 100%);"></div>
@@ -318,7 +365,7 @@ function buildCoverPage(points) {
       <!-- Global Specs -->
       <div style="margin-top:48px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;">
          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;">
-            ${buildSpecItem('Tipos de arquivo', 'Vídeo (mp4, mov) ou<br/>Imagem (jpg, png, pdf)', icons.file)}
+            ${buildSpecItem('Tipos de arquivo', fileTypesLabel, icons.file)}
          </div>
          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;">
             ${buildSpecItem('Prazo para envio', 'Até 48h antes<br/>do início', icons.calendar)}
@@ -358,14 +405,16 @@ function buildPointPage(point, index, total) {
 
   const widthPx = Math.max(1, Math.round(normalizeNumber(point?.arte_largura, 1080) || 1080));
   const heightPx = Math.max(1, Math.round(normalizeNumber(point?.arte_altura, 1920) || 1920));
-  const isVertical = heightPx >= widthPx;
-  const formatAspect = (() => {
-    const g = (a, b) => { let x = Math.abs(a), y = Math.abs(b); while (y) { const t = y; y = x % y; x = t; } return x || 1; };
-    const d = g(widthPx, heightPx);
-    const rw = Math.round(widthPx / d), rh = Math.round(heightPx / d);
-    const orientation = isVertical ? 'Vertical' : 'Horizontal';
-    return `${orientation} ${rw}:${rh}`;
-  })();
+  const isStaticPoint = isStaticPrintedType(point?.tipo);
+
+  // Para Backlight/Frontlight, exibir dimensões físicas em METROS (não pixels)
+  const mwPdf = Number(point?.midia_largura_m);
+  const mhPdf = Number(point?.midia_altura_m);
+  const hasMeters = isStaticPoint && Number.isFinite(mwPdf) && mwPdf > 0 && Number.isFinite(mhPdf) && mhPdf > 0;
+  const resolucaoLabel = hasMeters
+    ? `${formatDecimal(mwPdf, 2)}m × ${formatDecimal(mhPdf, 2)}m`
+    : `${widthPx}x${heightPx} px`;
+  const formatAspect = buildAspectLabel(hasMeters ? mwPdf : widthPx, hasMeters ? mhPdf : heightPx);
 
   const icons = buildIcons();
 
@@ -389,8 +438,10 @@ function buildPointPage(point, index, total) {
   const insercoesMes = parseInt(insercoesMesTxt, 10);
   
   let insercoesHoraLabel = '';
-  
-  if (!isNaN(insercoesMes) && insercoesMes > 0) {
+
+  if (isStaticPoint) {
+    insercoesHoraLabel = 'Exposição contínua';
+  } else if (!isNaN(insercoesMes) && insercoesMes > 0) {
     const horasPorDia = parseOperatingHours(point?.horario);
     const insercoesPorDia = insercoesMes / 30;
     const insercoesPorHoraMath = Math.round(insercoesPorDia / horasPorDia);
@@ -401,9 +452,13 @@ function buildPointPage(point, index, total) {
     const fallbackHora = Math.floor(3600 / loopSegundos);
     insercoesHoraLabel = `${fallbackHora} inserções/h`;
   }
-  
-  const duracaoItem = (point?.tempo && String(point.tempo).trim() !== '') ? escapeHtml(point.tempo) : '15s';
-  const loopLabel = (point?.loop && String(point.loop).trim() !== '') ? escapeHtml(point.loop) : '180s';
+
+  const duracaoItem = isStaticPoint
+    ? 'Exibição contínua (mídia estática)'
+    : ((point?.tempo && String(point.tempo).trim() !== '') ? escapeHtml(point.tempo) : '15s');
+  const loopLabel = isStaticPoint
+    ? 'Não se aplica'
+    : ((point?.loop && String(point.loop).trim() !== '') ? escapeHtml(point.loop) : '180s');
 
   return createPage(`
     <div style="display:flex;height:100%;background:#0A0A0A;">
@@ -452,7 +507,7 @@ function buildPointPage(point, index, total) {
               ${buildSpecItem('Exibição Média', insercoesHoraLabel, icons.activity)}
             </div>
             <div style="display:flex;flex-direction:column;gap:28px;">
-              ${buildSpecItem('Resolução', `${widthPx}x${heightPx} px`, icons.res)}
+              ${buildSpecItem('Resolução', resolucaoLabel, icons.res)}
               ${buildSpecItem('Tamanho máximo', '50MB', icons.weight)}
               ${buildSpecItem('Loop Estimado', loopLabel, icons.loop)}
             </div>

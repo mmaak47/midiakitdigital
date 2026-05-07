@@ -1,4 +1,5 @@
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useMemo, useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, X } from 'lucide-react';
 
@@ -26,7 +27,10 @@ export default function CustomSelect({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [draftValue, setDraftValue] = useState('');
-  const dropdownRef = useRef(null);
+  const [popupRect, setPopupRect] = useState(null);
+  const wrapperRef = useRef(null);
+  const triggerRef = useRef(null);
+  const popupRef = useRef(null);
 
   const normalizedOptions = useMemo(() => {
     return (options || []).map(normalizeOption).filter((option) => option.value);
@@ -48,16 +52,52 @@ export default function CustomSelect({
     });
   }, [normalizedOptions, selectedValues]);
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+  const updatePopupRect = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const viewportH = window.innerHeight;
+    const spaceBelow = viewportH - rect.bottom;
+    const spaceAbove = rect.top;
+    const openAbove = spaceBelow < 240 && spaceAbove > spaceBelow;
+    setPopupRect({
+      left: rect.left,
+      top: openAbove ? rect.top - 8 : rect.bottom + 8,
+      width: rect.width,
+      maxHeight: Math.max(160, Math.min(420, openAbove ? spaceAbove - 16 : spaceBelow - 16)),
+      placement: openAbove ? 'top' : 'bottom',
+    });
   }, []);
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    updatePopupRect();
+    const onScroll = () => updatePopupRect();
+    const onResize = () => updatePopupRect();
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [isOpen, updatePopupRect]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (e) => {
+      const inWrapper = wrapperRef.current && wrapperRef.current.contains(e.target);
+      const inPopup = popupRef.current && popupRef.current.contains(e.target);
+      if (!inWrapper && !inPopup) setIsOpen(false);
+    };
+    const handleKey = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [isOpen]);
 
   const commitCustomValue = () => {
     const nextValue = draftValue.trim();
@@ -104,17 +144,94 @@ export default function CustomSelect({
     return `${selectedLabels.slice(0, 2).join(', ')} +${selectedLabels.length - 2}`;
   }, [multiple, placeholder, selectedLabels, selectedValues.length]);
 
+  const popupNode = (isOpen && popupRect && typeof document !== 'undefined') ? (
+    <motion.div
+      ref={popupRef}
+      initial={{ opacity: 0, y: popupRect.placement === 'top' ? 8 : -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: popupRect.placement === 'top' ? 8 : -8 }}
+      transition={{ duration: 0.12 }}
+      className={`rounded-xl overflow-hidden ${isDark ? 'bg-gradient-to-b from-[#1a1a1a] to-[#121212] border border-white/15 shadow-2xl shadow-black/50' : 'bg-white border border-[#EFE0D8] shadow-xl shadow-[#F2DDD4]/40'}`}
+      style={{
+        position: 'fixed',
+        left: popupRect.left,
+        top: popupRect.placement === 'top' ? undefined : popupRect.top,
+        bottom: popupRect.placement === 'top' ? Math.max(8, window.innerHeight - popupRect.top) : undefined,
+        width: popupRect.width,
+        maxHeight: popupRect.maxHeight,
+        zIndex: 100000,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {allowCustom && (
+        <div className={`border-b p-3 ${isDark ? 'border-white/10' : 'border-[#EFE0D8]'}`}>
+          <input
+            type="text"
+            value={draftValue}
+            onChange={(e) => setDraftValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitCustomValue();
+              }
+            }}
+            placeholder={customPlaceholder}
+            className={`w-full rounded-lg px-3 py-2 text-sm outline-none transition-colors focus:border-brand-orange/35 ${isDark ? 'border border-white/10 bg-white/5 text-white' : 'border border-[#EFE0D8] bg-[#FDF7F4] text-[#1A1008]'}`}
+          />
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={commitCustomValue}
+              disabled={!draftValue.trim()}
+              className={`rounded-lg px-3 py-1.5 text-xs transition-colors disabled:opacity-40 ${isDark ? 'border border-white/10 bg-white/5 text-brand-gray-300 hover:bg-white/10' : 'border border-[#EFE0D8] bg-white text-[#7A6155] hover:bg-[#FDF7F4]'}`}
+            >
+              Adicionar
+            </button>
+          </div>
+        </div>
+      )}
+      <div className={`overflow-y-auto scrollbar-thin scrollbar-track-transparent ${isDark ? 'scrollbar-thumb-white/20' : 'scrollbar-thumb-[#DDD0CA]'}`}>
+        {normalizedOptions.length === 0 ? (
+          <div className={`px-4 py-3 text-sm ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Nenhuma opção</div>
+        ) : (
+          normalizedOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleSelect(option.value)}
+              className={`w-full px-4 py-3 text-sm font-medium text-left transition-colors duration-150 flex items-center justify-between group border-l-2 ${
+                selectedValues.includes(option.value)
+                  ? 'bg-gradient-to-r from-[#FF6B35] to-[#FF8F5E] text-white border-[#FF6B35]'
+                  : (isDark
+                    ? 'text-brand-gray-200 border-transparent hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5 hover:border-brand-orange'
+                    : 'text-[#1A1008] border-transparent hover:bg-[#FDF7F4] hover:border-[#FF6B35]')
+              }`}
+            >
+              <span className="truncate">{option.label}</span>
+              {selectedValues.includes(option.value) && (
+                <span className="text-lg shrink-0 ml-2">✓</span>
+              )}
+            </button>
+          ))
+        )}
+      </div>
+    </motion.div>
+  ) : null;
+
   return (
-    <div ref={dropdownRef} className="relative">
+    <div ref={wrapperRef} className="relative">
       {label && (
         <label className="block mb-2 font-semibold uppercase" style={{ fontSize: '10px', letterSpacing: '0.08em', color: isDark ? '#737373' : '#7A6155' }}>
           {label}
         </label>
       )}
-      
+
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => setIsOpen((v) => !v)}
         className="w-full px-4 py-3 rounded-[10px] text-sm font-medium flex items-center justify-between transition-all duration-200 focus:outline-none"
         style={{
           background: isDark ? 'linear-gradient(to right, rgba(255,255,255,0.10), rgba(255,255,255,0.05))' : '#FDF7F4',
@@ -125,8 +242,8 @@ export default function CustomSelect({
         <span className={`${selectedValues.length === 0 ? (isDark ? 'text-brand-gray-400' : 'text-[#7A6155]/60') : ''} truncate text-left`}>
           {triggerLabel}
         </span>
-        <ChevronDown 
-          size={16} 
+        <ChevronDown
+          size={16}
           className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
           style={{ color: isDark ? '#737373' : '#FF6B35' }}
         />
@@ -157,69 +274,10 @@ export default function CustomSelect({
         </div>
       )}
 
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.15 }}
-            className={`absolute top-full left-0 right-0 mt-2 rounded-xl overflow-hidden z-50 max-h-96 ${isDark ? 'bg-gradient-to-b from-[#1a1a1a] to-[#121212] border border-white/15 shadow-2xl shadow-black/50' : 'bg-white border border-[#EFE0D8] shadow-xl shadow-[#F2DDD4]/40'}`}
-          >
-            {allowCustom && (
-              <div className={`border-b p-3 ${isDark ? 'border-white/10' : 'border-[#EFE0D8]'}`}>
-                <input
-                  type="text"
-                  value={draftValue}
-                  onChange={(e) => setDraftValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      commitCustomValue();
-                    }
-                  }}
-                  placeholder={customPlaceholder}
-                  className={`w-full rounded-lg px-3 py-2 text-sm outline-none transition-colors focus:border-brand-orange/35 ${isDark ? 'border border-white/10 bg-white/5 text-white' : 'border border-[#EFE0D8] bg-[#FDF7F4] text-[#1A1008]'}`}
-                />
-                <div className="mt-2 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={commitCustomValue}
-                    disabled={!draftValue.trim()}
-                    className={`rounded-lg px-3 py-1.5 text-xs transition-colors disabled:opacity-40 ${isDark ? 'border border-white/10 bg-white/5 text-brand-gray-300 hover:bg-white/10' : 'border border-[#EFE0D8] bg-white text-[#7A6155] hover:bg-[#FDF7F4]'}`}
-                  >
-                    Adicionar
-                  </button>
-                </div>
-              </div>
-            )}
-            <div className={`max-h-96 overflow-y-auto scrollbar-thin scrollbar-track-transparent ${isDark ? 'scrollbar-thumb-white/20' : 'scrollbar-thumb-[#DDD0CA]'}`}>
-              {normalizedOptions.map((option, i) => (
-                <motion.button
-                  key={option.value}
-                  type="button"
-                  initial={{ opacity: 0, x: -4 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.02 }}
-                  onClick={() => handleSelect(option.value)}
-                  className={`w-full px-4 py-3 text-sm font-medium text-left transition-all duration-150 flex items-center justify-between group ${
-                    selectedValues.includes(option.value)
-                      ? 'bg-gradient-to-r from-[#FF6B35] to-[#FF8F5E] text-white'
-                      : (isDark
-                        ? 'text-brand-gray-200 hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5 hover:border-l-2 hover:border-brand-orange'
-                        : 'text-[#1A1008] hover:bg-[#FDF7F4] hover:border-l-2 hover:border-[#FF6B35]')
-                  }`}
-                >
-                  <span>{option.label}</span>
-                  {selectedValues.includes(option.value) && (
-                    <span className="text-lg">✓</span>
-                  )}
-                </motion.button>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>{popupNode}</AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

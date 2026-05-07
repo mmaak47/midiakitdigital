@@ -8,10 +8,14 @@ export const defaultSelectionCorners = [
 const EDGE_POINT_COUNT = 8;
 
 export const defaultDisplaySettings = {
-  opacity: 0.97,
-  brightness: 1.04,
-  reflection: 0.08,
-  spill: 0.12,
+  // 1.0 = sem mistura com o fundo da foto. Antes era 0.97 (3% do fundo —
+  // geralmente preto — vazava sobre o criativo deixando a arte "escura").
+  opacity: 1.0,
+  // 1.10 dá um lift sutil de luz que combina com o tom geral de tela acesa
+  // sem estourar cores. Antes 1.04 é quase imperceptible em fotos com tela escura.
+  brightness: 1.10,
+  reflection: 0.06,
+  spill: 0.10,
   ledPixelIntensity: 0,
   ledPixelSize: 5,
   glare: 0.06
@@ -324,15 +328,86 @@ function getEdgeControlPoints(corners) {
   };
 }
 
+// Computes the 3x3 homography that maps the unit square corners
+// (0,0), (1,0), (1,1), (0,1) to the destination quad (tl, tr, br, bl).
+// Returns coefficients used by `applyHomography(u, v)` below.
+// Math: classic projective mapping (Heckbert 1989).
+function computeUnitSquareHomography(tl, tr, br, bl) {
+  const dx1 = tr.x - br.x;
+  const dx2 = bl.x - br.x;
+  const dx3 = tl.x - tr.x + br.x - bl.x;
+  const dy1 = tr.y - br.y;
+  const dy2 = bl.y - br.y;
+  const dy3 = tl.y - tr.y + br.y - bl.y;
+
+  const denom = dx1 * dy2 - dx2 * dy1;
+  // Affine fallback (denom ~ 0 means quad is a parallelogram → bilinear is exact).
+  if (Math.abs(denom) < 1e-9) {
+    return {
+      a: tr.x - tl.x, b: bl.x - tl.x, c: tl.x,
+      d: tr.y - tl.y, e: bl.y - tl.y, f: tl.y,
+      g: 0, h: 0
+    };
+  }
+  const g = (dx3 * dy2 - dx2 * dy3) / denom;
+  const h = (dx1 * dy3 - dx3 * dy1) / denom;
+  return {
+    a: tr.x - tl.x + g * tr.x,
+    b: bl.x - tl.x + h * bl.x,
+    c: tl.x,
+    d: tr.y - tl.y + g * tr.y,
+    e: bl.y - tl.y + h * bl.y,
+    f: tl.y,
+    g,
+    h
+  };
+}
+
+function applyHomography(H, u, v) {
+  const w = H.g * u + H.h * v + 1;
+  return {
+    x: (H.a * u + H.b * v + H.c) / w,
+    y: (H.d * u + H.e * v + H.f) / w
+  };
+}
+
 function evaluateSurfacePoint(corners, u, v) {
   const edges = getEdgeControlPoints(corners);
   if (!edges) return { x: 0, y: 0 };
 
+  // Detec\u00e7\u00e3o de "quad simples": mesmo recebendo 8 pontos (que \u00e9 o caso
+  // padr\u00e3o ap\u00f3s normalizeCorners), se os 4 pontos do meio s\u00e3o midpoints
+  // reais dos cantos, o usu\u00e1rio N\u00c3O criou curvatura \u2014 ent\u00e3o devemos
+  // usar HOMOGRAFIA PROJETIVA (linhas retas continuam retas em qualquer
+  // perspectiva), n\u00e3o Coons patch (que distorce em \u00e2ngulos fortes).
+  const [tl, tr, br, bl] = edges.quad;
+  let useHomography = corners.length < EDGE_POINT_COUNT;
+  if (!useHomography) {
+    const tolerance = 0.6; // pontos percentuais
+    const isMidpoint = (mid, a, b) => (
+      Math.abs(mid.x - (a.x + b.x) / 2) < tolerance &&
+      Math.abs(mid.y - (a.y + b.y) / 2) < tolerance
+    );
+    if (
+      isMidpoint(corners[1], tl, tr) &&
+      isMidpoint(corners[3], tr, br) &&
+      isMidpoint(corners[5], br, bl) &&
+      isMidpoint(corners[7], bl, tl)
+    ) {
+      useHomography = true;
+    }
+  }
+
+  if (useHomography) {
+    const H = computeUnitSquareHomography(tl, tr, br, bl);
+    return applyHomography(H, u, v);
+  }
+
+  // 8 pontos com curvatura expl\u00edcita: mant\u00e9m a Coons patch.
   const top = interpolateSegment(edges.top, u);
   const bottom = interpolateSegment(edges.bottom, u);
   const left = interpolateSegment(edges.left, v);
   const right = interpolateSegment(edges.right, v);
-  const [tl, tr, br, bl] = edges.quad;
   const bilinear = bilerp(tl, tr, br, bl, u, v);
 
   return {
@@ -481,57 +556,124 @@ function expandQuadCorners(p00, p10, p11, p01, amount) {
   return [push(p00), push(p10), push(p11), push(p01)];
 }
 
+// Desenha um triangulo da imagem fonte mapeado para um triangulo no destino.
+// Resolvendo a transformacao affine exata definida pelos 3 pontos (3 pontos
+// definem unicamente uma matriz affine de 6 parametros), obtemos warping
+// matematicamente correto. Subdividir o quad em triangulos pequenos aproxima
+// uma homografia projetiva com precisao sub-pixel - tecnica padrao de
+// texture mapping em canvas 2D.
+function drawImageTriangle(ctx, img, sx0, sy0, sx1, sy1, sx2, sy2, dx0, dy0, dx1, dy1, dx2, dy2, alpha) {
+  const denom = sx0 * (sy1 - sy2) - sy0 * (sx1 - sx2) + sx1 * sy2 - sx2 * sy1;
+  if (Math.abs(denom) < 1e-9) return;
+  const a = (dx0 * (sy1 - sy2) - dx1 * (sy0 - sy2) + dx2 * (sy0 - sy1)) / denom;
+  const c = (-dx0 * (sx1 - sx2) + dx1 * (sx0 - sx2) - dx2 * (sx0 - sx1)) / denom;
+  const e = (dx0 * (sx1 * sy2 - sx2 * sy1) - dx1 * (sx0 * sy2 - sx2 * sy0) + dx2 * (sx0 * sy1 - sx1 * sy0)) / denom;
+  const b = (dy0 * (sy1 - sy2) - dy1 * (sy0 - sy2) + dy2 * (sy0 - sy1)) / denom;
+  const d = (-dy0 * (sx1 - sx2) + dy1 * (sx0 - sx2) - dy2 * (sx0 - sx1)) / denom;
+  const f = (dy0 * (sx1 * sy2 - sx2 * sy1) - dy1 * (sx0 * sy2 - sx2 * sy0) + dy2 * (sx0 * sy1 - sx1 * sy0)) / denom;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.moveTo(dx0, dy0);
+  ctx.lineTo(dx1, dy1);
+  ctx.lineTo(dx2, dy2);
+  ctx.closePath();
+  ctx.clip();
+  ctx.setTransform(a, b, c, d, e, f);
+  ctx.drawImage(img, 0, 0);
+  ctx.restore();
+}
+
 function drawCreativeIntoQuad(ctx, creative, corners, display, style, options = {}) {
   if (!Array.isArray(corners) || corners.length < 4) return;
   const targetAspect = getQuadAspect(corners);
-  const { sx, sy, sw, sh } = computeSourceCrop(creative.width, creative.height, targetAspect);
-  const divisions = options.highQuality ? 18 : 10;
+  // CONTAIN-FIT (anti-cortes): em vez de recortar o criativo para preencher a
+  // tela (cover), mostramos o criativo INTEIRO e preenchemos as sobras com
+  // preto - igual a uma tela DOOH real exibindo um anuncio de aspecto diferente.
+  // Antes o cover-fit recortava partes importantes (cabecalhos, CTAs).
+  const imageAspect = creative.width / creative.height;
+  let uMin = 0;
+  let uMax = 1;
+  let vMin = 0;
+  let vMax = 1;
+  if (imageAspect > targetAspect) {
+    const ratio = targetAspect / imageAspect;
+    vMin = (1 - ratio) / 2;
+    vMax = 1 - vMin;
+  } else if (imageAspect < targetAspect) {
+    const ratio = imageAspect / targetAspect;
+    uMin = (1 - ratio) / 2;
+    uMax = 1 - uMin;
+  }
+  const sx = 0;
+  const sy = 0;
+  const sw = creative.width;
+  const sh = creative.height;
+  // Tesselagem mais densa = aproximação melhor da homografia projetiva.
+  // 24x24 = 576 tiles = 1152 triangulos no modo padrão (LED). 32x32 = 1024
+  // tiles = 2048 triangulos no modo highQuality (impressos / backlight /
+  // frontlight) onde imperfeicões geométricas são mais perceptíveis.
+  const divisions = options.highQuality ? 32 : 24;
 
   ctx.save();
   createQuadPath(ctx, corners, style);
   ctx.clip();
 
+  // Letterbox preto cobrindo todo o quad (sobras laterais quando o aspecto
+  // do criativo nao coincide com o da tela).
+  ctx.save();
+  ctx.fillStyle = '#000000';
+  createQuadPath(ctx, corners, style);
+  ctx.fill();
+  ctx.restore();
+
   for (let row = 0; row < divisions; row += 1) {
-    const v0 = row / divisions;
-    const v1 = (row + 1) / divisions;
+    const v0 = vMin + (vMax - vMin) * (row / divisions);
+    const v1 = vMin + (vMax - vMin) * ((row + 1) / divisions);
 
     for (let column = 0; column < divisions; column += 1) {
-      const u0 = column / divisions;
-      const u1 = (column + 1) / divisions;
+      const u0 = uMin + (uMax - uMin) * (column / divisions);
+      const u1 = uMin + (uMax - uMin) * ((column + 1) / divisions);
 
       const p00 = evaluateSurfacePoint(corners, u0, v0);
       const p10 = evaluateSurfacePoint(corners, u1, v0);
       const p11 = evaluateSurfacePoint(corners, u1, v1);
       const p01 = evaluateSurfacePoint(corners, u0, v1);
 
-      const srcX = sx + sw * u0;
-      const srcY = sy + sh * v0;
-      const srcW = sw * (u1 - u0);
-      const srcH = sh * (v1 - v0);
+      // Mapeia o sub-tile [u0..u1] x [v0..v1] no espaco letterboxed para o
+      // sub-retangulo correspondente na imagem fonte (que vai de 0..1).
+      const sUFrac0 = (u0 - uMin) / (uMax - uMin);
+      const sUFrac1 = (u1 - uMin) / (uMax - uMin);
+      const sVFrac0 = (v0 - vMin) / (vMax - vMin);
+      const sVFrac1 = (v1 - vMin) / (vMax - vMin);
+      const srcX0 = sx + sw * sUFrac0;
+      const srcX1 = sx + sw * sUFrac1;
+      const srcY0 = sy + sh * sVFrac0;
+      const srcY1 = sy + sh * sVFrac1;
 
-      // Expand clip region ~0.75px outward from centroid so adjacent tiles
-      // overlap slightly, filling anti-aliasing gaps that cause visible seams.
-      const [ep00, ep10, ep11, ep01] = expandQuadCorners(p00, p10, p11, p01, 0.75);
+      // Expande os cantos ~0.25px para fora do centroide para que triangulos
+      // adjacentes tenham overlap mínimo (compensa antialiasing entre tiles
+      // sem criar costuras visíveis ao longo das diagonais).
+      const [ep00, ep10, ep11, ep01] = expandQuadCorners(p00, p10, p11, p01, 0.25);
 
-      ctx.save();
-      ctx.globalAlpha = display.opacity;
-      ctx.beginPath();
-      ctx.moveTo(ep00.x, ep00.y);
-      ctx.lineTo(ep10.x, ep10.y);
-      ctx.lineTo(ep11.x, ep11.y);
-      ctx.lineTo(ep01.x, ep01.y);
-      ctx.closePath();
-      ctx.clip();
-
-      const a = (p10.x - p00.x) / srcW;
-      const b = (p10.y - p00.y) / srcW;
-      const c = (p01.x - p00.x) / srcH;
-      const d = (p01.y - p00.y) / srcH;
-      const e = p00.x - a * srcX - c * srcY;
-      const f = p00.y - b * srcX - d * srcY;
-      ctx.setTransform(a, b, c, d, e, f);
-      ctx.drawImage(creative, 0, 0);
-      ctx.restore();
+      // Cada tile = 2 triangulos. Cada triangulo recebe transformacao affine
+      // EXATA de 3 pontos -> 3 pontos. Com divisions=16, sao 512 triangulos
+      // que aproximam a homografia projetiva com precisao sub-pixel.
+      // Triangulo 1: top-left -> top-right -> bottom-right
+      drawImageTriangle(
+        ctx, creative,
+        srcX0, srcY0, srcX1, srcY0, srcX1, srcY1,
+        ep00.x, ep00.y, ep10.x, ep10.y, ep11.x, ep11.y,
+        display.opacity
+      );
+      // Triangulo 2: top-left -> bottom-right -> bottom-left
+      drawImageTriangle(
+        ctx, creative,
+        srcX0, srcY0, srcX1, srcY1, srcX0, srcY1,
+        ep00.x, ep00.y, ep11.x, ep11.y, ep01.x, ep01.y,
+        display.opacity
+      );
     }
   }
 
@@ -955,13 +1097,10 @@ function drawRoundedCornerMask(ctx, corners, style) {
   ctx.restore();
 }
 
-function drawQuadOutline(ctx, corners, settings, style) {
-  ctx.save();
-  createQuadPath(ctx, corners, style);
-  ctx.strokeStyle = `rgba(255,255,255,${0.12 + settings.reflection * 0.25})`;
-  ctx.lineWidth = 1.4;
-  ctx.stroke();
-  ctx.restore();
+function drawQuadOutline(/* ctx, corners, settings, style */) {
+  // Removido o stroke branco de 1.4px que era visualmente percebido como
+  // "borda branca" ao redor do criativo. A definição da área já é dada
+  // pela máscara de clip e pelos refinamentos de luz/sombra (LED/print).
 }
 
 function loadImage(url) {

@@ -1812,7 +1812,29 @@ function importCellToString(value) {
   if (value === undefined || value === null) return '';
   if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
   if (value instanceof Date) return value.toISOString().slice(0, 10);
-  return String(value).trim();
+  return repairMojibake(String(value).trim());
+}
+
+// Tenta detectar e corrigir mojibake clássico (UTF-8 lido como Latin-1/CP1252).
+// Chamado em todos os valores vindos de importações de planilha — barreira
+// final caso a leitura do arquivo tenha decodificado com a codepage errada.
+function repairMojibake(text) {
+  if (!text || typeof text !== 'string') return text;
+  // Heurística: só roda se houver padrão típico de mojibake.
+  if (!/Ã[\u0080-\u00BF]|Â[\u00A0-\u00BF]|â\u0080[\u0080-\u00BF]/.test(text)) {
+    return text;
+  }
+  try {
+    // text é UTF-8 que originalmente eram bytes UTF-8 lidos como Latin-1.
+    // Reinterpretamos: pegamos cada code-point como byte e decodamos como UTF-8.
+    const bytes = Buffer.from(text, 'latin1');
+    const repaired = bytes.toString('utf8');
+    // Aceita só se não introduzir caractere de substituição.
+    if (!repaired.includes('\uFFFD')) return repaired;
+  } catch {
+    // ignore
+  }
+  return text;
 }
 
 function normalizeImportRow(rawRow = {}) {
@@ -1921,7 +1943,8 @@ app.get('/api/pontos', (req, res) => {
     params.push(ELEVADOR_TIPO, normalizeElevadorCategoria(elevadorCategoria));
   }
   if (search) {
-    sqlParts.push(' AND (nome LIKE ? OR endereco LIKE ? OR descricao LIKE ?)');
+    // Case-insensitive search compatible with PostgreSQL (LIKE is case-sensitive in PG).
+    sqlParts.push(' AND (LOWER(nome) LIKE LOWER(?) OR LOWER(endereco) LIKE LOWER(?) OR LOWER(descricao) LIKE LOWER(?))');
     const term = `%${search}%`;
     params.push(term, term, term);
   }
@@ -4072,7 +4095,29 @@ app.post('/api/admin/pontos/import', requireRoles(['admin', 'gerente_comercial']
 
     let workbook;
     try {
-      workbook = XLSX.read(req.file.buffer, { type: 'buffer', raw: false });
+      const originalName = String(req.file.originalname || '').toLowerCase();
+      const isCsv = originalName.endsWith('.csv') || /csv/i.test(req.file.mimetype || '');
+      if (isCsv) {
+        // CSVs costumam vir em UTF-8 (com ou sem BOM) ou Windows-1252.
+        // O xlsx, por padrão, decodifica buffers de CSV como CP1252, o que
+        // gera mojibake (ex: "Melância" → "MelÃ¢ncia") quando o arquivo
+        // está em UTF-8. Detectamos a codificação manualmente:
+        const buf = req.file.buffer;
+        let text;
+        const hasUtf8Bom = buf.length >= 3 && buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF;
+        if (hasUtf8Bom) {
+          text = buf.slice(3).toString('utf8');
+        } else {
+          // Tenta UTF-8 e valida — se falhar, cai para latin1.
+          const utf8 = buf.toString('utf8');
+          const looksValidUtf8 = !/\uFFFD/.test(utf8) && Buffer.byteLength(utf8, 'utf8') === buf.length;
+          text = looksValidUtf8 ? utf8 : buf.toString('latin1');
+        }
+        workbook = XLSX.read(text, { type: 'string', raw: false });
+      } else {
+        // .xlsx/.xls — encoding interno é tratado pela própria lib.
+        workbook = XLSX.read(req.file.buffer, { type: 'buffer', raw: false, codepage: 65001 });
+      }
     } catch {
       return res.status(400).json({ error: 'Não foi possível ler o arquivo. Verifique se é um Excel válido.' });
     }
@@ -4357,20 +4402,98 @@ app.put('/api/admin/users/:id', requireRoles(['admin']), (req, res) => {
       return res.status(400).json({ error: 'ID inválido' });
     }
 
-    const role = String(req.body?.role || '').trim();
+    const existing = db.prepare('SELECT id, first_name, last_name, username, email FROM admin_users WHERE id = ?').get(id);
+    if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
+
     const validRoles = ['admin', 'diretor', 'gerente_comercial', 'vendedor'];
-    
-    if (!role || !validRoles.includes(role)) {
-      return res.status(400).json({ error: 'Role inválido. Valores permitidos: admin, diretor, gerente_comercial, vendedor' });
+    const body = req.body || {};
+
+    // Build dynamic SET fragments
+    const sets = [];
+    const params = [];
+
+    if (body.role !== undefined) {
+      const role = String(body.role || '').trim();
+      if (!role || !validRoles.includes(role)) {
+        return res.status(400).json({ error: 'Role inválido. Valores permitidos: admin, diretor, gerente_comercial, vendedor' });
+      }
+      sets.push('role = ?');
+      params.push(role);
     }
 
-    const isVendedor = req.body?.is_vendedor !== undefined ? (req.body.is_vendedor ? 1 : 0) : null;
-    if (isVendedor !== null) {
-      db.prepare("UPDATE admin_users SET role = ?, is_vendedor = ?, updated_at = datetime('now') WHERE id = ?").run(role, isVendedor, id);
-    } else {
-      db.prepare("UPDATE admin_users SET role = ?, updated_at = datetime('now') WHERE id = ?").run(role, id);
+    if (body.is_vendedor !== undefined) {
+      sets.push('is_vendedor = ?');
+      params.push(body.is_vendedor ? 1 : 0);
     }
-    const result = db.prepare('SELECT changes() as changes').get ? { changes: 1 } : { changes: 1 };
+
+    const firstNameRaw = body.firstName !== undefined ? body.firstName : body.first_name;
+    if (firstNameRaw !== undefined) {
+      const firstName = String(firstNameRaw || '').trim();
+      if (!firstName) return res.status(400).json({ error: 'Nome não pode ficar em branco' });
+      sets.push('first_name = ?');
+      params.push(firstName);
+    }
+
+    const lastNameRaw = body.lastName !== undefined ? body.lastName : body.last_name;
+    if (lastNameRaw !== undefined) {
+      const lastName = String(lastNameRaw || '').trim();
+      if (!lastName) return res.status(400).json({ error: 'Sobrenome não pode ficar em branco' });
+      sets.push('last_name = ?');
+      params.push(lastName);
+    }
+
+    if (body.username !== undefined) {
+      const username = String(body.username || '').trim().toLowerCase();
+      if (!username) return res.status(400).json({ error: 'Login não pode ficar em branco' });
+      if (!/^[a-z0-9._-]+$/.test(username)) {
+        return res.status(400).json({ error: 'Login deve conter apenas letras, números, ponto, underline ou traço' });
+      }
+      if (username !== String(existing.username || '').toLowerCase()) {
+        const conflict = db.prepare('SELECT id FROM admin_users WHERE lower(username) = lower(?) AND id <> ?').get(username, id);
+        if (conflict) return res.status(409).json({ error: 'Login já está em uso' });
+      }
+      sets.push('username = ?');
+      params.push(username);
+    }
+
+    if (body.email !== undefined) {
+      const email = String(body.email || '').trim().toLowerCase();
+      if (email) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return res.status(400).json({ error: 'E-mail inválido' });
+        }
+        if (email !== String(existing.email || '').toLowerCase()) {
+          const conflict = db.prepare('SELECT id FROM admin_users WHERE lower(email) = lower(?) AND id <> ?').get(email, id);
+          if (conflict) return res.status(409).json({ error: 'E-mail já cadastrado' });
+        }
+      }
+      sets.push('email = ?');
+      params.push(email);
+    }
+
+    if (body.whatsapp !== undefined) {
+      sets.push('whatsapp = ?');
+      params.push(String(body.whatsapp || '').trim());
+    }
+
+    if (body.password !== undefined) {
+      const password = String(body.password || '').trim();
+      if (password) {
+        if (password.length < 6) {
+          return res.status(400).json({ error: 'Senha deve ter ao menos 6 caracteres' });
+        }
+        sets.push('password = ?');
+        params.push(hashPassword(password));
+      }
+    }
+
+    if (sets.length === 0) {
+      return res.status(400).json({ error: 'Nenhum campo para atualizar' });
+    }
+
+    sets.push("updated_at = datetime('now')");
+    params.push(id);
+    db.prepare(`UPDATE admin_users SET ${sets.join(', ')} WHERE id = ?`).run(...params);
 
     const updated = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, is_vendedor, photo_url FROM admin_users WHERE id = ?').get(id);
     if (!updated) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -5459,7 +5582,9 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantas
   valorMensal, tipoValor, cotaContratada, planoFidelidade, periodo, diaPagamento, dataPrimeiraParcela, dataInicioVeiculacao, diaPagamentoDia,
   viaAgencia, agenciaNome, comissaoPct,
   trocaMaterial,
-  responsavelNome, responsavelWhatsapp, responsavelFixo, obs }) {
+  responsavelNome, responsavelWhatsapp, responsavelFixo, responsavelEmail,
+  criativoNome, criativoWhatsapp, criativoEmail,
+  obs }) {
 
   const isRenovacao = tipo === 'Renovação';
   const headerEmoji = isRenovacao ? '🔄' : '🟠';
@@ -5519,11 +5644,20 @@ function buildVendaWhatsappMessage({ tipo, vendedorNome, razaoSocial, nomeFantas
     lines.push('');
   }
 
-  if (responsavelNome || responsavelWhatsapp || responsavelFixo) {
+  if (responsavelNome || responsavelWhatsapp || responsavelFixo || responsavelEmail) {
     lines.push('👤 *RESPONSÁVEL PELO CLIENTE*');
     if (responsavelNome)      lines.push(`Nome: ${responsavelNome}`);
     if (responsavelWhatsapp)  lines.push(`WhatsApp: ${responsavelWhatsapp}`);
     if (responsavelFixo)      lines.push(`Telefone Fixo: ${responsavelFixo}`);
+    if (responsavelEmail)     lines.push(`E-mail: ${responsavelEmail}`);
+  }
+
+  if (criativoNome || criativoWhatsapp || criativoEmail) {
+    lines.push('');
+    lines.push('🎨 *RESPONSÁVEL PELO CRIATIVO*');
+    if (criativoNome)      lines.push(`Nome: ${criativoNome}`);
+    if (criativoWhatsapp)  lines.push(`WhatsApp: ${criativoWhatsapp}`);
+    if (criativoEmail)     lines.push(`E-mail: ${criativoEmail}`);
   }
 
   if (obs && String(obs).trim()) {
@@ -6065,6 +6199,10 @@ app.post(
             responsavelNome: responsavel_nome || '',
             responsavelWhatsapp: responsavelWhatsappFinal || '',
             responsavelFixo: responsavelFixoFinal || '',
+            responsavelEmail: String(email || '').trim(),
+            criativoNome: String(criativo_nome || '').trim(),
+            criativoWhatsapp: String(criativo_whatsapp || '').trim(),
+            criativoEmail: String(criativo_email || '').trim(),
             obs: obs || ''
           });
 
