@@ -28,7 +28,86 @@ function formatCoord(v) {
   return Number(v || 0).toFixed(6);
 }
 
+function normalizeSellerSignature(signature = {}) {
+  const source = signature && typeof signature === 'object' ? signature : {};
+  const photoRaw = source.photoUrl || source.photo_url || source.photo || source.avatar || source.image || source.foto || '';
+  return {
+    name: String(source.name || source.nome || '').trim(),
+    email: String(source.email || source.mail || '').trim(),
+    phone: String(source.phone || source.telefone || source.whatsapp || '').trim(),
+    photoUrl: normalizeSellerPhotoUrl(photoRaw)
+  };
+}
+
+function normalizeSellerPhotoUrl(value) {
+  const source = String(value || '').trim();
+  if (!source || source.startsWith('blob:')) return '';
+  if (/^(https?:)?\/\//i.test(source) || source.startsWith('data:image/')) return source;
+  if (source.startsWith('/')) return source;
+  return `/${source.replace(/^\/+/, '')}`;
+}
+
+function normalizeProposalOptions(options = []) {
+  const source = Array.isArray(options) ? options : [];
+  return source
+    .filter((entry) => entry && typeof entry === 'object')
+    .map((entry, index) => {
+      const pointsRaw = Number(entry.points ?? entry.quantidade_pontos);
+      const pricePerPointRaw = Number(entry.pricePerPoint ?? entry.valor_por_ponto);
+      const totalValueRaw = Number(entry.totalValue ?? entry.valor_total);
+      const monthsRaw = Number(entry.months ?? entry.duracao_meses);
+      return {
+        title: String(entry.title || entry.titulo || `Proposta ${index + 1}`).trim() || `Proposta ${index + 1}`,
+        points: Number.isFinite(pointsRaw) ? Math.max(0, Math.round(pointsRaw)) : null,
+        pricePerPoint: Number.isFinite(pricePerPointRaw) ? Math.max(0, pricePerPointRaw) : null,
+        totalValue: Number.isFinite(totalValueRaw) ? Math.max(0, totalValueRaw) : null,
+        months: Number.isFinite(monthsRaw) ? Math.max(1, Math.round(monthsRaw)) : null,
+        note: String(entry.note || entry.observacao || '').trim()
+      };
+    })
+    .filter((entry) => entry.points || entry.pricePerPoint || entry.totalValue || entry.months || entry.note);
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
+function normalizePricingSummary(pricingSummary = {}, fallbackFinalTotal = 0) {
+  const base = pricingSummary && typeof pricingSummary === 'object' ? pricingSummary : {};
+  const fallbackFinal = Number(fallbackFinalTotal) || 0;
+  const finalTotalRaw = Number(base.finalTotal);
+  const originalTotalRaw = Number(base.originalTotal);
+  const discountTotalRaw = Number(base.discountTotal);
+  const agencyCommissionPercentRaw = Number(base.agencyCommissionPercent);
+  const agencyCommissionAmountRaw = Number(base.agencyCommissionAmount);
+  const finalTotalWithCommissionRaw = Number(base.finalTotalWithCommission);
+
+  const finalTotal = Number.isFinite(finalTotalRaw) ? Math.max(0, finalTotalRaw) : Math.max(0, fallbackFinal);
+  const originalTotal = Number.isFinite(originalTotalRaw) ? Math.max(0, originalTotalRaw) : finalTotal;
+  const discountTotal = Number.isFinite(discountTotalRaw) ? Math.max(0, discountTotalRaw) : Math.max(0, originalTotal - finalTotal);
+  const hasDiscount = Boolean(base.hasDiscount) || discountTotal > 0.0001;
+  const agencyCommissionPercent = Number.isFinite(agencyCommissionPercentRaw)
+    ? Math.min(100, Math.max(0, agencyCommissionPercentRaw))
+    : 0;
+  const hasAgencyCommissionFlag = Boolean(base.agencyCommissionEnabled || base.hasAgencyCommission);
+  const agencyCommissionAmount = Number.isFinite(agencyCommissionAmountRaw)
+    ? Math.max(0, agencyCommissionAmountRaw)
+    : (hasAgencyCommissionFlag && agencyCommissionPercent > 0 ? finalTotal * (agencyCommissionPercent / 100) : 0);
+  const hasAgencyCommission = hasAgencyCommissionFlag || agencyCommissionAmount > 0.0001;
+  const finalTotalWithCommission = Number.isFinite(finalTotalWithCommissionRaw)
+    ? Math.max(0, finalTotalWithCommissionRaw)
+    : finalTotal + agencyCommissionAmount;
+
+  return {
+    ...base,
+    finalTotal,
+    originalTotal,
+    discountTotal,
+    hasDiscount,
+    agencyCommissionPercent,
+    agencyCommissionAmount,
+    hasAgencyCommission,
+    finalTotalWithCommission
+  };
+}
+
 function getPointImage(point) {
   // Never serve blob: URLs — they only exist in the creator's browser session
   const candidates = [
@@ -394,7 +473,10 @@ export default function PropostaPublica() {
   const { loading, error, data } = state;
   const points = data?.points || [];
   const totals = data?.totals || {};
-  const pricingSummary = data?.pricingSummary || {};
+  const pricingSummary = useMemo(
+    () => normalizePricingSummary(data?.pricingSummary, totals.valorTotal || 0),
+    [data?.pricingSummary, totals.valorTotal]
+  );
   const useCompactGrid = points.length >= 30;
   const validPoints = useMemo(() => points.filter(p => p.lat && p.lng), [points]);
   const hasDigitalInsertionPoints = useMemo(
@@ -416,6 +498,15 @@ export default function PropostaPublica() {
   }, [points]);
 
   const cityBounds = useMemo(() => computeCityBoundingBoxes(validPoints), [validPoints]);
+  const proposalOptions = useMemo(() => normalizeProposalOptions(data?.proposalOptions), [data?.proposalOptions]);
+  const sellerSignature = useMemo(() => normalizeSellerSignature(data?.sellerSignature), [data?.sellerSignature]);
+  const hasSellerSignatureInfo = Boolean(sellerSignature.name || sellerSignature.email || sellerSignature.phone);
+  const sellerInitials = useMemo(() => {
+    const parts = String(sellerSignature.name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return 'VC';
+    const initials = parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('');
+    return initials || 'VC';
+  }, [sellerSignature.name]);
 
   if (loading) {
     return (
@@ -440,7 +531,7 @@ export default function PropostaPublica() {
     );
   }
 
-  const finalTotal = pricingSummary.finalTotal || totals.valorTotal || 0;
+  const finalTotal = pricingSummary.finalTotalWithCommission || pricingSummary.finalTotal || totals.valorTotal || 0;
   const summaryCards = [
     { label: 'Investimento', value: formatCurrency(finalTotal) },
     { label: 'Impactos/mês', value: formatNumber(totals.fluxoTotal) },
@@ -563,6 +654,79 @@ export default function PropostaPublica() {
           ))}
         </div>
 
+        {hasSellerSignatureInfo && (
+          <div className="rounded-2xl bg-white border border-gray-200/70 shadow-[0_1px_0_rgba(0,0,0,0.02),0_8px_24px_-14px_rgba(0,0,0,0.1)] p-5 relative overflow-hidden">
+            <div aria-hidden className="absolute top-0 left-0 w-full h-[2px]" style={{ background: `linear-gradient(90deg, ${ORANGE} 0%, #FE5C2B 100%)` }} />
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] mb-3" style={{ color: ORANGE }}>
+              Assinatura Comercial
+            </h2>
+            <div className="flex items-start gap-4">
+              {sellerSignature.photoUrl ? (
+                <img
+                  src={sellerSignature.photoUrl}
+                  alt={sellerSignature.name ? `Foto de ${sellerSignature.name}` : 'Foto do vendedor'}
+                  className="w-16 h-16 rounded-2xl object-cover border border-orange-200 shadow-sm"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-2xl border border-orange-200 bg-orange-50 flex items-center justify-center text-orange-700 font-bold text-sm shadow-sm">
+                  {sellerInitials}
+                </div>
+              )}
+              <div className="grid sm:grid-cols-3 gap-3 text-sm text-gray-700 flex-1">
+                {sellerSignature.name && (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-400">Vendedor</p>
+                    <p className="mt-1 font-semibold text-gray-900">{sellerSignature.name}</p>
+                  </div>
+                )}
+                {sellerSignature.email && (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-400">E-mail</p>
+                    <p className="mt-1 font-semibold text-gray-900 break-all">{sellerSignature.email}</p>
+                  </div>
+                )}
+                {sellerSignature.phone && (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-400">Telefone</p>
+                    <p className="mt-1 font-semibold text-gray-900">{sellerSignature.phone}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {proposalOptions.length > 0 && (
+          <div className="rounded-2xl bg-white border border-gray-200/70 shadow-[0_1px_0_rgba(0,0,0,0.02),0_10px_30px_-15px_rgba(0,0,0,0.1)] p-5 sm:p-6 relative overflow-hidden">
+            <div aria-hidden className="absolute top-0 left-0 w-full h-[2px]" style={{ background: `linear-gradient(90deg, ${ORANGE} 0%, #FE5C2B 100%)` }} />
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] mb-4 inline-flex items-center gap-2" style={{ color: ORANGE }}>
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full" style={{ background: 'rgba(232,89,26,0.12)' }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+              </span>
+              Condições de Proposta
+            </h2>
+            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {proposalOptions.map((option, index) => (
+                <div key={`${option.title}-${index}`} className="rounded-[24px] border-2 border-orange-500/90 bg-orange-50/40 p-4 shadow-[0_8px_24px_-14px_rgba(232,89,26,0.45)]">
+                  <h3 className="text-2xl font-extrabold leading-none" style={{ color: ORANGE }}>{option.title || `Proposta ${index + 1}`}</h3>
+                  <div className="mt-3 h-px bg-orange-200" />
+                  <div className="mt-3 space-y-1.5 text-sm text-gray-700">
+                    <p><span className="font-semibold">Pontos:</span> {option.points ? formatNumber(option.points) : '—'}</p>
+                    <p><span className="font-semibold">Valor por ponto:</span> {option.pricePerPoint !== null ? option.pricePerPoint.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</p>
+                    <p><span className="font-semibold">Valor total:</span> {option.totalValue !== null ? formatCurrency(option.totalValue) : '—'}</p>
+                    <p><span className="font-semibold">Duração:</span> {option.months ? `${option.months} ${option.months === 1 ? 'mês' : 'meses'}` : '—'}</p>
+                  </div>
+                  {option.note && (
+                    <div className="mt-3 rounded-xl border border-orange-200 bg-white/90 px-3 py-2 text-xs text-gray-600 leading-relaxed">
+                      <span className="font-semibold" style={{ color: ORANGE }}>Observação:</span> {option.note}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── Plano de Investimento & Impacto ────────────────────────────── */}
         <div className="rounded-2xl bg-white border border-gray-200/70 shadow-[0_1px_0_rgba(0,0,0,0.02),0_10px_30px_-15px_rgba(0,0,0,0.1)] overflow-hidden relative">
           <div aria-hidden className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(90deg, ${ORANGE} 0%, #FE5C2B 50%, ${ORANGE} 100%)` }} />
@@ -666,6 +830,17 @@ export default function PropostaPublica() {
                       </div>
                     </>
                   )}
+                  {pricingSummary.hasAgencyCommission && pricingSummary.agencyCommissionAmount > 0 && (
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-gray-500">
+                        Comissão de Agência ({pricingSummary.agencyCommissionPercent.toLocaleString('pt-BR', {
+                          minimumFractionDigits: Number.isInteger(pricingSummary.agencyCommissionPercent) ? 0 : 1,
+                          maximumFractionDigits: 2
+                        })}%)
+                      </p>
+                      <p className="text-sm font-bold text-blue-700">+{formatCurrency(pricingSummary.agencyCommissionAmount)}</p>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: 'rgba(232,89,26,0.2)' }}>
                     <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Total Mensal</p>
                     <p className="text-2xl font-extrabold" style={{ color: ORANGE, textShadow: '0 1px 0 rgba(255,255,255,0.5)' }}>{formatCurrency(finalTotal)}</p>
@@ -675,6 +850,29 @@ export default function PropostaPublica() {
                   </p>
                 </div>
               </div>
+              {hasSellerSignatureInfo && (
+                <div className="rounded-xl border border-orange-200/80 bg-orange-50/60 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-orange-700 mb-2">Assinatura comercial</p>
+                  <div className="flex items-start gap-2.5">
+                    {sellerSignature.photoUrl ? (
+                      <img
+                        src={sellerSignature.photoUrl}
+                        alt={sellerSignature.name ? `Foto de ${sellerSignature.name}` : 'Foto do vendedor'}
+                        className="w-11 h-11 rounded-xl object-cover border border-orange-200 bg-white"
+                      />
+                    ) : (
+                      <div className="w-11 h-11 rounded-xl border border-orange-200 bg-white flex items-center justify-center text-[11px] font-bold text-orange-700">
+                        {sellerInitials}
+                      </div>
+                    )}
+                    <div className="text-[11px] leading-relaxed text-gray-700">
+                      {sellerSignature.name && <p><strong>Vendedor:</strong> {sellerSignature.name}</p>}
+                      {sellerSignature.email && <p className="break-all"><strong>E-mail:</strong> {sellerSignature.email}</p>}
+                      {sellerSignature.phone && <p><strong>Telefone:</strong> {sellerSignature.phone}</p>}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

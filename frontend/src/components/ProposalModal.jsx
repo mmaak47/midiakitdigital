@@ -49,7 +49,7 @@ import {
   normalizeDisplaySettings,
   parseSimulationConfig
 } from '../lib/simulation';
-import { criarPropostaPublica, uploadProposalImage, fetchClientAddressAnalysis, fetchEntornoScores, gerarTextoProposta } from '../lib/api';
+import { criarPropostaPublica, uploadProposalImage, fetchClientAddressAnalysis, fetchEntornoScores, gerarTextoProposta, fetchCurrentUser } from '../lib/api';
 import { buildSelectionMapDataUrl, downloadSelectionMapPng } from '../lib/mapSnapshot';
 import CustomSelect from './CustomSelect';
 import ArteAIPanel from './ArteAIPanel';
@@ -147,6 +147,53 @@ function parseLocaleNumber(rawValue) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function clampPercentage(value, min = 0, max = 100) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return min;
+  return Math.min(max, Math.max(min, numeric));
+}
+
+function formatBrlCurrencyInput(rawValue) {
+  const digits = String(rawValue ?? '').replace(/\D+/g, '');
+  if (!digits) return '';
+  const cents = Number(digits);
+  if (!Number.isFinite(cents)) return '';
+  return (cents / 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function normalizeComparableText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeSellerPhotoUrl(value) {
+  const source = String(value || '').trim();
+  if (!source || source.startsWith('blob:')) return '';
+  return source;
+}
+
+const GENERIC_SELLER_NAME_VALUES = new Set([
+  'usuario',
+  'usuaria',
+  'user',
+  'vendedor',
+  'vendedora',
+  'comercial',
+  'admin'
+]);
+
+function isGenericSellerName(value) {
+  const normalized = normalizeComparableText(value);
+  return GENERIC_SELLER_NAME_VALUES.has(normalized);
+}
+
 function normalizeStrategicTopicLine(value) {
   return String(value ?? '')
     .replace(/^([\-*•]+|\d+[.)])\s*/u, '')
@@ -166,6 +213,79 @@ function stringifyStrategicTopics(lines = []) {
     .map((line) => normalizeStrategicTopicLine(line))
     .filter(Boolean)
     .join('\n');
+}
+
+function buildSellerSignatureFromCurrentUser(user) {
+  const safeUser = user && typeof user === 'object' ? user : {};
+  const displayName = String(safeUser.name || '').trim();
+  const fullName = [safeUser.first_name, safeUser.last_name]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  const username = String(safeUser.username || '').trim();
+  const email = String(safeUser.email || '').trim();
+  const emailLocal = email.split('@')[0] || '';
+  const fallbackFromEmail = emailLocal
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+    .trim();
+  let sellerName = fullName || displayName || username;
+  if ((!sellerName || isGenericSellerName(sellerName)) && fallbackFromEmail) {
+    sellerName = fallbackFromEmail;
+  }
+  return {
+    nome: sellerName,
+    email,
+    telefone: String(safeUser.whatsapp || '').trim(),
+    photoUrl: normalizeSellerPhotoUrl(safeUser.photo_url || safeUser.photoUrl || '')
+  };
+}
+
+function createProposalOption(overrides = {}, indexHint = 0) {
+  const now = Date.now();
+  const random = Math.random().toString(36).slice(2, 7);
+  const toText = (value) => (value === null || value === undefined ? '' : String(value));
+  const rawTitle = toText(overrides.title ?? overrides.titulo);
+  return {
+    id: String(overrides.id || `proposal-opt-${now}-${random}-${indexHint}`),
+    title: rawTitle.trim() ? rawTitle : `Proposta ${indexHint + 1}`,
+    points: toText(overrides.points ?? overrides.quantidade_pontos),
+    pricePerPoint: toText(overrides.pricePerPoint ?? overrides.valor_por_ponto),
+    totalValue: toText(overrides.totalValue ?? overrides.valor_total),
+    months: toText(overrides.months ?? overrides.duracao_meses),
+    note: toText(overrides.note ?? overrides.observacao)
+  };
+}
+
+function normalizeProposalOptionsForForm(options = []) {
+  const source = Array.isArray(options) ? options : [];
+  const normalized = source
+    .filter((entry) => entry && typeof entry === 'object')
+    .map((entry, index) => createProposalOption(entry, index));
+  return normalized.length ? normalized : [createProposalOption({}, 0)];
+}
+
+function normalizeProposalOptionsForPayload(options = []) {
+  return normalizeProposalOptionsForForm(options)
+    .map((entry, index) => {
+      const pointsParsed = parseLocaleNumber(entry.points);
+      const pricePerPointParsed = parseLocaleNumber(entry.pricePerPoint);
+      const totalValueParsed = parseLocaleNumber(entry.totalValue);
+      const monthsParsed = parseLocaleNumber(entry.months);
+      const note = String(entry.note || '').trim();
+      return {
+        title: String(entry.title || '').trim() || `Proposta ${index + 1}`,
+        points: Number.isFinite(pointsParsed) ? Math.max(0, Math.round(pointsParsed)) : null,
+        pricePerPoint: Number.isFinite(pricePerPointParsed) ? Math.max(0, pricePerPointParsed) : null,
+        totalValue: Number.isFinite(totalValueParsed) ? Math.max(0, totalValueParsed) : null,
+        months: Number.isFinite(monthsParsed) ? Math.max(1, Math.round(monthsParsed)) : null,
+        note
+      };
+    })
+    .filter((entry) => entry.points || entry.pricePerPoint || entry.totalValue || entry.months || entry.note);
 }
 
 function applyPdfPointEdit(point, edit = {}) {
@@ -234,6 +354,25 @@ function buildPricingSummaryFromPoints(points = []) {
   };
 }
 
+function applyAgencyCommissionToSummary(summary = {}, { enabled = false, percent = 0 } = {}) {
+  const safeSummary = summary && typeof summary === 'object' ? summary : {};
+  const finalTotal = Number(safeSummary.finalTotal ?? 0);
+  const normalizedFinal = Number.isFinite(finalTotal) ? finalTotal : 0;
+  const normalizedPercent = clampPercentage(percent);
+  const shouldApply = Boolean(enabled) && normalizedPercent > 0;
+  const agencyCommissionAmount = shouldApply ? normalizedFinal * (normalizedPercent / 100) : 0;
+  const finalTotalWithCommission = normalizedFinal + agencyCommissionAmount;
+
+  return {
+    ...safeSummary,
+    agencyCommissionEnabled: shouldApply,
+    agencyCommissionPercent: shouldApply ? normalizedPercent : 0,
+    agencyCommissionAmount,
+    finalTotalWithCommission,
+    hasAgencyCommission: shouldApply && agencyCommissionAmount > 0.0001
+  };
+}
+
 export default function ProposalModal({ onClose, open = true, selectedPoints = null, isDark = true }) {
   const { favorites } = useFavorites();
   const sourcePoints = selectedPoints ?? favorites;
@@ -243,20 +382,35 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [clientModePresentation, setClientModePresentation] = useState(false);
 
   const draft = useMemo(() => loadDraft(), []);
+  const draftForm = draft?.form && typeof draft.form === 'object' ? draft.form : {};
+  const draftProposalOptions = normalizeProposalOptionsForForm(draftForm.proposalOptions);
 
-  const [form, setForm] = useState(() => ({
-    clientName: '',
-    clientAddress: '',
-    proposalSubtitle: '',
-    strategicTopics: '',
-    segmento: 'clinica',
-    objetivo: 'reconhecimento de marca',
-    publicos: [],
-    selectedCities: [],
-    duracao_meses: '',
-    customCommercialNote: '',
-    ...(draft?.form || {})
-  }));
+  const [form, setForm] = useState(() => {
+    const sellerName = String(draftForm.sellerName || '').trim();
+    const sellerEmail = String(draftForm.sellerEmail || '').trim();
+    const sellerPhone = String(draftForm.sellerPhone || '').trim();
+    const sellerPhotoUrl = normalizeSellerPhotoUrl(draftForm.sellerPhotoUrl || draftForm.seller_photo_url || '');
+    return {
+      clientName: '',
+      clientAddress: '',
+      proposalSubtitle: '',
+      strategicTopics: '',
+      segmento: 'clinica',
+      objetivo: 'reconhecimento de marca',
+      publicos: [],
+      selectedCities: [],
+      duracao_meses: '',
+      customCommercialNote: '',
+      agencyCommissionEnabled: false,
+      agencyCommissionPercent: '',
+      ...draftForm,
+      proposalOptions: draftProposalOptions,
+      sellerName,
+      sellerEmail,
+      sellerPhone,
+      sellerPhotoUrl
+    };
+  });
   const [analysisMode, setAnalysisMode] = useState(draft?.analysisMode || 'segmento');
   const [discountConfig, setDiscountConfig] = useState(() => ({
     mode: 'none',
@@ -299,7 +453,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [shareBusy, setShareBusy] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [sessionExpiredModal, setSessionExpiredModal] = useState({ open: false, message: '' });
-  const [pdfSections, setPdfSections] = useState({ methodology: true, entornoEvidence: true, coverage: true, impact: true, mapPrint: false });
+  const [pdfSections, setPdfSections] = useState({ methodology: true, entornoEvidence: true, coverage: false, impact: true, mapPrint: false });
   const [connectMapPoints, setConnectMapPoints] = useState(true);
   const [mapBusy, setMapBusy] = useState(false);
   const [mapStatus, setMapStatus] = useState('');
@@ -465,6 +619,50 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   }, [form, discountConfig, analysisMode, pdfSections, pdfPointEdits, pdfExcludedPointIds, pointArtAssignments]);
 
   useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+
+    const loadSellerSignature = async () => {
+      try {
+        const user = await fetchCurrentUser();
+        if (cancelled) return;
+        const seller = buildSellerSignatureFromCurrentUser(user);
+        setForm((current) => {
+          const next = { ...current };
+          let changed = false;
+          const currentSellerName = String(current.sellerName || '').trim();
+
+          if ((!currentSellerName || isGenericSellerName(currentSellerName)) && seller.nome) {
+            next.sellerName = seller.nome;
+            changed = true;
+          }
+          if (!String(current.sellerEmail || '').trim() && seller.email) {
+            next.sellerEmail = seller.email;
+            changed = true;
+          }
+          if (!String(current.sellerPhone || '').trim() && seller.telefone) {
+            next.sellerPhone = seller.telefone;
+            changed = true;
+          }
+          if (!String(current.sellerPhotoUrl || '').trim() && seller.photoUrl) {
+            next.sellerPhotoUrl = seller.photoUrl;
+            changed = true;
+          }
+
+          return changed ? next : current;
+        });
+      } catch {
+        // Silent fallback: signature fields can still be preenchidos manualmente.
+      }
+    };
+
+    loadSellerSignature();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
     if (!showPdfFormatPicker) return undefined;
     const handler = (e) => {
       if (pdfFormatPickerRef.current && !pdfFormatPickerRef.current.contains(e.target)) {
@@ -530,6 +728,21 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const pricing = useMemo(() => buildProposalPricing(proposalSourcePoints, discountConfig), [proposalSourcePoints, discountConfig]);
   const pricingSummary = pricing.summary;
   const discountValueType = discountConfig.valueType === 'amount' ? 'amount' : 'percentage';
+  const agencyCommissionPercentRaw = useMemo(() => parseLocaleNumber(form.agencyCommissionPercent), [form.agencyCommissionPercent]);
+  const agencyCommissionPercent = Number.isFinite(agencyCommissionPercentRaw)
+    ? clampPercentage(agencyCommissionPercentRaw)
+    : 0;
+  const agencyCommissionPercentLabel = agencyCommissionPercent.toLocaleString('pt-BR', {
+    minimumFractionDigits: Number.isInteger(agencyCommissionPercent) ? 0 : 1,
+    maximumFractionDigits: 2
+  });
+  const agencyCommissionEnabled = Boolean(form.agencyCommissionEnabled) && agencyCommissionPercent > 0;
+  const pricingSummaryWithCommission = useMemo(() => (
+    applyAgencyCommissionToSummary(pricingSummary, {
+      enabled: agencyCommissionEnabled,
+      percent: agencyCommissionPercent
+    })
+  ), [pricingSummary, agencyCommissionEnabled, agencyCommissionPercent]);
   const totals = useMemo(() => campaignTotals(pricing.points), [pricing.points]);
   const assignedPointArtCount = useMemo(() => {
     return proposalSourcePoints.filter((point) => Boolean(pointArtAssignments[String(point.id)])).length;
@@ -815,7 +1028,75 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
   const totalsForPdf = useMemo(() => campaignTotals(proposalPointsForPdf), [proposalPointsForPdf]);
   const pricingSummaryForPdf = useMemo(() => buildPricingSummaryFromPoints(proposalPointsForPdf), [proposalPointsForPdf]);
+  const pricingSummaryForPdfWithCommission = useMemo(() => (
+    applyAgencyCommissionToSummary(pricingSummaryForPdf, {
+      enabled: agencyCommissionEnabled,
+      percent: agencyCommissionPercent
+    })
+  ), [pricingSummaryForPdf, agencyCommissionEnabled, agencyCommissionPercent]);
+  const proposalOptionsForForm = useMemo(() => normalizeProposalOptionsForForm(form.proposalOptions), [form.proposalOptions]);
+  const proposalOptionsPayload = useMemo(() => normalizeProposalOptionsForPayload(form.proposalOptions), [form.proposalOptions]);
+  const sellerSignaturePayload = useMemo(() => ({
+    name: String(form.sellerName || '').trim(),
+    email: String(form.sellerEmail || '').trim(),
+    phone: String(form.sellerPhone || '').trim(),
+    photoUrl: normalizeSellerPhotoUrl(form.sellerPhotoUrl || '')
+  }), [form.sellerName, form.sellerEmail, form.sellerPhone, form.sellerPhotoUrl]);
   const hiddenPointsCount = Math.max(0, proposalPoints.length - proposalPointsForPdf.length);
+
+  const updateProposalOptionField = (optionId, field, value) => {
+    setForm((state) => {
+      const nextOptions = normalizeProposalOptionsForForm(state.proposalOptions).map((entry) => (
+        entry.id === optionId ? { ...entry, [field]: value } : entry
+      ));
+      return { ...state, proposalOptions: nextOptions };
+    });
+  };
+
+  const updateProposalOptionCurrencyField = (optionId, field, rawValue) => {
+    updateProposalOptionField(optionId, field, formatBrlCurrencyInput(rawValue));
+  };
+
+  const handleAddProposalOption = () => {
+    setForm((state) => {
+      const current = normalizeProposalOptionsForForm(state.proposalOptions);
+      return {
+        ...state,
+        proposalOptions: [...current, createProposalOption({}, current.length)]
+      };
+    });
+  };
+
+  const handleRemoveProposalOption = (optionId) => {
+    setForm((state) => {
+      const filtered = normalizeProposalOptionsForForm(state.proposalOptions).filter((entry) => entry.id !== optionId);
+      return {
+        ...state,
+        proposalOptions: filtered.length ? filtered : [createProposalOption({}, 0)]
+      };
+    });
+  };
+
+  const handleFillProposalOptionFromCurrentPlan = (optionId) => {
+    const pointsCount = proposalPointsForPdf.length;
+    const finalTotal = Number(pricingSummaryForPdfWithCommission?.finalTotalWithCommission ?? pricingSummaryForPdf?.finalTotal ?? totalsForPdf?.valorTotal ?? 0);
+    const pricePerPoint = pointsCount > 0 ? finalTotal / pointsCount : 0;
+    const toMoneyText = (value) => Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    setForm((state) => {
+      const nextOptions = normalizeProposalOptionsForForm(state.proposalOptions).map((entry) => {
+        if (entry.id !== optionId) return entry;
+        return {
+          ...entry,
+          points: pointsCount ? String(pointsCount) : entry.points,
+          pricePerPoint: pointsCount ? toMoneyText(pricePerPoint) : entry.pricePerPoint,
+          totalValue: finalTotal > 0 ? toMoneyText(finalTotal) : entry.totalValue,
+          months: String(state.duracao_meses || '').trim() || entry.months
+        };
+      });
+      return { ...state, proposalOptions: nextOptions };
+    });
+  };
 
   const updatePdfPointField = (pointId, field, value) => {
     const key = String(pointId);
@@ -951,13 +1232,15 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           publico: form.publicos,
           points: pointsWithEntorno,
           totals: totalsForPdf,
-          pricingSummary: pricingSummaryForPdf,
+          pricingSummary: pricingSummaryForPdfWithCommission,
           segmento: form.segmento,
           strategicText: argumentos,
           strategicTopics,
           strategicSubtitle: form.proposalSubtitle,
           simulationSummary,
           overviewMapImage: mobileOverviewMap,
+          sellerSignature: sellerSignaturePayload,
+          proposalOptions: proposalOptionsPayload,
           showImpactSection: pdfSections.impact,
         });
         return;
@@ -1001,7 +1284,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         objective: form.objetivo,
         points: pointsWithEntorno,
         totals: totalsForPdf,
-        pricingSummary: pricingSummaryForPdf,
+        pricingSummary: pricingSummaryForPdfWithCommission,
         segmento: form.segmento,
         strategicText: argumentos,
         strategicTopics,
@@ -1016,7 +1299,9 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         showEntornoEvidence: pdfSections.entornoEvidence,
         showCoverageLayer: pdfSections.coverage,
         showImpactSection: pdfSections.impact,
-        customCommercialNote: form.customCommercialNote || ''
+        customCommercialNote: form.customCommercialNote || '',
+        sellerSignature: sellerSignaturePayload,
+        proposalOptions: proposalOptionsPayload
       });
     } catch (error) {
       console.error('[ProposalModal] PDF export failed:', error);
@@ -1077,8 +1362,12 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         strategicText: argumentos,
         points: pointsWithEntorno.map(({ custo_operacional: _co, ...p }) => p),
         totals: totalsForPdf,
-        pricingSummary: pricingSummaryForPdf,
-        duracao_meses: form.duracao_meses ? Number(form.duracao_meses) : null
+        pricingSummary: pricingSummaryForPdfWithCommission,
+        duracao_meses: form.duracao_meses ? Number(form.duracao_meses) : null,
+        agencyCommissionEnabled,
+        agencyCommissionPercent,
+        sellerSignature: sellerSignaturePayload,
+        proposalOptions: proposalOptionsPayload
       };
 
       // Upload simulation preview images to server (convert blob: URLs to permanent URLs)
@@ -1830,6 +2119,41 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                           })}
                         </div>
                       )}
+
+                      <div className={`rounded-xl border p-3 mt-4 space-y-3 ${isDark ? 'border-brand-orange/30 bg-brand-orange/[0.06]' : 'border-orange-200 bg-orange-50/60'}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className={`text-[11px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Comissão de agência</p>
+                            <p className={`text-xs mt-1 ${isDark ? 'text-brand-gray-500' : 'text-neutral-600'}`}>
+                              Acrescenta um percentual no valor final da proposta e exibe a comissão separadamente.
+                            </p>
+                          </div>
+                          <label className={`inline-flex items-center gap-2 text-xs font-medium ${isDark ? 'text-brand-gray-200' : 'text-neutral-700'}`}>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(form.agencyCommissionEnabled)}
+                              onChange={(event) => setForm((state) => ({ ...state, agencyCommissionEnabled: event.target.checked }))}
+                            />
+                            {form.agencyCommissionEnabled ? 'Ativada' : 'Desativada'}
+                          </label>
+                        </div>
+
+                        {form.agencyCommissionEnabled && (
+                          <div className="space-y-2">
+                            <Input
+                              isDark={isDark}
+                              label="Comissão (%)"
+                              value={form.agencyCommissionPercent}
+                              onChange={(value) => setForm((state) => ({ ...state, agencyCommissionPercent: value }))}
+                              placeholder="Ex: 20"
+                            />
+                            <p className={`text-xs ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>
+                              Comissão estimada: <span className="font-semibold">{formatCurrency(pricingSummaryWithCommission.agencyCommissionAmount || 0)}</span>
+                              {agencyCommissionPercent > 0 ? ` (${agencyCommissionPercentLabel}%)` : ''}.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </Card>
 
                     {/* RIGHT — Resumo financeiro */}
@@ -1844,9 +2168,19 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                           <div className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Desconto total</div>
                           <div className={`text-xl font-bold mt-1 ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>{formatCurrency(pricingSummary.discountTotal)}</div>
                         </div>
+                        {pricingSummaryWithCommission.hasAgencyCommission && (
+                          <div className={`rounded-xl border p-3 ${isDark ? 'border-blue-500/20 bg-blue-500/5' : 'border-blue-200 bg-blue-50'}`}>
+                            <div className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                              Comissão de agência ({agencyCommissionPercentLabel}%)
+                            </div>
+                            <div className={`text-xl font-bold mt-1 ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+                              +{formatCurrency(pricingSummaryWithCommission.agencyCommissionAmount)}
+                            </div>
+                          </div>
+                        )}
                         <div className={`rounded-2xl border-2 p-4 ${isDark ? 'border-green-500/30 bg-green-500/5' : 'border-green-300 bg-green-50'}`}>
                           <div className={`text-[10px] uppercase tracking-[0.12em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Valor final</div>
-                          <div className={`text-3xl font-extrabold mt-1 ${isDark ? 'text-green-400' : 'text-green-600'}`}>{formatCurrency(pricingSummary.finalTotal)}</div>
+                          <div className={`text-3xl font-extrabold mt-1 ${isDark ? 'text-green-400' : 'text-green-600'}`}>{formatCurrency(pricingSummaryWithCommission.finalTotalWithCommission)}</div>
                         </div>
                       </div>
                     </div>
@@ -2159,6 +2493,126 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                       >
                         Voltar para dados gerais
                       </button>
+                    </div>
+                  </Card>
+
+                  <Card isDark={isDark} title="Assinatura e condições comerciais">
+                    <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                      A assinatura do vendedor será exibida no PDF e no link público. Você também pode adicionar múltiplas condições de proposta para criar uma nova página comercial.
+                    </p>
+                    <div className="grid md:grid-cols-3 gap-3">
+                      <Input isDark={isDark} label="Nome do vendedor" value={form.sellerName} onChange={(v) => setForm((s) => ({ ...s, sellerName: v }))} placeholder="Nome completo" />
+                      <Input isDark={isDark} label="E-mail do vendedor" type="email" value={form.sellerEmail} onChange={(v) => setForm((s) => ({ ...s, sellerEmail: v }))} placeholder="nome@empresa.com" />
+                      <Input isDark={isDark} label="Telefone do vendedor" value={form.sellerPhone} onChange={(v) => setForm((s) => ({ ...s, sellerPhone: v }))} placeholder="(43) 99999-9999" />
+                    </div>
+
+                    <div className="space-y-3 mt-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className={`text-xs ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                          Exemplo: Proposta 1 (20 pontos), Proposta 2 (30 pontos), Proposta 3 (40 pontos), cada uma com observação própria.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleAddProposalOption}
+                          className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-semibold transition-colors ${isDark ? 'border-brand-orange/35 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-[#E85A1A] bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] text-white hover:from-[#E85A1A] hover:to-[#C94A1A] shadow-sm shadow-[#FE5C2B]/25'}`}
+                        >
+                          <Plus size={12} />
+                          Adicionar proposta
+                        </button>
+                      </div>
+
+                      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {proposalOptionsForForm.map((option, index) => (
+                          <div key={option.id} className={`rounded-2xl border p-3 ${isDark ? 'border-brand-orange/30 bg-brand-orange/[0.06]' : 'border-orange-200 bg-orange-50/50'}`}>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={option.title}
+                                onChange={(event) => updateProposalOptionField(option.id, 'title', event.target.value)}
+                                className={`min-w-0 flex-1 rounded-lg border px-2.5 py-2 text-sm font-semibold outline-none ${isDark ? 'bg-black/25 border-white/15 text-white focus:border-brand-orange/45' : 'bg-white border-neutral-200 text-neutral-800 focus:border-brand-orange/50'}`}
+                                placeholder={`Proposta ${index + 1}`}
+                              />
+                              {proposalOptionsForForm.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveProposalOption(option.id)}
+                                  className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${isDark ? 'border-red-400/35 text-red-300 hover:bg-red-500/15' : 'border-red-200 text-red-500 hover:bg-red-50'}`}
+                                  title="Remover proposta"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 mt-3">
+                              <div>
+                                <label className={`text-[10px] uppercase tracking-[0.11em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Qtd. pontos</label>
+                                <input
+                                  type="text"
+                                  value={option.points}
+                                  onChange={(event) => updateProposalOptionField(option.id, 'points', event.target.value)}
+                                  placeholder="Ex: 20"
+                                  className={`mt-1 w-full rounded-lg border px-2.5 py-2 text-xs outline-none ${isDark ? 'bg-white/[0.07] border-white/15 text-white focus:border-brand-orange/45' : 'bg-white border-neutral-200 text-neutral-800 focus:border-brand-orange/50'}`}
+                                />
+                              </div>
+                              <div>
+                                <label className={`text-[10px] uppercase tracking-[0.11em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Valor por ponto</label>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={option.pricePerPoint}
+                                  onChange={(event) => updateProposalOptionCurrencyField(option.id, 'pricePerPoint', event.target.value)}
+                                  placeholder="Ex: 1.250,00"
+                                  className={`mt-1 w-full rounded-lg border px-2.5 py-2 text-xs outline-none ${isDark ? 'bg-white/[0.07] border-white/15 text-white focus:border-brand-orange/45' : 'bg-white border-neutral-200 text-neutral-800 focus:border-brand-orange/50'}`}
+                                />
+                              </div>
+                              <div>
+                                <label className={`text-[10px] uppercase tracking-[0.11em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Valor total</label>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={option.totalValue}
+                                  onChange={(event) => updateProposalOptionCurrencyField(option.id, 'totalValue', event.target.value)}
+                                  placeholder="Ex: 25.000,00"
+                                  className={`mt-1 w-full rounded-lg border px-2.5 py-2 text-xs outline-none ${isDark ? 'bg-white/[0.07] border-white/15 text-white focus:border-brand-orange/45' : 'bg-white border-neutral-200 text-neutral-800 focus:border-brand-orange/50'}`}
+                                />
+                              </div>
+                              <div>
+                                <label className={`text-[10px] uppercase tracking-[0.11em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Duração (meses)</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={option.months}
+                                  onChange={(event) => updateProposalOptionField(option.id, 'months', event.target.value)}
+                                  placeholder="Ex: 12"
+                                  className={`mt-1 w-full rounded-lg border px-2.5 py-2 text-xs outline-none ${isDark ? 'bg-white/[0.07] border-white/15 text-white focus:border-brand-orange/45' : 'bg-white border-neutral-200 text-neutral-800 focus:border-brand-orange/50'}`}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="mt-3">
+                              <label className={`text-[10px] uppercase tracking-[0.11em] ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>Observação</label>
+                              <textarea
+                                rows={3}
+                                value={option.note}
+                                onChange={(event) => updateProposalOptionField(option.id, 'note', event.target.value)}
+                                placeholder="Observação opcional para esta proposta."
+                                className={`mt-1 w-full rounded-lg border px-2.5 py-2 text-xs outline-none resize-none ${isDark ? 'bg-white/[0.07] border-white/15 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/45' : 'bg-white border-neutral-200 text-neutral-800 placeholder:text-neutral-400 focus:border-brand-orange/50'}`}
+                              />
+                            </div>
+
+                            <div className="mt-2 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => handleFillProposalOptionFromCurrentPlan(option.id)}
+                                className={`h-7 px-2.5 rounded-md border text-[11px] font-medium transition-colors ${isDark ? 'border-white/15 bg-white/[0.03] text-brand-gray-200 hover:bg-white/[0.08]' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100'}`}
+                              >
+                                Usar dados da seleção atual
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </Card>
 
@@ -2611,7 +3065,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
           totals={totalsForPdf}
           segmento={form.segmento}
           clientName={form.clientName}
-          pricingSummary={pricingSummaryForPdf}
+          pricingSummary={pricingSummaryForPdfWithCommission}
           onClose={() => setShowPresentation(false)}
           clientMode={clientModePresentation}
           proposalToken={shareModal?.token ?? null}
@@ -2619,7 +3073,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       )}
 
       {showQuickPresentation && (
-        <QuickPresentationMode points={proposalPointsForPdf} totals={totalsForPdf} segmento={form.segmento} clientName={form.clientName} pricingSummary={pricingSummaryForPdf} onClose={() => setShowQuickPresentation(false)} />
+        <QuickPresentationMode points={proposalPointsForPdf} totals={totalsForPdf} segmento={form.segmento} clientName={form.clientName} pricingSummary={pricingSummaryForPdfWithCommission} onClose={() => setShowQuickPresentation(false)} />
       )}
 
       {/* Share modal — link público + QR code */}

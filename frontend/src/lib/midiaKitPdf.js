@@ -232,6 +232,142 @@ function formatCommercialNoteMarkup(value) {
   return html.replace(/(<br>)+$/, '');
 }
 
+function normalizeSellerSignature(signature = {}) {
+  const source = signature && typeof signature === 'object' ? signature : {};
+  const name = String(source.name || source.nome || '').trim();
+  const email = String(source.email || source.mail || '').trim();
+  const phone = String(source.phone || source.telefone || source.whatsapp || '').trim();
+  const photoRaw = source.photoUrl || source.photo_url || source.photo || source.avatar || source.image || source.foto || '';
+  const photoUrl = normalizeSellerPhotoUrl(photoRaw);
+  return { name, email, phone, photoUrl };
+}
+
+function hasSellerSignature(signature = {}) {
+  return Boolean(signature?.name || signature?.email || signature?.phone);
+}
+
+function normalizeSellerPhotoUrl(value) {
+  const source = String(value || '').trim();
+  if (!source || source.startsWith('blob:')) return '';
+  if (/^(https?:)?\/\//i.test(source) || source.startsWith('data:image/')) return source;
+  if (source.startsWith('/')) return source;
+  return `/${source.replace(/^\/+/, '')}`;
+}
+
+function normalizeProposalOptions(options = []) {
+  const source = Array.isArray(options) ? options : [];
+  return source
+    .filter((entry) => entry && typeof entry === 'object')
+    .map((entry, index) => {
+      const pointsRaw = Number(entry.points ?? entry.quantidade_pontos);
+      const pricePerPointRaw = Number(entry.pricePerPoint ?? entry.valor_por_ponto);
+      const totalValueRaw = Number(entry.totalValue ?? entry.valor_total);
+      const monthsRaw = Number(entry.months ?? entry.duracao_meses);
+      const points = Number.isFinite(pointsRaw) ? Math.max(0, Math.round(pointsRaw)) : null;
+      const pricePerPoint = Number.isFinite(pricePerPointRaw) ? Math.max(0, pricePerPointRaw) : null;
+      const totalValue = Number.isFinite(totalValueRaw) ? Math.max(0, totalValueRaw) : null;
+      const months = Number.isFinite(monthsRaw) ? Math.max(1, Math.round(monthsRaw)) : null;
+      const note = String(entry.note || entry.observacao || '').trim();
+      return {
+        title: String(entry.title || entry.titulo || `Proposta ${index + 1}`).trim() || `Proposta ${index + 1}`,
+        points,
+        pricePerPoint,
+        totalValue,
+        months,
+        note
+      };
+    })
+    .filter((entry) => entry.points || entry.pricePerPoint || entry.totalValue || entry.months || entry.note);
+}
+
+function normalizePricingSummary(pricingSummary = {}, fallbackFinalTotal = 0) {
+  const base = pricingSummary && typeof pricingSummary === 'object' ? pricingSummary : {};
+  const fallbackFinal = Number(fallbackFinalTotal) || 0;
+  const originalTotalRaw = Number(base.originalTotal);
+  const finalTotalRaw = Number(base.finalTotal);
+  const discountTotalRaw = Number(base.discountTotal);
+  const agencyCommissionPercentRaw = Number(base.agencyCommissionPercent);
+  const agencyCommissionAmountRaw = Number(base.agencyCommissionAmount);
+  const finalTotalWithCommissionRaw = Number(base.finalTotalWithCommission);
+
+  const finalTotal = Number.isFinite(finalTotalRaw) ? Math.max(0, finalTotalRaw) : Math.max(0, fallbackFinal);
+  const originalTotal = Number.isFinite(originalTotalRaw) ? Math.max(0, originalTotalRaw) : finalTotal;
+  const discountTotal = Number.isFinite(discountTotalRaw) ? Math.max(0, discountTotalRaw) : Math.max(0, originalTotal - finalTotal);
+  const hasDiscount = Boolean(base.hasDiscount) || discountTotal > 0.0001;
+  const agencyCommissionPercent = Number.isFinite(agencyCommissionPercentRaw)
+    ? Math.min(100, Math.max(0, agencyCommissionPercentRaw))
+    : 0;
+  const hasAgencyCommissionFlag = Boolean(base.agencyCommissionEnabled || base.hasAgencyCommission);
+  const agencyCommissionAmount = Number.isFinite(agencyCommissionAmountRaw)
+    ? Math.max(0, agencyCommissionAmountRaw)
+    : (hasAgencyCommissionFlag && agencyCommissionPercent > 0 ? finalTotal * (agencyCommissionPercent / 100) : 0);
+  const hasAgencyCommission = hasAgencyCommissionFlag || agencyCommissionAmount > 0.0001;
+  const finalTotalWithCommission = Number.isFinite(finalTotalWithCommissionRaw)
+    ? Math.max(0, finalTotalWithCommissionRaw)
+    : finalTotal + agencyCommissionAmount;
+
+  return {
+    ...base,
+    originalTotal,
+    finalTotal,
+    discountTotal,
+    hasDiscount,
+    agencyCommissionPercent,
+    agencyCommissionAmount,
+    hasAgencyCommission,
+    finalTotalWithCommission
+  };
+}
+
+function chunkList(values = [], chunkSize = 3) {
+  const safeValues = Array.isArray(values) ? values : [];
+  const size = Math.max(1, Number(chunkSize) || 1);
+  const chunks = [];
+  for (let start = 0; start < safeValues.length; start += size) {
+    chunks.push(safeValues.slice(start, start + size));
+  }
+  return chunks;
+}
+
+function buildSellerSignatureBlock(signature, { compact = false } = {}) {
+  const normalized = normalizeSellerSignature(signature);
+  if (!hasSellerSignature(normalized)) return '';
+  const labelSize = compact ? '9px' : '10px';
+  const valueSize = compact ? '11px' : '12px';
+  const padding = compact ? '10px 12px' : '12px 14px';
+  return `
+    <div style="border-radius:14px;background:linear-gradient(135deg, rgba(232,89,26,0.08) 0%, rgba(255,255,255,0.55) 100%);border:1px solid rgba(232,89,26,0.30);padding:${padding};">
+      <div style="font-size:${labelSize};font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Assinatura comercial</div>
+      <div style="margin-top:8px;display:grid;gap:6px;">
+        ${normalized.name ? `<div style="font-size:${valueSize};line-height:1.4;color:${PROPOSAL_TEXT};"><strong>Vendedor:</strong> ${escapeHtml(normalized.name)}</div>` : ''}
+        ${normalized.email ? `<div style="font-size:${valueSize};line-height:1.4;color:${PROPOSAL_TEXT};"><strong>E-mail:</strong> ${escapeHtml(normalized.email)}</div>` : ''}
+        ${normalized.phone ? `<div style="font-size:${valueSize};line-height:1.4;color:${PROPOSAL_TEXT};"><strong>Telefone:</strong> ${escapeHtml(normalized.phone)}</div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function buildProposalCoverSignatureStrip(signature) {
+  const normalized = normalizeSellerSignature(signature);
+  if (!hasSellerSignature(normalized)) return '';
+  const avatarHtml = normalized.photoUrl
+    ? `<img src="${normalized.photoUrl}" alt="" style="width:38px;height:38px;border-radius:999px;object-fit:cover;border:1px solid rgba(232,89,26,0.32);background:#fff;flex-shrink:0;" />`
+    : `<div style="width:38px;height:38px;border-radius:999px;border:1px solid rgba(232,89,26,0.30);background:rgba(232,89,26,0.10);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${PROPOSAL_ACCENT};flex-shrink:0;">VC</div>`;
+  return `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;background:rgba(232,89,26,0.06);border:1px solid rgba(232,89,26,0.22);max-width:680px;min-height:54px;">
+      ${avatarHtml}
+      <div style="min-width:0;">
+        <div style="font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Assinatura comercial</div>
+        <div style="margin-top:2px;font-size:12px;line-height:1.45;color:${PROPOSAL_TEXT};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          ${normalized.name ? `<strong>Vendedor:</strong> ${escapeHtml(normalized.name)}` : ''}
+          ${normalized.email ? `${normalized.name ? ' · ' : ''}${escapeHtml(normalized.email)}` : ''}
+          ${normalized.phone ? `${(normalized.name || normalized.email) ? ' · ' : ''}${escapeHtml(normalized.phone)}` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 async function blobUrlToDataUrl(url) {
   if (!url || !url.startsWith('blob:')) return url;
   try {
@@ -1238,13 +1374,14 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets }) {
   `, '#ECEFF3');
 }
 
-function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, pricingSummary, highlights, strategicTopics, strategicSubtitle, simulationSummary, segmento, assets, showMetricsMethodology = true, customCommercialNote = '', duracao_meses = null }) {
+function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, proposalTotals, pricingSummary, highlights, strategicTopics, strategicSubtitle, simulationSummary, segmento, assets, showMetricsMethodology = true, customCommercialNote = '', duracao_meses = null, sellerSignature = null }) {
   const layout = getActivePdfLayoutConfig().proposal.cover;
   const segmentLabel = getSegmentDisplayName(segmento);
   const pointsWithEntorno = proposalPoints.filter((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0).length;
   const hasEntornoData = pointsWithEntorno > 0;
-  const originalTotal = pricingSummary?.originalTotal ?? proposalTotals.valorTotal;
-  const finalTotal = pricingSummary?.finalTotal ?? proposalTotals.valorTotal;
+  const normalizedPricingSummary = normalizePricingSummary(pricingSummary, proposalTotals.valorTotal);
+  const originalTotal = normalizedPricingSummary.originalTotal;
+  const finalTotal = normalizedPricingSummary.finalTotalWithCommission;
   const ticketMedio = proposalPoints.length > 0 ? finalTotal / proposalPoints.length : 0;
   const simulatedPoints = proposalPoints.filter((point) => Boolean(point?.proposalSimulationPreview || point?.simulacao_preview)).length;
   const totalTelasProposta = proposalPoints.reduce((sum, p) => sum + (Number(p?.telas) || 0), 0);
@@ -1253,7 +1390,10 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
     { iconHtml: proposalIcon('target'), label: 'Pontos de Impacto (telas)', value: formatInt(totalTelasProposta) },
     { iconHtml: proposalIcon('flow'), label: 'Fluxo total', value: formatInt(proposalTotals.fluxoTotal) },
     { iconHtml: proposalIcon('money'), label: 'Valor Tabela', value: formatMoney(originalTotal) },
-    { iconHtml: proposalIcon('money'), label: 'Valor Negociado', value: formatMoney(finalTotal) },
+    { iconHtml: proposalIcon('money'), label: normalizedPricingSummary.hasAgencyCommission ? 'Valor Final c/ comissão' : 'Valor Negociado', value: formatMoney(finalTotal) },
+    ...(normalizedPricingSummary.hasAgencyCommission
+      ? [{ iconHtml: proposalIcon('money'), label: `Comissão agência (${normalizedPricingSummary.agencyCommissionPercent.toLocaleString('pt-BR', { minimumFractionDigits: Number.isInteger(normalizedPricingSummary.agencyCommissionPercent) ? 0 : 1, maximumFractionDigits: 2 })}%)`, value: `+ ${formatMoney(normalizedPricingSummary.agencyCommissionAmount)}` }]
+      : []),
     { iconHtml: proposalIcon('cpm'), label: 'CPM estimado', value: formatDecimalMoney(proposalTotals.cpmEstimado) }
   ];
   const rightQuickStats = [
@@ -1264,6 +1404,7 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
     ? strategicTopics
     : (highlights.length ? highlights : ['Argumentos estratégicos serão definidos na reunião comercial.']);
   const subtitleText = String(strategicSubtitle || '').trim() || `Planejamento comercial para ${proposalCity} com foco em cobertura, frequência e presença de marca.`;
+  const sellerSignatureStrip = buildProposalCoverSignatureStrip(sellerSignature);
 
   return createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
@@ -1295,16 +1436,18 @@ function buildProposalCoverPage({ proposalClient, proposalCity, proposalPoints, 
           `).join('')}
         </div>
 
+        ${sellerSignatureStrip ? `<div style="margin-top:10px;">${sellerSignatureStrip}</div>` : ''}
+
         ${(() => {
           const trimmed = String(customCommercialNote || '').trim();
           const noteHtml = trimmed
             ? formatCommercialNoteMarkup(trimmed)
             : `${duracao_meses ? `Valores válidos para o contrato de <strong>${duracao_meses} meses</strong>. ` : ''}Negociação válida <strong>exclusivamente</strong> para o plano e quantidade de pontos apresentados. Para outras condições, os valores deverão ser consultados. <span style="color:${PROPOSAL_LABEL};">* Produção de materiais por conta do cliente.</span>`;
           return `
-        <div style="margin-top:14px;padding:12px 14px;border-radius:12px;background:linear-gradient(135deg, rgba(232,89,26,0.05) 0%, rgba(0,0,0,0.02) 100%);border:1px solid rgba(232,89,26,0.18);border-left:3px solid ${PROPOSAL_ACCENT};max-width:680px;">
+        <div style="margin-top:14px;padding:14px 16px;border-radius:12px;background:linear-gradient(135deg, rgba(232,89,26,0.05) 0%, rgba(0,0,0,0.02) 100%);border:1px solid rgba(232,89,26,0.18);border-left:3px solid ${PROPOSAL_ACCENT};max-width:680px;">
           <div style="display:flex;align-items:flex-start;gap:10px;">
-            <div style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:999px;background:rgba(232,89,26,0.16);font-size:11px;font-weight:800;color:${PROPOSAL_ACCENT};">i</div>
-            <div style="font-size:11px;line-height:1.45;color:${PROPOSAL_TEXT_SECONDARY};">${noteHtml}</div>
+            <div style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:rgba(232,89,26,0.16);font-size:12px;font-weight:800;color:${PROPOSAL_ACCENT};">i</div>
+            <div style="font-size:14px;line-height:1.6;color:${PROPOSAL_TEXT_SECONDARY};">${noteHtml}</div>
           </div>
         </div>`;
         })()}
@@ -1362,8 +1505,9 @@ function buildProposalMetricsMethodologyPage({ proposalPoints, proposalTotals, p
   const fluxoTotal = Number(proposalTotals?.fluxoTotal) || 0;
   const hasDigitalInsertionPoints = proposalPoints.some((point) => isInsertionBasedFormat(point?.tipo));
   const digitalInsercoesTotal = getDigitalInsercoesTotal(proposalPoints);
-  const valorTabela = Number(pricingSummary?.originalTotal ?? proposalTotals?.valorTotal) || 0;
-  const valorNegociado = Number(pricingSummary?.finalTotal ?? proposalTotals?.valorTotal) || 0;
+  const normalizedPricingSummary = normalizePricingSummary(pricingSummary, proposalTotals?.valorTotal);
+  const valorTabela = Number(normalizedPricingSummary.originalTotal) || 0;
+  const valorNegociado = Number(normalizedPricingSummary.finalTotalWithCommission) || 0;
   const ticketMedio = pointCount > 0 ? valorNegociado / pointCount : 0;
   const cpm = fluxoTotal > 0 ? valorNegociado / (fluxoTotal / 1000) : 0;
   const custoPorImpacto = fluxoTotal > 0 ? valorNegociado / fluxoTotal : 0;
@@ -2240,13 +2384,122 @@ function buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, asse
   `, PROPOSAL_BG, { height: coveragePageHeight, cssClass: 'coverage-page' });
 }
 
-function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico, duracao_meses, assets, customCommercialNote, compactMode = false }) {
+function buildProposalOptionsPage({
+  proposalOptions,
+  proposalClient,
+  proposalCity,
+  duracao_meses,
+  sellerSignature,
+  assets,
+  pageIndex = 1,
+  totalPages = 1,
+  showSignature = false
+}) {
+  const options = normalizeProposalOptions(proposalOptions);
+  if (!options.length) return null;
+
+  const fallbackMonths = Number.isFinite(Number(duracao_meses)) ? Math.max(1, Math.round(Number(duracao_meses))) : null;
+  const cityLabel = Array.isArray(proposalCity) ? proposalCity.filter(Boolean).join(', ') : String(proposalCity || 'Múltiplas praças');
+  const signatureHtml = showSignature ? buildSellerSignatureBlock(sellerSignature) : '';
+  const pageCounter = totalPages > 1
+    ? `<div style="font-size:11px;font-weight:700;color:${PROPOSAL_LABEL};">Página ${pageIndex} de ${totalPages}</div>`
+    : '';
+
+  return createPage(`
+    <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
+    ${PROPOSAL_ATMOSPHERE}
+    <div style="position:relative;z-index:1;width:100%;height:${PAGE_HEIGHT}px;max-height:${PAGE_HEIGHT}px;padding:48px 58px 44px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px;overflow:hidden;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:42px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
+          <div style="display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 18px;border-radius:999px;background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.28);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_ACCENT};">Condições de proposta</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Cliente</div>
+          <div style="margin-top:3px;font-size:16px;font-weight:700;color:${PROPOSAL_TEXT};">${escapeHtml(proposalClient || 'Cliente')}</div>
+          <div style="margin-top:2px;font-size:12px;color:${PROPOSAL_TEXT_SECONDARY};">${escapeHtml(cityLabel || 'Múltiplas praças')}</div>
+          ${pageCounter}
+        </div>
+      </div>
+
+      <div style="font-size:13px;line-height:1.5;color:${PROPOSAL_TEXT_SECONDARY};max-width:940px;">
+        Compare cenários comerciais na mesma proposta com quantidades, valores e prazos personalizados.
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-content:start;">
+        ${options.map((option, index) => {
+          const pointsLabel = option.points ? `${formatInt(option.points)} pontos` : '—';
+          const pricePerPointLabel = option.pricePerPoint !== null ? formatDecimalMoney(option.pricePerPoint) : '—';
+          const totalValueLabel = option.totalValue !== null ? formatMoney(option.totalValue) : '—';
+          const durationMonths = option.months || fallbackMonths;
+          const durationLabel = durationMonths ? `${durationMonths} ${durationMonths === 1 ? 'mês' : 'meses'}` : '—';
+          return `
+            <div style="border-radius:34px;border:3px solid rgba(232,89,26,0.92);background:rgba(255,255,255,0.66);padding:18px 16px 16px;min-height:230px;display:flex;flex-direction:column;gap:8px;box-shadow:0 10px 24px rgba(232,89,26,0.12);">
+              <div style="font-size:31px;font-weight:800;letter-spacing:-0.02em;color:${PROPOSAL_ACCENT};line-height:1;">${escapeHtml(option.title || `Proposta ${index + 1}`)}</div>
+              <div style="height:1px;background:rgba(232,89,26,0.26);margin:2px 0;"></div>
+              <div style="display:grid;gap:6px;">
+                <div>
+                  <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Quantidade de pontos</div>
+                  <div style="margin-top:2px;font-size:18px;font-weight:700;color:${PROPOSAL_TEXT};">${escapeHtml(pointsLabel)}</div>
+                </div>
+                <div>
+                  <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Valor por ponto</div>
+                  <div style="margin-top:2px;font-size:18px;font-weight:700;color:${PROPOSAL_TEXT};">${escapeHtml(pricePerPointLabel)}</div>
+                </div>
+                <div>
+                  <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Valor total</div>
+                  <div style="margin-top:2px;font-size:20px;font-weight:800;color:${PROPOSAL_ACCENT};">${escapeHtml(totalValueLabel)}</div>
+                </div>
+                <div>
+                  <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Prazo</div>
+                  <div style="margin-top:2px;font-size:17px;font-weight:700;color:${PROPOSAL_TEXT};">${escapeHtml(durationLabel)}</div>
+                </div>
+              </div>
+              ${option.note ? `<div style="margin-top:auto;padding:8px 10px;border-radius:12px;background:rgba(232,89,26,0.08);border:1px solid rgba(232,89,26,0.18);font-size:11px;line-height:1.4;color:${PROPOSAL_TEXT};"><strong style="color:${PROPOSAL_ACCENT};">Observação:</strong> ${escapeHtml(option.note)}</div>` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      ${signatureHtml ? `<div style="margin-top:auto;max-width:560px;">${signatureHtml}</div>` : ''}
+    </div>
+  `, PROPOSAL_BG, { cssClass: 'proposal-options-page' });
+}
+
+function buildProposalOptionsPages({ proposalOptions, proposalClient, proposalCity, duracao_meses, sellerSignature, assets }) {
+  const normalizedOptions = normalizeProposalOptions(proposalOptions);
+  if (!normalizedOptions.length) return [];
+  const chunks = chunkList(normalizedOptions, 3);
+  const totalPages = chunks.length;
+  return chunks
+    .map((chunk, index) => buildProposalOptionsPage({
+      proposalOptions: chunk,
+      proposalClient,
+      proposalCity,
+      duracao_meses,
+      sellerSignature,
+      assets,
+      pageIndex: index + 1,
+      totalPages,
+      showSignature: index === totalPages - 1
+    }))
+    .filter(Boolean);
+}
+
+function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico, duracao_meses, assets, customCommercialNote, sellerSignature, compactMode = false }) {
   const segmentLabel = getSegmentDisplayName(segmento);
   const pointCount = proposalPoints.length;
-  const finalTotal = pricingSummary?.finalTotal ?? proposalTotals?.valorTotal ?? 0;
-  const originalTotal = pricingSummary?.originalTotal ?? finalTotal;
-  const hasDiscount = pricingSummary?.hasDiscount && pricingSummary?.discountTotal > 0;
-  const discountTotal = pricingSummary?.discountTotal ?? 0;
+  const normalizedPricingSummary = normalizePricingSummary(pricingSummary, proposalTotals?.valorTotal ?? 0);
+  const finalTotal = normalizedPricingSummary.finalTotalWithCommission;
+  const originalTotal = normalizedPricingSummary.originalTotal;
+  const hasDiscount = normalizedPricingSummary.hasDiscount && normalizedPricingSummary.discountTotal > 0;
+  const discountTotal = normalizedPricingSummary.discountTotal ?? 0;
+  const hasAgencyCommission = normalizedPricingSummary.hasAgencyCommission && normalizedPricingSummary.agencyCommissionAmount > 0;
+  const agencyCommissionAmount = normalizedPricingSummary.agencyCommissionAmount ?? 0;
+  const agencyCommissionPercentLabel = normalizedPricingSummary.agencyCommissionPercent.toLocaleString('pt-BR', {
+    minimumFractionDigits: Number.isInteger(normalizedPricingSummary.agencyCommissionPercent) ? 0 : 1,
+    maximumFractionDigits: 2
+  });
   const publicoLabel = Array.isArray(publico) ? publico.filter(Boolean).join(', ') : (publico || '—');
   const cityLabel = Array.isArray(proposalCity) ? proposalCity.join(', ') : (proposalCity || '—');
 
@@ -2256,10 +2509,13 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
   const insertionMetricValue = hasDigitalInsertionPoints ? formatInt(digitalInsercoesTotal) : 'Contínua';
   const fluxoLabel = proposalTotals?.fluxoTotal ? proposalTotals.fluxoTotal.toLocaleString('pt-BR') : '—';
   const cpmLabel = proposalTotals?.cpmEstimado ? formatMoney(proposalTotals.cpmEstimado) : '—';
+  const sellerSignatureHtml = buildSellerSignatureBlock(sellerSignature, { compact: true });
+  const customCommercialNoteTrimmed = String(customCommercialNote || '').trim();
+  const customCommercialNoteHtml = customCommercialNoteTrimmed ? formatCommercialNoteMarkup(customCommercialNoteTrimmed) : '';
 
   // Dynamic page height: fixed overhead + per-row height for all points
   const IMPACT_ROW_HEIGHT_PX = 44;
-  const IMPACT_OVERHEAD_PX = 340;
+  const IMPACT_OVERHEAD_PX = 340 + (hasAgencyCommission ? 64 : 0) + (customCommercialNoteHtml ? 90 : 0);
   const impactPageHeight = Math.max(PAGE_HEIGHT, IMPACT_OVERHEAD_PX + proposalPoints.length * IMPACT_ROW_HEIGHT_PX);
 
   let pointRows = proposalPoints.map((p) => `
@@ -2389,6 +2645,17 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
             </div>
             ` : ''}
 
+            ${hasAgencyCommission ? `
+            <!-- Comissão de agência -->
+            <div style="position:relative;padding:14px 16px;border-radius:14px;background:linear-gradient(135deg, rgba(37,99,235,0.10) 0%, rgba(37,99,235,0.04) 100%);border:1px solid rgba(37,99,235,0.30);">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#1d4ed8;">Comissão de agência</div>
+                <div style="font-size:9px;font-weight:700;color:#1d4ed8;background:rgba(37,99,235,0.15);padding:2px 8px;border-radius:100px;">+${agencyCommissionPercentLabel}%</div>
+              </div>
+              <div style="margin-top:6px;font-size:26px;line-height:1.05;font-weight:800;color:#1d4ed8;font-family:Poppins, system-ui, sans-serif;letter-spacing:-0.025em;word-break:break-word;">+${formatMoney(agencyCommissionAmount)}</div>
+            </div>
+            ` : ''}
+
             <!-- Valor Final (highlight) -->
             <div style="position:relative;padding:18px 18px;border-radius:16px;background:linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%);border:2px solid rgba(34,197,94,0.40);box-shadow:0 4px 16px rgba(34,197,94,0.10);">
               <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -2398,6 +2665,9 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
               <div style="margin-top:8px;font-size:38px;line-height:1.0;font-weight:900;color:#15803d;font-family:Poppins, system-ui, sans-serif;letter-spacing:-0.03em;word-break:break-word;">${formatMoney(finalTotal)}</div>
               ${duracao_meses ? `<div style="margin-top:6px;font-size:11px;font-weight:600;color:#166534;opacity:0.85;">Plano de ${duracao_meses} ${Number(duracao_meses) === 1 ? 'mês' : 'meses'}</div>` : ''}
             </div>
+
+            ${sellerSignatureHtml ? `<div style="position:relative;">${sellerSignatureHtml}</div>` : ''}
+            ${customCommercialNoteHtml ? `<div style="position:relative;padding:14px 14px;border-radius:14px;background:rgba(232,89,26,0.07);border:1px solid rgba(232,89,26,0.20);font-size:13px;line-height:1.6;color:${PROPOSAL_TEXT_SECONDARY};"><strong style="color:${PROPOSAL_ACCENT};">Observação comercial:</strong><div style="margin-top:6px;">${customCommercialNoteHtml}</div></div>` : ''}
           </div>
 
         </div>
@@ -2536,13 +2806,17 @@ export async function generateProposalPdf({
   showCoverageLayer = true,
   showImpactSection = true,
   showEntornoEvidence = true,
-  customCommercialNote = ''
+  customCommercialNote = '',
+  sellerSignature = null,
+  proposalOptions = []
 }) {
   activePdfLayoutConfig = await loadPdfLayoutConfig();
   const proposalPoints = Array.isArray(points) ? points : [];
   const proposalTotals = totals || { valorTotal: 0, fluxoTotal: 0, cpmEstimado: 0, insercoesTotal: 0 };
   const proposalCity = city || 'Múltiplas praças';
   const proposalClient = clientName || 'Cliente não informado';
+  const normalizedSellerSignature = normalizeSellerSignature(sellerSignature);
+  const normalizedProposalOptions = normalizeProposalOptions(proposalOptions);
   const highlights = normalizeLines(strategicText, 4);
   const strategicTopicsList = normalizeLines(strategicTopics, 6);
   const hasEntornoData = proposalPoints.some((point) => Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0);
@@ -2570,7 +2844,8 @@ export async function generateProposalPdf({
       assets,
       showMetricsMethodology,
       customCommercialNote,
-      duracao_meses
+      duracao_meses,
+      sellerSignature: normalizedSellerSignature
     })
   ];
 
@@ -2633,8 +2908,37 @@ export async function generateProposalPdf({
     pages.push(buildCoverageLayerPage({ proposalPoints, segmento, proposalTotals, assets }));
   }
 
+  const optionsPages = normalizedProposalOptions.length > 0
+    ? buildProposalOptionsPages({
+      proposalOptions: normalizedProposalOptions,
+      proposalClient,
+      proposalCity,
+      duracao_meses,
+      sellerSignature: normalizedSellerSignature,
+      assets
+    })
+    : [];
+
+  if (optionsPages.length) {
+    pages.push(...optionsPages);
+  }
+
   if (showImpactSection) {
-    pages.push(buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simulationSummary, segmento, proposalClient, proposalCity, publico: effectivePublico, duracao_meses, assets, customCommercialNote, compactMode: useGridLayout }));
+    pages.push(buildImpactPage({
+      proposalPoints,
+      proposalTotals,
+      pricingSummary,
+      simulationSummary,
+      segmento,
+      proposalClient,
+      proposalCity,
+      publico: effectivePublico,
+      duracao_meses,
+      assets,
+      customCommercialNote,
+      sellerSignature: normalizedSellerSignature,
+      compactMode: useGridLayout
+    }));
   }
 
   pages.push(buildProposalClosingPage(assets, overviewMapImage));

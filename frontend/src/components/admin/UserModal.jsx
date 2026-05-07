@@ -6,6 +6,7 @@ const INITIAL_FORM = {
   status: 'ativo',
   nome: '',
   email: '',
+  whatsapp: '',
   login: '',
   senha: '',
   isVendedor: false,
@@ -24,6 +25,7 @@ function buildInitialForm(initialData) {
     status: initialData.status || 'ativo',
     nome: fullName,
     email: initialData.email || '',
+    whatsapp: initialData.whatsapp || '',
     login: initialData.username || '',
     senha: '',
     isVendedor: Boolean(initialData.is_vendedor),
@@ -72,6 +74,10 @@ export default function UserModal({ isOpen, onClose, onSave, initialData, isDark
     }
     if (!String(form.login || '').trim()) {
       nextErrors.login = 'Informe o login.';
+    }
+    const emailValue = String(form.email || '').trim();
+    if (emailValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+      nextErrors.email = 'Informe um e-mail válido.';
     }
 
     if (!isEdit && !String(form.senha || '').trim()) {
@@ -147,7 +153,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData, isDark
             </Field>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label="Nome" required error={errors.nome} isDark={isDark}>
               <input
                 type="text"
@@ -162,6 +168,15 @@ export default function UserModal({ isOpen, onClose, onSave, initialData, isDark
                 type="email"
                 value={form.email}
                 onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/40' : 'border-neutral-300 bg-neutral-50 text-neutral-900 placeholder:text-neutral-400 focus:border-brand-orange/60'}`}
+              />
+            </Field>
+            <Field label="Telefone / WhatsApp" error={errors.whatsapp} isDark={isDark}>
+              <input
+                type="text"
+                value={form.whatsapp}
+                onChange={(event) => setForm((prev) => ({ ...prev, whatsapp: event.target.value }))}
+                placeholder="Ex: +55 43 99999-9999"
                 className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/40' : 'border-neutral-300 bg-neutral-50 text-neutral-900 placeholder:text-neutral-400 focus:border-brand-orange/60'}`}
               />
             </Field>

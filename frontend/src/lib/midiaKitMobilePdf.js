@@ -1,12 +1,12 @@
-/**
+﻿/**
  * midiaKitMobilePdf.js
  * Templates PDF mobile para: Midia Kit e Proposta Comercial.
  *
- * Formato: 540×960px (proporção 9:16, portrait — otimizado para celular)
- * Layout: coluna única, fonte mínima 16px, cards generosos, identidade visual preservada.
+ * Formato: 540Ã—960px (proporÃ§Ã£o 9:16, portrait â€” otimizado para celular)
+ * Layout: coluna Ãºnica, fonte mÃ­nima 16px, cards generosos, identidade visual preservada.
  *
- * ❌ NÃO altera nem importa lógica de geração do PDF desktop.
- * ✅ Usa apenas utilitários compartilhados (exportados sem efeitos colaterais).
+ * âŒ NÃƒO altera nem importa lÃ³gica de geraÃ§Ã£o do PDF desktop.
+ * âœ… Usa apenas utilitÃ¡rios compartilhados (exportados sem efeitos colaterais).
  */
 
 import {
@@ -26,11 +26,11 @@ import {
 
 import { sortFormatos, buildAudienceQualification } from './strategy';
 
-// ── Dimensões da página mobile ──────────────────────────────────────────────
+// â”€â”€ DimensÃµes da pÃ¡gina mobile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const MOBILE_W = 540;
 const MOBILE_H = 960;
 
-// ── Paleta Midia Kit mobile (dark — mantém identidade visual) ──────────────
+// â”€â”€ Paleta Midia Kit mobile (dark â€” mantÃ©m identidade visual) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ORANGE  = '#E8591A';
 const BLACK   = '#0A0A0A';
 const SURFACE = '#141414';
@@ -38,7 +38,7 @@ const BORDER  = 'rgba(255,255,255,0.10)';
 const MUTED   = 'rgba(255,255,255,0.55)';
 const TEXT    = '#FFFFFF';
 
-// ── Paleta Proposta mobile (light — alta legibilidade) ─────────────────────
+// â”€â”€ Paleta Proposta mobile (light â€” alta legibilidade) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const P_ORANGE  = '#E8591A';
 const P_BG      = '#FFFFFF';
 const P_SURFACE = '#F5F6F8';
@@ -47,7 +47,7 @@ const P_BORDER  = 'rgba(0,0,0,0.09)';
 const P_MUTED   = 'rgba(0,0,0,0.48)';
 const P_TEXT    = '#1A1A2E';
 
-// ── Helpers internos ────────────────────────────────────────────────────────
+// â”€â”€ Helpers internos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function createMobilePage(innerHTML, bg = BLACK) {
   const el = document.createElement('section');
@@ -113,13 +113,13 @@ function isStaticPrintPoint(point) {
 
 function resolveInsertionMetric(point, { minimum = false } = {}) {
   if (isStaticPrintPoint(point)) {
-    return { label: 'Exibição', value: 'Contínua' };
+    return { label: 'ExibiÃ§Ã£o', value: 'ContÃ­nua' };
   }
 
   const numeric = Number(point?.insercoes);
-  const baseValue = Number.isFinite(numeric) ? formatInt(numeric) : '—';
+  const baseValue = Number.isFinite(numeric) ? formatInt(numeric) : 'â€”';
   return {
-    label: minimum ? 'Inserções mín.' : 'Inserções',
+    label: minimum ? 'InserÃ§Ãµes mÃ­n.' : 'InserÃ§Ãµes',
     value: baseValue
   };
 }
@@ -136,7 +136,89 @@ function getDigitalInsercoesTotal(points = []) {
   }, 0);
 }
 
-// Helpers específicos para o tema light da Proposta
+function normalizeSellerPhotoUrl(value) {
+  const source = String(value || '').trim();
+  if (!source || source.startsWith('blob:')) return '';
+  if (/^(https?:)?\/\//i.test(source) || source.startsWith('data:image/')) return source;
+  if (source.startsWith('/')) return source;
+  return `/${source.replace(/^\/+/, '')}`;
+}
+
+function normalizeSellerSignature(signature = {}) {
+  const source = signature && typeof signature === 'object' ? signature : {};
+  const name = String(source.name || source.nome || '').trim();
+  const email = String(source.email || source.mail || '').trim();
+  const phone = String(source.phone || source.telefone || source.whatsapp || '').trim();
+  const photoRaw = source.photoUrl || source.photo_url || source.photo || source.avatar || source.image || source.foto || '';
+  const photoUrl = normalizeSellerPhotoUrl(photoRaw);
+  return { name, email, phone, photoUrl };
+}
+
+function hasSellerSignature(signature = {}) {
+  return Boolean(signature?.name || signature?.email || signature?.phone);
+}
+
+function normalizeProposalOptions(options = []) {
+  const source = Array.isArray(options) ? options : [];
+  return source
+    .filter((entry) => entry && typeof entry === 'object')
+    .map((entry, index) => {
+      const pointsRaw = Number(entry.points ?? entry.quantidade_pontos);
+      const pricePerPointRaw = Number(entry.pricePerPoint ?? entry.valor_por_ponto);
+      const totalValueRaw = Number(entry.totalValue ?? entry.valor_total);
+      const monthsRaw = Number(entry.months ?? entry.duracao_meses);
+      return {
+        title: String(entry.title || entry.titulo || `Proposta ${index + 1}`).trim() || `Proposta ${index + 1}`,
+        points: Number.isFinite(pointsRaw) ? Math.max(0, Math.round(pointsRaw)) : null,
+        pricePerPoint: Number.isFinite(pricePerPointRaw) ? Math.max(0, pricePerPointRaw) : null,
+        totalValue: Number.isFinite(totalValueRaw) ? Math.max(0, totalValueRaw) : null,
+        months: Number.isFinite(monthsRaw) ? Math.max(1, Math.round(monthsRaw)) : null,
+        note: String(entry.note || entry.observacao || '').trim()
+      };
+    })
+    .filter((entry) => entry.points || entry.pricePerPoint || entry.totalValue || entry.months || entry.note);
+}
+
+function normalizePricingSummary(pricingSummary = {}, fallbackFinalTotal = 0) {
+  const base = pricingSummary && typeof pricingSummary === 'object' ? pricingSummary : {};
+  const fallbackFinal = Number(fallbackFinalTotal) || 0;
+  const finalTotalRaw = Number(base.finalTotal);
+  const originalTotalRaw = Number(base.originalTotal);
+  const discountTotalRaw = Number(base.discountTotal);
+  const agencyCommissionPercentRaw = Number(base.agencyCommissionPercent);
+  const agencyCommissionAmountRaw = Number(base.agencyCommissionAmount);
+  const finalTotalWithCommissionRaw = Number(base.finalTotalWithCommission);
+
+  const finalTotal = Number.isFinite(finalTotalRaw) ? Math.max(0, finalTotalRaw) : Math.max(0, fallbackFinal);
+  const originalTotal = Number.isFinite(originalTotalRaw) ? Math.max(0, originalTotalRaw) : finalTotal;
+  const discountTotal = Number.isFinite(discountTotalRaw) ? Math.max(0, discountTotalRaw) : Math.max(0, originalTotal - finalTotal);
+  const hasDiscount = Boolean(base.hasDiscount) || discountTotal > 0.0001;
+  const agencyCommissionPercent = Number.isFinite(agencyCommissionPercentRaw)
+    ? Math.min(100, Math.max(0, agencyCommissionPercentRaw))
+    : 0;
+  const hasAgencyCommissionFlag = Boolean(base.agencyCommissionEnabled || base.hasAgencyCommission);
+  const agencyCommissionAmount = Number.isFinite(agencyCommissionAmountRaw)
+    ? Math.max(0, agencyCommissionAmountRaw)
+    : (hasAgencyCommissionFlag && agencyCommissionPercent > 0 ? finalTotal * (agencyCommissionPercent / 100) : 0);
+  const hasAgencyCommission = hasAgencyCommissionFlag || agencyCommissionAmount > 0.0001;
+  const finalTotalWithCommission = Number.isFinite(finalTotalWithCommissionRaw)
+    ? Math.max(0, finalTotalWithCommissionRaw)
+    : finalTotal + agencyCommissionAmount;
+
+  return {
+    ...base,
+    finalTotal,
+    originalTotal,
+    discountTotal,
+    hasDiscount,
+    agencyCommissionPercent,
+    agencyCommissionAmount,
+    hasAgencyCommission,
+    finalTotalWithCommission
+  };
+}
+
+// Helpers especÃ­ficos para o tema light da Proposta
 function pCard(content, opts = {}) {
   const bg     = opts.bg     || P_SURFACE;
   const border = opts.border || P_BORDER;
@@ -215,11 +297,11 @@ section:last-child { page-break-after:avoid; break-after:avoid; }
   URL.revokeObjectURL(url);
 }
 
-// ── MIDIA KIT MOBILE ────────────────────────────────────────────────────────
+// â”€â”€ MIDIA KIT MOBILE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function buildMKMobileCoverPage({ cidade, pontos, resumo, assets, selectedCities }) {
   const estado = (() => {
-    const map = { 'londrina':'Paraná','maringá':'Paraná','maringa':'Paraná','balneário camboriú':'Santa Catarina','balneario camboriu':'Santa Catarina','itajaí':'Santa Catarina','itajai':'Santa Catarina','curitiba':'Paraná','florianópolis':'Santa Catarina','florianopolis':'Santa Catarina' };
+    const map = { 'londrina':'ParanÃ¡','maringÃ¡':'ParanÃ¡','maringa':'ParanÃ¡','balneÃ¡rio camboriÃº':'Santa Catarina','balneario camboriu':'Santa Catarina','itajaÃ­':'Santa Catarina','itajai':'Santa Catarina','curitiba':'ParanÃ¡','florianÃ³polis':'Santa Catarina','florianopolis':'Santa Catarina' };
     const k = String(cidade||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     return map[String(cidade||'').toLowerCase()] || map[k] || '';
   })();
@@ -244,10 +326,10 @@ function buildMKMobileCoverPage({ cidade, pontos, resumo, assets, selectedCities
 
       <!-- City name block -->
       <div>
-        <div style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${ORANGE};">Cobertura estratégica</div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${ORANGE};">Cobertura estratÃ©gica</div>
         <div style="margin-top:8px;font-size:52px;line-height:0.92;font-weight:700;letter-spacing:-0.04em;text-transform:uppercase;color:${TEXT};word-break:break-word;">${escapeHtml(cidade)}</div>
         ${estado ? `<div style="margin-top:6px;font-size:16px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.65);">${escapeHtml(estado)}</div>` : ''}
-        ${cities.length>1 ? `<div style="margin-top:6px;font-size:13px;color:${MUTED};">${escapeHtml(cities.join(' · '))}</div>` : ''}
+        ${cities.length>1 ? `<div style="margin-top:6px;font-size:13px;color:${MUTED};">${escapeHtml(cities.join(' Â· '))}</div>` : ''}
       </div>
 
       <!-- Stats grid: 2 columns -->
@@ -265,14 +347,14 @@ function buildMKMobileCoverPage({ cidade, pontos, resumo, assets, selectedCities
           <div style="margin-top:6px;font-size:34px;line-height:1;font-weight:700;color:${TEXT};">${formatInt(resumo.fluxo)}</div>
         </div>
         <div style="padding:14px 16px;border-top:3px solid ${ORANGE};background:${SURFACE};border-radius:12px;">
-          <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};">Endereços</div>
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};">EndereÃ§os</div>
           <div style="margin-top:6px;font-size:34px;line-height:1;font-weight:700;color:${TEXT};">${formatInt(totalEnderecos)}</div>
         </div>
       </div>
 
       <!-- Bottom tagline -->
       <div style="margin-top:auto;padding-top:16px;border-top:1px solid ${BORDER};">
-        <p style="font-size:14px;line-height:1.5;color:${MUTED};">Inventário premium para planejar presença urbana com escala, frequência e impacto visual na praça.</p>
+        <p style="font-size:14px;line-height:1.5;color:${MUTED};">InventÃ¡rio premium para planejar presenÃ§a urbana com escala, frequÃªncia e impacto visual na praÃ§a.</p>
       </div>
     </div>
   `);
@@ -282,18 +364,18 @@ function buildMKMobileManifestoPage({ assets }) {
   return createMobilePage(`
     <div style="position:absolute;inset:0;background:${SURFACE};"></div>
     <div style="position:absolute;inset:0;padding:40px 28px;display:flex;flex-direction:column;gap:28px;box-sizing:border-box;overflow:hidden;">
-      ${pageHeader(assets.logoHorizontal||assets.logo||'', 'Nossa Missão')}
+      ${pageHeader(assets.logoHorizontal||assets.logo||'', 'Nossa MissÃ£o')}
 
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:20px;">
         <h2 style="font-size:34px;line-height:1.1;font-weight:700;letter-spacing:-0.02em;color:${TEXT};">Conectamos<br/>marcas a<br/><span style="color:${ORANGE};">pessoas.</span></h2>
-        <p style="font-size:16px;line-height:1.65;color:${MUTED};">Somos uma rede de mídia digital indoor e outdoor que leva mensagens para onde as pessoas vivem, trabalham e circulam.</p>
-        <p style="font-size:16px;line-height:1.65;color:${MUTED};">Com formatos de alto impacto visual e cobertura estratégica, garantimos presença de marca em ambientes de alto tráfego.</p>
+        <p style="font-size:16px;line-height:1.65;color:${MUTED};">Somos uma rede de mÃ­dia digital indoor e outdoor que leva mensagens para onde as pessoas vivem, trabalham e circulam.</p>
+        <p style="font-size:16px;line-height:1.65;color:${MUTED};">Com formatos de alto impacto visual e cobertura estratÃ©gica, garantimos presenÃ§a de marca em ambientes de alto trÃ¡fego.</p>
       </div>
 
       ${card(`
         <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${ORANGE};margin-bottom:8px;">Nossos diferenciais</div>
         <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;">
-          ${['Telas em ambientes premium','Alta frequência de exibição','Público qualificado e segmentado','Relatórios e dados de audiência'].map((d)=>`<li style="display:flex;align-items:center;gap:10px;font-size:14px;color:${TEXT};">
+          ${['Telas em ambientes premium','Alta frequÃªncia de exibiÃ§Ã£o','PÃºblico qualificado e segmentado','RelatÃ³rios e dados de audiÃªncia'].map((d)=>`<li style="display:flex;align-items:center;gap:10px;font-size:14px;color:${TEXT};">
             <span style="width:8px;height:8px;border-radius:50%;background:${ORANGE};flex-shrink:0;"></span>${escapeHtml(d)}</li>`).join('')}
         </ul>
       `)}
@@ -329,16 +411,16 @@ function buildMKMobileSummaryPage({ cidade, pontos, assets }) {
         ${card(`
           <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};margin-bottom:8px;">Fluxo mensal estimado</div>
           <div style="font-size:36px;font-weight:700;color:${ORANGE};">${formatInt(totalFluxo)}</div>
-          <div style="font-size:12px;color:${MUTED};margin-top:4px;">pessoas / veículos por mês</div>
+          <div style="font-size:12px;color:${MUTED};margin-top:4px;">pessoas / veÃ­culos por mÃªs</div>
         `)}
         ${tipos.length ? card(`
-          <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};margin-bottom:10px;">Formatos disponíveis</div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};margin-bottom:10px;">Formatos disponÃ­veis</div>
           <div style="display:flex;flex-wrap:wrap;gap:8px;">
             ${tipos.map((t)=>`<span style="padding:6px 14px;border-radius:999px;background:rgba(232,89,26,0.12);border:1px solid rgba(232,89,26,0.25);font-size:13px;font-weight:600;color:${ORANGE};">${escapeHtml(t)}</span>`).join('')}
           </div>
         `) : ''}
         ${publicos.length ? card(`
-          <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};margin-bottom:10px;">Públicos atendidos</div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};margin-bottom:10px;">PÃºblicos atendidos</div>
           <div style="display:flex;flex-wrap:wrap;gap:8px;">
             ${publicos.map((p)=>`<span style="padding:5px 12px;border-radius:999px;background:${SURFACE};border:1px solid ${BORDER};font-size:13px;color:${TEXT};">${escapeHtml(p)}</span>`).join('')}
           </div>
@@ -367,18 +449,18 @@ function buildMKMobileFormatDividerPage({ tipo, formatStats, assets }) {
           <div style="margin-top:6px;font-size:40px;font-weight:700;color:${TEXT};">${formatInt(formatStats.telas)}</div>
         </div>
         <div>
-          <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};">Endereços</div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};">EndereÃ§os</div>
           <div style="margin-top:6px;font-size:40px;font-weight:700;color:${TEXT};">${formatInt(formatStats.enderecos)}</div>
         </div>
       </div>
 
-      <p style="font-size:14px;line-height:1.55;color:${MUTED};max-width:380px;">A seguir, cada ponto do formato ${escapeHtml(tipo)} com especificações completas e informações de audiência.</p>
+      <p style="font-size:14px;line-height:1.55;color:${MUTED};max-width:380px;">A seguir, cada ponto do formato ${escapeHtml(tipo)} com especificaÃ§Ãµes completas e informaÃ§Ãµes de audiÃªncia.</p>
     </div>
   `);
 }
 
 function buildMKMobilePointPage({ ponto, index, total, image, assets }) {
-  const fluxoLabel = isVehicleFlowPoint(ponto) ? 'Veículos/mês' : 'Pessoas/mês';
+  const fluxoLabel = isVehicleFlowPoint(ponto) ? 'VeÃ­culos/mÃªs' : 'Pessoas/mÃªs';
   const insertionMetric = resolveInsertionMetric(ponto, { minimum: true });
   const tipo = getPointTypeLabel(ponto);
   const photo = image || assets.showcase || '';
@@ -418,8 +500,8 @@ function buildMKMobilePointPage({ ponto, index, total, image, assets }) {
           { label: 'Pontos de Impacto',  value: formatInt(ponto.telas) },
           insertionMetric,
           { label: 'Tempo por spot',     value: ponto.tempo || '-' },
-          { label: 'Público',            value: ponto.publico || '-' },
-          { label: 'Loop',               value: ponto.loop ? `Mín. ${ponto.loop}` : '-' },
+          { label: 'PÃºblico',            value: ponto.publico || '-' },
+          { label: 'Loop',               value: ponto.loop ? `MÃ­n. ${ponto.loop}` : '-' },
         ].map(({ label, value }) => `
           <div style="background:${SURFACE};border:1px solid ${BORDER};border-radius:12px;padding:12px 14px;box-sizing:border-box;">
             <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};">${escapeHtml(label)}</div>
@@ -431,7 +513,7 @@ function buildMKMobilePointPage({ ponto, index, total, image, assets }) {
       <!-- Price footer -->
       ${preco ? `
       <div style="padding-top:10px;border-top:1px solid ${BORDER};display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};">Investimento / mês</span>
+        <span style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${MUTED};">Investimento / mÃªs</span>
         <span style="font-size:22px;font-weight:800;color:${ORANGE};">${escapeHtml(preco)}</span>
       </div>` : ''}
     </div>
@@ -446,7 +528,7 @@ function buildMKMobileEndingPage({ assets }) {
 
       <div>
         <div style="font-size:36px;font-weight:700;line-height:1.1;color:${TEXT};">Vamos<br/>conversar?</div>
-        <p style="margin-top:14px;font-size:16px;line-height:1.65;color:${MUTED};">Entre em contato e descubra como nossos pontos de mídia podem amplificar a presença da sua marca.</p>
+        <p style="margin-top:14px;font-size:16px;line-height:1.65;color:${MUTED};">Entre em contato e descubra como nossos pontos de mÃ­dia podem amplificar a presenÃ§a da sua marca.</p>
       </div>
 
       ${card(`
@@ -469,12 +551,13 @@ function buildMKMobileEndingPage({ assets }) {
   `);
 }
 
-// ── PROPOSTA COMERCIAL MOBILE ───────────────────────────────────────────────
+// â”€â”€ PROPOSTA COMERCIAL MOBILE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// ── Proposta Mobile — tema light ────────────────────────────────────────────
+// â”€â”€ Proposta Mobile â€” tema light â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-function buildProposalMobileCoverPage({ proposalClient, proposalCity, proposalTotals, highlights, strategicTopics, assets }) {
+function buildProposalMobileCoverPage({ proposalClient, proposalCity, proposalTotals, highlights, strategicTopics, assets, sellerSignature }) {
   const topicsList = (Array.isArray(strategicTopics) ? strategicTopics : []).slice(0, 5);
+  const sellerSignatureCard = buildProposalMobileSellerSignatureCard(sellerSignature, { compact: true });
 
   return createMobilePage(`
     <div style="position:absolute;inset:0;background:${P_BG};"></div>
@@ -486,16 +569,18 @@ function buildProposalMobileCoverPage({ proposalClient, proposalCity, proposalTo
       <div>
         <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${P_ORANGE};">Preparado para</div>
         <div style="margin-top:6px;font-size:38px;line-height:1.0;font-weight:800;letter-spacing:-0.03em;color:${P_TEXT};word-break:break-word;">${escapeHtml(proposalClient)}</div>
-        <div style="margin-top:5px;font-size:15px;color:${P_MUTED};">${escapeHtml(Array.isArray(proposalCity) ? proposalCity.join(' · ') : proposalCity)}</div>
+        <div style="margin-top:5px;font-size:15px;color:${P_MUTED};">${escapeHtml(Array.isArray(proposalCity) ? proposalCity.join(' Â· ') : proposalCity)}</div>
       </div>
 
       ${topicsList.length ? pCard(`
-        <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};margin-bottom:10px;">Estratégia</div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};margin-bottom:10px;">EstratÃ©gia</div>
         <ul style="list-style:none;display:flex;flex-direction:column;gap:9px;">
           ${topicsList.map((t)=>`<li style="display:flex;align-items:flex-start;gap:10px;font-size:14px;line-height:1.45;color:${P_TEXT};">
             <span style="margin-top:5px;width:7px;height:7px;border-radius:50%;background:${P_ORANGE};flex-shrink:0;"></span>${escapeHtml(t)}</li>`).join('')}
         </ul>
       `) : ''}
+
+      ${sellerSignatureCard ? `<div>${sellerSignatureCard}</div>` : ''}
 
       <!-- Summary cards -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:auto;">
@@ -516,11 +601,11 @@ function buildProposalMobilePointPage({ point, index, total, image, assets }) {
   const tipo = getPointTypeLabel(point);
   const photo = image || assets.showcase || '';
   const nome = (point.nome || 'PONTO SEM NOME').toUpperCase();
-  const fluxoLabel = isVehicleFlowPoint(point) ? 'Veículos/mês' : 'Pessoas/mês';
+  const fluxoLabel = isVehicleFlowPoint(point) ? 'VeÃ­culos/mÃªs' : 'Pessoas/mÃªs';
   const insertionMetric = resolveInsertionMetric(point, { minimum: true });
   const metricValue = (value) => {
     const numeric = Number(value);
-    return Number.isFinite(numeric) ? formatInt(numeric) : '—';
+    return Number.isFinite(numeric) ? formatInt(numeric) : 'â€”';
   };
   const audience = buildAudienceQualification(point);
   const hasEntorno = Number(point?.entornoMetrics?.total_estabelecimentos_relacionados) > 0;
@@ -566,19 +651,26 @@ function buildProposalMobilePointPage({ point, index, total, image, assets }) {
 
       ${point.preco ? `
       <div style="padding:12px 16px;border-radius:12px;background:rgba(232,89,26,0.07);border:1px solid rgba(232,89,26,0.20);display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};">Investimento / mês</span>
+        <span style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};">Investimento / mÃªs</span>
         <span style="font-size:22px;font-weight:800;color:${P_ORANGE};">${escapeHtml(formatMoney(point.preco))}</span>
       </div>` : ''}
     </div>
   `, P_BG);
 }
 
-// Página de tabela de preços (nova)
+// PÃ¡gina de tabela de preÃ§os (nova)
 function buildProposalMobilePricingPages({ proposalPoints, proposalTotals, pricingSummary, assets }) {
-  // Divide pontos em grupos de até 7 por página para garantir legibilidade
+  // Divide pontos em grupos de atÃ© 7 por pÃ¡gina para garantir legibilidade
   const ITEMS_PER_PAGE = 7;
   const pages = [];
   const total = proposalPoints.length;
+  const normalizedPricingSummary = normalizePricingSummary(pricingSummary, proposalTotals.valorTotal || 0);
+  const finalTotalWithCommission = normalizedPricingSummary.finalTotalWithCommission;
+  const hasAgencyCommission = normalizedPricingSummary.hasAgencyCommission && normalizedPricingSummary.agencyCommissionAmount > 0;
+  const agencyCommissionPercentLabel = normalizedPricingSummary.agencyCommissionPercent.toLocaleString('pt-BR', {
+    minimumFractionDigits: Number.isInteger(normalizedPricingSummary.agencyCommissionPercent) ? 0 : 1,
+    maximumFractionDigits: 2
+  });
 
   for (let start = 0; start < total; start += ITEMS_PER_PAGE) {
     const slice = proposalPoints.slice(start, start + ITEMS_PER_PAGE);
@@ -607,7 +699,7 @@ function buildProposalMobilePricingPages({ proposalPoints, proposalTotals, prici
       `;
     }).join('');
 
-    // Cabeçalho de coluna (repetido em cada página)
+    // CabeÃ§alho de coluna (repetido em cada pÃ¡gina)
     const header = `
       <div style="display:grid;grid-template-columns:1fr 110px 110px;gap:0;padding:9px 14px;background:${P_SURFACE2};border-bottom:2px solid ${P_ORANGE};">
         <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${P_MUTED};">Ponto</div>
@@ -616,15 +708,25 @@ function buildProposalMobilePricingPages({ proposalPoints, proposalTotals, prici
       </div>
     `;
 
-    // Rodapé com totais apenas na última página
+    // RodapÃ© com totais apenas na Ãºltima pÃ¡gina
     const footer = isLast ? `
       <div style="margin-top:auto;padding-top:12px;">
         <div style="height:1px;background:${P_BORDER};margin-bottom:14px;"></div>
         <div style="display:flex;flex-direction:column;gap:8px;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:12px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${P_MUTED};">Total negociado / mês</span>
-            <span style="font-size:22px;font-weight:800;color:${P_ORANGE};">${escapeHtml(formatMoney(proposalTotals.valorTotal||0))}</span>
+            <span style="font-size:12px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${P_MUTED};">Total negociado / mÃªs</span>
+            <span style="font-size:22px;font-weight:800;color:${P_ORANGE};">${escapeHtml(formatMoney(finalTotalWithCommission || 0))}</span>
           </div>
+          ${normalizedPricingSummary.hasDiscount ? `
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;font-weight:600;color:${P_MUTED};">Desconto aplicado</span>
+            <span style="font-size:14px;font-weight:700;color:#16A34A;">-${escapeHtml(formatMoney(normalizedPricingSummary.discountTotal || 0))}</span>
+          </div>` : ''}
+          ${hasAgencyCommission ? `
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;font-weight:600;color:${P_MUTED};">Comissão de agência (${agencyCommissionPercentLabel}%)</span>
+            <span style="font-size:14px;font-weight:700;color:#1D4ED8;">+${escapeHtml(formatMoney(normalizedPricingSummary.agencyCommissionAmount || 0))}</span>
+          </div>` : ''}
           ${pricingSummary?.descontoAplicado ? `
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:12px;font-weight:600;color:${P_MUTED};">Desconto aplicado</span>
@@ -658,13 +760,64 @@ function buildProposalMobilePricingPages({ proposalPoints, proposalTotals, prici
   return pages;
 }
 
-function buildProposalMobileImpactPage({ proposalPoints, proposalTotals, pricingSummary, proposalClient, proposalCity, publico, assets }) {
-  const publicoLabel = Array.isArray(publico) ? publico.filter(Boolean).join(', ') : (publico || '—');
-  const cityLabel = Array.isArray(proposalCity) ? proposalCity.join(', ') : (proposalCity || '—');
+function buildProposalMobileSellerSignatureCard(signature, { compact = false } = {}) {
+  const normalized = normalizeSellerSignature(signature);
+  if (!hasSellerSignature(normalized)) return '';
+  if (compact) {
+    const avatarHtml = normalized.photoUrl
+      ? `<img src="${normalized.photoUrl}" alt="" style="width:36px;height:36px;border-radius:999px;object-fit:cover;border:1px solid rgba(232,89,26,0.34);background:#fff;flex-shrink:0;" />`
+      : `<div style="width:36px;height:36px;border-radius:999px;border:1px solid rgba(232,89,26,0.30);background:rgba(232,89,26,0.12);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:${P_ORANGE};flex-shrink:0;">VC</div>`;
+    return pCard(`
+      <div style="display:flex;align-items:center;gap:10px;">
+        ${avatarHtml}
+        <div style="min-width:0;">
+          <div style="font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${P_ORANGE};">Assinatura comercial</div>
+          <div style="margin-top:2px;font-size:11px;color:${P_TEXT};line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            ${normalized.name ? `<strong>Vendedor:</strong> ${escapeHtml(normalized.name)}` : ''}
+            ${normalized.email ? `${normalized.name ? ' · ' : ''}${escapeHtml(normalized.email)}` : ''}
+            ${normalized.phone ? `${(normalized.name || normalized.email) ? ' · ' : ''}${escapeHtml(normalized.phone)}` : ''}
+          </div>
+        </div>
+      </div>
+    `, {
+      bg: 'linear-gradient(145deg, rgba(232,89,26,0.10) 0%, rgba(232,89,26,0.04) 100%)',
+      border: '1px solid rgba(232,89,26,0.30)',
+      pad: '10px 12px'
+    });
+  }
+
+  const avatarHtml = normalized.photoUrl
+    ? `<img src="${normalized.photoUrl}" alt="" style="width:44px;height:44px;border-radius:999px;object-fit:cover;border:1px solid rgba(232,89,26,0.34);background:#fff;flex-shrink:0;" />`
+    : '';
+
+  return pCard(`
+    <div style="display:flex;align-items:flex-start;gap:10px;">
+      ${avatarHtml}
+      <div style="min-width:0;flex:1;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_ORANGE};margin-bottom:6px;">Assinatura comercial</div>
+        ${normalized.name ? `<div style="font-size:13px;color:${P_TEXT};line-height:1.45;"><strong>Vendedor:</strong> ${escapeHtml(normalized.name)}</div>` : ''}
+        ${normalized.email ? `<div style="margin-top:4px;font-size:13px;color:${P_TEXT};line-height:1.45;word-break:break-word;"><strong>E-mail:</strong> ${escapeHtml(normalized.email)}</div>` : ''}
+        ${normalized.phone ? `<div style="margin-top:4px;font-size:13px;color:${P_TEXT};line-height:1.45;"><strong>Telefone:</strong> ${escapeHtml(normalized.phone)}</div>` : ''}
+      </div>
+    </div>
+  `, { bg: 'linear-gradient(145deg, rgba(232,89,26,0.10) 0%, rgba(232,89,26,0.04) 100%)', border: '1px solid rgba(232,89,26,0.30)' });
+}
+
+function buildProposalMobileImpactPage({ proposalPoints, proposalTotals, pricingSummary, proposalClient, proposalCity, publico, sellerSignature, assets }) {
+  const publicoLabel = Array.isArray(publico) ? publico.filter(Boolean).join(', ') : (publico || 'â€”');
+  const cityLabel = Array.isArray(proposalCity) ? proposalCity.join(', ') : (proposalCity || 'â€”');
   const hasDigitalPoints = hasDigitalInsertionPoints(proposalPoints);
   const digitalInsercoesTotal = getDigitalInsercoesTotal(proposalPoints);
   const insertionSummaryLabel = hasDigitalPoints ? 'Inserções/mês' : 'Veiculação';
   const insertionSummaryValue = hasDigitalPoints ? formatInt(digitalInsercoesTotal) : 'Contínua';
+  const signatureCard = buildProposalMobileSellerSignatureCard(sellerSignature);
+  const normalizedPricingSummary = normalizePricingSummary(pricingSummary, proposalTotals.valorTotal || 0);
+  const finalTotalWithCommission = normalizedPricingSummary.finalTotalWithCommission || 0;
+  const hasAgencyCommission = normalizedPricingSummary.hasAgencyCommission && normalizedPricingSummary.agencyCommissionAmount > 0;
+  const agencyCommissionPercentLabel = normalizedPricingSummary.agencyCommissionPercent.toLocaleString('pt-BR', {
+    minimumFractionDigits: Number.isInteger(normalizedPricingSummary.agencyCommissionPercent) ? 0 : 1,
+    maximumFractionDigits: 2
+  });
   return createMobilePage(`
     <div style="position:absolute;inset:0;background:${P_BG};"></div>
     <div style="position:absolute;top:0;left:0;right:0;height:5px;background:${P_ORANGE};"></div>
@@ -683,15 +836,16 @@ function buildProposalMobileImpactPage({ proposalPoints, proposalTotals, pricing
           <div style="margin-top:4px;font-size:13px;font-weight:600;color:${P_TEXT};word-break:break-word;">${escapeHtml(cityLabel)}</div>
         </div>
         <div style="padding:10px 12px;border-top:3px solid ${P_ORANGE};background:${P_SURFACE};border-radius:10px;">
-          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${P_MUTED};">Públicos</div>
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${P_MUTED};">PÃºblicos</div>
           <div style="margin-top:4px;font-size:13px;font-weight:600;color:${P_TEXT};word-break:break-word;">${escapeHtml(publicoLabel)}</div>
         </div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:10px;flex:1;">
         ${pCard(`
-          <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};margin-bottom:5px;">Total negociado / mês</div>
-          <div style="font-size:42px;font-weight:800;color:${P_ORANGE};line-height:1;">${escapeHtml(formatMoney(proposalTotals.valorTotal||0))}</div>
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};margin-bottom:5px;">Total negociado / mÃªs</div>
+          <div style="font-size:42px;font-weight:800;color:${P_ORANGE};line-height:1;">${escapeHtml(formatMoney(finalTotalWithCommission))}</div>
+          ${hasAgencyCommission ? `<div style="margin-top:5px;font-size:11px;color:#1D4ED8;font-weight:700;">Comissão de agência (${agencyCommissionPercentLabel}%): +${escapeHtml(formatMoney(normalizedPricingSummary.agencyCommissionAmount || 0))}</div>` : ''}
         `)}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div style="padding:13px 15px;border-top:3px solid ${P_ORANGE};background:${P_SURFACE};border-radius:12px;">
@@ -706,14 +860,59 @@ function buildProposalMobileImpactPage({ proposalPoints, proposalTotals, pricing
         ${proposalTotals.fluxoTotal ? pCard(`
           <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};margin-bottom:5px;">Fluxo total estimado</div>
           <div style="font-size:26px;font-weight:700;color:${P_TEXT};">${formatInt(proposalTotals.fluxoTotal)}</div>
-          <div style="font-size:12px;color:${P_MUTED};margin-top:3px;">pessoas/mês</div>
+          <div style="font-size:12px;color:${P_MUTED};margin-top:3px;">pessoas/mÃªs</div>
         `) : ''}
         ${proposalTotals.cpmEstimado ? pCard(`
           <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};margin-bottom:5px;">CPM estimado</div>
           <div style="font-size:24px;font-weight:700;color:${P_TEXT};">${escapeHtml(formatMoney(proposalTotals.cpmEstimado))}</div>
-          <div style="font-size:12px;color:${P_MUTED};margin-top:3px;">por 1.000 visualizações</div>
+          <div style="font-size:12px;color:${P_MUTED};margin-top:3px;">por 1.000 visualizaÃ§Ãµes</div>
         `) : ''}
+        ${signatureCard}
       </div>
+    </div>
+  `, P_BG);
+}
+
+function buildProposalMobileOptionsPage({ proposalOptions, sellerSignature, assets }) {
+  const options = normalizeProposalOptions(proposalOptions);
+  if (!options.length) return null;
+
+  const optionCards = options.map((option, index) => {
+    const pointsLabel = option.points ? `${formatInt(option.points)} pontos` : 'â€”';
+    const pricePerPointLabel = option.pricePerPoint !== null
+      ? option.pricePerPoint.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : 'â€”';
+    const totalValueLabel = option.totalValue !== null ? formatMoney(option.totalValue) : 'â€”';
+    const monthsLabel = option.months ? `${option.months} ${option.months === 1 ? 'mês' : 'meses'}` : 'â€”';
+    return `
+      <div style="border-radius:16px;border:2px solid ${P_ORANGE};padding:14px;background:rgba(255,255,255,0.85);display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:24px;font-weight:800;letter-spacing:-0.02em;color:${P_ORANGE};line-height:1;">${escapeHtml(option.title || `Proposta ${index + 1}`)}</div>
+        <div style="display:grid;gap:6px;">
+          <div style="font-size:12px;color:${P_TEXT};"><strong>Pontos:</strong> ${escapeHtml(pointsLabel)}</div>
+          <div style="font-size:12px;color:${P_TEXT};"><strong>Valor por ponto:</strong> ${escapeHtml(pricePerPointLabel)}</div>
+          <div style="font-size:12px;color:${P_TEXT};"><strong>Valor total:</strong> ${escapeHtml(totalValueLabel)}</div>
+          <div style="font-size:12px;color:${P_TEXT};"><strong>Duração:</strong> ${escapeHtml(monthsLabel)}</div>
+        </div>
+        ${option.note ? `<div style="padding:8px 9px;border-radius:10px;background:rgba(232,89,26,0.08);border:1px solid rgba(232,89,26,0.22);font-size:11px;line-height:1.45;color:${P_TEXT};"><strong>Observação:</strong> ${escapeHtml(option.note)}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  const signatureCard = buildProposalMobileSellerSignatureCard(sellerSignature);
+
+  return createMobilePage(`
+    <div style="position:absolute;inset:0;background:${P_BG};"></div>
+    <div style="position:absolute;top:0;left:0;right:0;height:5px;background:${P_ORANGE};"></div>
+    <div style="position:absolute;inset:0;padding:30px 24px 24px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box;overflow:hidden;">
+      ${pPageHeader(assets.logoLight||assets.logoHorizontal||assets.logo||'', 'Condições')}
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${P_MUTED};">Condições de proposta</div>
+        <div style="margin-top:4px;font-size:13px;line-height:1.5;color:${P_TEXT};">Compare cenários comerciais na mesma proposta.</div>
+      </div>
+      <div style="display:grid;gap:10px;flex:1;overflow:hidden;">
+        ${optionCards}
+      </div>
+      ${signatureCard ? `<div>${signatureCard}</div>` : ''}
     </div>
   `, P_BG);
 }
@@ -733,18 +932,18 @@ function buildProposalMobileClosingPage(assets, overviewMapImage) {
       ${mapHtml}
       <div style="text-align:center;">
         <div style="font-family:Poppins, system-ui, sans-serif;font-size:28px;font-weight:800;line-height:1.15;letter-spacing:-0.02em;color:${P_TEXT};">
-          O mundo acontece lá fora<span style="color:${P_ORANGE};">.</span>
+          O mundo acontece lÃ¡ fora<span style="color:${P_ORANGE};">.</span>
         </div>
-        <div style="margin-top:10px;font-size:11px;font-weight:500;color:${P_MUTED};letter-spacing:0.06em;text-transform:uppercase;">Intermidia OOH + DOOH — Desde 2007</div>
+        <div style="margin-top:10px;font-size:11px;font-weight:500;color:${P_MUTED};letter-spacing:0.06em;text-transform:uppercase;">Intermidia OOH + DOOH â€” Desde 2007</div>
       </div>
     </div>
   `, P_BG);
 }
 
-// ── EXPORTS PÚBLICOS ────────────────────────────────────────────────────────
+// â”€â”€ EXPORTS PÃšBLICOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function generateMidiaKitMobilePdf({ praca, pracas, pontos }) {
-  const cidade = praca && praca !== 'Todas as praças' ? praca : 'Consolidado';
+  const cidade = praca && praca !== 'Todas as praÃ§as' ? praca : 'Consolidado';
   const selectedCities = Array.from(new Set(
     (Array.isArray(pracas) ? pracas : []).map((c) => String(c || '').trim()).filter(Boolean)
   ));
@@ -807,16 +1006,20 @@ export async function generateProposalMobilePdf({
   segmento,
   pointMapImages = [],
   overviewMapImage = null,
+  sellerSignature = null,
+  proposalOptions = [],
   showImpactSection = true,
 }) {
   const proposalPoints  = Array.isArray(points) ? points : [];
   const proposalTotals  = { ...(totals || {}), pontos: proposalPoints.length };
-  const proposalClient  = clientName || 'Cliente não informado';
-  const proposalCity    = city || 'Múltiplas praças';
+  const proposalClient  = clientName || 'Cliente nÃ£o informado';
+  const proposalCity    = city || 'MÃºltiplas praÃ§as';
+  const normalizedSellerSignature = normalizeSellerSignature(sellerSignature);
+  const normalizedProposalOptions = normalizeProposalOptions(proposalOptions);
   const highlights      = normalizeLines(strategicText, 4);
   const topicsList      = normalizeLines(strategicTopics, 6);
   const assets          = await loadPdfAssets();
-  // Auto-detect público from points if not provided by user
+  // Auto-detect pÃºblico from points if not provided by user
   const effectivePublico = (Array.isArray(publico) && publico.filter(Boolean).length > 0)
     ? publico
     : Array.from(new Set(proposalPoints.map((p) => p.publico).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -834,6 +1037,7 @@ export async function generateProposalMobilePdf({
       strategicTopics: topicsList,
       strategicSubtitle,
       assets,
+      sellerSignature: normalizedSellerSignature
     }),
   ];
 
@@ -860,6 +1064,15 @@ export async function generateProposalMobilePdf({
     pages.push(...pricingPages);
   }
 
+  if (normalizedProposalOptions.length > 0) {
+    const optionsPage = buildProposalMobileOptionsPage({
+      proposalOptions: normalizedProposalOptions,
+      sellerSignature: normalizedSellerSignature,
+      assets
+    });
+    if (optionsPage) pages.push(optionsPage);
+  }
+
   if (showImpactSection) {
     pages.push(buildProposalMobileImpactPage({
       proposalPoints,
@@ -868,6 +1081,7 @@ export async function generateProposalMobilePdf({
       proposalClient,
       proposalCity,
       publico: effectivePublico,
+      sellerSignature: normalizedSellerSignature,
       assets,
     }));
   }
@@ -881,3 +1095,7 @@ export async function generateProposalMobilePdf({
 
   await renderMobilePagesToPdf(pages, fileName, { citySlugs });
 }
+
+
+
+

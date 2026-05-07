@@ -729,6 +729,7 @@ export default function Admin() {
           lastName: parsedEdit.lastName,
           username: String(formData.login || '').trim(),
           email: String(formData.email || '').trim(),
+          whatsapp: String(formData.whatsapp || '').trim(),
           role: formData.tipoUsuario || 'vendedor',
           is_vendedor: formData.isVendedor,
         };
@@ -742,7 +743,7 @@ export default function Admin() {
         await createAdminUser({
           firstName: parsed.firstName,
           lastName: parsed.lastName,
-          whatsapp: '',
+          whatsapp: String(formData.whatsapp || '').trim(),
           email: normalizedEmail,
           password: String(formData.senha || '').trim(),
           role: formData.tipoUsuario || 'vendedor',
