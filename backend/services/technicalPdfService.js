@@ -467,6 +467,42 @@ function buildSpecItem(title, value, iconSvg) {
   `;
 }
 
+function resolvePdfTitle(options = {}, fallbackTitle = 'Informacoes Tecnicas') {
+  const raw = String(options?.pdfTitle || '').trim();
+  return raw || fallbackTitle;
+}
+
+function getPointResolutionAndAspect(point) {
+  const widthPx = Math.max(1, Math.round(normalizeNumber(point?.arte_largura, 1080) || 1080));
+  const heightPx = Math.max(1, Math.round(normalizeNumber(point?.arte_altura, 1920) || 1920));
+  const isStaticPoint = isStaticPrintedType(point?.tipo);
+  const mwM = Number(point?.midia_largura_m);
+  const mhM = Number(point?.midia_altura_m);
+  const hasMeters = isStaticPoint && Number.isFinite(mwM) && mwM > 0 && Number.isFinite(mhM) && mhM > 0;
+  const formatAspect = buildAspectLabel(hasMeters ? mwM : widthPx, hasMeters ? mhM : heightPx);
+  const resolucaoLabel = hasMeters
+    ? `${formatDecimal(mwM, 2)}m x ${formatDecimal(mhM, 2)}m`
+    : `${widthPx}x${heightPx} px`;
+
+  return {
+    formatAspect,
+    resolucaoLabel,
+    widthPx,
+    heightPx,
+    isStaticPoint,
+  };
+}
+
+function resolveLoopLabel(point, options = {}) {
+  const forcedLoopLabel = String(options?.forcedLoopLabel || '').trim();
+  if (forcedLoopLabel) return forcedLoopLabel;
+
+  const isStaticPoint = isStaticPrintedType(point?.tipo);
+  if (isStaticPoint) return 'Nao se aplica';
+
+  return escapeHtml(point?.loop && String(point.loop).trim() !== '' ? point.loop : '180s');
+}
+
 function buildHeroImageFrame(image, focalPoint, options = {}) {
   if (!image) {
     return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:${BRAND_MUTED};font-size:18px;background:#111;">Sem foto cadastrada</div>`;
@@ -493,11 +529,12 @@ function buildHeroImageFrame(image, focalPoint, options = {}) {
   `;
 }
 
-function buildDesktopCoverPage(points) {
+function buildDesktopCoverPage(points, options = {}) {
   const total = points.length;
   const icons = buildIcons();
   const logoUrl = resolveAssetUrl('/logo.png');
   const fileTypesLabel = buildAcceptedFileTypesLabel(points, { htmlBreak: true });
+  const pdfTitle = escapeHtml(resolvePdfTitle(options, 'Informacoes Tecnicas'));
 
   return createPage(`
     <div style="position:absolute;inset:0;background:radial-gradient(circle at 100% 0%, rgba(232,89,26,0.3), transparent 50%),linear-gradient(140deg,#090909,#111 46%,#1b120d 100%);"></div>
@@ -509,7 +546,7 @@ function buildDesktopCoverPage(points) {
         <img src="${logoUrl}" alt="Intermídia" style="height:48px;object-fit:contain;" />
       </div>
       <div style="margin-top:40px;">
-        <h1 style="margin:0;font-size:72px;line-height:1.05;font-weight:900;letter-spacing:-.04em;max-width:800px;">Informações<br>Técnicas</h1>
+        <h1 style="margin:0;font-size:60px;line-height:1.05;font-weight:900;letter-spacing:-.03em;max-width:980px;">${pdfTitle}</h1>
         <p style="margin:16px 0 0;font-size:22px;color:${BRAND_MUTED};max-width:700px;line-height:1.4;">Diretrizes de resolução, formatos e regras criativas dos pontos selecionados.</p>
         <div style="display:inline-flex;align-items:baseline;gap:6px;margin-top:24px;">
            <span style="font-size:36px;font-weight:900;color:#fff;">${total}</span>
@@ -544,6 +581,59 @@ function buildDesktopCoverPage(points) {
       </div>
     </div>
   `);
+}
+
+function buildDesktopSummaryPages(points) {
+  if (!Array.isArray(points) || points.length === 0) return [];
+
+  const chunkSize = 14;
+  const rows = points.map((point, idx) => {
+    const { formatAspect, resolucaoLabel } = getPointResolutionAndAspect(point);
+    return {
+      index: idx + 1,
+      nome: escapeHtml(point?._pdfDisplayName || point?.nome || `Ponto ${idx + 1}`),
+      resolucao: escapeHtml(resolucaoLabel),
+      proporcao: escapeHtml(formatAspect),
+    };
+  });
+  const totalPages = Math.ceil(rows.length / chunkSize);
+
+  return Array.from({ length: totalPages }, (_, pageIndex) => {
+    const start = pageIndex * chunkSize;
+    const items = rows.slice(start, start + chunkSize);
+    const bodyRows = items.map((row) => `
+      <tr>
+        <td style="padding:11px 12px;border-bottom:1px solid rgba(255,255,255,0.08);font-size:14px;color:#fff;font-weight:600;">${row.index}. ${row.nome}</td>
+        <td style="padding:11px 12px;border-bottom:1px solid rgba(255,255,255,0.08);font-size:13px;color:${BRAND_MUTED};text-align:center;">${row.resolucao}</td>
+        <td style="padding:11px 12px;border-bottom:1px solid rgba(255,255,255,0.08);font-size:13px;color:${BRAND_MUTED};text-align:center;">${row.proporcao}</td>
+      </tr>
+    `).join('');
+
+    return createPage(`
+      <div style="position:absolute;inset:0;background:linear-gradient(140deg,#090909,#101010 56%,#1a100b 100%);"></div>
+      <div style="position:relative;z-index:2;padding:52px 56px;height:100%;display:flex;flex-direction:column;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:${BRAND_ORANGE};letter-spacing:.13em;text-transform:uppercase;">Resumo Técnico</div>
+            <h2 style="margin-top:10px;font-size:42px;line-height:1.06;letter-spacing:-.02em;color:#fff;">Pontos, resolução e proporção</h2>
+          </div>
+          <div style="font-size:12px;color:${BRAND_MUTED};">Página ${pageIndex + 1} de ${totalPages}</div>
+        </div>
+        <div style="margin-top:24px;flex:1;border:1px solid rgba(255,255,255,0.10);border-radius:14px;background:rgba(255,255,255,0.02);overflow:hidden;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="background:rgba(232,89,26,0.12);">
+                <th style="text-align:left;padding:12px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#ffd7c8;">Ponto</th>
+                <th style="text-align:center;padding:12px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#ffd7c8;">Resolução</th>
+                <th style="text-align:center;padding:12px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#ffd7c8;">Proporção</th>
+              </tr>
+            </thead>
+            <tbody>${bodyRows}</tbody>
+          </table>
+        </div>
+      </div>
+    `);
+  });
 }
 
 function buildDesktopPointPage(point, index, total, options = {}) {
@@ -591,9 +681,7 @@ function buildDesktopPointPage(point, index, total, options = {}) {
   const duracaoItem = isStaticPoint
     ? 'Exibicao continua (midia estatica)'
     : escapeHtml(point?.tempo && String(point.tempo).trim() !== '' ? point.tempo : '15s');
-  const loopLabel = isStaticPoint
-    ? 'Nao se aplica'
-    : escapeHtml(point?.loop && String(point.loop).trim() !== '' ? point.loop : '180s');
+  const loopLabel = resolveLoopLabel(point, options);
 
   return createPage(`
     <div style="display:flex;height:100%;background:#0A0A0A;">
@@ -658,15 +746,17 @@ function buildDesktopPointPage(point, index, total, options = {}) {
 }
 
 function buildDesktopHtml(points, options = {}) {
-  const pages = [buildDesktopCoverPage(points)];
+  const pages = [buildDesktopCoverPage(points, options), ...buildDesktopSummaryPages(points)];
   points.forEach((point, index) => {
     pages.push(buildDesktopPointPage(point, index + 1, points.length, options));
   });
 
+  const title = escapeHtml(resolvePdfTitle(options, 'Informacoes Tecnicas'));
+
   return `<!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="utf-8"/>
 <base href="${BASE_URL}" />
-<title>Informações Técnicas</title>
+<title>${title}</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; }
 html, body { background: #080808; margin:0; padding:0; }
@@ -707,10 +797,11 @@ function mSpecCard(items) {
   return `<div style="background:${M_SURFACE};border:1px solid ${M_BORDER};border-radius:14px;padding:2px 18px 2px;box-sizing:border-box;">${items.join('')}</div>`;
 }
 
-function buildMobileCoverPage(points) {
+function buildMobileCoverPage(points, options = {}) {
   const count   = points.length;
   const logoUrl = resolveAssetUrl('/logo.png');
   const fileTypesLabel = buildAcceptedFileTypesLabel(points);
+  const pdfTitle = escapeHtml(resolvePdfTitle(options, 'Informacoes Tecnicas'));
 
   return `
     <section style="display:block;width:${MOBILE_W}px;height:${MOBILE_H}px;min-height:${MOBILE_H}px;max-height:${MOBILE_H}px;position:relative;overflow:hidden;background:${M_BLACK};color:${M_TEXT};font-family:Poppins,system-ui,sans-serif;box-sizing:border-box;page-break-after:always;break-after:page;">
@@ -720,7 +811,7 @@ function buildMobileCoverPage(points) {
         <div style="margin-top:8px;">
           <div style="width:44px;height:4px;background:${M_ORANGE};border-radius:2px;margin-bottom:16px;"></div>
           <div style="font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${M_ORANGE};">Rede Intermidia</div>
-          <h1 style="margin-top:10px;font-size:40px;line-height:1.0;font-weight:800;letter-spacing:-0.03em;color:${M_TEXT};">Manual de<br/>Especificações</h1>
+          <h1 style="margin-top:10px;font-size:33px;line-height:1.08;font-weight:800;letter-spacing:-0.02em;color:${M_TEXT};">${pdfTitle}</h1>
           <p style="margin-top:12px;font-size:15px;line-height:1.55;color:${M_MUTED};">Informações técnicas para produção e envio de materiais para os pontos de mídia.</p>
         </div>
         <div style="padding:20px 22px;background:rgba(232,89,26,0.08);border:1px solid rgba(232,89,26,0.20);border-radius:14px;">
@@ -744,20 +835,67 @@ function buildMobileCoverPage(points) {
   `;
 }
 
+function buildMobileSummaryPages(points) {
+  if (!Array.isArray(points) || points.length === 0) return [];
+
+  const chunkSize = 9;
+  const rows = points.map((point, idx) => {
+    const { formatAspect, resolucaoLabel } = getPointResolutionAndAspect(point);
+    return {
+      index: idx + 1,
+      nome: escapeHtml(point?._pdfDisplayName || point?.nome || `Ponto ${idx + 1}`),
+      resolucao: escapeHtml(resolucaoLabel),
+      proporcao: escapeHtml(formatAspect),
+    };
+  });
+  const totalPages = Math.ceil(rows.length / chunkSize);
+
+  return Array.from({ length: totalPages }, (_, pageIndex) => {
+    const start = pageIndex * chunkSize;
+    const items = rows.slice(start, start + chunkSize);
+    const lines = items.map((row) => `
+      <div style="padding:10px 0;border-bottom:1px solid ${M_BORDER};">
+        <div style="font-size:13px;font-weight:700;color:${M_TEXT};">${row.index}. ${row.nome}</div>
+        <div style="margin-top:4px;display:flex;justify-content:space-between;gap:10px;">
+          <span style="font-size:11px;color:${M_MUTED};">Resolução: ${row.resolucao}</span>
+          <span style="font-size:11px;color:${M_MUTED};">Proporção: ${row.proporcao}</span>
+        </div>
+      </div>
+    `).join('');
+
+    return `
+      <section style="display:block;width:${MOBILE_W}px;height:${MOBILE_H}px;min-height:${MOBILE_H}px;max-height:${MOBILE_H}px;position:relative;overflow:hidden;background:${M_BLACK};color:${M_TEXT};font-family:Poppins,system-ui,sans-serif;box-sizing:border-box;page-break-after:always;break-after:page;">
+        <div style="position:absolute;inset:0;background:linear-gradient(160deg,${M_SURFACE} 0%,${M_BLACK} 100%);"></div>
+        <div style="position:absolute;inset:0;padding:32px 24px 20px;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${M_ORANGE};">Resumo técnico</div>
+          <h2 style="margin-top:8px;font-size:27px;line-height:1.1;color:${M_TEXT};">Resolução e proporção dos pontos</h2>
+          <div style="margin-top:8px;font-size:11px;color:${M_MUTED};">Página ${pageIndex + 1} de ${totalPages}</div>
+          <div style="margin-top:16px;flex:1;border:1px solid ${M_BORDER};border-radius:12px;background:rgba(255,255,255,0.02);padding:0 14px;overflow:hidden;">
+            ${lines}
+          </div>
+        </div>
+      </section>
+    `;
+  });
+}
+
 function buildMobilePointPage(point, index, total, options = {}) {
   const img      = pickPointImage(point, options);
   const logoUrl  = resolveAssetUrl('/logo.png');
   const focalPt  = String(point?.foto_focal_point || 'center center').trim();
   const nome     = escapeHtml(point?._pdfDisplayName || point?.nome || 'Sem Nome');
   const tipoLabel = escapeHtml(point?._pdfTipoLabel || point?.tipo || 'Outros');
-  const isStaticPoint = isStaticPrintedType(point?.tipo);
+  const { isStaticPoint, formatAspect, resolucaoLabel } = getPointResolutionAndAspect(point);
 
   const durSec   = parseDuracaoText(point?.tempo || point?.duracao);
-  const parsedLoopSec = parseDuracaoText(point?.loop);
-  const loopSec = parsedLoopSec > 0 ? parsedLoopSec : (durSec * 5 || 30);
-  const loopLabel = isStaticPoint
-    ? 'Nao se aplica'
-    : (loopSec >= 60 ? `${Math.round(loopSec / 60)} min` : `${loopSec}s`);
+  const rawLoopLabel = resolveLoopLabel(point, options);
+  const forcedLoopLabel = String(options?.forcedLoopLabel || '').trim();
+  const parsedLoopSec = parseDuracaoText(rawLoopLabel);
+  const loopLabel = forcedLoopLabel
+    ? escapeHtml(forcedLoopLabel)
+    : (parsedLoopSec > 0
+      ? (parsedLoopSec >= 60 ? `${Math.round(parsedLoopSec / 60)} min` : `${parsedLoopSec}s`)
+      : rawLoopLabel);
   const durLabel  = isStaticPoint
     ? 'Exibicao continua (midia estatica)'
     : (durSec >= 60
@@ -768,18 +906,7 @@ function buildMobilePointPage(point, index, total, options = {}) {
   const insPerDay      = durSec > 0 ? Math.round((hoursDay * 3600) / durSec) : null;
   const insercoesLabel = isStaticPoint ? 'Exposicao continua' : (insPerDay ? `~ ${insPerDay}/dia` : '-');
 
-  const widthPx  = Number(point?.arte_largura || point?.largura_px || 0);
-  const heightPx = Number(point?.arte_altura  || point?.altura_px  || 0);
-  const mwM = Number(point?.midia_largura_m);
-  const mhM = Number(point?.midia_altura_m);
-  const hasMeters = isStaticPoint && Number.isFinite(mwM) && mwM > 0 && Number.isFinite(mhM) && mhM > 0;
-  const resolucao = hasMeters
-    ? `${formatDecimal(mwM, 2)}m x ${formatDecimal(mhM, 2)}m`
-    : (widthPx && heightPx ? `${widthPx}x${heightPx} px` : '-');
-  const formatAspect = buildAspectLabel(
-    hasMeters ? mwM : (widthPx || 16),
-    hasMeters ? mhM : (heightPx || 9)
-  );
+  const resolucao = resolucaoLabel || '-';
 
   const photoHtml = img
     ? `<img src="${img}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${escapeHtml(focalPt)};" />`
@@ -824,15 +951,18 @@ function buildMobilePointPage(point, index, total, options = {}) {
 }
 
 function buildMobileHtml(points, options = {}) {
-  const pages = [buildMobileCoverPage(points)];
+  const pages = [buildMobileCoverPage(points, options), ...buildMobileSummaryPages(points)];
   points.forEach((point, index) => {
     pages.push(buildMobilePointPage(point, index + 1, points.length, options));
   });
 
+  const baseTitle = resolvePdfTitle(options, 'Informacoes Tecnicas');
+  const title = escapeHtml(String(options?.mobileTitle || `${baseTitle} Mobile`).trim());
+
   return `<!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="utf-8">
 <base href="${BASE_URL}">
-<title>Informações Técnicas Mobile</title>
+<title>${title}</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact !important; }
 html, body { margin:0; padding:0; background:#000; }
@@ -857,9 +987,13 @@ async function generateMobilePdfBuffer(points, options = {}) {
  *
  * @param {object} db         - instância do banco (better-sqlite3)
  * @param {string[]} nomes    - array de nomes dos pontos
+ * @param {object} options
+ * @param {string} [options.pdfTitle]
+ * @param {string} [options.mobileTitle]
+ * @param {string} [options.forcedLoopLabel]
  * @returns {{ desktop: Buffer, mobile: Buffer, photoModeUsed: 'full' | 'compact' | 'none' }}
  */
-async function generatePdfsFromPointNames(db, nomes) {
+async function generatePdfsFromPointNames(db, nomes, options = {}) {
   if (!nomes || nomes.length === 0) {
     throw new Error('Nenhum ponto associado à venda.');
   }
@@ -893,7 +1027,7 @@ async function generatePdfsFromPointNames(db, nomes) {
     // especialmente em vendas com muitas imagens/pontos.
     desktop = await generateWithRetry(
       'pdf_desktop',
-      () => generateDesktopPdfBuffer(sortedByCategory, { photoMode }),
+      () => generateDesktopPdfBuffer(sortedByCategory, { ...options, photoMode }),
       5
     );
 
@@ -902,7 +1036,7 @@ async function generatePdfsFromPointNames(db, nomes) {
 
     mobile = await generateWithRetry(
       'pdf_mobile',
-      () => generateMobilePdfBuffer(sortedByCategory, { photoMode }),
+      () => generateMobilePdfBuffer(sortedByCategory, { ...options, photoMode }),
       5
     );
   } finally {

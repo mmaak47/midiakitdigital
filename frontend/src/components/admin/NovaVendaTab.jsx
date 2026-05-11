@@ -25,7 +25,9 @@ const emptyForm = {
   agencia_nome: '',
   pi_numero: '',
   comissao_pct: '',
-  troca_material: false,
+  troca_material: undefined,
+  permuta_valor_servico: '',
+  permuta_valor_receber: '',
   periodo_tipo: 'meses',
   periodo_meses: '',
   periodo_inicio: '',
@@ -99,6 +101,60 @@ function fmtCurrency(v) {
   return `${formatted},${decPart}`;
 }
 
+function parseCurrencyToNumber(v) {
+  const raw = String(v || '').trim();
+  if (!raw) return 0;
+  const normalized = raw
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .replace(/[^0-9.-]/g, '');
+  const num = Number(normalized);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function formatCurrencyFromNumber(value) {
+  const safe = Number.isFinite(value) ? Math.max(0, value) : 0;
+  const cents = Math.round(safe * 100);
+  const digits = String(cents).padStart(3, '0');
+  const intPart = digits.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const decPart = digits.slice(-2);
+  return `${intPart},${decPart}`;
+}
+
+function resolvePermutaSplit(totalText, servicoText, receberText) {
+  const total = parseCurrencyToNumber(totalText);
+  const servico = parseCurrencyToNumber(servicoText);
+  const receber = parseCurrencyToNumber(receberText);
+  const hasServico = servico > 0;
+  const hasReceber = receber > 0;
+
+  let resolvedServico = hasServico ? servico : 0;
+  let resolvedReceber = hasReceber ? receber : 0;
+
+  if (total > 0) {
+    if (hasServico && !hasReceber) {
+      resolvedReceber = Math.max(0, total - servico);
+    } else if (!hasServico && hasReceber) {
+      resolvedServico = Math.max(0, total - receber);
+    } else if (hasServico && hasReceber) {
+      const sum = servico + receber;
+      if (sum > total) {
+        const ratio = total / sum;
+        resolvedServico = Number((servico * ratio).toFixed(2));
+        resolvedReceber = Number((receber * ratio).toFixed(2));
+      }
+    }
+  }
+
+  return {
+    total,
+    servico: resolvedServico,
+    receber: resolvedReceber,
+    servicoFormatted: resolvedServico > 0 ? formatCurrencyFromNumber(resolvedServico) : '',
+    receberFormatted: resolvedReceber > 0 ? formatCurrencyFromNumber(resolvedReceber) : '',
+  };
+}
+
 function normalizeTextForMatch(value) {
   return String(value || '')
     .normalize('NFD')
@@ -129,14 +185,18 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
   // ===== Renovação: lista de vendas anteriores feitas pelo sistema =====
   const [vendasAnteriores, setVendasAnteriores] = useState([]);
   const [loadingVendasAnt, setLoadingVendasAnt] = useState(false);
+  const [vendasAntLoaded, setVendasAntLoaded] = useState(false);
+  const [vendasAntError, setVendasAntError] = useState('');
   const [vendaOrigemId, setVendaOrigemId] = useState('');
   const isRenovacao = form.tipo === 'Renovação';
+  const isPermuta = form.tipo === 'Permuta';
 
   useEffect(() => {
     if (!isRenovacao) return;
-    if (vendasAnteriores.length || loadingVendasAnt) return;
+    if (vendasAntLoaded) return;
     let cancelled = false;
     setLoadingVendasAnt(true);
+    setVendasAntError('');
     (async () => {
       try {
         const data = await fetchVendas();
@@ -146,13 +206,19 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
         const filtered = list.filter((v) => v && v.id && (v.razao_social || v.nome_fantasia));
         setVendasAnteriores(filtered);
       } catch (e) {
-        // não bloqueia o formulário
+        if (!cancelled) {
+          setVendasAnteriores([]);
+          setVendasAntError(e?.message || 'Não foi possível carregar as vendas anteriores.');
+        }
       } finally {
-        if (!cancelled) setLoadingVendasAnt(false);
+        if (!cancelled) {
+          setLoadingVendasAnt(false);
+          setVendasAntLoaded(true);
+        }
       }
     })();
     return () => { cancelled = true; };
-  }, [isRenovacao, vendasAnteriores.length, loadingVendasAnt]);
+  }, [isRenovacao, vendasAntLoaded]);
 
   const vendasAnterioresOptions = useMemo(() => {
     return vendasAnteriores.map((v) => {
@@ -185,7 +251,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       responsavel_nome: venda.responsavel_nome || f.responsavel_nome,
       responsavel_whatsapp: venda.responsavel_whatsapp || f.responsavel_whatsapp,
       email: venda.email || f.email,
-      // troca_material precisa ser escolhido explicitamente em renovação vinculada
+      // troca_material precisa ser escolhido explicitamente em renovação
       troca_material: undefined,
     }));
     // Tenta repopular pontos_nomes → selectedPontos quando os IDs casam com o inventário carregado
@@ -200,10 +266,46 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
 
   const limparVendaOrigem = () => {
     setVendaOrigemId('');
-    setForm((f) => ({ ...f, troca_material: false }));
+    setForm((f) => ({ ...f, troca_material: undefined }));
+  };
+
+  const retryLoadVendasAnteriores = () => {
+    setVendasAntLoaded(false);
+    setVendasAntError('');
   };
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const setTipoNegocio = (tipo) => {
+    if (tipo !== 'Renovação' && vendaOrigemId) {
+      setVendaOrigemId('');
+    }
+    setForm((prev) => {
+      const next = { ...prev, tipo };
+
+      if (tipo === 'Renovação') {
+        if (prev.tipo !== 'Renovação') {
+          next.troca_material = undefined;
+        } else if (next.troca_material !== true && next.troca_material !== false) {
+          next.troca_material = undefined;
+        }
+      } else {
+        next.troca_material = false;
+      }
+
+      if (tipo !== 'Permuta') {
+        next.permuta_valor_servico = '';
+        next.permuta_valor_receber = '';
+      }
+
+      return next;
+    });
+  };
+
+  const permutaSplit = useMemo(
+    () => resolvePermutaSplit(form.valor_mensal, form.permuta_valor_servico, form.permuta_valor_receber),
+    [form.valor_mensal, form.permuta_valor_servico, form.permuta_valor_receber]
+  );
 
   const filteredPontos = pontos.filter(p => {
     const matchSearch = !search
@@ -253,7 +355,15 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
     const draftForm = payload.form && typeof payload.form === 'object' ? payload.form : {};
     const draftPoints = Array.isArray(payload.selectedPontos) ? payload.selectedPontos : [];
     const draftPrecos = payload.pontoPrecos && typeof payload.pontoPrecos === 'object' ? payload.pontoPrecos : {};
-    setForm({ ...emptyForm, ...draftForm });
+    const mergedForm = { ...emptyForm, ...draftForm };
+    if (mergedForm.tipo === 'Renovação' && mergedForm.troca_material !== true && mergedForm.troca_material !== false) {
+      mergedForm.troca_material = undefined;
+    }
+    if (mergedForm.tipo !== 'Permuta') {
+      mergedForm.permuta_valor_servico = '';
+      mergedForm.permuta_valor_receber = '';
+    }
+    setForm(mergedForm);
     setSelectedPontos(draftPoints);
     setPontoPrecos(draftPrecos);
     setSearch(typeof payload.search === 'string' ? payload.search : '');
@@ -438,8 +548,8 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
     if (form.periodo_tipo === 'datas' && !form.periodo_fim) missing.push('Data de término do período');
     if (form.via_agencia && !form.agencia_nome.trim()) missing.push('Nome da agência');
     if (form.via_agencia && !form.comissao_pct) missing.push('Comissão da agência');
-    // Em renovação vinculada a uma venda anterior, troca de material é obrigatório (Sim/Não).
-    if (isRenovacao && vendaOrigemId && (form.troca_material === undefined || form.troca_material === null || form.troca_material === '')) {
+    // Em renovação, troca de material é obrigatório (Sim/Não).
+    if (isRenovacao && form.troca_material !== true && form.troca_material !== false) {
       missing.push('Haverá troca de material? (Sim/Não)');
     }
     if (!form.responsavel_nome.trim()) missing.push('Nome do responsável pela compra');
@@ -470,6 +580,9 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
     try {
       const fd = new FormData();
       const cotaContratada = form.cota_contratada || (form.plano_fidelidade ? '10 Segundos' : '');
+      const resolvedPermuta = isPermuta
+        ? resolvePermutaSplit(form.valor_mensal, form.permuta_valor_servico, form.permuta_valor_receber)
+        : null;
       fd.append('tipo', form.tipo);
       fd.append('razao_social', form.razao_social.trim());
       fd.append('nome_fantasia', form.nome_fantasia.trim());
@@ -486,7 +599,15 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
         fd.append('comissao_pct', form.comissao_pct.trim());
         fd.append('pi_numero', form.pi_numero.trim());
       }
-      fd.append('troca_material', form.troca_material ? 'true' : 'false');
+      if (form.troca_material === true) {
+        fd.append('troca_material', 'true');
+      } else if (form.troca_material === false) {
+        fd.append('troca_material', 'false');
+      }
+      if (resolvedPermuta) {
+        if (resolvedPermuta.servicoFormatted) fd.append('permuta_valor_servico', resolvedPermuta.servicoFormatted);
+        if (resolvedPermuta.receberFormatted) fd.append('permuta_valor_receber', resolvedPermuta.receberFormatted);
+      }
       fd.append('periodo_tipo', form.periodo_tipo);
       fd.append('periodo_meses', form.periodo_meses);
       fd.append('periodo_inicio', form.periodo_inicio);
@@ -509,7 +630,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
         selectedPontos.reduce((acc, p) => { if (pontoPrecos[p.id]) acc[p.nome] = pontoPrecos[p.id]; return acc; }, {})
       ));
       fd.append('vendedor_nome', currentUser
-        ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username || 'Vendedor'
+        ? currentUser.username || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Vendedor'
         : 'Vendedor'
       );
       if (piFiles.length) piFiles.forEach(f => fd.append('pi', f));
@@ -725,7 +846,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
           <h3 className={sectionTitle}>Tipo de negócio</h3>
           <div className="flex gap-3">
             {TIPOS_NEGOCIO.map(t => (
-              <button key={t} type="button" onClick={() => set('tipo', t)} className={toggleBtn(form.tipo === t)}>
+              <button key={t} type="button" onClick={() => setTipoNegocio(t)} className={toggleBtn(form.tipo === t)}>
                 {t}
               </button>
             ))}
@@ -746,6 +867,20 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
               {loadingVendasAnt ? (
                 <div className={`flex items-center gap-2 text-xs ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
                   <Loader2 size={14} className="animate-spin" /> Carregando vendas anteriores…
+                </div>
+              ) : vendasAntError ? (
+                <div className="space-y-2">
+                  <p className={`text-xs ${isDark ? 'text-red-300' : 'text-red-600'}`}>
+                    {vendasAntError}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={retryLoadVendasAnteriores}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${isDark ? 'border-white/10 text-white/90 hover:bg-white/10' : 'border-neutral-300 text-neutral-700 hover:bg-neutral-100'}`}
+                  >
+                    <RefreshCw size={12} />
+                    Tentar novamente
+                  </button>
                 </div>
               ) : vendasAnterioresOptions.length === 0 ? (
                 <p className={`text-xs ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Nenhuma venda anterior disponível.</p>
@@ -991,6 +1126,40 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
             </div>
           </div>
 
+          {isPermuta && (
+            <div className={`rounded-xl border p-3 space-y-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
+              <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>
+                Permuta (opcional)
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={lbl}>Parte em troca de serviço</label>
+                  <input
+                    className={inp}
+                    value={form.permuta_valor_servico}
+                    onChange={e => set('permuta_valor_servico', fmtCurrency(e.target.value))}
+                    placeholder="0,00"
+                  />
+                </div>
+                <div>
+                  <label className={lbl}>Parte em recebimento (meta)</label>
+                  <input
+                    className={inp}
+                    value={form.permuta_valor_receber}
+                    onChange={e => set('permuta_valor_receber', fmtCurrency(e.target.value))}
+                    placeholder="0,00"
+                  />
+                </div>
+              </div>
+              <p className={`text-[11px] ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                Se preencher apenas um dos campos, o outro será inferido automaticamente com base no valor mensal.
+                {permutaSplit.receberFormatted
+                  ? ` Valor que entra na meta: R$ ${permutaSplit.receberFormatted}.`
+                  : ''}
+              </p>
+            </div>
+          )}
+
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className={lbl}>
@@ -1112,37 +1281,22 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
 
           {/* Troca de material — só para Renovação */}
           {form.tipo === 'Renovação' && (
-            vendaOrigemId ? (
-              <div className="max-w-md">
-                <label className={lbl}>Haverá troca de material? *</label>
-                <CustomSelect
-                  value={form.troca_material === true ? 'sim' : form.troca_material === false ? 'nao' : ''}
-                  onChange={(v) => set('troca_material', v === 'sim' ? true : v === 'nao' ? false : undefined)}
-                  options={[
-                    { value: 'sim', label: 'Sim' },
-                    { value: 'nao', label: 'Não' },
-                  ]}
-                  placeholder="Selecionar Sim ou Não…"
-                  isDark={isDark}
-                />
-                <p className={`text-xs mt-1.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
-                  Obrigatório quando a renovação está vinculada a uma venda anterior.
-                </p>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => set('troca_material', !form.troca_material)}
-                  className={`w-10 h-5 rounded-full transition-colors relative ${form.troca_material ? 'bg-brand-orange' : isDark ? 'bg-white/20' : 'bg-neutral-300'}`}
-                >
-                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.troca_material ? 'left-5' : 'left-0.5'}`} />
-                </button>
-                <label className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                  Haverá troca de material
-                </label>
-              </div>
-            )
+            <div className="max-w-md">
+              <label className={lbl}>Haverá troca de material? *</label>
+              <CustomSelect
+                value={form.troca_material === true ? 'sim' : form.troca_material === false ? 'nao' : ''}
+                onChange={(v) => set('troca_material', v === 'sim' ? true : v === 'nao' ? false : undefined)}
+                options={[
+                  { value: 'sim', label: 'Sim' },
+                  { value: 'nao', label: 'Não' },
+                ]}
+                placeholder="Selecionar Sim ou Não…"
+                isDark={isDark}
+              />
+              <p className={`text-xs mt-1.5 ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>
+                Quando a resposta for Não, o PDF técnico não será enviado ao cliente nesta renovação.
+              </p>
+            </div>
           )}
         </section>
 
@@ -1432,6 +1586,10 @@ function buildMsgPreview({ form, selectedPontos, pontoPrecos, currentUser }) {
     : 'Vendedor';
 
   const isRenovacao = form.tipo === 'Renovação';
+  const isPermuta = form.tipo === 'Permuta';
+  const permutaSplit = isPermuta
+    ? resolvePermutaSplit(form.valor_mensal, form.permuta_valor_servico, form.permuta_valor_receber)
+    : null;
   const pontosList = selectedPontos.length
     ? selectedPontos.map(p => {
         const preco = pontoPrecos[p.id];
@@ -1459,6 +1617,8 @@ function buildMsgPreview({ form, selectedPontos, pontoPrecos, currentUser }) {
     '',
     '💼 *CONDIÇÕES COMERCIAIS*',
     form.valor_mensal ? `💰 Valor mensal: *R$ ${form.valor_mensal}* _(${form.tipo_valor})_` : null,
+    permutaSplit?.servicoFormatted ? `🔄 Permuta em serviço: *R$ ${permutaSplit.servicoFormatted}*` : null,
+    permutaSplit?.receberFormatted ? `🎯 Permuta que entra na meta: *R$ ${permutaSplit.receberFormatted}*` : null,
     periodo ? `📅 Período: *${periodo}*` : null,
     form.data_inicio_veiculacao ? `📺 Data de início da veiculação: *${fmtDate(form.data_inicio_veiculacao)}*` : null,
     form.data_primeira_parcela ? `📆 Data da 1ª parcela: *${fmtDate(form.data_primeira_parcela)}*` : null,
@@ -1466,12 +1626,13 @@ function buildMsgPreview({ form, selectedPontos, pontoPrecos, currentUser }) {
     form.cota_contratada ? `⏱️ Cota contratada: *${form.cota_contratada}*` : null,
     form.plano_fidelidade ? `🤝 Plano Fidelidade: *Sim*` : null,
     form.via_agencia && form.agencia_nome ? `🤝 Via agência: *${form.agencia_nome}*${form.comissao_pct ? ` · Comissão: *${form.comissao_pct}%*` : ''}` : null,
-    isRenovacao ? `🔁 Troca de material: *${form.troca_material ? 'Sim' : 'Não'}*` : null,
+    isRenovacao ? `🔁 Troca de material: *${form.troca_material === true ? 'Sim' : form.troca_material === false ? 'Não' : 'Não definido'}*` : null,
     '',
-    form.responsavel_nome || form.responsavel_whatsapp || form.responsavel_fixo ? '👤 *RESPONSÁVEL PELO CLIENTE*' : null,
+    form.responsavel_nome || form.responsavel_whatsapp || form.responsavel_fixo || form.email ? '👤 *RESPONSÁVEL PELO CLIENTE*' : null,
     form.responsavel_nome ? `Nome: ${form.responsavel_nome}` : null,
     form.responsavel_whatsapp ? `WhatsApp: ${form.responsavel_whatsapp}` : null,
     form.responsavel_fixo ? `Telefone Fixo: ${form.responsavel_fixo}` : null,
+    form.email ? `Email: ${form.email}` : null,
     (form.criativo_nome || form.criativo_whatsapp || form.criativo_email) ? '' : null,
     (form.criativo_nome || form.criativo_whatsapp || form.criativo_email) ? '🎨 *RESPONSÁVEL PELOS CRIATIVOS*' : null,
     form.criativo_nome ? `Nome: ${form.criativo_nome}` : null,
@@ -1502,3 +1663,4 @@ function fmtDateTime(value) {
     minute: '2-digit',
   });
 }
+

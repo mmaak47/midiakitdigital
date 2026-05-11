@@ -219,14 +219,58 @@ export default function GestaoUnificada({ isDark, ano }) {
   }, [loadData]);
 
   /* ─── Derived ─── */
-  const vendedorUsernames = useMemo(() => vendedores.map(v => v.username), [vendedores]);
+  const vendedorUsernames = useMemo(
+    () => vendedores.map(v => String(v?.username || '').trim()).filter(Boolean),
+    [vendedores]
+  );
+  const vendedorByUsername = useMemo(() => {
+    const map = {};
+    vendedores.forEach((v) => {
+      const username = String(v?.username || '').trim();
+      if (!username) return;
+      map[username] = v;
+    });
+    return map;
+  }, [vendedores]);
+  const vendedorIdByUsername = useMemo(() => {
+    const map = {};
+    vendedores.forEach((v) => {
+      const username = String(v?.username || '').trim();
+      const idNum = Number(v?.id || 0);
+      if (!username || !Number.isFinite(idNum) || idNum <= 0) return;
+      map[username] = idNum;
+    });
+    return map;
+  }, [vendedores]);
+  const vendedorUsernameById = useMemo(() => {
+    const map = {};
+    vendedores.forEach((v) => {
+      const username = String(v?.username || '').trim();
+      const idNum = Number(v?.id || 0);
+      if (!username || !Number.isFinite(idNum) || idNum <= 0) return;
+      map[idNum] = username;
+    });
+    vendas.forEach((v) => {
+      const idNum = Number(v?.vendedor_id || 0);
+      const username = String(v?.vendedor_username || v?.vendedor_nome || '').trim();
+      if (!username || !Number.isFinite(idNum) || idNum <= 0) return;
+      if (!map[idNum]) map[idNum] = username;
+    });
+    return map;
+  }, [vendedores, vendas]);
   const vendedorDisplayName = useMemo(() => {
     const map = {};
     vendedores.forEach(v => {
       map[v.username] = [v.first_name, v.last_name].filter(Boolean).join(' ') || v.username;
     });
+    vendas.forEach((v) => {
+      const username = String(v?.vendedor_username || v?.vendedor_nome || '').trim();
+      const displayName = String(v?.vendedor_display_name || '').trim();
+      if (!username || !displayName) return;
+      if (!map[username]) map[username] = displayName;
+    });
     return map;
-  }, [vendedores]);
+  }, [vendedores, vendas]);
 
   // Map display names back to usernames (case-insensitive)
   const resolveToUsername = useMemo(() => {
@@ -241,17 +285,43 @@ export default function GestaoUnificada({ isDark, ano }) {
       return displayToUser[name.toLowerCase()] || name;
     };
   }, [vendedores, vendedorUsernames]);
+  const resolveVendaUsername = useCallback((venda) => {
+    const rawId = Number(venda?.vendedor_id || 0);
+    if (Number.isFinite(rawId) && rawId > 0 && vendedorUsernameById[rawId]) {
+      return vendedorUsernameById[rawId];
+    }
+    const rawUsername = String(venda?.vendedor_username || venda?.vendedor_nome || '').trim();
+    if (!rawUsername) return '';
+    const resolved = resolveToUsername(rawUsername);
+    return String(resolved || rawUsername).trim();
+  }, [vendedorUsernameById, resolveToUsername]);
+
+  const vendedorKeys = useMemo(() => {
+    const keys = new Set(vendedorUsernames);
+    vendas.forEach((v) => {
+      const key = resolveVendaUsername(v);
+      if (key) keys.add(key);
+    });
+    Object.keys(metas || {}).forEach((k) => {
+      if (!k || k === GLOBAL_KEY) return;
+      const resolved = resolveToUsername(k);
+      const key = String(resolved || k).trim();
+      if (key) keys.add(key);
+    });
+    return Array.from(keys);
+  }, [vendedorUsernames, vendas, metas, resolveToUsername, resolveVendaUsername]);
 
   const vendasByVendedor = useMemo(() => {
     const map = {};
-    vendedorUsernames.forEach(v => { map[v] = []; });
+    vendedorKeys.forEach(v => { map[v] = []; });
     vendas.forEach(v => {
-      const key = resolveToUsername(v.vendedor_nome || '');
+      const key = resolveVendaUsername(v);
+      if (!key) return;
       if (!map[key]) map[key] = [];
       map[key].push(v);
     });
     return map;
-  }, [vendas, vendedorUsernames, resolveToUsername]);
+  }, [vendas, vendedorKeys, resolveVendaUsername]);
 
   // Global meta for selected month
   const globalMeta = useMemo(() => ({
@@ -307,10 +377,12 @@ export default function GestaoUnificada({ isDark, ano }) {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const vendedorId = vendedorIdByUsername[showForm] || null;
+      const payload = { ...formData, vendedor_nome: showForm, vendedor_id: vendedorId, ano, mes };
       if (editingId) {
-        await updateGestaoVenda(editingId, { ...formData, vendedor_nome: showForm, ano, mes });
+        await updateGestaoVenda(editingId, payload);
       } else {
-        await createGestaoVenda({ ...formData, vendedor_nome: showForm, ano, mes });
+        await createGestaoVenda(payload);
       }
       setShowForm(null); setEditingId(null); setFormData(emptyVenda);
       await loadData();
@@ -319,7 +391,7 @@ export default function GestaoUnificada({ isDark, ano }) {
   };
 
   const handleEdit = (v) => {
-    const resolved = resolveToUsername(v.vendedor_nome);
+    const resolved = resolveVendaUsername(v) || resolveToUsername(v.vendedor_nome);
     setShowForm(resolved); setEditingId(v.id);
     // Format currency values for display in input
     const fmtVal = (n) => {
@@ -502,18 +574,18 @@ export default function GestaoUnificada({ isDark, ano }) {
         <div className="space-y-3">
           <p className={`text-lg font-bold ${text} inline-flex items-center gap-2`}><Users size={18} /> Vendedores — {MESES[mes - 1]}</p>
 
-          {vendedorUsernames.length === 0 && (
+          {vendedorKeys.length === 0 && (
             <p className={`text-center py-8 ${textMuted}`}>Nenhum vendedor cadastrado.</p>
           )}
 
-          {vendedorUsernames.map(vendedor => {
+          {vendedorKeys.map(vendedor => {
             const items = vendasByVendedor[vendedor] || [];
             const nonPermutaItems = items.filter(v => !isPermutaVendaType(v.tipo));
             const totalMensal = nonPermutaItems.reduce((s, v) => s + Number(v.valor_mensal || 0), 0);
             const totalContrato = nonPermutaItems.reduce((s, v) => s + Number(v.total_contrato || 0), 0);
             const isExpanded = expandedVendedor === vendedor;
             const displayName = vendedorDisplayName[vendedor] || vendedor;
-            const vendedorData = vendedores.find(v => v.username === vendedor);
+            const vendedorData = vendedorByUsername[vendedor];
             const photoUrl = normalizePhotoUrl(vendedorData?.photo_url);
 
             return (

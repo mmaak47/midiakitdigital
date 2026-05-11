@@ -629,6 +629,59 @@ function createPage(content, background = '#050505', options = {}) {
   return page;
 }
 
+function fitPageHeightToContent(page, { minHeight = PAGE_HEIGHT, measureSelector = null, extraPadding = 0 } = {}) {
+  if (!page || typeof document === 'undefined' || !document.body) return page;
+
+  let probe = null;
+  try {
+    probe = document.createElement('div');
+    Object.assign(probe.style, {
+      position: 'fixed',
+      left: '-200vw',
+      top: '0',
+      width: `${PAGE_WIDTH}px`,
+      visibility: 'hidden',
+      pointerEvents: 'none',
+      overflow: 'visible',
+      zIndex: '-1',
+    });
+
+    const clone = page.cloneNode(true);
+    Object.assign(clone.style, {
+      height: 'auto',
+      minHeight: '0',
+      maxHeight: 'none',
+      overflow: 'visible',
+      pageBreakAfter: 'auto',
+      breakAfter: 'auto',
+    });
+
+    probe.appendChild(clone);
+    document.body.appendChild(probe);
+
+    const target = measureSelector ? clone.querySelector(measureSelector) : clone;
+    const targetHeight = target
+      ? Math.ceil(Math.max(target.scrollHeight || 0, target.getBoundingClientRect().height || 0))
+      : 0;
+    const pageHeight = Math.ceil(Math.max(clone.scrollHeight || 0, clone.getBoundingClientRect().height || 0));
+    const nextHeight = Math.max(minHeight, targetHeight, pageHeight) + Math.max(0, Number(extraPadding) || 0);
+
+    if (nextHeight > 0) {
+      page.dataset.customHeight = String(nextHeight);
+      page.style.height = `${nextHeight}px`;
+      page.style.minHeight = `${nextHeight}px`;
+      page.style.maxHeight = `${nextHeight}px`;
+      page.style.overflow = 'visible';
+    }
+  } catch {
+    // Best-effort fitting only. Rendering continues with current page height.
+  } finally {
+    if (probe?.parentNode) probe.parentNode.removeChild(probe);
+  }
+
+  return page;
+}
+
 function highlightCalibrationTargets(page, focusKey, isolateFocus) {
   const allTargets = Array.from(page.querySelectorAll('[data-calibration-id]'));
   if (!allTargets.length) return page;
@@ -2528,11 +2581,11 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
     </tr>
   `).join('');
 
-  return createPage(`
+  const page = createPage(`
     <div style="position:absolute;inset:0;background:${PROPOSAL_BG};"></div>
     ${PROPOSAL_ATMOSPHERE}
 
-    <div style="position:relative;z-index:1;width:100%;height:${impactPageHeight}px;max-height:${impactPageHeight}px;padding:42px 52px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:visible;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
+    <div data-impact-layout="true" style="position:relative;z-index:1;width:100%;min-height:${impactPageHeight}px;height:auto;padding:42px 52px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;overflow:visible;font-family:Poppins, system-ui, sans-serif;color:${PROPOSAL_TEXT};">
 
       <!-- Header -->
       <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -2543,13 +2596,13 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
         </div>
       </div>
 
-      <div style="display:flex;gap:24px;flex:1;overflow:visible;">
+      <div style="display:flex;gap:24px;flex:1;overflow:visible;min-width:0;">
 
         <!-- LEFT COLUMN (Points & Info) -->
-        <div style="flex:1;display:flex;flex-direction:column;gap:20px;overflow:visible;">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:20px;overflow:visible;">
 
           <!-- Summary cards -->
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+          <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;min-width:0;">
             ${[
               { label: 'Cliente', value: proposalClient || '—' },
               { label: 'Cidades', value: cityLabel },
@@ -2564,12 +2617,12 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
           </div>
 
           <!-- Points table -->
-          <div style="flex:1;display:flex;flex-direction:column;border-radius:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};overflow:visible;box-shadow:0 4px 16px rgba(0,0,0,0.06);">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;border-radius:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};overflow:visible;box-shadow:0 4px 16px rgba(0,0,0,0.06);">
             <div style="padding:14px 20px;background:${PROPOSAL_SURFACE_ALT};border-bottom:1px solid ${PROPOSAL_BORDER};display:flex;align-items:center;justify-content:space-between;">
               <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};">Endereços da campanha</div>
               <div style="font-size:11px;font-weight:700;color:${PROPOSAL_ACCENT};background:rgba(232,89,26,0.10);border:1px solid rgba(232,89,26,0.20);padding:4px 12px;border-radius:100px;">Total de ${pointCount} endereços</div>
             </div>
-            <table style="width:100%;border-collapse:collapse;">
+            <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
               <thead>
                 <tr>
                   <th style="padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${PROPOSAL_LABEL};text-align:left;border-bottom:1px solid ${PROPOSAL_BORDER};">Ponto</th>
@@ -2588,7 +2641,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
         </div>
 
         <!-- RIGHT COLUMN (Impact & Finance) -->
-        <div style="width:340px;display:flex;flex-direction:column;gap:20px;">
+        <div style="width:340px;flex:0 0 340px;display:flex;flex-direction:column;gap:20px;">
 
           <!-- Impact Metrics Box -->
           ${compactMode ? '' : `<div style="border-radius:16px;background:${PROPOSAL_SURFACE};border:1px solid ${PROPOSAL_BORDER};padding:24px;box-shadow:0 4px 16px rgba(0,0,0,0.06);">
@@ -2614,7 +2667,7 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
           </div>`}
 
           <!-- Investment Summary -->
-          <div style="flex:1;border-radius:18px;background:linear-gradient(170deg, ${PROPOSAL_SURFACE} 0%, ${PROPOSAL_SURFACE_ALT} 100%);border:1px solid ${PROPOSAL_BORDER};padding:22px;display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,0.07);">
+          <div style="border-radius:18px;background:linear-gradient(170deg, ${PROPOSAL_SURFACE} 0%, ${PROPOSAL_SURFACE_ALT} 100%);border:1px solid ${PROPOSAL_BORDER};padding:22px;display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,0.07);">
             <!-- Decorative corner glow -->
             <div style="position:absolute;top:-40px;right:-40px;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle, rgba(232,89,26,0.10) 0%, rgba(232,89,26,0) 70%);pointer-events:none;"></div>
 
@@ -2674,6 +2727,12 @@ function buildImpactPage({ proposalPoints, proposalTotals, pricingSummary, simul
       </div>
     </div>
   `, PROPOSAL_BG, { height: impactPageHeight, cssClass: 'impact-page' });
+
+  return fitPageHeightToContent(page, {
+    minHeight: impactPageHeight,
+    measureSelector: '[data-impact-layout="true"]',
+    extraPadding: 8
+  });
 }
 
 export async function generateMidiaKitPdf({ praca, pracas, pontos }) {

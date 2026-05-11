@@ -2537,6 +2537,67 @@ function formatSellerDisplayName(value) {
     .join(' ');
 }
 
+function getAdminUserById(userId) {
+  const id = Number(userId || 0);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  return db.prepare(`
+    SELECT id, username, first_name, last_name
+    FROM admin_users
+    WHERE id = ?
+  `).get(id) || null;
+}
+
+function getAdminUserByUsername(username) {
+  const value = String(username || '').trim();
+  if (!value) return null;
+  return db.prepare(`
+    SELECT id, username, first_name, last_name
+    FROM admin_users
+    WHERE lower(username) = lower(?)
+    LIMIT 1
+  `).get(value) || null;
+}
+
+function getAdminUserBySellerName(sellerName) {
+  const target = normalizeSellerName(sellerName);
+  if (!target) return null;
+  const rows = db.prepare(`
+    SELECT id, username, first_name, last_name
+    FROM admin_users
+  `).all();
+  return rows.find((row) => {
+    const fullName = [row.first_name, row.last_name].filter(Boolean).join(' ').trim();
+    return normalizeSellerName(row.username) === target || normalizeSellerName(fullName) === target;
+  }) || null;
+}
+
+function resolveSellerIdentity({ userId, sellerName, fallbackUsername } = {}) {
+  const byId = getAdminUserById(userId);
+  if (byId) {
+    const displayName = [byId.first_name, byId.last_name].filter(Boolean).join(' ').trim() || byId.username;
+    return { sellerId: byId.id, username: byId.username, displayName };
+  }
+
+  const byUsername = getAdminUserByUsername(fallbackUsername || sellerName);
+  if (byUsername) {
+    const displayName = [byUsername.first_name, byUsername.last_name].filter(Boolean).join(' ').trim() || byUsername.username;
+    return { sellerId: byUsername.id, username: byUsername.username, displayName };
+  }
+
+  const byName = getAdminUserBySellerName(sellerName);
+  if (byName) {
+    const displayName = [byName.first_name, byName.last_name].filter(Boolean).join(' ').trim() || byName.username;
+    return { sellerId: byName.id, username: byName.username, displayName };
+  }
+
+  const fallback = String(fallbackUsername || sellerName || '').trim();
+  return {
+    sellerId: Number.isFinite(Number(userId)) && Number(userId) > 0 ? Number(userId) : null,
+    username: fallback || null,
+    displayName: fallback || 'Vendedor',
+  };
+}
+
 function getTvSellerDirectory() {
   const rows = db.prepare(`
     SELECT username, first_name, last_name, photo_url
@@ -2574,9 +2635,8 @@ function getMonthlyVendorRanking() {
   const sellerDirectory = getTvSellerDirectory();
 
   // Primary source: vendas_comercial (same source as GestaoComercial)
-  // Exclude Permuta from ranking (does not count toward goals)
   const vcRows = db.prepare(`
-    SELECT vendedor_nome, valor_mensal, total_contrato, COALESCE(tipo, 'Nova Venda') as tipo
+    SELECT vendedor_nome, valor_mensal, total_contrato, permuta_valor_receber, permuta_total_receber, COALESCE(tipo, 'Nova Venda') as tipo
     FROM vendas_comercial
     WHERE ano = ? AND mes = ?
       AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
@@ -2595,17 +2655,6 @@ function getMonthlyVendorRanking() {
     const sellerKey = sellerInfo?.canonicalKey || normalizedSeller;
     const sellerDisplayName = sellerInfo?.displayName || formatSellerDisplayName(sellerRaw);
 
-    const valMensal = Number(row.valor_mensal || 0);
-    const valContrato = Number(row.total_contrato || 0);
-
-    // Track Permuta separately — does not count toward goals/ranking
-    if (isPermutaTipo(row.tipo)) {
-      permutaTotal += valMensal;
-      permutaTotalContratos += valContrato;
-      permutaVendas += 1;
-      continue;
-    }
-
     if (!map.has(sellerKey)) {
       map.set(sellerKey, {
         vendedor: sellerDisplayName,
@@ -2623,6 +2672,25 @@ function getMonthlyVendorRanking() {
     if (sellerInfo?.displayName) {
       entry.vendedor = sellerInfo.displayName;
     }
+
+    const valMensal = Number(row.valor_mensal || 0);
+    const valContrato = Number(row.total_contrato || 0);
+
+    if (isPermutaTipo(row.tipo)) {
+      permutaTotal += valMensal;
+      permutaTotalContratos += valContrato;
+      permutaVendas += 1;
+
+      const permutaReceberMensal = Number(row.permuta_valor_receber || 0);
+      const permutaReceberContrato = Number(row.permuta_total_receber || 0);
+      if (permutaReceberMensal > 0) {
+        entry.total += permutaReceberMensal;
+        entry.total_contratos += permutaReceberContrato;
+        entry.vendas += 1;
+      }
+      continue;
+    }
+
     entry.total += valMensal;
     entry.total_contratos += valContrato;
     entry.vendas += 1;
@@ -2630,7 +2698,7 @@ function getMonthlyVendorRanking() {
 
   // Fallback: also check vendas table for any sellers not in vendas_comercial
   const vRows = db.prepare(`
-    SELECT vendedor_nome, valor_mensal, created_at
+    SELECT vendedor_nome, valor_mensal, permuta_valor_receber, tipo, created_at
     FROM vendas
     WHERE vendedor_nome IS NOT NULL AND TRIM(vendedor_nome) <> ''
   `).all();
@@ -2651,7 +2719,9 @@ function getMonthlyVendorRanking() {
     if (map.has(sellerKey)) continue;
 
     const sellerDisplayName = sellerInfo?.displayName || formatSellerDisplayName(sellerRaw);
-    const val = parseCurrencyLike(row.valor_mensal);
+    const isPermutaRow = isPermutaTipo(row.tipo);
+    const valMensalOriginal = parseCurrencyLike(row.valor_mensal);
+    const val = isPermutaRow ? parseCurrencyLike(row.permuta_valor_receber) : valMensalOriginal;
 
     if (!map.has(sellerKey)) {
       map.set(sellerKey, {
@@ -2664,7 +2734,13 @@ function getMonthlyVendorRanking() {
     }
 
     const entry = map.get(sellerKey);
+    if (isPermutaRow) {
+      permutaTotal += valMensalOriginal;
+      permutaTotalContratos += valMensalOriginal;
+      permutaVendas += 1;
+    }
     entry.total += val;
+    entry.total_contratos += val;
     entry.vendas += 1;
   }
 
@@ -2732,14 +2808,19 @@ function getTvGoalsSnapshot() {
 
   const realizedRow = db.prepare(`
     SELECT
-      COALESCE(SUM(valor_mensal), 0) AS realizado_mensal,
-      COALESCE(SUM(total_contrato), 0) AS realizado_recorrencia,
+      COALESCE(SUM(CASE
+        WHEN TRIM(LOWER(COALESCE(tipo, 'nova venda'))) LIKE '%permuta%' THEN COALESCE(permuta_valor_receber, 0)
+        ELSE COALESCE(valor_mensal, 0)
+      END), 0) AS realizado_mensal,
+      COALESCE(SUM(CASE
+        WHEN TRIM(LOWER(COALESCE(tipo, 'nova venda'))) LIKE '%permuta%' THEN COALESCE(permuta_total_receber, 0)
+        ELSE COALESCE(total_contrato, 0)
+      END), 0) AS realizado_recorrencia,
       COUNT(*) AS vendas
     FROM vendas_comercial
     WHERE ano = ?
       AND mes = ?
       AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
-        AND TRIM(LOWER(COALESCE(tipo, 'nova venda'))) NOT LIKE '%permuta%'
   `).get(ano, mes) || {};
 
   const metaMensal = Number(metaRow.valor_meta || 0);
@@ -4497,6 +4578,40 @@ app.put('/api/admin/users/:id', requireRoles(['admin']), (req, res) => {
 
     const updated = db.prepare('SELECT id, first_name, last_name, username, email, whatsapp, role, is_vendedor, photo_url FROM admin_users WHERE id = ?').get(id);
     if (!updated) return res.status(404).json({ error: 'Usuário não encontrado' });
+    try {
+      const canonicalSellerName = String(updated.username || '').trim();
+      const oldFullName = [existing.first_name, existing.last_name].filter(Boolean).join(' ').trim();
+      const oldUsername = String(existing.username || '').trim();
+
+      if (canonicalSellerName) {
+        db.prepare(`
+          UPDATE vendas
+          SET vendedor_nome = ?, updated_at = datetime('now')
+          WHERE vendedor_id = ?
+        `).run(canonicalSellerName, id);
+
+        db.prepare(`
+          UPDATE vendas_comercial
+          SET vendedor_id = ?, vendedor_nome = ?, updated_at = datetime('now')
+          WHERE vendedor_id = ?
+             OR venda_id IN (SELECT id FROM vendas WHERE vendedor_id = ?)
+        `).run(id, canonicalSellerName, id, id);
+
+        const aliasCandidates = [oldUsername, oldFullName]
+          .map((v) => String(v || '').trim())
+          .filter(Boolean);
+        for (const alias of aliasCandidates) {
+          db.prepare(`
+            UPDATE vendas_comercial
+            SET vendedor_id = ?, vendedor_nome = ?, updated_at = datetime('now')
+            WHERE (vendedor_id IS NULL OR vendedor_id = 0)
+              AND lower(trim(COALESCE(vendedor_nome, ''))) = lower(?)
+          `).run(id, canonicalSellerName, alias);
+        }
+      }
+    } catch (syncErr) {
+      console.warn('[users] falha ao sincronizar vendedor nas vendas:', syncErr.message);
+    }
     res.json(updated);
   } catch (err) {
     internalError(res, err);
@@ -5020,6 +5135,43 @@ function parseBRLCurrency(v) {
   return isNaN(n) ? 0 : n;
 }
 
+function formatBRLCurrency(value) {
+  const safe = Number.isFinite(value) ? Math.max(0, value) : 0;
+  return safe.toFixed(2).replace('.', ',');
+}
+
+function parseBooleanField(value) {
+  if (value === true || value === 'true' || value === 1 || value === '1') return true;
+  if (value === false || value === 'false' || value === 0 || value === '0') return false;
+  return null;
+}
+
+function resolvePermutaBreakdown({ total = 0, servico = 0, receber = 0 } = {}) {
+  let valorServico = Number.isFinite(servico) ? Math.max(0, servico) : 0;
+  let valorReceber = Number.isFinite(receber) ? Math.max(0, receber) : 0;
+  const valorTotal = Number.isFinite(total) ? Math.max(0, total) : 0;
+
+  const hasServico = valorServico > 0;
+  const hasReceber = valorReceber > 0;
+
+  if (valorTotal > 0) {
+    if (hasServico && !hasReceber) {
+      valorReceber = Math.max(0, valorTotal - valorServico);
+    } else if (!hasServico && hasReceber) {
+      valorServico = Math.max(0, valorTotal - valorReceber);
+    } else if (hasServico && hasReceber) {
+      const sum = valorServico + valorReceber;
+      if (sum > valorTotal && sum > 0) {
+        const ratio = valorTotal / sum;
+        valorServico = Number((valorServico * ratio).toFixed(2));
+        valorReceber = Number((valorReceber * ratio).toFixed(2));
+      }
+    }
+  }
+
+  return { valorServico, valorReceber, valorTotal };
+}
+
 // Multer config para PDFs do P.I. (pedido de inserção)
 const piStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -5112,6 +5264,8 @@ try {
   'ALTER TABLE vendas ADD COLUMN cota_contratada TEXT',
   'ALTER TABLE vendas ADD COLUMN plano_fidelidade INTEGER DEFAULT 0',
   'ALTER TABLE vendas ADD COLUMN pontos_precos TEXT',
+  'ALTER TABLE vendas ADD COLUMN permuta_valor_servico TEXT',
+  'ALTER TABLE vendas ADD COLUMN permuta_valor_receber TEXT',
   "ALTER TABLE pontos ADD COLUMN owner_tag TEXT DEFAULT 'Intermídia'",
   'ALTER TABLE vendas ADD COLUMN tipo_documento TEXT',
   'ALTER TABLE vendas ADD COLUMN pi_numero TEXT',
@@ -5233,6 +5387,7 @@ try {
     CREATE TABLE IF NOT EXISTS vendas_comercial (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       vendedor_nome TEXT NOT NULL,
+      vendedor_id INTEGER,
       ano INTEGER NOT NULL,
       mes INTEGER NOT NULL,
       data_venda TEXT,
@@ -5241,6 +5396,9 @@ try {
       pontos_contratados TEXT,
       valor_mensal REAL DEFAULT 0,
       total_contrato REAL DEFAULT 0,
+      permuta_valor_servico REAL DEFAULT 0,
+      permuta_valor_receber REAL DEFAULT 0,
+      permuta_total_receber REAL DEFAULT 0,
       qtde_parcelas INTEGER DEFAULT 1,
       previsao_veiculacao TEXT,
       data_emissao_nf TEXT,
@@ -5262,6 +5420,141 @@ try {
 try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN venda_id INTEGER").run(); } catch {}
 try { db.prepare("ALTER TABLE metas_vendedor ADD COLUMN valor_meta_recorrencia REAL DEFAULT 0").run(); } catch {}
 try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN tipo TEXT NOT NULL DEFAULT 'Nova Venda'").run(); } catch {}
+try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN vendedor_id INTEGER").run(); } catch {}
+try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN permuta_valor_servico REAL DEFAULT 0").run(); } catch {}
+try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN permuta_valor_receber REAL DEFAULT 0").run(); } catch {}
+try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN permuta_total_receber REAL DEFAULT 0").run(); } catch {}
+
+// Repair seller linkage in vendas_comercial to use seller user (vendedor_id/username)
+try {
+  // 1) Prefer linked vendas.vendedor_id when available
+  const fromLinkedVendas = db.prepare(`
+    UPDATE vendas_comercial
+    SET vendedor_id = (
+      SELECT v.vendedor_id
+      FROM vendas v
+      WHERE v.id = vendas_comercial.venda_id
+    )
+    WHERE (vendedor_id IS NULL OR vendedor_id = 0)
+      AND venda_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM vendas v
+        WHERE v.id = vendas_comercial.venda_id
+          AND v.vendedor_id IS NOT NULL
+          AND v.vendedor_id > 0
+      )
+  `).run();
+
+  // 2) If vendedor_nome already stores username, backfill vendedor_id
+  const fromUsername = db.prepare(`
+    UPDATE vendas_comercial
+    SET vendedor_id = (
+      SELECT u.id
+      FROM admin_users u
+      WHERE lower(u.username) = lower(vendas_comercial.vendedor_nome)
+      LIMIT 1
+    )
+    WHERE (vendedor_id IS NULL OR vendedor_id = 0)
+      AND TRIM(COALESCE(vendedor_nome, '')) <> ''
+      AND EXISTS (
+        SELECT 1
+        FROM admin_users u
+        WHERE lower(u.username) = lower(vendas_comercial.vendedor_nome)
+      )
+  `).run();
+
+  // 3) Canonicalize vendedor_nome to username whenever vendedor_id is known
+  const canonicalizeName = db.prepare(`
+    UPDATE vendas_comercial
+    SET vendedor_nome = (
+      SELECT u.username
+      FROM admin_users u
+      WHERE u.id = vendas_comercial.vendedor_id
+      LIMIT 1
+    ),
+    updated_at = datetime('now')
+    WHERE vendedor_id IS NOT NULL
+      AND vendedor_id > 0
+      AND EXISTS (
+        SELECT 1
+        FROM admin_users u
+        WHERE u.id = vendas_comercial.vendedor_id
+          AND COALESCE(vendas_comercial.vendedor_nome, '') <> COALESCE(u.username, '')
+      )
+  `).run();
+
+  const repaired = Number(fromLinkedVendas.changes || 0) + Number(fromUsername.changes || 0) + Number(canonicalizeName.changes || 0);
+  if (repaired > 0) {
+    console.log(`[gestao] repaired ${repaired} seller link field(s) in vendas_comercial`);
+  }
+} catch (e) {
+  console.error('[gestao] repair seller linkage failed:', e.message);
+}
+
+// Repair legacy seller aliases using known id-linked rows.
+// If an alias (vendedor_nome) already appears with a concrete vendedor_id
+// somewhere in the dataset, we can safely assign that same id to orphan rows.
+try {
+  const aliasToIds = new Map();
+  const addAlias = (aliasRaw, sellerIdRaw) => {
+    const alias = String(aliasRaw || '').trim().toLowerCase();
+    const sellerId = Number(sellerIdRaw || 0);
+    if (!alias || !Number.isFinite(sellerId) || sellerId <= 0) return;
+    if (!aliasToIds.has(alias)) aliasToIds.set(alias, new Set());
+    aliasToIds.get(alias).add(sellerId);
+  };
+
+  const vendasKnown = db.prepare(`
+    SELECT vendedor_nome, vendedor_id
+    FROM vendas
+    WHERE vendedor_id IS NOT NULL
+      AND vendedor_id > 0
+      AND TRIM(COALESCE(vendedor_nome, '')) <> ''
+  `).all();
+  for (const row of vendasKnown) addAlias(row.vendedor_nome, row.vendedor_id);
+
+  const comercialKnown = db.prepare(`
+    SELECT vendedor_nome, vendedor_id
+    FROM vendas_comercial
+    WHERE vendedor_id IS NOT NULL
+      AND vendedor_id > 0
+      AND TRIM(COALESCE(vendedor_nome, '')) <> ''
+  `).all();
+  for (const row of comercialKnown) addAlias(row.vendedor_nome, row.vendedor_id);
+
+  const updateVendas = db.prepare(`
+    UPDATE vendas
+    SET vendedor_id = ?,
+        vendedor_nome = COALESCE((SELECT username FROM admin_users WHERE id = ?), vendedor_nome),
+        updated_at = datetime('now')
+    WHERE (vendedor_id IS NULL OR vendedor_id = 0)
+      AND lower(trim(COALESCE(vendedor_nome, ''))) = ?
+  `);
+  const updateComercial = db.prepare(`
+    UPDATE vendas_comercial
+    SET vendedor_id = ?,
+        vendedor_nome = COALESCE((SELECT username FROM admin_users WHERE id = ?), vendedor_nome),
+        updated_at = datetime('now')
+    WHERE (vendedor_id IS NULL OR vendedor_id = 0)
+      AND lower(trim(COALESCE(vendedor_nome, ''))) = ?
+  `);
+
+  let repairedAliases = 0;
+  for (const [alias, ids] of aliasToIds.entries()) {
+    if (ids.size !== 1) continue;
+    const sellerId = Number(Array.from(ids)[0] || 0);
+    if (!Number.isFinite(sellerId) || sellerId <= 0) continue;
+    repairedAliases += Number(updateVendas.run(sellerId, sellerId, alias).changes || 0);
+    repairedAliases += Number(updateComercial.run(sellerId, sellerId, alias).changes || 0);
+  }
+
+  if (repairedAliases > 0) {
+    console.log(`[gestao] repaired ${repairedAliases} seller alias row(s) with canonical vendedor_id`);
+  }
+} catch (e) {
+  console.error('[gestao] repair seller aliases failed:', e.message);
+}
 
 // Repair auto-synced vendas_comercial rows where total_contrato was incorrectly set to valor_mensal
 try {
@@ -5335,10 +5628,16 @@ try {
 
   const insertVenda = db.prepare(`
     INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal,
-      periodo, vendedor_nome, whatsapp_status, status, obs, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'nao_configurado', 'ativa', ?, COALESCE(?, datetime('now')))
+      periodo, vendedor_id, vendedor_nome, whatsapp_status, status, obs, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'nao_configurado', 'ativa', ?, COALESCE(?, datetime('now')))
   `);
-  const linkBack = db.prepare(`UPDATE vendas_comercial SET venda_id = ? WHERE id = ?`);
+  const linkBack = db.prepare(`
+    UPDATE vendas_comercial
+    SET venda_id = ?,
+        vendedor_id = COALESCE(vendedor_id, ?),
+        vendedor_nome = COALESCE(?, vendedor_nome)
+    WHERE id = ?
+  `);
   const insertEtapa = db.prepare(`
     INSERT INTO venda_etapas (venda_id, etapa_key, etapa_label, emoji, confirmado_at, confirmado_por, removido)
     VALUES (?, ?, ?, ?, datetime('now'), 'gestao-backfill', 0)
@@ -5362,6 +5661,10 @@ try {
         ? JSON.stringify(String(vc.pontos_contratados).split(',').map(s => s.trim()).filter(Boolean))
         : '[]';
       const periodo = vc.qtde_parcelas > 1 ? `${vc.qtde_parcelas} meses` : null;
+      const sellerIdentity = resolveSellerIdentity({
+        userId: vc.vendedor_id,
+        sellerName: vc.vendedor_nome,
+      });
       const result = insertVenda.run(
         vc.tipo || 'Nova Venda',
         vc.cliente,
@@ -5369,12 +5672,13 @@ try {
         pontosNomes,
         vc.valor_mensal || null,
         periodo,
-        vc.vendedor_nome || null,
+        sellerIdentity.sellerId || null,
+        sellerIdentity.username || vc.vendedor_nome || null,
         vc.obs || null,
         vc.data_venda || null
       );
       const newVendaId = result.lastInsertRowid;
-      linkBack.run(newVendaId, vc.id);
+      linkBack.run(newVendaId, sellerIdentity.sellerId || null, sellerIdentity.username || null, vc.id);
       syncCount++;
 
       for (const item of STATUS_BACKFILL) {
@@ -5501,6 +5805,26 @@ function formatPhoneForMessage(raw) {
     return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
   }
   return raw || digitsOnly;
+}
+
+function sanitizeFileNamePart(value) {
+  return String(value || '')
+    .replace(/[\\/:*?"<>|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function resolveTechnicalPdfClientName({ nomeFantasia, razaoSocial } = {}) {
+  const fantasia = String(nomeFantasia || '').trim();
+  if (fantasia) return fantasia;
+  const razao = String(razaoSocial || '').trim();
+  return razao || 'Cliente';
+}
+
+function buildTechnicalPdfTitle({ nomeFantasia, razaoSocial } = {}) {
+  const clientName = resolveTechnicalPdfClientName({ nomeFantasia, razaoSocial });
+  const safeClientName = sanitizeFileNamePart(clientName) || 'Cliente';
+  return `Informações Técnicas - Intermidia x ${safeClientName}`;
 }
 
 async function sendEvolutionText({ apiUrl, instance, apiKey, number, text }) {
@@ -5723,6 +6047,9 @@ async function sendTechnicalPdfsForVenda({
   responsavelNome,
   vendedorNome,
   pontosNomes,
+  nomeFantasia = '',
+  razaoSocial = '',
+  planoFidelidade = false,
   trigger = 'auto',
   actorName = '',
 }) {
@@ -5789,6 +6116,14 @@ async function sendTechnicalPdfsForVenda({
   const nomeResponsavel = responsavelNome ? String(responsavelNome).trim() : 'cliente';
   const nomeVendedor = vendedorNome || 'nosso time';
   const sellerPartnerPhrase = buildSellerPartnerPhrase(nomeVendedor);
+  const pdfTitle = buildTechnicalPdfTitle({ nomeFantasia, razaoSocial });
+  const pdfDesktopFileName = `${sanitizeFileNamePart(pdfTitle) || 'Informações Técnicas'}.pdf`;
+  const pdfMobileFileName = `${sanitizeFileNamePart(pdfTitle) || 'Informações Técnicas'} Mobile.pdf`;
+  const pdfOptions = {
+    pdfTitle,
+    mobileTitle: `${pdfTitle} Mobile`,
+    forcedLoopLabel: planoFidelidade ? '6 Minutos' : '',
+  };
   const caption = `Oi, ${nomeResponsavel}! Tudo bem? 😄\n\nPassando pra te dar os parabens pela escolha dos pontos — excelente decisao!\n\nEu sou o assistente de criacao que trabalha ${sellerPartnerPhrase} e vou te ajudar com tudo que envolver criativos.\n\nTe enviei a proposta tecnica com os detalhes 📄\n\nSe quiser trocar ideias ou precisar de ajuda com as artes, estou por aqui!`;
 
   let desktopStatus = 'pendente';
@@ -5798,7 +6133,7 @@ async function sendTechnicalPdfsForVenda({
   let photoModeUsed = 'full';
 
   try {
-    const generated = await generatePdfsFromPointNames(db, pontosArr);
+    const generated = await generatePdfsFromPointNames(db, pontosArr, pdfOptions);
     const { desktop, mobile } = generated;
     photoModeUsed = generated?.photoModeUsed || 'full';
 
@@ -5819,7 +6154,7 @@ async function sendTechnicalPdfsForVenda({
         number: clientPhone,
         caption,
         filePath: tmpDesktop,
-        fileName: 'Informações Técnicas.pdf'
+        fileName: pdfDesktopFileName
       });
       desktopStatus = 'enviado';
       logSend('pdf_desktop', clientPhone, 'enviado', null, `${pontosArr.length} ponto(s) (${photoModeLabel}; ${triggerLabel})`);
@@ -5842,7 +6177,7 @@ async function sendTechnicalPdfsForVenda({
         number: clientPhone,
         caption: '📱 Versão mobile da proposta técnica:',
         filePath: tmpMobile,
-        fileName: 'Informações Técnicas Mobile.pdf'
+        fileName: pdfMobileFileName
       });
       mobileStatus = 'enviado';
       logSend('pdf_mobile', clientPhone, 'enviado', null, `${pontosArr.length} ponto(s) (${photoModeLabel}; ${triggerLabel})`);
@@ -5885,6 +6220,8 @@ const VENDA_DRAFT_FORM_FIELDS = [
   'nome_fantasia',
   'cnpj',
   'valor_mensal',
+  'permuta_valor_servico',
+  'permuta_valor_receber',
   'cota_contratada',
   'plano_fidelidade',
   'tipo_valor',
@@ -6080,6 +6417,8 @@ app.post(
         obs,
         pontos_nomes,
         pontos_precos,
+        permuta_valor_servico,
+        permuta_valor_receber,
         vendedor_nome
       } = req.body;
 
@@ -6096,12 +6435,39 @@ app.post(
       if (!responsavelWhatsappFinal && !responsavelFixoFinal) {
         return res.status(400).json({ error: 'Informe WhatsApp ou Telefone Fixo do responsável pela compra.' });
       }
+      const sellerIdentity = resolveSellerIdentity({
+        userId: req.authUser?.id,
+        sellerName: vendedor_nome,
+        fallbackUsername: req.authUser?.username,
+      });
+      const vendedorIdCanonical = sellerIdentity.sellerId || req.authUser?.id || null;
+      const vendedorNomeCanonical = sellerIdentity.username || String(vendedor_nome || '').trim() || req.authUser?.username || null;
+
+      const tipoNorm = normalizeTextForMatch(tipo);
+      const isRenovacaoVenda = tipoNorm.includes('renov');
+      const isPermutaVenda = tipoNorm.includes('permuta');
+      const trocaMaterialChoice = parseBooleanField(troca_material);
+      if (isRenovacaoVenda && trocaMaterialChoice === null) {
+        return res.status(400).json({ error: 'Em renovação, selecione se haverá troca de material (Sim ou Não).' });
+      }
 
       const planoFidelidadeAtivo = plano_fidelidade === 'true' || plano_fidelidade === true;
       const cotaContratadaFinal = String(cota_contratada || '').trim() || (planoFidelidadeAtivo ? '10 Segundos' : '');
       const criativoNomeFinal = String(criativo_nome || '').trim();
       const criativoWhatsappFinal = String(criativo_whatsapp || '').trim();
       const criativoEmailFinal = String(criativo_email || '').trim();
+      const valorMensalNum = parseBRLCurrency(valor_mensal);
+      const permutaRawServico = parseBRLCurrency(permuta_valor_servico);
+      const permutaRawReceber = parseBRLCurrency(permuta_valor_receber);
+      const permutaBreakdown = isPermutaVenda
+        ? resolvePermutaBreakdown({ total: valorMensalNum, servico: permutaRawServico, receber: permutaRawReceber })
+        : resolvePermutaBreakdown();
+      const permutaValorServicoFinal = isPermutaVenda && permutaBreakdown.valorServico > 0
+        ? formatBRLCurrency(permutaBreakdown.valorServico)
+        : null;
+      const permutaValorReceberFinal = isPermutaVenda && permutaBreakdown.valorReceber > 0
+        ? formatBRLCurrency(permutaBreakdown.valorReceber)
+        : null;
 
       // Monta string de período
       let periodo = '';
@@ -6119,7 +6485,7 @@ app.post(
 
       // Salva no banco
       const stmt = db.prepare(`
-        INSERT INTO vendas (tipo, razao_social, nome_fantasia, cnpj, pontos_nomes, pontos_precos, valor_mensal, tipo_valor,
+        INSERT INTO vendas (tipo, razao_social, nome_fantasia, cnpj, pontos_nomes, pontos_precos, permuta_valor_servico, permuta_valor_receber, valor_mensal, tipo_valor,
           cota_contratada, plano_fidelidade,
           via_agencia, agencia_nome, comissao_pct, troca_material,
           periodo, dia_pagamento, data_primeira_parcela, dia_pagamento_dia,
@@ -6127,7 +6493,7 @@ app.post(
           obs, pi_path, vendedor_id, vendedor_nome,
           tipo_documento, pi_numero, endereco_cep,
           whatsapp_status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
       `);
 
       const dbResult = stmt.run(
@@ -6137,6 +6503,8 @@ app.post(
         cnpj || null,
         pontos_nomes || '[]',
         pontos_precos || '{}',
+        permutaValorServicoFinal,
+        permutaValorReceberFinal,
         valor_mensal || null,
         tipo_valor || null,
         cotaContratadaFinal || null,
@@ -6144,7 +6512,7 @@ app.post(
         via_agencia === 'true' || via_agencia === true ? 1 : 0,
         agencia_nome || null,
         comissao_pct || null,
-        troca_material === 'true' || troca_material === true ? 1 : 0,
+        trocaMaterialChoice === true ? 1 : 0,
         periodo || null,
         dia_pagamento || null,
         data_primeira_parcela || null,
@@ -6158,8 +6526,8 @@ app.post(
         criativoEmailFinal || null,
         obs || null,
         piPathStored || null,
-        req.authUser?.id || null,
-        vendedor_nome || req.authUser?.username || null,
+        vendedorIdCanonical,
+        vendedorNomeCanonical,
         tipo_documento ? String(tipo_documento).trim() : null,
         pi_numero ? String(pi_numero).trim() : null,
         endereco_cep ? String(endereco_cep).trim() : null
@@ -6177,7 +6545,7 @@ app.post(
         try {
           const mensagem = buildVendaWhatsappMessage({
             tipo,
-            vendedorNome: vendedor_nome || req.authUser?.username || 'Vendedor',
+            vendedorNome: sellerIdentity.displayName || vendedorNomeCanonical || 'Vendedor',
             razaoSocial: String(razao_social).trim(),
             nomeFantasia: nome_fantasia || '',
             cnpj: cnpj || '',
@@ -6195,7 +6563,7 @@ app.post(
             viaAgencia: via_agencia === 'true' || via_agencia === true,
             agenciaNome: agencia_nome || '',
             comissaoPct: comissao_pct || '',
-            trocaMaterial: troca_material === 'true' || troca_material === true,
+            trocaMaterial: trocaMaterialChoice === true,
             responsavelNome: responsavel_nome || '',
             responsavelWhatsapp: responsavelWhatsappFinal || '',
             responsavelFixo: responsavelFixoFinal || '',
@@ -6205,19 +6573,28 @@ app.post(
             criativoEmail: String(criativo_email || '').trim(),
             obs: obs || ''
           });
+          const resumoPiCaption = `📎 ${isRenovacaoVenda ? 'Renovação' : 'Nova venda'} — ${String(razao_social).trim()}\nDetalhes completos enviados na mensagem abaixo.`;
 
           if (piPath) {
-            // Envia o primeiro PDF com a mensagem como caption
+            // Envia o primeiro PDF com caption curto para evitar truncamento.
+            // O conteúdo completo segue em mensagem de texto na sequência.
             const evoResp = await sendEvolutionDocument({
               apiUrl: evo.evolution_api_url,
               instance: evo.evolution_instance,
               apiKey: evo.evolution_api_key,
               number: evo.evolution_dest_number,
-              caption: mensagem,
+              caption: resumoPiCaption,
               filePath: piPath,
               fileName: piFilesArr[0]?.originalname || 'PI.pdf'
             });
             waMsgId = evoResp?.key?.id || evoResp?.[0]?.key?.id || null;
+            await sendEvolutionText({
+              apiUrl: evo.evolution_api_url,
+              instance: evo.evolution_instance,
+              apiKey: evo.evolution_api_key,
+              number: evo.evolution_dest_number,
+              text: mensagem
+            });
             // Envia os PDFs adicionais (se houver) sem caption
             for (let i = 1; i < piFilesArr.length; i += 1) {
               try {
@@ -6291,11 +6668,14 @@ app.post(
       // Auto-sync para vendas_comercial (Gestão Comercial)
       try {
         const now = new Date();
-        const vNome = vendedor_nome || req.authUser?.username || null;
+        const vNome = vendedorNomeCanonical;
+        const vId = vendedorIdCanonical || null;
         // Calcular qtde_parcelas e total_contrato corretamente
         const qtdeParcelas = (periodo_tipo === 'meses' && periodo_meses) ? Number(periodo_meses) : 1;
-        const valorMensalNum = parseBRLCurrency(valor_mensal);
         const totalContrato = valorMensalNum * qtdeParcelas;
+        const permutaValorServicoNum = isPermutaVenda ? permutaBreakdown.valorServico : 0;
+        const permutaValorReceberNum = isPermutaVenda ? permutaBreakdown.valorReceber : 0;
+        const permutaTotalReceberNum = permutaValorReceberNum * qtdeParcelas;
         // Converter pontos_nomes de JSON para string legível
         let pontosStr = null;
         try {
@@ -6306,11 +6686,13 @@ app.post(
         const contatoStr = [responsavel_nome, responsavel_whatsapp].filter(Boolean).join(' · ') || null;
         db.prepare(`
           INSERT INTO vendas_comercial
-            (vendedor_nome, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
-             valor_mensal, total_contrato, qtde_parcelas, contato, email, obs, venda_id, tipo)
-          VALUES (?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (vendedor_nome, vendedor_id, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
+             valor_mensal, total_contrato, permuta_valor_servico, permuta_valor_receber, permuta_total_receber,
+             qtde_parcelas, contato, email, obs, venda_id, tipo)
+          VALUES (?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           vNome,
+          vId,
           now.getFullYear(),
           now.getMonth() + 1,
           String(razao_social).trim(),
@@ -6318,6 +6700,9 @@ app.post(
           pontosStr,
           valorMensalNum,
           totalContrato,
+          permutaValorServicoNum,
+          permutaValorReceberNum,
+          permutaTotalReceberNum,
           qtdeParcelas,
           contatoStr,
           email || null,
@@ -6349,6 +6734,17 @@ app.post(
             : `Venda registrada. Falha no WhatsApp: ${whatsappError || 'erro desconhecido'}`
       });
 
+      const shouldSkipTechnicalPdf = isRenovacaoVenda && trocaMaterialChoice === false;
+      if (shouldSkipTechnicalPdf) {
+        try {
+          db.prepare('INSERT INTO whatsapp_send_log (venda_id, tipo, destino, status, erro, detalhes) VALUES (?, ?, ?, ?, ?, ?)')
+            .run(vendaId, 'pdf_desktop', responsavelWhatsappFinal || null, 'ignorado', null, 'Renovacao sem troca de material: PDF tecnico nao enviado.');
+        } catch {
+          // non-blocking log failure
+        }
+        return;
+      }
+
       // ─── Disparo assíncrono: PDF técnico para o contato correto ───────────
       // Roda em background para não atrasar a resposta ao vendedor.
       setImmediate(() => {
@@ -6366,6 +6762,9 @@ app.post(
             responsavelNome: nomeDestinoPdf,
             vendedorNome: vendedorNomeEfetivo,
             pontosNomes: pontos_nomes,
+            nomeFantasia: nome_fantasia || '',
+            razaoSocial: String(razao_social || '').trim(),
+            planoFidelidade: planoFidelidadeAtivo,
             trigger: 'auto',
           });
 
@@ -6518,7 +6917,8 @@ app.post('/api/vendas/:id/retry-pdf', requireRoles(['admin', 'gerente_comercial'
     }
 
     const venda = db.prepare(`
-      SELECT id, vendedor_id, vendedor_nome, responsavel_nome, responsavel_whatsapp, criativo_nome, criativo_whatsapp, pontos_nomes
+      SELECT id, vendedor_id, vendedor_nome, responsavel_nome, responsavel_whatsapp, criativo_nome, criativo_whatsapp, pontos_nomes,
+             nome_fantasia, razao_social, plano_fidelidade
       FROM vendas
       WHERE id = ?
     `).get(vendaId);
@@ -6541,6 +6941,9 @@ app.post('/api/vendas/:id/retry-pdf', requireRoles(['admin', 'gerente_comercial'
       responsavelNome: destinoNome,
       vendedorNome: venda.vendedor_nome || req.authUser?.username || 'nosso time',
       pontosNomes: venda.pontos_nomes,
+      nomeFantasia: venda.nome_fantasia || '',
+      razaoSocial: venda.razao_social || '',
+      planoFidelidade: Number(venda.plano_fidelidade || 0) === 1,
       trigger: 'manual_retry',
       actorName,
     });
@@ -6606,7 +7009,13 @@ app.post('/api/vendas/test-pdf', requireRoles(['admin', 'gerente_comercial']), a
 
   try {
     log.push(`Gerando PDFs para ${pontosArr.length} ponto(s): ${pontosArr.join(', ')}`);
-    const generated = await generatePdfsFromPointNames(db, pontosArr);
+    const pdfTitle = buildTechnicalPdfTitle({ razaoSocial: 'Cliente Teste' });
+    const desktopFileName = `${sanitizeFileNamePart(pdfTitle) || 'Informações Técnicas'}.pdf`;
+    const mobileFileName = `${sanitizeFileNamePart(pdfTitle) || 'Informações Técnicas'} Mobile.pdf`;
+    const generated = await generatePdfsFromPointNames(db, pontosArr, {
+      pdfTitle,
+      mobileTitle: `${pdfTitle} Mobile`,
+    });
     const { desktop, mobile } = generated;
     const photoModeUsed = generated?.photoModeUsed || 'full';
     log.push(`Modo de fotos: ${photoModeUsed === 'none' ? 'sem fotos' : photoModeUsed === 'compact' ? 'compactas' : 'completas'}`);
@@ -6618,7 +7027,7 @@ app.post('/api/vendas/test-pdf', requireRoles(['admin', 'gerente_comercial']), a
     try {
       await sendEvolutionDocument({
         apiUrl: evo.evolution_api_url, instance: evo.evolution_pdf_instance || evo.evolution_instance, apiKey: evo.evolution_api_key,
-        number: destPhone, caption, filePath: tmpD, fileName: 'Informações Técnicas.pdf'
+        number: destPhone, caption, filePath: tmpD, fileName: desktopFileName
       });
       log.push(`PDF desktop enviado para ${destPhone}.`);
     } finally {
@@ -6632,7 +7041,7 @@ app.post('/api/vendas/test-pdf', requireRoles(['admin', 'gerente_comercial']), a
       await sendEvolutionDocument({
         apiUrl: evo.evolution_api_url, instance: evo.evolution_pdf_instance || evo.evolution_instance, apiKey: evo.evolution_api_key,
         number: destPhone, caption: '📱 Versão mobile da proposta técnica:', filePath: tmpM,
-        fileName: 'Informações Técnicas Mobile.pdf'
+        fileName: mobileFileName
       });
       log.push(`PDF mobile enviado para ${destPhone}.`);
     } finally {
@@ -6681,7 +7090,7 @@ app.get('/api/vendas', requireRoles(['admin', 'gerente_comercial', 'vendedor']),
 app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
   try {
     const id = Number(req.params.id);
-    const existing = db.prepare('SELECT id FROM vendas WHERE id = ?').get(id);
+    const existing = db.prepare('SELECT id, vendedor_id FROM vendas WHERE id = ?').get(id);
     if (!existing) return res.status(404).json({ error: 'Venda não encontrada.' });
 
     const {
@@ -6691,6 +7100,13 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
       periodo, dia_pagamento, data_primeira_parcela, dia_pagamento_dia,
       responsavel_nome, responsavel_whatsapp, email, obs, status, vendedor_nome
     } = req.body;
+    const sellerIdentity = resolveSellerIdentity({
+      userId: existing.vendedor_id,
+      sellerName: vendedor_nome,
+      fallbackUsername: vendedor_nome,
+    });
+    const vendedorNomeCanonical = sellerIdentity.username || String(vendedor_nome || '').trim() || null;
+    const vendedorIdCanonical = sellerIdentity.sellerId || existing.vendedor_id || null;
 
     db.prepare(`
       UPDATE vendas SET
@@ -6698,7 +7114,7 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
         cota_contratada = ?, plano_fidelidade = ?,
         via_agencia = ?, agencia_nome = ?, comissao_pct = ?, troca_material = ?,
         periodo = ?, dia_pagamento = ?, data_primeira_parcela = ?, dia_pagamento_dia = ?,
-        responsavel_nome = ?, responsavel_whatsapp = ?, email = ?, obs = ?, status = ?, vendedor_nome = ?,
+        responsavel_nome = ?, responsavel_whatsapp = ?, email = ?, obs = ?, status = ?, vendedor_id = ?, vendedor_nome = ?,
         updated_at = datetime('now')
       WHERE id = ?
     `).run(
@@ -6724,7 +7140,8 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
       email || null,
       obs || null,
       status || 'ativa',
-      vendedor_nome || null,
+      vendedorIdCanonical,
+      vendedorNomeCanonical,
       id
     );
 
@@ -6750,7 +7167,7 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
         UPDATE vendas_comercial SET
           cliente = ?, cnpj = ?, pontos_contratados = COALESCE(?, pontos_contratados),
           valor_mensal = ?, total_contrato = ?, qtde_parcelas = ?,
-          contato = ?, email = ?, vendedor_nome = ?, obs = ?,
+          contato = ?, email = ?, vendedor_id = ?, vendedor_nome = ?, obs = ?,
           updated_at = datetime('now')
         WHERE venda_id = ?
       `).run(
@@ -6762,7 +7179,8 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
         qtde,
         contatoStr,
         email || null,
-        vendedor_nome || null,
+        vendedorIdCanonical,
+        vendedorNomeCanonical,
         obs || null,
         id
       );
@@ -7212,15 +7630,47 @@ app.get('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vendedo
     const ano = Number(req.query.ano) || new Date().getFullYear();
     const mes = req.query.mes ? Number(req.query.mes) : null;
     const vendedor = req.query.vendedor || null;
-    let sql = `SELECT * FROM vendas_comercial WHERE ano = ? AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')`;
+    let sql = `
+      SELECT
+        vc.*,
+        COALESCE(u_vc.username, u_v.username, u_name.username, vc.vendedor_nome) AS vendedor_username_resolved,
+        COALESCE(
+          NULLIF(TRIM(COALESCE(u_vc.first_name, '') || ' ' || COALESCE(u_vc.last_name, '')), ''),
+          NULLIF(TRIM(COALESCE(u_v.first_name, '') || ' ' || COALESCE(u_v.last_name, '')), ''),
+          NULLIF(TRIM(COALESCE(u_name.first_name, '') || ' ' || COALESCE(u_name.last_name, '')), ''),
+          COALESCE(u_vc.username, u_v.username, u_name.username, vc.vendedor_nome)
+        ) AS vendedor_display_name_resolved,
+        COALESCE(vc.vendedor_id, v.vendedor_id, u_name.id) AS vendedor_id_resolved
+      FROM vendas_comercial vc
+      LEFT JOIN vendas v ON v.id = vc.venda_id
+      LEFT JOIN admin_users u_vc ON u_vc.id = vc.vendedor_id
+      LEFT JOIN admin_users u_v ON u_v.id = v.vendedor_id
+      LEFT JOIN admin_users u_name ON lower(u_name.username) = lower(vc.vendedor_nome)
+      WHERE vc.ano = ?
+        AND UPPER(COALESCE(vc.cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
+    `;
     const params = [ano];
-    if (mes) { sql += ' AND mes = ?'; params.push(mes); }
-    if (vendedor) { sql += ' AND vendedor_nome = ?'; params.push(vendedor); }
-    sql += ' ORDER BY mes, vendedor_nome, data_venda';
+    if (mes) { sql += ' AND vc.mes = ?'; params.push(mes); }
+    if (vendedor) {
+      sql += ' AND (lower(COALESCE(u_vc.username, u_v.username, u_name.username, vc.vendedor_nome)) = lower(?) OR lower(vc.vendedor_nome) = lower(?))';
+      params.push(vendedor, vendedor);
+    }
+    sql += ' ORDER BY vc.mes, COALESCE(u_vc.username, u_v.username, u_name.username, vc.vendedor_nome), vc.data_venda';
     const rows = db.prepare(sql).all(...params);
     // Enrich linked vendas with etapas from venda_etapas (same as vendas page)
     const etapaStmt = db.prepare('SELECT etapa_key, etapa_label, emoji, confirmado_por, confirmado_at FROM venda_etapas WHERE venda_id = ? AND removido = 0');
     for (const row of rows) {
+      const resolvedUsername = String(row.vendedor_username_resolved || row.vendedor_nome || '').trim();
+      const resolvedDisplayName = String(row.vendedor_display_name_resolved || resolvedUsername || row.vendedor_nome || '').trim();
+      if (row.vendedor_id_resolved) row.vendedor_id = row.vendedor_id_resolved;
+      if (resolvedUsername) {
+        row.vendedor_nome = resolvedUsername;
+        row.vendedor_username = resolvedUsername;
+      }
+      if (resolvedDisplayName) row.vendedor_display_name = resolvedDisplayName;
+      delete row.vendedor_username_resolved;
+      delete row.vendedor_display_name_resolved;
+      delete row.vendedor_id_resolved;
       if (row.venda_id) {
         row.etapas = etapaStmt.all(row.venda_id);
       }
@@ -7237,14 +7687,21 @@ app.post('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vended
     if (!b.cliente || !b.vendedor_nome || !b.ano || !b.mes) {
       return res.status(400).json({ error: 'Campos obrigatórios: cliente, vendedor_nome, ano, mes' });
     }
+    const sellerIdentity = resolveSellerIdentity({
+      userId: b.vendedor_id,
+      sellerName: b.vendedor_nome,
+      fallbackUsername: b.vendedor_nome,
+    });
+    const vendedorNomeCanonical = sellerIdentity.username || String(b.vendedor_nome || '').trim();
+    const vendedorIdCanonical = sellerIdentity.sellerId || null;
     const result = db.prepare(`
       INSERT INTO vendas_comercial
-        (vendedor_nome, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
+        (vendedor_nome, vendedor_id, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
          valor_mensal, total_contrato, qtde_parcelas, previsao_veiculacao,
          data_emissao_nf, vencimento_boletos, contato, email, obs, tipo)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      String(b.vendedor_nome), Number(b.ano), Number(b.mes),
+      vendedorNomeCanonical, vendedorIdCanonical, Number(b.ano), Number(b.mes),
       b.data_venda || null, b.cliente, b.cnpj || null, b.pontos_contratados || null,
       parseBRLCurrency(b.valor_mensal), parseBRLCurrency(b.total_contrato), Number(b.qtde_parcelas || 1),
       b.previsao_veiculacao || null, b.data_emissao_nf || null, b.vencimento_boletos || null,
@@ -7264,8 +7721,8 @@ app.post('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vended
         const periodo = parcelas > 1 ? `${parcelas} meses` : null;
         const vendaResult = db.prepare(`
           INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal,
-            periodo, vendedor_nome, whatsapp_status, status, obs, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 'nao_configurado', 'ativa', ?, COALESCE(?, datetime('now')))
+            periodo, vendedor_id, vendedor_nome, whatsapp_status, status, obs, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'nao_configurado', 'ativa', ?, COALESCE(?, datetime('now')))
         `).run(
           b.tipo || 'Nova Venda',
           b.cliente,
@@ -7273,7 +7730,8 @@ app.post('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vended
           pontosNomes,
           Number(b.valor_mensal || 0),
           periodo,
-          String(b.vendedor_nome),
+          vendedorIdCanonical,
+          vendedorNomeCanonical,
           b.obs || null,
           b.data_venda || null
         );
@@ -7293,9 +7751,16 @@ app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','ven
   try {
     const b = req.body;
     const id = Number(req.params.id);
+    const sellerIdentity = resolveSellerIdentity({
+      userId: b.vendedor_id,
+      sellerName: b.vendedor_nome,
+      fallbackUsername: b.vendedor_nome,
+    });
+    const vendedorNomeCanonical = sellerIdentity.username || String(b.vendedor_nome || '').trim();
+    const vendedorIdCanonical = sellerIdentity.sellerId || null;
     db.prepare(`
       UPDATE vendas_comercial SET
-        vendedor_nome = ?, data_venda = ?, cliente = ?, cnpj = ?,
+        vendedor_nome = ?, vendedor_id = ?, data_venda = ?, cliente = ?, cnpj = ?,
         pontos_contratados = ?, valor_mensal = ?, total_contrato = ?,
         qtde_parcelas = ?, previsao_veiculacao = ?, data_emissao_nf = ?,
         vencimento_boletos = ?, contato = ?, email = ?,
@@ -7305,7 +7770,8 @@ app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','ven
         obs = ?, tipo = ?, updated_at = datetime('now')
       WHERE id = ?
     `).run(
-      String(b.vendedor_nome || ''),
+      vendedorNomeCanonical,
+      vendedorIdCanonical,
       b.data_venda || null, b.cliente || '', b.cnpj || null,
       b.pontos_contratados || null, parseBRLCurrency(b.valor_mensal),
       parseBRLCurrency(b.total_contrato), Number(b.qtde_parcelas || 1),
@@ -7327,13 +7793,13 @@ app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','ven
         db.prepare(`
           UPDATE vendas SET
             tipo = ?, razao_social = ?, cnpj = ?, pontos_nomes = ?,
-            valor_mensal = ?, vendedor_nome = ?, email = ?, obs = ?,
+            valor_mensal = ?, vendedor_id = ?, vendedor_nome = ?, email = ?, obs = ?,
             updated_at = datetime('now')
           WHERE id = ?
         `).run(
           b.tipo || 'Nova Venda',
           b.cliente || '', b.cnpj || null, pontosNomes,
-          b.valor_mensal || null, String(b.vendedor_nome || ''),
+          b.valor_mensal || null, vendedorIdCanonical, vendedorNomeCanonical,
           b.email || null, b.obs || null, vc.venda_id
         );
       }
@@ -7404,10 +7870,14 @@ app.patch('/api/gestao/vendas/:id/status', requireRoles(['admin','gerente_comerc
           : '[]';
         const parcelas = Number(row.qtde_parcelas || 1);
         const periodo = parcelas > 1 ? `${parcelas} meses` : null;
+        const sellerIdentity = resolveSellerIdentity({
+          userId: row.vendedor_id,
+          sellerName: row.vendedor_nome,
+        });
         const insertRes = db.prepare(`
           INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal,
-            periodo, vendedor_nome, whatsapp_status, status, obs, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 'nao_configurado', 'ativa', ?, COALESCE(?, datetime('now')))
+            periodo, vendedor_id, vendedor_nome, whatsapp_status, status, obs, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'nao_configurado', 'ativa', ?, COALESCE(?, datetime('now')))
         `).run(
           row.tipo || 'Nova Venda',
           row.cliente,
@@ -7415,12 +7885,20 @@ app.patch('/api/gestao/vendas/:id/status', requireRoles(['admin','gerente_comerc
           pontosNomes,
           Number(row.valor_mensal || 0),
           periodo,
-          String(row.vendedor_nome || ''),
+          sellerIdentity.sellerId || null,
+          sellerIdentity.username || String(row.vendedor_nome || ''),
           row.obs || null,
           row.data_venda || null
         );
         vendaId = insertRes.lastInsertRowid;
-        db.prepare(`UPDATE vendas_comercial SET venda_id = ?, updated_at = datetime('now') WHERE id = ?`).run(vendaId, id);
+        db.prepare(`
+          UPDATE vendas_comercial
+          SET venda_id = ?,
+              vendedor_id = COALESCE(vendedor_id, ?),
+              vendedor_nome = COALESCE(?, vendedor_nome),
+              updated_at = datetime('now')
+          WHERE id = ?
+        `).run(vendaId, sellerIdentity.sellerId || null, sellerIdentity.username || null, id);
 
         // Migra status booleanos pré-existentes para venda_etapas
         for (const [etapaKey, col] of Object.entries(LOCAL_MAP)) {
@@ -7561,15 +8039,20 @@ app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vend
     // Metas por vendedor/mês
     const metas = db.prepare('SELECT * FROM metas_vendedor WHERE ano = ? ORDER BY vendedor_nome, mes').all(ano);
 
-    // Vendas realizadas agregadas por vendedor/mês (excluindo Permuta das metas)
+    // Vendas realizadas agregadas por vendedor/mês (permuta conta pela parte "a receber")
     const vendas = db.prepare(`
       SELECT vendedor_nome, mes,
              COUNT(*) as qtde_vendas,
-             COALESCE(SUM(valor_mensal), 0) as total_mensal,
-             COALESCE(SUM(total_contrato), 0) as total_contrato
+             COALESCE(SUM(CASE
+               WHEN TRIM(LOWER(COALESCE(tipo, 'nova venda'))) LIKE '%permuta%' THEN COALESCE(permuta_valor_receber, 0)
+               ELSE COALESCE(valor_mensal, 0)
+             END), 0) as total_mensal,
+             COALESCE(SUM(CASE
+               WHEN TRIM(LOWER(COALESCE(tipo, 'nova venda'))) LIKE '%permuta%' THEN COALESCE(permuta_total_receber, 0)
+               ELSE COALESCE(total_contrato, 0)
+             END), 0) as total_contrato
       FROM vendas_comercial
       WHERE ano = ?
-        AND TRIM(LOWER(COALESCE(tipo, 'nova venda'))) NOT LIKE '%permuta%'
       GROUP BY vendedor_nome, mes
       ORDER BY vendedor_nome, mes
     `).all(ano);
@@ -7579,7 +8062,9 @@ app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vend
       SELECT mes,
              COUNT(*) as qtde_vendas,
              COALESCE(SUM(valor_mensal), 0) as total_mensal,
-             COALESCE(SUM(total_contrato), 0) as total_contrato
+             COALESCE(SUM(total_contrato), 0) as total_contrato,
+             COALESCE(SUM(permuta_valor_receber), 0) as total_mensal_meta,
+             COALESCE(SUM(permuta_total_receber), 0) as total_contrato_meta
       FROM vendas_comercial
       WHERE ano = ?
         AND TRIM(LOWER(COALESCE(tipo, 'nova venda'))) LIKE '%permuta%'
@@ -7616,16 +8101,23 @@ app.post('/api/gestao/import', requireRoles(['admin']), (req, res) => {
     if (Array.isArray(vendas)) {
       const stmtV = db.prepare(`
         INSERT INTO vendas_comercial
-          (vendedor_nome, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
+          (vendedor_nome, vendedor_id, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
            valor_mensal, total_contrato, qtde_parcelas, previsao_veiculacao,
            data_emissao_nf, status_contrato, status_contrato_assinado,
            status_conteudo, status_checkin, status_faturado, status_excel_pastas, obs)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       for (const v of vendas) {
         if (!v.cliente || !v.vendedor_nome || !v.ano || !v.mes) continue;
+        const sellerIdentity = resolveSellerIdentity({
+          userId: v.vendedor_id,
+          sellerName: v.vendedor_nome,
+          fallbackUsername: v.vendedor_nome,
+        });
+        const vendedorNomeCanonical = sellerIdentity.username || String(v.vendedor_nome || '').trim();
+        const vendedorIdCanonical = sellerIdentity.sellerId || null;
         stmtV.run(
-          v.vendedor_nome, Number(v.ano), Number(v.mes),
+          vendedorNomeCanonical, vendedorIdCanonical, Number(v.ano), Number(v.mes),
           v.data_venda || null, v.cliente, v.cnpj || null,
           v.pontos_contratados || null, Number(v.valor_mensal || 0),
           Number(v.total_contrato || 0), Number(v.qtde_parcelas || 1),
@@ -8402,3 +8894,4 @@ app.listen(PORT, () => {
   // Sync missed poll votes from Evolution API on startup
   syncMissedPollVotes().catch(err => console.error('[poll-sync] startup error:', err.message));
 });
+
