@@ -13,6 +13,8 @@ export default function FavoritesBar({ isDark = true, showProposalCta = true, on
   const { favorites, removeFavorite, clearFavorites, totalPreco, totalFluxo, totalTelas, sidebarOpen, setSidebarOpen } = useFavorites();
   const [showProposal, setShowProposal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [discountMode, setDiscountMode] = useState('percent'); // 'percent' | 'fixed'
+  const [discountValue, setDiscountValue] = useState('');
 
   // Auto-expand sidebar whenever a favorite is added
   useEffect(() => {
@@ -132,14 +134,80 @@ export default function FavoritesBar({ isDark = true, showProposalCta = true, on
           ))}
         </div>
 
-        {/* Footer — total + CTA */}
+        {/* Footer — total + discount + CTA */}
         <div className={`px-4 py-4 border-t space-y-3 ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
+          {/* Original total */}
           <div className="flex items-center justify-between">
-            <span className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Investimento mensal</span>
-            <span className={`text-lg font-bold font-heading ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+            <span className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Subtotal mensal</span>
+            <span className={`text-sm font-semibold ${discountValue ? (isDark ? 'text-brand-gray-500 line-through' : 'text-neutral-400 line-through') : (isDark ? 'text-white' : 'text-neutral-900')} ${!discountValue ? 'text-lg font-bold font-heading' : ''}`}>
               {formatCurrency(totalPreco)}
             </span>
           </div>
+
+          {/* Discount controls */}
+          {showCommercialShare && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <span className={`text-[10px] uppercase tracking-wider font-semibold ${isDark ? 'text-brand-gray-600' : 'text-neutral-400'}`}>Desconto</span>
+                <div className={`flex rounded-md border overflow-hidden ml-auto ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
+                  <button
+                    onClick={() => setDiscountMode('percent')}
+                    className={`px-2 py-0.5 text-[10px] font-bold transition-colors ${discountMode === 'percent' ? 'bg-brand-orange text-white' : isDark ? 'text-brand-gray-500 hover:bg-white/5' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                  >%</button>
+                  <button
+                    onClick={() => setDiscountMode('fixed')}
+                    className={`px-2 py-0.5 text-[10px] font-bold transition-colors ${discountMode === 'fixed' ? 'bg-brand-orange text-white' : isDark ? 'text-brand-gray-500 hover:bg-white/5' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                  >R$</button>
+                </div>
+              </div>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={discountValue}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/[^0-9.,]/g, '');
+                  setDiscountValue(v);
+                }}
+                placeholder={discountMode === 'percent' ? 'Ex: 10' : 'Ex: 500'}
+                className={`w-full px-3 py-2 rounded-lg border text-xs outline-none transition-colors ${
+                  isDark
+                    ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/50'
+                    : 'bg-neutral-50 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-brand-orange/50'
+                }`}
+              />
+            </div>
+          )}
+
+          {/* Final price with discount */}
+          {(() => {
+            const parsed = parseFloat(String(discountValue).replace(',', '.')) || 0;
+            const discountAmount = discountMode === 'percent'
+              ? totalPreco * Math.min(parsed, 100) / 100
+              : Math.min(parsed, totalPreco);
+            const finalPrice = Math.max(0, totalPreco - discountAmount);
+            const hasDiscount = parsed > 0 && discountAmount > 0;
+
+            return hasDiscount ? (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className={`text-[10px] ${isDark ? 'text-green-400' : 'text-green-600'}`}>
+                    Desconto {discountMode === 'percent' ? `${parsed}%` : formatCurrency(discountAmount)}
+                  </span>
+                  <span className={`text-xs font-medium ${isDark ? 'text-green-400' : 'text-green-600'}`}>
+                    -{formatCurrency(discountAmount)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-semibold ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>Investimento final</span>
+                  <span className={`text-lg font-bold font-heading ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                    {formatCurrency(finalPrice)}
+                  </span>
+                </div>
+              </div>
+            ) : !showCommercialShare ? (
+              null
+            ) : null;
+          })()}
           {onShareFavorites && (
             <button
               onClick={onShareFavorites}
@@ -182,6 +250,9 @@ export default function FavoritesBar({ isDark = true, showProposalCta = true, on
           <CommercialShareModal
             isDark={isDark}
             favorites={favorites}
+            totalPreco={totalPreco}
+            discountMode={discountMode}
+            discountValue={discountValue}
             onClose={() => setShowShareModal(false)}
           />
         )}
@@ -191,7 +262,7 @@ export default function FavoritesBar({ isDark = true, showProposalCta = true, on
 }
 
 /* ─── Commercial Share Modal ─── */
-function CommercialShareModal({ isDark, favorites, onClose }) {
+function CommercialShareModal({ isDark, favorites, totalPreco = 0, discountMode = 'percent', discountValue = '', onClose }) {
   const [clientName, setClientName] = useState('');
   const [loading, setLoading] = useState(false);
   const [generatedUrl, setGeneratedUrl] = useState('');
@@ -205,9 +276,14 @@ function CommercialShareModal({ isDark, favorites, onClose }) {
     setError('');
     setLoading(true);
     try {
+      // Compute discount for the link
+      const parsedDiscount = parseFloat(String(discountValue).replace(',', '.')) || 0;
+      const discountData = parsedDiscount > 0 ? { mode: discountMode, value: parsedDiscount } : null;
+
       const result = await createCommercialShareLink({
         pointIds: favorites.map(p => p.id),
         clientName: name,
+        discount: discountData,
       });
       const fullUrl = `${window.location.origin}${result.url}`;
       setGeneratedUrl(fullUrl);

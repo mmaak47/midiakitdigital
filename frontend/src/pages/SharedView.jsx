@@ -275,11 +275,25 @@ export default function SharedView() {
     return Array.from(map.entries()).map(([tipo, pts]) => ({ tipo, pontos: pts, count: pts.length }));
   }, [pontos]);
 
-  const stats = useMemo(() => ({
-    totalPontos: pontos.length,
-    totalFluxo: pontos.reduce((s, p) => s + (Number(p.fluxo) || 0), 0),
-    totalInsercoes: pontos.reduce((s, p) => s + (Number(p.insercoes) || 0), 0),
-  }), [pontos]);
+  const stats = useMemo(() => {
+    const totalPreco = pontos.reduce((s, p) => s + (Number(p.preco) || 0), 0);
+    const disc = filters?.discount;
+    let discountAmount = 0;
+    if (disc && disc.value > 0) {
+      discountAmount = disc.mode === 'percent'
+        ? totalPreco * Math.min(disc.value, 100) / 100
+        : Math.min(disc.value, totalPreco);
+    }
+    return {
+      totalPontos: pontos.length,
+      totalFluxo: pontos.reduce((s, p) => s + (Number(p.fluxo) || 0), 0),
+      totalInsercoes: pontos.reduce((s, p) => s + (Number(p.insercoes) || 0), 0),
+      totalPreco,
+      discountAmount,
+      finalPreco: Math.max(0, totalPreco - discountAmount),
+      hasDiscount: discountAmount > 0,
+    };
+  }, [pontos, filters]);
 
   const handleCopyLink = async () => {
     try {
@@ -292,7 +306,7 @@ export default function SharedView() {
   const waText = encodeURIComponent(
     filters?.cidade?.length
       ? `Olá! Vi a seleção de mídia OOH em ${filters.cidade.join(', ')} e gostaria de saber mais.`
-      : 'Olá! Vi o mídia kit digital da Intermídia e gostaria de saber mais.'
+      : 'Olá! Vi o mídia kit digital da Intermidia e gostaria de saber mais.'
   );
 
   // ── Loading ──
@@ -330,7 +344,7 @@ export default function SharedView() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <button onClick={() => navigate('/')} className={`shrink-0 flex items-center gap-2 transition-colors text-sm ${t.headerText}`}>
-              <img src={isDark ? '/logo.png' : '/logo-light.png'} alt="Intermídia" className="h-6"
+              <img src={isDark ? '/logo.png' : '/logo-light.png'} alt="Intermidia" className="h-6"
                 onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }} />
             </button>
             <span className={`hidden sm:block ${t.separator}`}>|</span>
@@ -405,7 +419,7 @@ export default function SharedView() {
                   )}
                   <div>
                     <div className={`text-xs font-semibold ${t.text}`}>{vendedor.name}</div>
-                    <div className={`text-[10px] ${t.textMuted}`}>Seu consultor Intermídia</div>
+                    <div className={`text-[10px] ${t.textMuted}`}>Seu consultor Intermidia</div>
                   </div>
                   {vendedor.whatsapp && (
                     <a
@@ -455,6 +469,28 @@ export default function SharedView() {
           </div>
         </div>
       </div>
+
+      {/* ── Pricing strip (with discount) ── */}
+      {stats.hasDiscount && (
+        <div className={`border-b transition-colors duration-300 ${isDark ? 'border-white/5 bg-white/[0.02]' : 'border-[#F2DDD4] bg-[#FFF0EA]/50'}`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+            <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 text-sm">
+              <div className="text-center">
+                <div className={`text-[10px] uppercase tracking-wider ${t.textMuted}`}>Valor original</div>
+                <div className={`font-semibold line-through ${t.textSec}`}>{formatMoney(stats.totalPreco)}</div>
+              </div>
+              <div className="text-center">
+                <div className={`text-[10px] uppercase tracking-wider ${isDark ? 'text-green-400' : 'text-green-600'}`}>Desconto {filters?.discount?.mode === 'percent' ? `${filters.discount.value}%` : ''}</div>
+                <div className={`font-semibold ${isDark ? 'text-green-400' : 'text-green-600'}`}>-{formatMoney(stats.discountAmount)}</div>
+              </div>
+              <div className="text-center">
+                <div className={`text-[10px] uppercase tracking-wider text-brand-orange`}>Investimento mensal</div>
+                <div className="text-xl font-bold text-brand-orange">{formatMoney(stats.finalPreco)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Points ── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -645,7 +681,7 @@ export default function SharedView() {
               </a>
             )}
             <div className={`mt-8 pt-6 border-t text-[11px] ${isDark ? 'border-white/5' : 'border-[#F2DDD4]'} ${t.footerMuted}`}>
-              Intermídia Comunicação Visual &mdash; Mídia Kit Digital
+              Intermidia Digital OOH &mdash; Mídia Kit Digital
             </div>
           </div>
         </div>
@@ -668,7 +704,7 @@ export default function SharedView() {
               </button>
             </div>
             <div className={`mt-8 pt-6 border-t text-[11px] ${isDark ? 'border-white/5' : 'border-[#F2DDD4]'} ${t.footerMuted}`}>
-              Intermídia Comunicação Visual &mdash; Mídia Kit Digital
+              Intermidia Digital OOH &mdash; Mídia Kit Digital
             </div>
           </div>
         </div>

@@ -1482,19 +1482,21 @@ export async function fetchLoopAvailability() {
 }
 
 // ── Commercial share links ──────────────────────────────────────────
-export async function createCommercialShareLink({ pointIds, clientName }) {
+export async function createCommercialShareLink({ pointIds, clientName, discount }) {
   const headers = { 'Content-Type': 'application/json' };
   const token = getAdminToken();
   if (token) headers.Authorization = `Bearer ${token}`;
+  const payload = {
+    filters: { pointIds },
+    client_name: clientName,
+    share_type: 'commercial',
+  };
+  if (discount) payload.discount = discount;
   const res = await fetch('/api/share', {
     method: 'POST',
     headers,
     credentials: 'include',
-    body: JSON.stringify({
-      filters: { pointIds },
-      client_name: clientName,
-      share_type: 'commercial',
-    }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

@@ -659,7 +659,7 @@ const shareLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, message: { e
 
 app.post('/api/share', shareLimiter, express.json({ limit: '16kb' }), (req, res) => {
   try {
-    const { filters, label, client_name, share_type } = req.body || {};
+    const { filters, label, client_name, share_type, discount } = req.body || {};
     if (!filters || typeof filters !== 'object') {
       return res.status(400).json({ error: 'Filtros inválidos.' });
     }
@@ -672,6 +672,13 @@ app.post('/api/share', shareLimiter, express.json({ limit: '16kb' }), (req, res)
       q: typeof filters.q === 'string' ? filters.q.trim().slice(0, 100) : '',
       pointIds: Array.isArray(filters.pointIds) ? filters.pointIds.map(v => Number(v)).filter(v => Number.isFinite(v) && v > 0).slice(0, 200) : [],
     };
+    // Optional discount for commercial links
+    if (discount && typeof discount === 'object' && (discount.mode === 'percent' || discount.mode === 'fixed')) {
+      const val = Number(discount.value);
+      if (Number.isFinite(val) && val > 0) {
+        clean.discount = { mode: discount.mode, value: val };
+      }
+    }
     const hasAny = clean.cidade.length || clean.tipo.length || clean.publico.length || clean.elevador.length || clean.q || clean.pointIds.length;
     if (!hasAny) return res.status(400).json({ error: 'Nenhum filtro selecionado.' });
 
@@ -806,7 +813,8 @@ app.post('/api/share/:code/client-favorites', express.json({ limit: '32kb' }), (
       setImmediate(async () => {
         try {
           const vendedor = db.prepare('SELECT first_name, last_name, whatsapp FROM admin_users WHERE id = ?').get(row.created_by_user_id);
-          if (!vendedor?.whatsapp) {
+          const vendedorPhone = sanitizePhoneForWhatsApp(vendedor?.whatsapp);
+          if (!vendedorPhone) {
             console.log('[share/client-favorites] Vendedor sem WhatsApp, notificação não enviada');
             return;
           }
@@ -838,7 +846,7 @@ app.post('/api/share/:code/client-favorites', express.json({ limit: '32kb' }), (
             apiUrl: evo.evolution_api_url,
             instance: String(evo.evolution_pdf_instance || evo.evolution_instance || 'aux adm').trim(),
             apiKey: evo.evolution_api_key,
-            number: vendedor.whatsapp,
+            number: vendedorPhone,
             text: message,
           });
           console.log(`[share/client-favorites] WhatsApp enviado para vendedor ${vendedor.first_name} (${vendedor.whatsapp})`);
@@ -7126,7 +7134,7 @@ app.post(
           const nomeCriativoTexto = criativoNomeFinal || 'responsável pelos criativos';
           const numeroCriativoTexto = formatPhoneForMessage(criativoWhatsappFinal || criativoDestino);
           const avisoCriativo = [
-            `Olá! Sou do setor criativo da Intermídia e trabalho com o ${vendedorNomeEfetivo}.`,
+            `Olá! Sou do setor criativo da Intermidia e trabalho com o ${vendedorNomeEfetivo}.`,
             '',
             `Enviei os detalhes técnicos de criação para ${nomeCriativoTexto}, no número ${numeroCriativoTexto || criativoDestino}.`,
             '',
