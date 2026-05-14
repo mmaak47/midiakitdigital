@@ -2,17 +2,19 @@
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart3, RefreshCcw, ChevronLeft, ChevronRight, Calculator, X, TrendingUp,
-  ArrowLeft, PlusCircle, ListChecks
+  ArrowLeft, PlusCircle, ListChecks, Users
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import GestaoUnificada from '../components/gestao/GestaoUnificada';
 import Renovacoes from '../components/gestao/Renovacoes';
+import MeusLeads from '../components/gestao/MeusLeads';
 import ComercialChatBot from '../components/gestao/ComercialChatBot';
 import { fetchCurrentUser } from '../lib/api';
 
 const TABS = [
   { key: 'vendas', label: 'Vendas & Metas', icon: BarChart3 },
   { key: 'renovacoes', label: 'Renovações', icon: RefreshCcw },
+  { key: 'leads', label: 'Meus Leads', icon: Users },
 ];
 
 export default function GestaoComercial() {
@@ -188,6 +190,7 @@ export default function GestaoComercial() {
         <div>
           {activeTab === 'vendas' && <GestaoUnificada isDark={isDark} ano={ano} />}
           {activeTab === 'renovacoes' && <Renovacoes isDark={isDark} ano={ano} />}
+          {activeTab === 'leads' && <MeusLeads isDark={isDark} currentUser={currentUser} />}
         </div>
       </div>
 

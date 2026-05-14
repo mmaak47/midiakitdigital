@@ -882,32 +882,65 @@ app.get('/api/share/:code/client-favorites', (req, res) => {
   }
 });
 
-// Admin: list all commercial share links with their client favorites count
+// List commercial share links (vendedores see only their own, admin/diretor see all)
 app.get('/api/commercial-shares', (req, res) => {
   try {
     // Require auth
     const token = extractTokenFromCookie(req) || extractBearerToken(req.headers.authorization);
     if (!token) return res.status(401).json({ error: 'Não autorizado.' });
-    try { parseAuthToken(token); } catch { return res.status(401).json({ error: 'Token inválido.' }); }
+    let claims;
+    try { claims = parseAuthToken(token); } catch { return res.status(401).json({ error: 'Token inválido.' }); }
 
-    const rows = db.prepare(`
-      SELECT sf.code, sf.filters_json, sf.label, sf.client_name, sf.created_at, sf.views,
-             (SELECT COUNT(*) FROM shared_link_favorites slf WHERE slf.share_code = sf.code) AS client_favorites_count
-      FROM shared_filters sf
-      WHERE sf.share_type = 'commercial'
-      ORDER BY sf.created_at DESC
-      LIMIT 100
-    `).all();
+    // Resolve user for role check
+    const authUser = db.prepare('SELECT id, role FROM admin_users WHERE id = ? AND lower(username) = lower(?)').get(Number(claims.sub), String(claims.username || ''));
+    if (!authUser) return res.status(401).json({ error: 'Usuário não encontrado.' });
 
-    const result = rows.map(r => ({
-      code: r.code,
-      clientName: r.client_name,
-      pointCount: (() => { try { const f = JSON.parse(r.filters_json); return f.pointIds?.length || 0; } catch { return 0; } })(),
-      clientFavoritesCount: r.client_favorites_count || 0,
-      views: r.views || 0,
-      createdAt: r.created_at,
-      url: `/s/${r.code}`,
-    }));
+    const isFullAccess = ['admin', 'diretor', 'gerente_comercial'].includes(authUser.role);
+
+    let rows;
+    if (isFullAccess) {
+      rows = db.prepare(`
+        SELECT sf.code, sf.filters_json, sf.label, sf.client_name, sf.created_at, sf.views,
+               sf.created_by_user_id,
+               (SELECT COUNT(*) FROM shared_link_favorites slf WHERE slf.share_code = sf.code) AS client_favorites_count,
+               au.first_name AS vendedor_first, au.last_name AS vendedor_last
+        FROM shared_filters sf
+        LEFT JOIN admin_users au ON au.id = sf.created_by_user_id
+        WHERE sf.share_type = 'commercial'
+        ORDER BY sf.created_at DESC
+        LIMIT 200
+      `).all();
+    } else {
+      // Vendedor: only their own links
+      rows = db.prepare(`
+        SELECT sf.code, sf.filters_json, sf.label, sf.client_name, sf.created_at, sf.views,
+               sf.created_by_user_id,
+               (SELECT COUNT(*) FROM shared_link_favorites slf WHERE slf.share_code = sf.code) AS client_favorites_count
+        FROM shared_filters sf
+        WHERE sf.share_type = 'commercial' AND sf.created_by_user_id = ?
+        ORDER BY sf.created_at DESC
+        LIMIT 100
+      `).all(authUser.id);
+    }
+
+    const result = rows.map(r => {
+      const out = {
+        code: r.code,
+        clientName: r.client_name,
+        pointCount: (() => { try { const f = JSON.parse(r.filters_json); return f.pointIds?.length || 0; } catch { return 0; } })(),
+        clientFavoritesCount: r.client_favorites_count || 0,
+        views: r.views || 0,
+        createdAt: r.created_at,
+        url: `/s/${r.code}`,
+      };
+      // Include discount info if present
+      try { const f = JSON.parse(r.filters_json); if (f.discount) out.discount = f.discount; } catch {}
+      // Include vendedor name for admin/diretor
+      if (isFullAccess && r.vendedor_first) {
+        out.vendedorName = [r.vendedor_first, r.vendedor_last].filter(Boolean).join(' ');
+      }
+      return out;
+    });
 
     res.json(result);
   } catch (err) {
