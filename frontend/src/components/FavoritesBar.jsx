@@ -46,7 +46,7 @@ export default function FavoritesBar({ isDark = true, showProposalCta = true, on
           animate={{ x: 0 }}
           exit={{ x: 60 }}
           onClick={() => setCollapsed(false)}
-          className={`fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center gap-2 pl-3 pr-2 py-3 rounded-l-xl border-l border-t border-b shadow-lg transition-colors ${isDark ? 'bg-brand-dark/95 border-white/10 hover:bg-white/10' : 'bg-white border-neutral-200 hover:bg-neutral-50 shadow-neutral-200'}`}
+          className={`fixed right-0 top-1/2 -translate-y-1/2 z-[9995] flex items-center gap-2 pl-3 pr-2 py-3 rounded-l-xl border-l border-t border-b shadow-lg transition-colors ${isDark ? 'bg-brand-dark/95 border-white/10 hover:bg-white/10' : 'bg-white border-neutral-200 hover:bg-neutral-50 shadow-neutral-200'}`}
         >
           <Heart size={18} className="text-brand-orange" fill="currentColor" />
           <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-neutral-800'}`}>{favorites.length}</span>
@@ -64,7 +64,7 @@ export default function FavoritesBar({ isDark = true, showProposalCta = true, on
         animate={{ x: 0 }}
         exit={{ x: 320 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className={`fixed top-16 right-0 bottom-0 ${SIDEBAR_WIDTH} z-40 flex flex-col border-l backdrop-blur-xl ${isDark ? 'bg-brand-dark/[0.97] border-white/10' : 'bg-white/[0.98] border-neutral-200 shadow-xl'}`}
+        className={`fixed top-16 right-0 bottom-0 ${SIDEBAR_WIDTH} z-[9995] flex flex-col border-l backdrop-blur-xl ${isDark ? 'bg-brand-dark/[0.97] border-white/10' : 'bg-white/[0.98] border-neutral-200 shadow-xl'}`}
       >
         {/* Header */}
         <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
