@@ -829,6 +829,8 @@ app.post('/api/share/:code/client-favorites', express.json({ limit: '32kb' }), (
           const pointsList = items.slice(0, 10).map((p, i) => `  ${i + 1}. ${p.point_name || `Ponto ${p.point_id}`}`).join('\n');
           const moreText = items.length > 10 ? `\n  ... e mais ${items.length - 10} ponto(s)` : '';
           const linkUrl = `https://midiakit.intermidia.tv/s/${code}`;
+          const pontosIds = items.map(p => p.point_id).join(',');
+          const propostaUrl = `https://midiakit.intermidia.tv/comercial/explorar?pontos=${pontosIds}&proposta=1`;
 
           const message = [
             `🔔 *Novo retorno de cliente!*`,
@@ -837,9 +839,12 @@ app.post('/api/share/:code/client-favorites', express.json({ limit: '32kb' }), (
             ``,
             pointsList + moreText,
             ``,
-            `📎 Link: ${linkUrl}`,
+            `📎 Link da seleção: ${linkUrl}`,
             ``,
-            `Acesse o painel para ver os detalhes completos.`,
+            `📝 *Gerar proposta com esses pontos:*`,
+            propostaUrl,
+            ``,
+            `Clique no link acima para abrir o gerador de propostas com os pontos do cliente já carregados.`,
           ].join('\n');
 
           await sendEvolutionText({

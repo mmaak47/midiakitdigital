@@ -30,8 +30,14 @@ export default function Explorer() {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem('intermidia_theme') === 'dark';
   });
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialCidade = searchParams.getAll('cidade');
+  const urlPontoIds = useMemo(() => {
+    const raw = searchParams.get('pontos');
+    if (!raw) return null;
+    return raw.split(',').map(Number).filter(n => Number.isFinite(n) && n > 0);
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps — read only once on mount
+  const autoProposal = searchParams.get('proposta') === '1';
 
   const [pontos, setPontos] = useState([]);
   const [allPontos, setAllPontos] = useState([]);
@@ -116,6 +122,23 @@ export default function Explorer() {
       setCensusProfiles(Object.keys(censusMap).length ? censusMap : null);
     }).catch(() => setAllPontos([]));
   }, []);
+
+  // Pre-load favorites from URL ?pontos=1,2,3 (e.g. vendedor clicking from WhatsApp notification)
+  const [urlPontosLoaded, setUrlPontosLoaded] = useState(false);
+  useEffect(() => {
+    if (!urlPontoIds?.length || !allPontos.length || urlPontosLoaded) return;
+    const idSet = new Set(urlPontoIds);
+    const matched = allPontos.filter(p => idSet.has(p.id));
+    if (matched.length) {
+      addFavorites(matched);
+      // Clean URL params after loading to avoid re-adding on context changes
+      const next = new URLSearchParams(searchParams);
+      next.delete('pontos');
+      next.delete('proposta');
+      setSearchParams(next, { replace: true });
+    }
+    setUrlPontosLoaded(true);
+  }, [allPontos, urlPontoIds, urlPontosLoaded, addFavorites, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -583,7 +606,7 @@ export default function Explorer() {
       {selected && <PointModal ponto={selected} onClose={() => setSelected(null)} isDark={isDark} geoProfile={geoProfiles?.[selected.id]} censusProfile={censusProfiles?.[selected.id]} />}
 
       {/* Favorites bar */}
-      <FavoritesBar isDark={isDark} showCommercialShare />
+      <FavoritesBar isDark={isDark} showCommercialShare autoOpenProposal={autoProposal && urlPontosLoaded} />
     </div>
   );
 }

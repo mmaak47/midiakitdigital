@@ -9,12 +9,19 @@ const ProposalModal = lazy(() => import('./ProposalModal'));
 
 const SIDEBAR_WIDTH = 'w-80'; // 320px
 
-export default function FavoritesBar({ isDark = true, showProposalCta = true, onShareFavorites = null, shareLoading = false, showCommercialShare = false }) {
+export default function FavoritesBar({ isDark = true, showProposalCta = true, onShareFavorites = null, shareLoading = false, showCommercialShare = false, autoOpenProposal = false }) {
   const { favorites, removeFavorite, clearFavorites, totalPreco, totalFluxo, totalTelas, sidebarOpen, setSidebarOpen } = useFavorites();
   const [showProposal, setShowProposal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [discountMode, setDiscountMode] = useState('percent'); // 'percent' | 'fixed'
   const [discountValue, setDiscountValue] = useState('');
+
+  // Auto-open ProposalModal when triggered via URL (e.g. vendedor click from WhatsApp)
+  useEffect(() => {
+    if (autoOpenProposal && favorites.length > 0 && !showProposal) {
+      setShowProposal(true);
+    }
+  }, [autoOpenProposal, favorites.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-expand sidebar whenever a favorite is added
   useEffect(() => {
