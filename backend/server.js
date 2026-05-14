@@ -873,11 +873,20 @@ app.use('/uploads', express.static(uploadsPath, {
 }));
 
 // Serve frontend build
+// Hashed assets (JS/CSS) get 30-day cache (hash changes on every build).
+// HTML files get no-cache to ensure browser always loads latest asset references.
 app.use(express.static(frontendDistPath, {
   maxAge: '30d',
   etag: true,
   lastModified: true,
-  index: false
+  index: false,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
 }));
 
 // Multer config for image uploads
