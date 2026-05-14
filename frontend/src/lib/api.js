@@ -1483,9 +1483,13 @@ export async function fetchLoopAvailability() {
 
 // ── Commercial share links ──────────────────────────────────────────
 export async function createCommercialShareLink({ pointIds, clientName }) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getAdminToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch('/api/share', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
+    credentials: 'include',
     body: JSON.stringify({
       filters: { pointIds },
       client_name: clientName,

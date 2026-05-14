@@ -179,6 +179,7 @@ export default function SharedView() {
 
   const isCommercial = shareData?.shareType === 'commercial';
   const clientName = shareData?.clientName || '';
+  const vendedor = shareData?.vendedor || null;
 
   const toggleClientFav = useCallback((ponto) => {
     setClientFavs((prev) => {
@@ -275,7 +276,7 @@ export default function SharedView() {
   }, [pontos]);
 
   const stats = useMemo(() => ({
-    totalTelas: pontos.reduce((s, p) => s + (Number(p.telas) || 0), 0),
+    totalPontos: pontos.length,
     totalFluxo: pontos.reduce((s, p) => s + (Number(p.fluxo) || 0), 0),
     totalInsercoes: pontos.reduce((s, p) => s + (Number(p.insercoes) || 0), 0),
   }), [pontos]);
@@ -348,10 +349,10 @@ export default function SharedView() {
               <i className="ri-link" style={{ fontSize: 12 }} />
               <span className="hidden sm:inline">Copiar link</span>
             </button>
-            <a href={`https://wa.me/${WA_COMERCIAL}?text=${waText}`} target="_blank" rel="noopener noreferrer"
+            <a href={`https://wa.me/${isCommercial && vendedor?.whatsapp ? vendedor.whatsapp.replace(/\D/g, '') : WA_COMERCIAL}?text=${waText}`} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors shadow-sm">
               <i className="ri-whatsapp-line" style={{ fontSize: 13 }} />
-              <span className="hidden sm:inline">Falar com especialista</span>
+              <span className="hidden sm:inline">{isCommercial && vendedor ? `Falar com ${vendedor.firstName}` : 'Falar com especialista'}</span>
             </a>
           </div>
         </div>
@@ -379,7 +380,7 @@ export default function SharedView() {
                 </span>
                 <span className={t.separator}>|</span>
                 <span className="inline-flex items-center gap-1.5">
-                  <i className="ri-tv-2-line text-brand-orange" style={{ fontSize: 14 }} />{formatInt(stats.totalTelas)} telas
+                  <i className="ri-tv-2-line text-brand-orange" style={{ fontSize: 14 }} />{formatInt(stats.totalPontos)} pontos de impacto
                 </span>
                 <span className={t.separator}>|</span>
                 <span className="inline-flex items-center gap-1.5">
@@ -391,6 +392,32 @@ export default function SharedView() {
                   <i className="ri-information-line mr-1" style={{ fontSize: 12 }} />
                   Clique no <i className="ri-heart-3-line text-brand-orange" style={{ fontSize: 11 }} /> dos pontos que mais gostou e envie sua seleção
                 </p>
+              )}
+              {/* Vendedor signature */}
+              {isCommercial && vendedor && (
+                <div className={`mt-4 inline-flex items-center gap-3 px-4 py-2.5 rounded-xl border ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-[#EFE0D8] bg-white/60'}`}>
+                  {vendedor.photoUrl ? (
+                    <img src={vendedor.photoUrl} alt={vendedor.name} className="w-9 h-9 rounded-full object-cover border-2 border-brand-orange/30" />
+                  ) : (
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${isDark ? 'bg-brand-orange/20 text-brand-orange' : 'bg-[#FFF0EA] text-[#C94A1A]'}`}>
+                      {(vendedor.firstName || 'C')[0].toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <div className={`text-xs font-semibold ${t.text}`}>{vendedor.name}</div>
+                    <div className={`text-[10px] ${t.textMuted}`}>Seu consultor Intermídia</div>
+                  </div>
+                  {vendedor.whatsapp && (
+                    <a
+                      href={`https://wa.me/${vendedor.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${vendedor.firstName}! Vi a seleção de pontos que você preparou para mim.`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-1 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-semibold bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors"
+                    >
+                      <i className="ri-whatsapp-line" style={{ fontSize: 12 }} />Falar
+                    </a>
+                  )}
+                </div>
               )}
               {filters && !isFavoritesLink && !isCommercial && (
                 <div className="flex flex-wrap gap-1.5 mt-3">
@@ -483,7 +510,7 @@ export default function SharedView() {
                         </p>
                       )}
                       <div className="grid grid-cols-3 gap-2 mb-3">
-                        {[['Telas', ponto.telas], ['Fluxo', ponto.fluxo], ['Inserções', ponto.insercoes]].map(([label, val]) => (
+                        {[['Impactos', ponto.telas], ['Fluxo', ponto.fluxo], ['Inserções', ponto.insercoes]].map(([label, val]) => (
                           <div key={label} className="text-center">
                             <div className={`text-[10px] uppercase ${t.statsLabel}`}>{label}</div>
                             <div className={`text-sm font-bold ${t.statsVal}`}>{formatInt(val || 0)}</div>
@@ -522,7 +549,7 @@ export default function SharedView() {
                           </p>
                         )}
                         <div className={`flex flex-wrap gap-4 text-xs ${t.listMeta}`}>
-                          <span><i className="ri-tv-2-line text-brand-orange mr-1" style={{ fontSize: 11 }} />{formatInt(ponto.telas || 0)} telas</span>
+                          <span><i className="ri-tv-2-line text-brand-orange mr-1" style={{ fontSize: 11 }} />{formatInt(ponto.telas || 0)} impactos</span>
                           <span><i className="ri-group-line text-brand-orange mr-1" style={{ fontSize: 11 }} />{formatInt(ponto.fluxo || 0)} fluxo</span>
                           <span><i className="ri-hashtag text-brand-orange mr-1" style={{ fontSize: 11 }} />{formatInt(ponto.insercoes || 0)} inserç.</span>
                           <span><i className="ri-time-line text-brand-orange mr-1" style={{ fontSize: 11 }} />{normalizeHorarioForPdf(ponto.horario, 'N/I')}</span>
@@ -600,12 +627,23 @@ export default function SharedView() {
               <i className="ri-check-double-line text-green-400" style={{ fontSize: 28 }} />
             </div>
             <h3 className="text-lg font-bold mb-2">Obrigado, {clientName}!</h3>
-            <p className={`text-sm mb-5 ${t.footerText}`}>Sua seleção de {clientFavs.size} ponto{clientFavs.size > 1 ? 's' : ''} favorito{clientFavs.size > 1 ? 's' : ''} foi enviada com sucesso. Nossa equipe entrará em contato em breve!</p>
-            <a href={`https://wa.me/${WA_COMERCIAL}?text=${encodeURIComponent(`Olá! Sou ${clientName} e acabei de enviar meus pontos favoritos na seleção que recebi. Gostaria de conversar sobre a campanha!`)}`}
-              target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors shadow-lg shadow-[#25D366]/20">
-              <i className="ri-whatsapp-line" style={{ fontSize: 16 }} />Falar pelo WhatsApp
-            </a>
+            <p className={`text-sm mb-5 ${t.footerText}`}>
+              Sua seleção de {clientFavs.size} ponto{clientFavs.size > 1 ? 's' : ''} favorito{clientFavs.size > 1 ? 's' : ''} foi enviada com sucesso.
+              {vendedor ? ` ${vendedor.firstName} já foi notificado e entrará em contato em breve!` : ' Nossa equipe entrará em contato em breve!'}
+            </p>
+            {vendedor?.whatsapp ? (
+              <a href={`https://wa.me/${vendedor.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${vendedor.firstName}! Sou ${clientName}, acabei de selecionar meus pontos favoritos na seleção que você preparou. Gostaria de conversar sobre a campanha!`)}`}
+                target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors shadow-lg shadow-[#25D366]/20">
+                <i className="ri-whatsapp-line" style={{ fontSize: 16 }} />Falar com {vendedor.firstName}
+              </a>
+            ) : (
+              <a href={`https://wa.me/${WA_COMERCIAL}?text=${encodeURIComponent(`Olá! Sou ${clientName} e acabei de enviar meus pontos favoritos na seleção que recebi. Gostaria de conversar sobre a campanha!`)}`}
+                target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors shadow-lg shadow-[#25D366]/20">
+                <i className="ri-whatsapp-line" style={{ fontSize: 16 }} />Falar pelo WhatsApp
+              </a>
+            )}
             <div className={`mt-8 pt-6 border-t text-[11px] ${isDark ? 'border-white/5' : 'border-[#F2DDD4]'} ${t.footerMuted}`}>
               Intermídia Comunicação Visual &mdash; Mídia Kit Digital
             </div>

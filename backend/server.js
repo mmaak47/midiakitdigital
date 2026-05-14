@@ -173,9 +173,10 @@ try {
   try { db.exec(`ALTER TABLE leads ADD COLUMN origem TEXT`); } catch { /* exists */ }
   try { db.exec(`ALTER TABLE leads ADD COLUMN ultima_mensagem TEXT`); } catch { /* exists */ }
 
-  // Commercial share links — client_name + share_type
+  // Commercial share links — client_name + share_type + vendedor
   try { db.exec(`ALTER TABLE shared_filters ADD COLUMN client_name TEXT`); } catch { /* exists */ }
   try { db.exec(`ALTER TABLE shared_filters ADD COLUMN share_type TEXT DEFAULT 'public'`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE shared_filters ADD COLUMN created_by_user_id INTEGER`); } catch { /* exists */ }
 
   // Client favorites on shared links — what the client liked
   db.exec(`
@@ -677,6 +678,16 @@ app.post('/api/share', shareLimiter, express.json({ limit: '16kb' }), (req, res)
     const sanitizedClientName = typeof client_name === 'string' ? client_name.trim().slice(0, 200) : null;
     const sanitizedShareType = share_type === 'commercial' ? 'commercial' : 'public';
 
+    // Try to extract vendedor from auth token (optional — public share doesn't require auth)
+    let createdByUserId = null;
+    try {
+      const token = extractBearerToken(req.headers.authorization) || extractTokenFromCookie(req);
+      if (token) {
+        const claims = parseAuthToken(token);
+        createdByUserId = Number(claims.sub) || null;
+      }
+    } catch { /* no auth — that's fine for public shares */ }
+
     // Commercial links are always unique (never reuse) since they're client-specific
     if (sanitizedShareType !== 'commercial') {
       const filtersJson = JSON.stringify(clean);
@@ -697,11 +708,12 @@ app.post('/api/share', shareLimiter, express.json({ limit: '16kb' }), (req, res)
       if (attempt === 9) return res.status(500).json({ error: 'Falha ao gerar código único.' });
     }
 
-    db.prepare('INSERT INTO shared_filters (code, filters_json, label, client_name, share_type) VALUES (?, ?, ?, ?, ?)').run(
+    db.prepare('INSERT INTO shared_filters (code, filters_json, label, client_name, share_type, created_by_user_id) VALUES (?, ?, ?, ?, ?, ?)').run(
       code, filtersJson,
       typeof label === 'string' ? label.trim().slice(0, 200) : null,
       sanitizedClientName,
-      sanitizedShareType
+      sanitizedShareType,
+      createdByUserId
     );
 
     res.json({ code, url: `/s/${code}` });
@@ -717,7 +729,7 @@ app.get('/api/share/:code', (req, res) => {
     if (!code || typeof code !== 'string' || code.length > 12) {
       return res.status(400).json({ error: 'Código inválido.' });
     }
-    const row = db.prepare('SELECT code, filters_json, label, client_name, share_type, created_at, views FROM shared_filters WHERE code = ?').get(code);
+    const row = db.prepare('SELECT code, filters_json, label, client_name, share_type, created_by_user_id, created_at, views FROM shared_filters WHERE code = ?').get(code);
     if (!row) return res.status(404).json({ error: 'Link não encontrado.' });
 
     // Incrementa views
@@ -727,6 +739,20 @@ app.get('/api/share/:code', (req, res) => {
     const resp = { code: row.code, filters, label: row.label, createdAt: row.created_at, views: row.views + 1 };
     if (row.client_name) resp.clientName = row.client_name;
     if (row.share_type && row.share_type !== 'public') resp.shareType = row.share_type;
+
+    // Include vendedor info for commercial links
+    if (row.created_by_user_id) {
+      const vendedor = db.prepare('SELECT id, first_name, last_name, whatsapp, photo_url FROM admin_users WHERE id = ?').get(row.created_by_user_id);
+      if (vendedor) {
+        resp.vendedor = {
+          name: [vendedor.first_name, vendedor.last_name].filter(Boolean).join(' ') || 'Consultor',
+          firstName: vendedor.first_name || 'Consultor',
+          whatsapp: vendedor.whatsapp || null,
+          photoUrl: vendedor.photo_url || null,
+        };
+      }
+    }
+
     res.json(resp);
   } catch (err) {
     console.error('[share/get]', err.message);
@@ -743,7 +769,7 @@ app.post('/api/share/:code/client-favorites', express.json({ limit: '32kb' }), (
       return res.status(400).json({ error: 'Código inválido.' });
     }
 
-    const row = db.prepare('SELECT id, code, client_name, share_type FROM shared_filters WHERE code = ?').get(code);
+    const row = db.prepare('SELECT id, code, client_name, share_type, created_by_user_id FROM shared_filters WHERE code = ?').get(code);
     if (!row) return res.status(404).json({ error: 'Link não encontrado.' });
     if (row.share_type !== 'commercial') {
       return res.status(400).json({ error: 'Este link não aceita favoritos de cliente.' });
@@ -774,6 +800,54 @@ app.post('/api/share/:code/client-favorites', express.json({ limit: '32kb' }), (
     }
 
     console.log(`[share/client-favorites] Client submitted ${items.length} favorites for code=${code} (client: ${row.client_name || 'N/I'})`);
+
+    // ── Send WhatsApp notification to vendedor via Evolution API ──
+    if (row.created_by_user_id) {
+      setImmediate(async () => {
+        try {
+          const vendedor = db.prepare('SELECT first_name, last_name, whatsapp FROM admin_users WHERE id = ?').get(row.created_by_user_id);
+          if (!vendedor?.whatsapp) {
+            console.log('[share/client-favorites] Vendedor sem WhatsApp, notificação não enviada');
+            return;
+          }
+
+          const evo = getEvolutionSettings();
+          if (!evo.evolution_api_url || !evo.evolution_instance || !evo.evolution_api_key) {
+            console.log('[share/client-favorites] Evolution API não configurada');
+            return;
+          }
+
+          const clientLabel = row.client_name || 'Cliente';
+          const pointsList = items.slice(0, 10).map((p, i) => `  ${i + 1}. ${p.point_name || `Ponto ${p.point_id}`}`).join('\n');
+          const moreText = items.length > 10 ? `\n  ... e mais ${items.length - 10} ponto(s)` : '';
+          const linkUrl = `https://midiakit.intermidia.tv/s/${code}`;
+
+          const message = [
+            `🔔 *Novo retorno de cliente!*`,
+            ``,
+            `O cliente *${clientLabel}* acabou de selecionar ${items.length} ponto${items.length > 1 ? 's' : ''} favorito${items.length > 1 ? 's' : ''} na seleção que você enviou:`,
+            ``,
+            pointsList + moreText,
+            ``,
+            `📎 Link: ${linkUrl}`,
+            ``,
+            `Acesse o painel para ver os detalhes completos.`,
+          ].join('\n');
+
+          await sendEvolutionText({
+            apiUrl: evo.evolution_api_url,
+            instance: String(evo.evolution_pdf_instance || evo.evolution_instance || 'aux adm').trim(),
+            apiKey: evo.evolution_api_key,
+            number: vendedor.whatsapp,
+            text: message,
+          });
+          console.log(`[share/client-favorites] WhatsApp enviado para vendedor ${vendedor.first_name} (${vendedor.whatsapp})`);
+        } catch (err) {
+          console.error('[share/client-favorites] Erro ao enviar WhatsApp:', err.message);
+        }
+      });
+    }
+
     res.json({ ok: true, count: items.length });
   } catch (err) {
     console.error('[share/client-favorites]', err.message);
