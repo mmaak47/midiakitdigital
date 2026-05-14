@@ -1,15 +1,25 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, ShoppingCart, Trash2, FileText, X, ChevronRight } from 'lucide-react';
-import { useState } from 'react';
+import { Heart, Trash2, FileText, X, ChevronRight, Link2 } from 'lucide-react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { useFavorites } from '../context/FavoritesContext';
-import ProposalModal from './ProposalModal';
+import { trackEvent } from '../lib/tracking';
+
+const ProposalModal = lazy(() => import('./ProposalModal'));
 
 const SIDEBAR_WIDTH = 'w-80'; // 320px
 
-export default function FavoritesBar({ isDark = true }) {
-  const { favorites, removeFavorite, clearFavorites, totalPreco, totalFluxo, totalTelas } = useFavorites();
-  const [collapsed, setCollapsed] = useState(false);
+export default function FavoritesBar({ isDark = true, showProposalCta = true, onShareFavorites = null, shareLoading = false }) {
+  const { favorites, removeFavorite, clearFavorites, totalPreco, totalFluxo, totalTelas, sidebarOpen, setSidebarOpen } = useFavorites();
   const [showProposal, setShowProposal] = useState(false);
+
+  // Sync sidebar open state with context so other components (chat) can react
+  useEffect(() => {
+    if (favorites.length > 0) setSidebarOpen(true);
+    return () => setSidebarOpen(false); // cleanup on unmount
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const collapsed = !sidebarOpen;
+  const setCollapsed = (val) => setSidebarOpen(!val);
 
   const formatCurrency = (n) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
@@ -30,11 +40,11 @@ export default function FavoritesBar({ isDark = true }) {
           onClick={() => setCollapsed(false)}
           className={`fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center gap-2 pl-3 pr-2 py-3 rounded-l-xl border-l border-t border-b shadow-lg transition-colors ${isDark ? 'bg-brand-dark/95 border-white/10 hover:bg-white/10' : 'bg-white border-neutral-200 hover:bg-neutral-50 shadow-neutral-200'}`}
         >
-          <ShoppingCart size={18} className="text-brand-orange" />
+          <Heart size={18} className="text-brand-orange" fill="currentColor" />
           <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-neutral-800'}`}>{favorites.length}</span>
           <ChevronRight size={14} className={`rotate-180 ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`} />
         </motion.button>
-        {showProposal && <ProposalModal onClose={() => setShowProposal(false)} isDark={isDark} />}
+        {showProposal && <Suspense fallback={null}><ProposalModal onClose={() => setShowProposal(false)} isDark={isDark} /></Suspense>}
       </>
     );
   }
@@ -52,20 +62,20 @@ export default function FavoritesBar({ isDark = true }) {
         <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
           <div className="flex items-center gap-2.5">
             <div className="relative">
-              <ShoppingCart size={18} className="text-brand-orange" />
+              <Heart size={18} className="text-brand-orange" fill="currentColor" />
               <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-brand-orange rounded-full text-[10px] font-bold flex items-center justify-center text-white px-1">
                 {favorites.length}
               </span>
             </div>
             <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-800'}`}>
-              Meu plano
+              Meus favoritos
             </span>
           </div>
           <div className="flex items-center gap-1">
             <button
-              onClick={clearFavorites}
+              onClick={() => { clearFavorites(); trackEvent('favorites_cleared', { count: favorites.length }); }}
               className={`p-1.5 rounded-lg transition-colors text-[11px] ${isDark ? 'hover:bg-white/10 text-brand-gray-500 hover:text-red-400' : 'hover:bg-neutral-100 text-neutral-400 hover:text-red-500'}`}
-              title="Limpar tudo"
+              title="Limpar favoritos"
             >
               <Trash2 size={14} />
             </button>
@@ -81,7 +91,7 @@ export default function FavoritesBar({ isDark = true }) {
 
         {/* Summary strip */}
         <div className={`px-4 py-2.5 border-b text-[11px] flex items-center justify-between ${isDark ? 'border-white/5 text-brand-gray-500' : 'border-neutral-100 text-neutral-500'}`}>
-          <span>{totalTelas} pontos de impacto</span>
+          <span>{totalTelas} telas</span>
           <span>·</span>
           <span>{formatNumber(totalFluxo)} pessoas/mês</span>
         </div>
@@ -119,22 +129,37 @@ export default function FavoritesBar({ isDark = true }) {
         {/* Footer — total + CTA */}
         <div className={`px-4 py-4 border-t space-y-3 ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
           <div className="flex items-center justify-between">
-            <span className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Total mensal</span>
+            <span className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Investimento mensal</span>
             <span className={`text-lg font-bold font-heading ${isDark ? 'text-white' : 'text-neutral-900'}`}>
               {formatCurrency(totalPreco)}
             </span>
           </div>
-          <button
-            onClick={() => setShowProposal(true)}
-            className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] text-sm"
-          >
-            <FileText size={16} />
-            Gerar proposta
-          </button>
+          {onShareFavorites && (
+            <button
+              onClick={onShareFavorites}
+              disabled={shareLoading}
+              className={`w-full flex items-center justify-center gap-2 px-5 py-3 font-semibold rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] text-sm mb-2 ${isDark ? 'bg-white/10 text-white border border-white/15 hover:bg-white/15' : 'bg-neutral-100 text-neutral-800 border border-neutral-200 hover:bg-neutral-200'}`}
+            >
+              {shareLoading ? (
+                <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Gerando link...</>
+              ) : (
+                <><Link2 size={16} /> Compartilhar favoritos</>
+              )}
+            </button>
+          )}
+          {showProposalCta && (
+            <button
+              onClick={() => setShowProposal(true)}
+              className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-brand-orange text-white font-semibold rounded-xl hover:bg-brand-orange-hover transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] text-sm"
+            >
+              <FileText size={16} />
+              Gerar proposta
+            </button>
+          )}
         </div>
       </motion.aside>
 
-      {showProposal && <ProposalModal onClose={() => setShowProposal(false)} isDark={isDark} />}
+      {showProposal && <Suspense fallback={null}><ProposalModal onClose={() => setShowProposal(false)} isDark={isDark} /></Suspense>}
     </>
   );
 }

@@ -5,7 +5,7 @@ import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
   Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings,
   Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap, ClipboardList, Activity,
-  LogOut, Camera, Info, Send
+  LogOut, Camera, Info, Send, Heart
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { normalizeHorarioForPdf } from '../lib/horarioUtils';
@@ -50,6 +50,7 @@ import NovaVendaTab from '../components/admin/NovaVendaTab';
 import VendasListTab from '../components/admin/VendasListTab';
 import AuditoriaLoopTab from '../components/admin/AuditoriaLoopTab';
 import LeadsTab from '../components/admin/LeadsTab';
+import FavoritesAnalyticsTab from '../components/admin/FavoritesAnalyticsTab';
 import PropostasTab from '../components/admin/PropostasTab';
 import WhatsappLogsTab from '../components/admin/WhatsappLogsTab';
 import CustomSelect from '../components/CustomSelect';
@@ -85,6 +86,7 @@ const ADMIN_TAB_GROUPS = [
     { key: 'historico_vendas', label: 'Vendas',             icon: ClipboardList, roles: ['admin', 'diretor', 'gerente_comercial', 'vendedor'] },
     { key: 'gestao_comercial', label: 'Gestão Comercial',   icon: Activity,      roles: ['admin', 'diretor', 'gerente_comercial', 'vendedor'], href: '/comercial/gestao' },
     { key: 'leads',            label: 'Leads',              icon: UserPlus,      roles: ['admin', 'gerente_comercial'] },
+    { key: 'favoritos',        label: 'Favoritos',          icon: Heart,         roles: ['admin', 'gerente_comercial'] },
     { key: 'propostas',        label: 'Propostas',          icon: FileText,      roles: ['admin', 'gerente_comercial'] },
     { key: 'auditoria_loop',   label: 'Auditoria de Loop',  icon: RefreshCcw,    roles: ['admin', 'gerente_comercial', 'vendedor'] },
   ]},
@@ -1889,6 +1891,10 @@ export default function Admin() {
 
         {activeTab === 'leads' ? (
           <LeadsTab isDark={isDark} />
+        ) : null}
+
+        {activeTab === 'favoritos' ? (
+          <FavoritesAnalyticsTab isDark={isDark} />
         ) : null}
 
         {activeTab === 'propostas' ? (

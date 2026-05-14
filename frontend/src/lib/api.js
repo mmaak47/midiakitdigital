@@ -1460,3 +1460,23 @@ export async function convertLead(id, { link_id, venda_id, notas } = {}) {
   }
   return res.json();
 }
+
+export async function fetchFavoritesAnalytics(days = 30) {
+  const res = await apiRequest(`/analytics/favorites?days=${days}`);
+  if (!res.ok) throw new Error('Erro ao carregar analytics de favoritos.');
+  return res.json();
+}
+
+/**
+ * Fetch loop audit availability data for urgency signals.
+ * Returns { items: [...] } or null on failure (graceful).
+ */
+export async function fetchLoopAvailability() {
+  try {
+    const res = await apiRequest('/loop-audit');
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}

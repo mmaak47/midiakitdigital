@@ -345,4 +345,141 @@ async function renderHtmlToPdfCompressed(htmlContent) {
   return comprimirPdfComGs(rawBuffer);
 }
 
-module.exports = { renderHtmlToPdf, renderHtmlToPdfCompressed, comprimirPdfComGs };
+// ─────────────────────────────────────────
+// SCREENSHOT — Renderiza HTML como PNG (para editor visual de propostas)
+// Reutiliza o Puppeteer pool existente.
+// Se opts.extractEditables = true, extrai posicoes de [data-editable] via
+// page.evaluate ANTES de esconde-los, e retorna { screenshot, editables }.
+// Isso garante que as posicoes medidas correspondem EXATAMENTE ao PNG
+// (mesmas fonts, mesmo CSS, mesmo ambiente de renderizacao).
+// ─────────────────────────────────────────
+async function renderHtmlToScreenshot(htmlContent, opts = {}) {
+  const width = opts.width || 1366;
+  const height = opts.height || 768;
+  const deviceScaleFactor = opts.scale || 2;
+  const extractEditables = opts.extractEditables || false;
+
+  return _queueRender(async () => {
+    const browser = await getBrowser();
+    const page = await browser.newPage();
+
+    try {
+      await page.setViewport({ width, height, deviceScaleFactor });
+      page.setDefaultTimeout(30000);
+      // JS precisa estar habilitado para page.evaluate (extrair editaveis)
+      if (!extractEditables) {
+        await page.setJavaScriptEnabled(false);
+      }
+      await page.setRequestInterception(true);
+      page.on('request', (request) => {
+        const url = String(request.url() || '');
+        if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('about:')) {
+          request.continue();
+          return;
+        }
+        try {
+          const parsed = new URL(url);
+          const host = String(parsed.hostname || '').toLowerCase();
+          if (ALLOWED_HOSTS.has(host)) { request.continue(); return; }
+        } catch { /* fall through */ }
+        request.abort();
+      });
+
+      let htmlReady = htmlContent;
+      if (_fontCssInjection) {
+        htmlReady = htmlReady.replace('<head>', `<head>${_fontCssInjection}`);
+      }
+
+      await page.setContent(htmlReady, { waitUntil: 'load', timeout: 30000 });
+
+      // Layout settle
+      if (PDF_LAYOUT_SETTLE_MS > 0) {
+        await new Promise((r) => setTimeout(r, PDF_LAYOUT_SETTLE_MS));
+      }
+
+      // ── Extrair posicoes de [data-editable] (antes de esconder) ──
+      let editables = null;
+      if (extractEditables) {
+        editables = await page.evaluate(() => {
+          function rgbToHex(color) {
+            if (!color) return '#000000';
+            if (color.startsWith('#')) return color;
+            var match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+            if (!match) return color;
+            return '#' + [match[1], match[2], match[3]]
+              .map(function(c) { return parseInt(c, 10).toString(16).padStart(2, '0'); }).join('');
+          }
+
+          var section = document.querySelector('section') || document.body.firstElementChild;
+          if (!section) return [];
+          var sectionRect = section.getBoundingClientRect();
+          var result = [];
+
+          section.querySelectorAll('[data-editable]').forEach(function(el, idx) {
+            var rect = el.getBoundingClientRect();
+            var cs = getComputedStyle(el);
+            var left = rect.left - sectionRect.left;
+            var top = rect.top - sectionRect.top;
+            var w = rect.width;
+            var h = rect.height;
+            if (w < 1 || h < 1) return;
+            var text = el.textContent.trim();
+            if (!text) return;
+
+            var fontSize = parseFloat(cs.fontSize) || 16;
+            var lineHeightRatio = 1.2;
+            if (cs.lineHeight && cs.lineHeight !== 'normal') {
+              var lhPx = parseFloat(cs.lineHeight);
+              if (isFinite(lhPx) && fontSize > 0) lineHeightRatio = lhPx / fontSize;
+            }
+            var charSpacing = 0;
+            if (cs.letterSpacing && cs.letterSpacing !== 'normal') {
+              var lsPx = parseFloat(cs.letterSpacing);
+              if (isFinite(lsPx) && fontSize > 0) charSpacing = Math.round((lsPx / fontSize) * 1000);
+            }
+
+            result.push({
+              id: 'editable_' + (el.dataset.editable || '') + '_' + idx,
+              dataKey: el.dataset.editable || '',
+              elementType: 'editable-text',
+              text: text,
+              left: Math.round(left),
+              top: Math.round(top),
+              width: Math.round(w),
+              height: Math.round(h),
+              fontSize: Math.round(fontSize),
+              fontWeight: cs.fontWeight || '400',
+              fontFamily: cs.fontFamily || 'Poppins, system-ui, sans-serif',
+              fill: rgbToHex(cs.color || '#1A1A2E'),
+              lineHeight: Math.round(lineHeightRatio * 100) / 100,
+              charSpacing: charSpacing,
+              textAlign: cs.textAlign === 'start' ? 'left' : (cs.textAlign || 'left'),
+            });
+          });
+
+          return result;
+        });
+
+        // Esconder editaveis para screenshot do background
+        await page.evaluate(() => {
+          document.querySelectorAll('[data-editable]').forEach(function(el) {
+            el.style.visibility = 'hidden';
+          });
+        });
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      const screenshot = await page.screenshot({
+        type: 'png',
+        clip: { x: 0, y: 0, width, height },
+        omitBackground: false,
+      });
+
+      return { screenshot, editables };
+    } finally {
+      try { await page.close(); } catch { /* ignore */ }
+    }
+  });
+}
+
+module.exports = { renderHtmlToPdf, renderHtmlToPdfCompressed, comprimirPdfComGs, renderHtmlToScreenshot };

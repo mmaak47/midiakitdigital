@@ -10,6 +10,7 @@ const Admin = lazy(() => import('./pages/Admin'));
 const CampaignPlanner = lazy(() => import('./pages/CampaignPlanner'));
 const GestaoComercial = lazy(() => import('./pages/GestaoComercial'));
 const PropostaPublica = lazy(() => import('./pages/PropostaPublica'));
+const SharedView = lazy(() => import('./pages/SharedView'));
 const TvWall = lazy(() => import('./pages/TvWall'));
 
 function hasAuthHintCookie() {
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/comercial/explorar" element={<RequireCommercialAuth><Explorer /></RequireCommercialAuth>} />
             <Route path="/painel-tv" element={<TvWall />} />
             <Route path="/p/:token" element={<PropostaPublica />} />
+            <Route path="/s/:code" element={<SharedView />} />
             <Route path="/explorar" element={<Navigate to="/" replace />} />
             <Route path="/admin" element={<Navigate to="/comercial/admin" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />

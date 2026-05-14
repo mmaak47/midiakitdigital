@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Bold,
@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Italic,
+  LayoutGrid,
   List,
   Download,
   FileText,
@@ -58,16 +59,8 @@ import QuickPresentationMode from './QuickPresentationMode';
 
 const DEFAULT_ENTORNO_RADIUS = 800;
 
-// High-realism preset applied automatically
-const REALISM_PRESET = normalizeDisplaySettings({
-  ...defaultDisplaySettings,
-  brightness: 1.35,
-  reflection: 0.32,
-  spill: 0.28,
-  ledPixelIntensity: 0.30,
-  ledPixelSize: 6,
-  glare: 0.22
-});
+// Defaults já são realistas — sem necessidade de preset separado.
+const REALISM_PRESET = normalizeDisplaySettings(defaultDisplaySettings);
 
 const WIZARD_STEPS = [
   { id: 1, label: 'Dados' },
@@ -454,6 +447,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
   const [shareCopied, setShareCopied] = useState(false);
   const [sessionExpiredModal, setSessionExpiredModal] = useState({ open: false, message: '' });
   const [pdfSections, setPdfSections] = useState({ methodology: true, entornoEvidence: true, coverage: false, impact: true, mapPrint: false });
+  const [pdfLayout, setPdfLayout] = useState(() => draft?.pdfLayout || 'auto'); // 'auto' | 'grid' | 'individual'
   const [connectMapPoints, setConnectMapPoints] = useState(true);
   const [mapBusy, setMapBusy] = useState(false);
   const [mapStatus, setMapStatus] = useState('');
@@ -612,11 +606,12 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
       discountConfig,
       analysisMode,
       pdfSections,
+      pdfLayout,
       pdfPointEdits,
       pdfExcludedPointIds,
       pointArtAssignments
     });
-  }, [form, discountConfig, analysisMode, pdfSections, pdfPointEdits, pdfExcludedPointIds, pointArtAssignments]);
+  }, [form, discountConfig, analysisMode, pdfSections, pdfLayout, pdfPointEdits, pdfExcludedPointIds, pointArtAssignments]);
 
   useEffect(() => {
     if (!open) return;
@@ -1301,7 +1296,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
         showImpactSection: pdfSections.impact,
         customCommercialNote: form.customCommercialNote || '',
         sellerSignature: sellerSignaturePayload,
-        proposalOptions: proposalOptionsPayload
+        proposalOptions: proposalOptionsPayload,
+        layoutMode: pdfLayout
       });
     } catch (error) {
       console.error('[ProposalModal] PDF export failed:', error);
@@ -2750,6 +2746,47 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
               {/* ═══ STEP 6 — Gerar proposta ═══ */}
               {wizardStep === 6 && (
                 <motion.div key="step6" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
+
+                  {/* Layout dos endereços no PDF */}
+                  <Card isDark={isDark} title="Layout dos endereços">
+                    <p className={`mb-3 text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                      Escolha como os endereços serão exibidos no PDF. No modo automático, propostas com {'≥'}30 pontos usam cards compactos.
+                    </p>
+                    <div className="flex gap-2">
+                      {[
+                        { value: 'auto', label: 'Automático', Icon: Settings2, desc: 'Cards a partir de 30 endereços, página inteira para menos' },
+                        { value: 'grid', label: 'Cards compactos', Icon: LayoutGrid, desc: 'Vários endereços por página em grade de cards' },
+                        { value: 'individual', label: 'Página inteira', Icon: FileText, desc: 'Cada endereço ocupa uma página completa do PDF' },
+                      ].map(({ value, label, Icon, desc }) => {
+                        const active = pdfLayout === value;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            title={desc}
+                            onClick={() => setPdfLayout(value)}
+                            className={`flex-1 flex flex-col items-center gap-2 rounded-xl border p-3 text-center text-sm font-medium transition-all ${
+                              active
+                                ? isDark
+                                  ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange shadow-[0_2px_8px_rgba(254,92,43,0.12)]'
+                                  : 'border-orange-300 bg-orange-50 text-orange-700 shadow-[0_2px_8px_rgba(254,92,43,0.08)]'
+                                : isDark
+                                  ? 'border-white/10 bg-white/[0.03] text-brand-gray-400 hover:bg-white/[0.06]'
+                                  : 'border-neutral-200 bg-neutral-50 text-neutral-500 hover:bg-neutral-100'
+                            }`}
+                          >
+                            <Icon size={22} className={active ? (isDark ? 'text-brand-orange' : 'text-orange-600') : isDark ? 'text-brand-gray-500' : 'text-neutral-400'} />
+                            <span className="leading-tight">{label}</span>
+                            <span className={`text-[10px] font-normal leading-snug ${
+                              active
+                                ? isDark ? 'text-brand-orange/75' : 'text-orange-700/75'
+                                : isDark ? 'text-brand-gray-500' : 'text-neutral-400'
+                            }`}>{desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </Card>
 
                   {/* Seções opcionais do PDF (cards selecionáveis) */}
                   <Card isDark={isDark} title="Seções do PDF">

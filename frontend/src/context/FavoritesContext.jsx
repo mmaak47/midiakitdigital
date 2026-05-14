@@ -20,6 +20,14 @@ export function FavoritesProvider({ children }) {
     }
   });
 
+  // Tracks whether the FavoritesBar sidebar is expanded (used by InventarioChatBot to shift position)
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Auto-close sidebar when all favorites are removed
+  useEffect(() => {
+    if (favorites.length === 0) setSidebarOpen(false);
+  }, [favorites.length]);
+
   useEffect(() => {
     localStorage.setItem('intermidia:favorites', JSON.stringify(favorites));
   }, [favorites]);
@@ -84,6 +92,7 @@ export function FavoritesProvider({ children }) {
       favorites, history,
       addFavorite, addFavorites, removeFavorite, isFavorite, clearFavorites,
       registerView,
+      sidebarOpen, setSidebarOpen,
       totalPreco, totalFluxo, totalTelas, totalInsercoes
     }}>
       {children}

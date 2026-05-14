@@ -8,17 +8,15 @@ export const defaultSelectionCorners = [
 const EDGE_POINT_COUNT = 8;
 
 export const defaultDisplaySettings = {
-  // 1.0 = sem mistura com o fundo da foto. Antes era 0.97 (3% do fundo —
-  // geralmente preto — vazava sobre o criativo deixando a arte "escura").
   opacity: 1.0,
-  // 1.10 dá um lift sutil de luz que combina com o tom geral de tela acesa
-  // sem estourar cores. Antes 1.04 é quase imperceptible em fotos com tela escura.
-  brightness: 1.10,
-  reflection: 0.06,
-  spill: 0.10,
-  ledPixelIntensity: 0,
+  // Brilho da tela acesa. screen-blend branco em alpha = (brightness-1)*0.45.
+  // 1.30 → 13.5% lift — simulação realista sem precisar mexer em slider.
+  brightness: 1.30,
+  reflection: 0.10,
+  spill: 0.14,
+  ledPixelIntensity: 0.03,
   ledPixelSize: 5,
-  glare: 0.06
+  glare: 0.10
 };
 
 export const defaultMediaParams = {
@@ -91,7 +89,7 @@ export function normalizeDisplaySettings(input) {
     brightness: clamp(toNumber(input?.brightness, defaultDisplaySettings.brightness), 0.7, 1.8),
     reflection: clamp(toNumber(input?.reflection, defaultDisplaySettings.reflection), 0, 0.55),
     spill: clamp(toNumber(input?.spill, defaultDisplaySettings.spill), 0, 0.45),
-    ledPixelIntensity: clamp(toNumber(input?.ledPixelIntensity, defaultDisplaySettings.ledPixelIntensity), 0, 0.20),
+    ledPixelIntensity: clamp(toNumber(input?.ledPixelIntensity, defaultDisplaySettings.ledPixelIntensity), 0, 0.45),
     ledPixelSize: clamp(toNumber(input?.ledPixelSize, defaultDisplaySettings.ledPixelSize), 3, 14),
     glare: clamp(toNumber(input?.glare, defaultDisplaySettings.glare), 0, 0.4)
   };
@@ -588,28 +586,15 @@ function drawImageTriangle(ctx, img, sx0, sy0, sx1, sy1, sx2, sy2, dx0, dy0, dx1
 function drawCreativeIntoQuad(ctx, creative, corners, display, style, options = {}) {
   if (!Array.isArray(corners) || corners.length < 4) return;
   const targetAspect = getQuadAspect(corners);
-  // CONTAIN-FIT (anti-cortes): em vez de recortar o criativo para preencher a
-  // tela (cover), mostramos o criativo INTEIRO e preenchemos as sobras com
-  // preto - igual a uma tela DOOH real exibindo um anuncio de aspecto diferente.
-  // Antes o cover-fit recortava partes importantes (cabecalhos, CTAs).
-  const imageAspect = creative.width / creative.height;
-  let uMin = 0;
-  let uMax = 1;
-  let vMin = 0;
-  let vMax = 1;
-  if (imageAspect > targetAspect) {
-    const ratio = targetAspect / imageAspect;
-    vMin = (1 - ratio) / 2;
-    vMax = 1 - vMin;
-  } else if (imageAspect < targetAspect) {
-    const ratio = imageAspect / targetAspect;
-    uMin = (1 - ratio) / 2;
-    uMax = 1 - uMin;
-  }
-  const sx = 0;
-  const sy = 0;
-  const sw = creative.width;
-  const sh = creative.height;
+  // COVER-FIT: recorta (center-crop) o criativo para preencher 100% da tela,
+  // igual a uma tela DOOH real que escala o conteudo para cobrir todo o painel.
+  // Isso elimina as barras pretas de letterbox que apareciam com o CONTAIN-FIT
+  // anterior e produz uma simulação que parece uma foto real do ponto.
+  const { sx, sy, sw, sh } = computeSourceCrop(creative.width, creative.height, targetAspect);
+  const uMin = 0;
+  const uMax = 1;
+  const vMin = 0;
+  const vMax = 1;
   // Tesselagem mais densa = aproximação melhor da homografia projetiva.
   // 24x24 = 576 tiles = 1152 triangulos no modo padrão (LED). 32x32 = 1024
   // tiles = 2048 triangulos no modo highQuality (impressos / backlight /
@@ -619,14 +604,6 @@ function drawCreativeIntoQuad(ctx, creative, corners, display, style, options = 
   ctx.save();
   createQuadPath(ctx, corners, style);
   ctx.clip();
-
-  // Letterbox preto cobrindo todo o quad (sobras laterais quando o aspecto
-  // do criativo nao coincide com o da tela).
-  ctx.save();
-  ctx.fillStyle = '#000000';
-  createQuadPath(ctx, corners, style);
-  ctx.fill();
-  ctx.restore();
 
   for (let row = 0; row < divisions; row += 1) {
     const v0 = vMin + (vMax - vMin) * (row / divisions);
@@ -688,10 +665,12 @@ function drawScreenGlow(ctx, corners, settings, style, canvasWidth, canvasHeight
   createQuadPath(ctx, corners, style);
   ctx.clip();
 
-  // Very subtle brightness lift — just enough to make the screen look lit
+  // Brightness lift via screen-blend with white.
+  // The multiplier controls how much the brightness slider matters:
+  //   brightness=1.20 → 9% lift, 1.50 → 22%, 1.80 → 36%
   if (settings.brightness > 1) {
     ctx.globalCompositeOperation = 'screen';
-    ctx.fillStyle = `rgba(255,255,255,${(settings.brightness - 1) * 0.08})`;
+    ctx.fillStyle = `rgba(255,255,255,${(settings.brightness - 1) * 0.45})`;
     ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
   }
   ctx.restore();
@@ -774,7 +753,7 @@ function drawLedPixels(ctx, corners, settings, style) {
   // Multiply pass: the thin dark gap darkens the image at pixel edges.
   // Alpha intentionally very low — just a hint of texture, not a grid.
   ctx.globalCompositeOperation = 'multiply';
-  ctx.globalAlpha = 0.10 + settings.ledPixelIntensity * 0.20;
+  ctx.globalAlpha = 0.06 + settings.ledPixelIntensity * 0.18;
   ctx.fillStyle = pattern;
   ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
   ctx.restore();
@@ -1097,6 +1076,96 @@ function drawRoundedCornerMask(ctx, corners, style) {
   ctx.restore();
 }
 
+// ─────────────────────────────────────────────
+// REALISMO FOTOGRÁFICO: GRAIN + EDGE FEATHER + COLOR TEMP LED
+// ─────────────────────────────────────────────
+
+// Adiciona ruído gaussiano leve sobre a área da tela para igualar o grão
+// natural da foto base. Sem isso o criativo fica digitalmente "limpo"
+// demais e destoa da textura fotográfica ao redor.
+function drawPhotoGrain(ctx, corners, style) {
+  const bounds = getSelectionBoundsRaw(corners);
+  const w = Math.ceil(bounds.width);
+  const h = Math.ceil(bounds.height);
+  if (w < 4 || h < 4) return;
+
+  // Gera noise em resolução reduzida (1/3) para performance e depois
+  // escala — o upsample com imageSmoothingEnabled produz grão suave
+  // similar ao de sensor de câmera (não pixelado).
+  const noiseScale = 3;
+  const nw = Math.max(2, Math.ceil(w / noiseScale));
+  const nh = Math.max(2, Math.ceil(h / noiseScale));
+
+  const noiseCanvas = document.createElement('canvas');
+  noiseCanvas.width = nw;
+  noiseCanvas.height = nh;
+  const nCtx = noiseCanvas.getContext('2d');
+  if (!nCtx) return;
+
+  const imageData = nCtx.createImageData(nw, nh);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    // Variação centrada em 128 (cinza neutro) com amplitude ~±30
+    const v = 128 + (Math.random() - 0.5) * 60;
+    data[i] = v;       // R
+    data[i + 1] = v;   // G
+    data[i + 2] = v;   // B
+    data[i + 3] = 255;
+  }
+  nCtx.putImageData(imageData, 0, 0);
+
+  ctx.save();
+  createQuadPath(ctx, corners, style);
+  ctx.clip();
+  ctx.globalCompositeOperation = 'overlay';
+  ctx.globalAlpha = 0.045;  // ~4.5% — sutil, apenas matching de textura
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(noiseCanvas, bounds.minX, bounds.minY, w, h);
+  ctx.restore();
+}
+
+// Suaviza a borda do conteúdo onde ele encontra o bezel/moldura real da foto.
+// Desenha um stroke semi-transparente DENTRO do quad com a cor amostrada da
+// própria foto base (ou preto genérico), criando uma transição gradual que
+// elimina o corte abrupto de "colagem".
+function drawEdgeFeather(ctx, corners, style, canvasWidth, canvasHeight) {
+  const bounds = getSelectionBoundsRaw(corners);
+  // Espessura do feather proporcional ao tamanho da tela (min 1px, max 3px)
+  const featherWidth = clamp(Math.round(Math.min(bounds.width, bounds.height) * 0.006), 1, 3);
+
+  ctx.save();
+  createQuadPath(ctx, corners, style);
+  ctx.clip();
+
+  // Passo 1: stroke escuro fino alinhado à borda interna do quad
+  // Simula a sombra natural de contato entre o conteúdo e a moldura
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.globalAlpha = 0.18;
+  createQuadPath(ctx, corners, style);
+  ctx.lineWidth = featherWidth * 2;  // metade fica fora do clip, metade dentro
+  ctx.strokeStyle = 'rgba(0,0,0,1)';
+  ctx.stroke();
+
+  // Passo 2: segundo stroke mais largo e suave para transição gradual
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 0.12;
+  createQuadPath(ctx, corners, style);
+  ctx.lineWidth = featherWidth * 4;
+  ctx.strokeStyle = 'rgba(0,0,0,1)';
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// Aplica tint de temperatura de cor no modo LED. Telas LED reais têm um tom
+// levemente azulado/frio (6500K típico) que é perceptível em fotos.
+// Reutiliza drawColorTempOverlay que já existe para backlight/frontlight.
+function drawLedColorTemp(ctx, corners, style, params) {
+  const kelvin = params.colorTemp ?? 5500;
+  // Intensidade reduzida para LED (telas LED têm menos desvio de cor que impressos)
+  drawColorTempOverlay(ctx, corners, style, kelvin, 0.6);
+}
+
 function drawQuadOutline(/* ctx, corners, settings, style */) {
   // Removido o stroke branco de 1.4px que era visualmente percebido como
   // "borda branca" ao redor do criativo. A definição da área já é dada
@@ -1169,10 +1238,13 @@ export async function generateSimulationPreview({
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(base, 0, 0, outW, outH);
 
-  // Determina o modo de mídia: parâmetro explícito prevalece,
-  // fallback para inferência pelo tipo do painel (legado)
+  // Determina o modo de mídia. Para mídias estáticas (frontlight/backlight), o tipo
+  // do painel sempre prevalece sobre o modo global — evita aplicar efeito LED em lona.
+  // Para digitais, usa o modo configurado pelo usuário (default: led).
   const resolvedParams = { ...defaultMediaParams, ...mediaParams };
-  const mode = resolvedParams.mediaMode || (isPrintedSurface(panelType) ? 'backlight' : 'led');
+  const mode = isPrintedSurface(panelType)
+    ? (String(resolvedParams.mediaMode).toLowerCase() === 'frontlight' ? 'frontlight' : 'backlight')
+    : (resolvedParams.mediaMode || 'led');
   const isLed = mode === 'led';
 
   scaledFaces.forEach((face) => {
@@ -1182,17 +1254,20 @@ export async function generateSimulationPreview({
     drawRoundedCornerMask(ctx, face.corners, face.style);
 
     if (isLed) {
-      // Modo LED — comportamento original inalterado
       drawLightSpill(ctx, face.corners, face.settings, face.style);
       drawScreenGlow(ctx, face.corners, face.settings, face.style, outW, outH);
       drawReflection(ctx, face.corners, face.settings, face.style);
       drawLedPixels(ctx, face.corners, face.settings, face.style);
+      drawLedColorTemp(ctx, face.corners, face.style, resolvedParams);
     } else if (mode === 'backlight') {
       drawBacklightMode(ctx, face.corners, face.style, resolvedParams);
     } else if (mode === 'frontlight') {
       drawFrontlightMode(ctx, face.corners, face.style, resolvedParams);
     }
 
+    // Grão fotográfico + suavização de borda (aplicados em todos os modos)
+    drawPhotoGrain(ctx, face.corners, face.style);
+    drawEdgeFeather(ctx, face.corners, face.style, outW, outH);
     drawQuadOutline(ctx, face.corners, face.settings, face.style);
   });
 

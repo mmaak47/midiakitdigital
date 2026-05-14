@@ -1,11 +1,13 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion, useInView } from 'framer-motion';
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Play } from 'lucide-react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Play, Heart } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import FavoritesBar from '../components/FavoritesBar';
+import { useFavorites } from '../context/FavoritesContext';
 import CustomSelect from '../components/CustomSelect';
 import SmartMap from '../components/SmartMap';
-import { fetchPontos } from '../lib/api';
+import { fetchPontos, fetchLoopAvailability } from '../lib/api';
 import { getPointDisplayImages, getPrimaryPointMediaKitImage } from '../lib/pointImages';
 import { campaignTotals, sortFormatos, estimateReachFrequency } from '../lib/strategy';
 import { normalizeHorarioForPdf } from '../lib/horarioUtils';
@@ -56,6 +58,112 @@ function anchorIdFromTipo(tipo) {
     .replace(/^-+|-+$/g, '')}`;
 }
 
+// ── Urgency / scarcity helpers ──────────────────────────────────────────
+const STATIC_TYPES = new Set(['Frontlight', 'Backlight']);
+
+function normalizeForMatch(s) {
+  return (s || '').toLowerCase().trim()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Lookup de disponibilidade: tenta match exato, depois substring e sobreposição de palavras.
+ * O mapa é indexado pelo `local` e `nome` normalizado de cada item do loop audit.
+ * Os nomes dos pontos no banco seguem convenção diferente da API de origem, por isso
+ * o match exato raramente funciona — daí os fallbacks.
+ */
+function findAvailability(ponto, avMap) {
+  if (!avMap || avMap.size === 0 || STATIC_TYPES.has(ponto.tipo)) return null;
+  const norm = normalizeForMatch(ponto.nome);
+
+  // 1. Match exato
+  const exact = avMap.get(norm);
+  if (exact) return exact;
+
+  // 2. Substring: nome do ponto contém a chave da auditoria (ou vice-versa)
+  // Exige chave com ao menos 2 palavras para evitar falsos positivos em palavras isoladas
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const [key, val] of avMap) {
+    if (key.length < 8) continue; // chaves muito curtas geram falsos positivos
+
+    if (norm.includes(key) || key.includes(norm)) {
+      return val; // substring sólida → retorna imediatamente
+    }
+
+    // 3. Sobreposição de palavras significativas (>2 chars)
+    const keyWords = key.split(' ').filter(w => w.length > 2);
+    const normWords = norm.split(' ').filter(w => w.length > 2);
+    if (!keyWords.length || !normWords.length) continue;
+
+    const hits = keyWords.filter(w => normWords.includes(w)).length;
+    const score = hits / Math.max(keyWords.length, normWords.length);
+
+    if (score > bestScore && score >= 0.55) {
+      bestScore = score;
+      bestMatch = val;
+    }
+  }
+
+  return bestMatch;
+}
+
+/**
+ * Compute an urgency signal for a ponto.
+ * Returns { label, sublabel, level, icon } or null.
+ * NEVER says "indisponível" — always uses scarcity language.
+ */
+function getUrgencySignal(ponto, avMap) {
+  const av = findAvailability(ponto, avMap);
+  if (!av) return null;
+
+  const { cotas_livres, pct_ocupado } = av;
+
+  if (cotas_livres <= 0) {
+    return {
+      level: 'critical',
+      label: 'Procura altíssima',
+      sublabel: 'Últimas vagas na programação — fale com especialista',
+      icon: 'ri-fire-fill',
+    };
+  }
+  if (cotas_livres <= 2) {
+    return {
+      level: 'high',
+      label: `Apenas ${cotas_livres} espaço${cotas_livres > 1 ? 's' : ''} disponíve${cotas_livres > 1 ? 'is' : 'l'}`,
+      sublabel: 'Alta demanda — garanta agora',
+      icon: 'ri-flashlight-fill',
+    };
+  }
+  if (cotas_livres <= 4 || pct_ocupado >= 75) {
+    return {
+      level: 'medium',
+      label: 'Poucos espaços disponíveis',
+      sublabel: `Restam ${cotas_livres} vagas na grade de exibição`,
+      icon: 'ri-timer-flash-line',
+    };
+  }
+  if (pct_ocupado >= 50) {
+    return {
+      level: 'moderate',
+      label: 'Boa procura',
+      sublabel: `${cotas_livres} espaços livres na programação`,
+      icon: 'ri-bar-chart-fill',
+    };
+  }
+  // Healthy availability — show positively
+  return {
+    level: 'available',
+    label: `${cotas_livres} espaços disponíveis`,
+    sublabel: 'Programação com vagas',
+    icon: 'ri-checkbox-circle-line',
+  };
+}
+
 function AnimatedCounter({ value, formatter = formatInt, className = '' }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, amount: 0.5 });
@@ -81,7 +189,7 @@ function AnimatedCounter({ value, formatter = formatInt, className = '' }) {
   return <span ref={ref} className={className}>{formatter(display)}</span>;
 }
 
-function PointImageGallery({ ponto, onExpand }) {
+function PointImageGallery({ ponto, onExpand, compact = false }) {
   const images = getPointDisplayImages(ponto);
   const [idx, setIdx] = useState(0);
 
@@ -89,7 +197,7 @@ function PointImageGallery({ ponto, onExpand }) {
 
   if (!images.length) {
     return (
-      <div className="rounded-xl overflow-hidden bg-white/[0.03] min-h-[180px] flex items-center justify-center text-brand-gray-600 text-sm border border-white/5">
+      <div className={`overflow-hidden bg-white/[0.03] flex items-center justify-center text-brand-gray-600 text-sm border border-white/5 ${compact ? 'aspect-[16/10] rounded-none' : 'rounded-xl min-h-[180px]'}`}>
         Sem imagem
       </div>
     );
@@ -99,11 +207,11 @@ function PointImageGallery({ ponto, onExpand }) {
   const hasMultiple = images.length > 1;
 
   return (
-    <div className="relative group rounded-xl overflow-hidden bg-black min-h-[180px] border border-white/10">
+    <div className={`relative group overflow-hidden bg-black ${compact ? 'aspect-[16/10] rounded-none border-0' : 'rounded-xl min-h-[180px] border border-white/10'}`}>
       <img
         src={current}
         alt={ponto.nome}
-        className="w-full h-full object-cover min-h-[180px] transition-transform duration-500 group-hover:scale-[1.03] cursor-pointer"
+        className={`w-full object-cover transition-transform duration-500 group-hover:scale-[1.03] cursor-pointer ${compact ? 'h-full' : 'h-full min-h-[180px]'}`}
         onClick={() => onExpand(ponto, idx)}
         style={{ objectPosition: `${ponto.imagem_foco_x ?? 50}% ${ponto.imagem_foco_y ?? 50}%` }}
         loading="lazy"
@@ -226,7 +334,11 @@ function MapModal({ pontos, onClose, isDark }) {
     () => Array.from(new Set(pointsWithCoords.map((p) => p.cidade).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
     [pointsWithCoords]
   );
-  const [selectedCity, setSelectedCity] = useState('Londrina');
+  // Default to first available city from the filtered points (not hardcoded)
+  const [selectedCity, setSelectedCity] = useState(() => {
+    const first = pontos.find((p) => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)));
+    return first?.cidade || '';
+  });
   const mapPoints = useMemo(
     () => (selectedCity ? pointsWithCoords.filter((p) => p.cidade === selectedCity) : pointsWithCoords),
     [pointsWithCoords, selectedCity]
@@ -372,11 +484,14 @@ function MapModal({ pontos, onClose, isDark }) {
 
 export default function Landing() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // ── Inicializa filtros a partir da URL (para links compartilhados) ──
   const [allPontos, setAllPontos] = useState([]);
-  const [selectedPracas, setSelectedPracas] = useState([]);
-  const [selectedTipos, setSelectedTipos] = useState([]);
-  const [selectedPublicos, setSelectedPublicos] = useState([]);
-  const [selectedElevadorCategorias, setSelectedElevadorCategorias] = useState([]);
+  const [selectedPracas, setSelectedPracas] = useState(() => searchParams.getAll('cidade').filter(Boolean));
+  const [selectedTipos, setSelectedTipos] = useState(() => searchParams.getAll('tipo').filter(Boolean));
+  const [selectedPublicos, setSelectedPublicos] = useState(() => searchParams.getAll('publico').filter(Boolean));
+  const [selectedElevadorCategorias, setSelectedElevadorCategorias] = useState(() => searchParams.getAll('elevador').filter(Boolean));
   const [loading, setLoading] = useState(true);
   const [pdfStatus, setPdfStatus] = useState(null);
   const [pdfTipIndex, setPdfTipIndex] = useState(0);
@@ -390,16 +505,134 @@ export default function Landing() {
     return localStorage.getItem('intermidia_theme') === 'dark';
   });
   const [showCommercialShortcut, setShowCommercialShortcut] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || '');
   const [sortBy, setSortBy] = useState('tipo');
+  const [shareToast, setShareToast] = useState(false);
   const [showWelcome, setShowWelcome] = useState(() => {
     if (typeof window === 'undefined') return false;
     return !sessionStorage.getItem('intermidia_welcome_seen');
+  });
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [leadForm, setLeadForm] = useState({ nome: '', email: '', telefone: '', empresa: '' });
+  const [leadSubmitting, setLeadSubmitting] = useState(false);
+  const { favorites, addFavorite, removeFavorite, isFavorite, totalPreco, totalFluxo, totalTelas } = useFavorites();
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
+  const [favoritesHintDismissed, setFavoritesHintDismissed] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return !!sessionStorage.getItem('intermidia_fav_hint_seen');
   });
   const [showMoreStats, setShowMoreStats] = useState(false);
   const [tableSortKey, setTableSortKey] = useState('tipo');
   const [tableSortDir, setTableSortDir] = useState('asc');
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [availabilityMap, setAvailabilityMap] = useState(null); // Map<normalizedLocal, { cotas_livres, pct_ocupado, risk_level }>
+  const pontosListRef = useRef(null);
+  const isInitialMount = useRef(true);
+
+  // ── Sincroniza filtros → URL (replaceState para não criar histórico a cada clique) ──
+  useEffect(() => {
+    // Pula a primeira execução (mount) — a URL já tem os params corretos
+    if (isInitialMount.current) { isInitialMount.current = false; return; }
+    const params = new URLSearchParams();
+    selectedPracas.forEach((c) => params.append('cidade', c));
+    selectedTipos.forEach((t) => params.append('tipo', t));
+    selectedPublicos.forEach((p) => params.append('publico', p));
+    selectedElevadorCategorias.forEach((e) => params.append('elevador', e));
+    if (searchQuery.trim()) params.set('q', searchQuery.trim());
+    const qs = params.toString();
+    const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
+  }, [selectedPracas, selectedTipos, selectedPublicos, selectedElevadorCategorias, searchQuery]);
+
+  // ── Cria short link via API e compartilha ──
+  const [shareLoading, setShareLoading] = useState(false);
+
+  const handleShareFilters = useCallback(async () => {
+    const filters = {
+      cidade: selectedPracas,
+      tipo: selectedTipos,
+      publico: selectedPublicos,
+      elevador: selectedElevadorCategorias,
+      q: searchQuery.trim(),
+    };
+    const hasAny = filters.cidade.length || filters.tipo.length || filters.publico.length || filters.elevador.length || filters.q;
+    if (!hasAny) {
+      // Sem filtros — compartilha a landing diretamente
+      const url = window.location.origin;
+      try { await navigator.clipboard.writeText(url); setShareToast(true); setTimeout(() => setShareToast(false), 2500); }
+      catch { window.prompt('Copie o link:', url); }
+      return;
+    }
+
+    setShareLoading(true);
+    try {
+      const res = await fetch('/api/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filters }),
+      });
+      if (!res.ok) throw new Error('Falha ao gerar link');
+      const { url: shortPath } = await res.json();
+      const fullUrl = `${window.location.origin}${shortPath}`;
+
+      // Tenta Web Share API (mobile) primeiro
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Intermidia — Midia Kit Digital',
+          text: `Veja esta selecao de pontos de midia OOH`,
+          url: fullUrl,
+        });
+        return;
+      }
+      // Desktop: copia para clipboard
+      await navigator.clipboard.writeText(fullUrl);
+      setShareToast(true);
+      setTimeout(() => setShareToast(false), 2500);
+    } catch {
+      // Fallback: URL com query params
+      const params = new URLSearchParams();
+      selectedPracas.forEach((c) => params.append('cidade', c));
+      selectedTipos.forEach((t) => params.append('tipo', t));
+      const fallback = `${window.location.origin}/?${params.toString()}`;
+      try { await navigator.clipboard.writeText(fallback); setShareToast(true); setTimeout(() => setShareToast(false), 2500); }
+      catch { window.prompt('Copie o link:', fallback); }
+    } finally {
+      setShareLoading(false);
+    }
+  }, [selectedPracas, selectedTipos, selectedPublicos, selectedElevadorCategorias, searchQuery]);
+
+  const [favShareLoading, setFavShareLoading] = useState(false);
+  const handleShareFavorites = useCallback(async () => {
+    if (!favorites.length) return;
+    setFavShareLoading(true);
+    try {
+      const res = await fetch('/api/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filters: { pointIds: favorites.map(p => p.id) } }),
+      });
+      if (!res.ok) throw new Error('Falha ao gerar link');
+      const { url: shortPath } = await res.json();
+      const fullUrl = `${window.location.origin}${shortPath}`;
+
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: 'Intermidia — Minha Seleção', text: `${favorites.length} pontos selecionados`, url: fullUrl });
+        } catch { /* user cancelled share sheet */ }
+        return;
+      }
+      await navigator.clipboard.writeText(fullUrl);
+      setShareToast(true);
+      setTimeout(() => setShareToast(false), 2500);
+      trackEvent('favorites_shared', { count: favorites.length });
+    } catch {
+      // Silently fail — toast system handles feedback
+    } finally {
+      setFavShareLoading(false);
+    }
+  }, [favorites]);
+
+  const hasActiveFilters = selectedPracas.length > 0 || selectedTipos.length > 0 || selectedPublicos.length > 0 || selectedElevadorCategorias.length > 0 || searchQuery;
 
   const t = {
     bg: isDark ? 'bg-[#050505]' : 'bg-[#FFF8F5]',
@@ -418,6 +651,7 @@ export default function Landing() {
     vizBar: isDark ? 'h-2 rounded-full bg-white/10 overflow-hidden' : 'h-2 rounded-full bg-[#F2DDD4] overflow-hidden',
     stickyNav: isDark ? 'border-white/10 bg-[#090909]/95' : 'border-[#EFE0D8] bg-white/95 shadow-sm',
     navChip: isDark ? 'border-white/10 bg-white/[0.03] text-brand-gray-300 hover:text-white hover:border-brand-orange/40' : 'border-[#EFE0D8] bg-white text-[#7A6155] hover:text-[#1A1008] hover:border-[#FF6B35]/40 shadow-sm',
+    navChipActive: isDark ? 'border-brand-orange/50 bg-brand-orange/15 text-brand-orange font-semibold shadow-sm shadow-brand-orange/10' : 'border-[#FF6B35] bg-[#FFF0EA] text-[#C94A1A] font-semibold shadow-sm shadow-[#FF6B35]/15',
     chipOrange: isDark ? 'bg-brand-orange/15 text-brand-orange border-brand-orange/30' : 'bg-[#FFF0EA] text-[#C94A1A] border-[#FFCFB8]',
     chipGray: isDark ? 'bg-white/[0.04] text-brand-gray-300 border-white/10' : 'bg-[#FDF7F4] text-[#7A6155] border-[#EFE0D8]',
     miniCell: isDark ? 'rounded-lg bg-white/[0.03] p-2 border border-white/5' : 'rounded-lg bg-[#FDF7F4] p-2 border border-[#EFE0D8]',
@@ -436,6 +670,13 @@ export default function Landing() {
     footerText: isDark ? 'text-brand-gray-500' : 'text-[#7A6155]',
     footerLink: isDark ? 'hover:text-white' : 'hover:text-[#1A1008]',
     ctaOverlay: isDark ? 'bg-black/65' : 'bg-white/88',
+    // Grid view tokens
+    toggleBg: isDark ? 'bg-white/5 border-white/10' : 'bg-white border-[#EFE0D8] shadow-sm',
+    toggleOff: isDark ? 'text-brand-gray-400 hover:text-white' : 'text-[#7A6155] hover:text-[#1A1008]',
+    gridStatsLabel: isDark ? 'text-brand-gray-500' : 'text-[#9A8579]',
+    gridStatsVal: isDark ? 'text-white' : 'text-[#1A1008]',
+    gridPriceBorder: isDark ? 'border-white/5' : 'border-[#F2DDD4]',
+    favHint: isDark ? 'bg-brand-orange/[0.06] border-brand-orange/20 text-brand-gray-300' : 'bg-[#FFF8F3] border-[#FFCFB8]/50 text-[#7A6155]',
   };
 
   useEffect(() => {
@@ -455,7 +696,33 @@ export default function Landing() {
         if (active) setLoading(false);
       }
     }
+    async function loadAvailability() {
+      try {
+        const data = await fetchLoopAvailability();
+        if (!active || !data?.items) return;
+        const map = new Map();
+        for (const item of data.items) {
+          const entry = { cotas_livres: item.cotas_livres, pct_ocupado: item.pct_ocupado, risk_level: item.risk_level };
+          // Index by local (group name)
+          const localKey = normalizeForMatch(item.local || item.nome);
+          const existing = map.get(localKey);
+          if (!existing || item.cotas_livres < existing.cotas_livres) {
+            map.set(localKey, entry);
+          }
+          // Also index by individual monitor name for fallback matching
+          const nomeKey = normalizeForMatch(item.nome);
+          if (nomeKey !== localKey) {
+            const existingNome = map.get(nomeKey);
+            if (!existingNome || item.cotas_livres < existingNome.cotas_livres) {
+              map.set(nomeKey, entry);
+            }
+          }
+        }
+        if (active) setAvailabilityMap(map);
+      } catch { /* graceful — no urgency signals if API fails */ }
+    }
     loadPontos();
+    loadAvailability();
     return () => { active = false; };
   }, []);
 
@@ -465,6 +732,23 @@ export default function Landing() {
     const fromManualCommercial = sessionStorage.getItem('comercial_manual_login') === '1';
     setShowCommercialShortcut(hasToken && fromManualCommercial);
   }, []);
+
+  // Auto-scroll para o catálogo quando chega com filtros na URL (link compartilhado)
+  const hasUrlFilters = useRef(
+    searchParams.getAll('cidade').length > 0 ||
+    searchParams.getAll('tipo').length > 0 ||
+    searchParams.getAll('publico').length > 0 ||
+    searchParams.getAll('elevador').length > 0 ||
+    !!searchParams.get('q')
+  );
+  useEffect(() => {
+    if (!hasUrlFilters.current || loading) return;
+    // Espera um frame para o DOM renderizar os pontos
+    const raf = requestAnimationFrame(() => {
+      pontosListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [loading]);
 
   useEffect(() => {
     if (pdfStatus !== 'generating') return undefined;
@@ -587,6 +871,22 @@ export default function Landing() {
     return formatos.map((f) => ({ ...f, anchorId: anchorIdFromTipo(f.tipo) }));
   }, [formatos]);
 
+  // All formats available per praça (ignoring tipo filter) — keeps sticky nav chips visible even when a tipo is active
+  const formatosParaNav = useMemo(() => {
+    const source = selectedPracas.length
+      ? allPontos.filter((p) => selectedPracas.includes(p.cidade))
+      : allPontos;
+    const map = new Map();
+    source.forEach((p) => {
+      const tipo = p.tipo || 'Sem tipo';
+      if (!map.has(tipo)) map.set(tipo, 0);
+      map.set(tipo, map.get(tipo) + 1);
+    });
+    return sortFormatos(
+      Array.from(map.entries()).map(([tipo, quantidade]) => ({ tipo, quantidade }))
+    );
+  }, [allPontos, selectedPracas]);
+
   // Sorted table data with max values for mini bars
   const formatosTabela = useMemo(() => {
     const maxFluxo = Math.max(1, ...formatos.map((f) => f.fluxo || 0));
@@ -658,10 +958,38 @@ export default function Landing() {
     return `/explorar${query ? `?${query}` : ''}`;
   }, [selectedPracas, selectedTipos]);
 
+  const handleSubmitLead = useCallback(async () => {
+    const { nome, email, telefone, empresa } = leadForm;
+    if (!nome.trim() && !email.trim() && !telefone.trim()) return;
+    setLeadSubmitting(true);
+    try {
+      const sessionId = localStorage.getItem('dooh_chat_session_id') || crypto.randomUUID();
+      localStorage.setItem('dooh_chat_session_id', sessionId);
+      await fetch('/api/leads/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          telefone: telefone.trim() || nome.trim(),
+          empresa: empresa.trim() || `Lead PDF - ${nome.trim() || email.trim()}`,
+          origem: 'pdf_modal_landing',
+        }),
+        credentials: 'include',
+      });
+      trackEvent('lead_capture', { source: 'pdf_modal', hasEmail: !!email.trim(), hasPhone: !!telefone.trim() });
+    } catch { /* fire and forget */ }
+    setLeadSubmitting(false);
+  }, [leadForm]);
+
   const handleExportPdf = async (formatOverride) => {
     if (!pontos.length || pdfStatus === 'generating') return;
     const format = formatOverride || pdfFormat;
     setPdfStatus('generating');
+    setShowPdfModal(false);
+    // Submit lead data if any filled
+    if (leadForm.nome.trim() || leadForm.email.trim() || leadForm.telefone.trim()) {
+      handleSubmitLead();
+    }
     try {
       if (format === 'mobile') {
         const { generateMidiaKitMobilePdf } = await import('../lib/midiaKitMobilePdf');
@@ -672,7 +1000,7 @@ export default function Landing() {
       }
       setPdfStatus('ready');
       setPdfToast({ type: 'success', message: 'PDF gerado com sucesso ✓' });
-      trackEvent('pdf_generate', { format });
+      trackEvent('pdf_generate', { format, source: 'pdf_modal' });
       setTimeout(() => setPdfStatus(null), 120);
     } catch (err) {
       console.error(err);
@@ -824,7 +1152,7 @@ export default function Landing() {
       </AnimatePresence>
 
       {/* ── Hero ─────────────────────────────────────────────── */}
-      <section className={`pt-24 pb-14 border-b landing-divider relative overflow-visible ${t.sectionBorder}`} style={{ background: isDark ? undefined : '#FFF8F5' }}>
+      <section className={`pt-20 pb-10 border-b landing-divider relative overflow-visible ${t.sectionBorder}`} style={{ background: isDark ? undefined : '#FFF8F5' }}>
         <div
           className={`absolute inset-0 bg-cover bg-center ${isDark ? 'opacity-50' : 'opacity-[0.08] saturate-[0.75]'}`}
           style={{
@@ -853,7 +1181,7 @@ export default function Landing() {
         <div className="absolute top-[30%] left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-brand-orange/8 rounded-full blur-[100px] pointer-events-none" />
 
         <div className="relative max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-4">
             <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0}>
               <span
                 className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-semibold tracking-[0.08em] uppercase"
@@ -880,46 +1208,17 @@ export default function Landing() {
             </motion.button>
           </div>
 
-          <motion.div
-            variants={fadeUp}
-            initial="hidden"
-            animate="visible"
-            custom={0.5}
-            className="mt-4 mb-2"
-          >
-            <span
-              className="inline-block text-[11px] font-bold tracking-[0.22em] uppercase"
-              style={{ color: isDark ? 'rgba(255,107,53,0.75)' : '#C94A1A' }}
-            >
-              Publicidade Out-of-Home · Intermidia
-            </span>
-          </motion.div>
-
           <motion.h1
             variants={fadeUp}
             initial="hidden"
             animate="visible"
-            custom={1}
-            className="max-w-4xl mb-4"
-            style={{ fontFamily: "'Poppins', system-ui, sans-serif", fontSize: 'clamp(40px, 5.2vw, 68px)', fontWeight: 900, lineHeight: 1.05, letterSpacing: '-0.04em', color: isDark ? '#fff' : '#1A1008' }}
+            custom={0.5}
+            className="max-w-3xl mb-6"
+            style={{ fontFamily: "'Poppins', system-ui, sans-serif", fontSize: 'clamp(28px, 3.5vw, 44px)', fontWeight: 800, lineHeight: 1.15, letterSpacing: '-0.03em', color: isDark ? '#fff' : '#1A1008' }}
           >
-            <span style={{ fontStyle: 'italic', fontWeight: 800, color: '#FF6B35' }}>Audiência</span>{' '}
-            <span style={{ fontWeight: 900 }}>certa.</span>
-            <br />
-            <span style={{ fontWeight: 700, opacity: 0.85 }}>Resultado</span>{' '}
-            <span style={{ fontStyle: 'italic', fontWeight: 900 }}>mensurável.</span>
+            Explore nosso inventário de{' '}
+            <span style={{ color: '#FF6B35' }}>Mídia Externa</span>
           </motion.h1>
-
-          <motion.p
-            variants={fadeUp}
-            initial="hidden"
-            animate="visible"
-            custom={2}
-            className="max-w-3xl mb-8"
-            style={{ fontFamily: "'Poppins', system-ui, sans-serif", fontSize: '15px', fontWeight: 400, lineHeight: 1.65, color: isDark ? 'rgba(255,255,255,0.60)' : '#7A6155' }}
-          >
-            Mídia Kit Digital da Intermidia — selecione praça e formato para filtrar o inventário, gerar PDF ou abrir a apresentação em slides.
-          </motion.p>
 
           <motion.div
             variants={fadeUp}
@@ -937,14 +1236,14 @@ export default function Landing() {
                 : '0 4px 24px rgba(0,0,0,0.06)',
             }}
           >
-            {/* ── 3-column form fields ── */}
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+            {/* ── Filter fields ── */}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
               <CustomSelect
                 label="Praça"
                 value={selectedPracas}
                 onChange={setSelectedPracas}
                 options={pracas}
-                placeholder="Selecionar uma ou mais praças"
+                placeholder="Selecionar praça"
                 multiple
                 isDark={isDark}
               />
@@ -953,7 +1252,7 @@ export default function Landing() {
                 value={selectedTipos}
                 onChange={setSelectedTipos}
                 options={tiposDisponiveis}
-                placeholder="Selecionar um ou mais formatos"
+                placeholder="Selecionar formato"
                 multiple
                 isDark={isDark}
               />
@@ -962,32 +1261,14 @@ export default function Landing() {
                 value={selectedPublicos}
                 onChange={setSelectedPublicos}
                 options={publicosDisponiveis}
-                placeholder={publicosDisponiveis.length ? 'Selecionar um ou mais públicos' : 'Nenhum disponível'}
+                placeholder={publicosDisponiveis.length ? 'Selecionar público' : 'Nenhum disponível'}
                 multiple
                 isDark={isDark}
               />
-              <div>
-                <label
-                  className="block mb-2 font-semibold uppercase"
-                  style={{ fontSize: '10px', letterSpacing: '0.08em', color: isDark ? '#737373' : '#7A6155' }}
-                >
-                  Visualização
-                </label>
-                <div
-                  className="h-[50px] rounded-[10px] border px-4 flex items-center text-sm font-medium"
-                  style={{
-                    background: isDark ? 'linear-gradient(to right, rgba(255,255,255,0.10), rgba(255,255,255,0.05))' : '#FDF7F4',
-                    borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#EFE0D8',
-                    color: isDark ? '#fff' : '#1A1008',
-                  }}
-                >
-                  {!selectedPracas.length ? 'Consolidado multirregional' : `Foco em ${selectedPracaLabel}`}
-                </div>
-              </div>
             </div>
 
             {tiposDisponiveis.includes('Elevador') && (selectedTipos.length === 0 || selectedTipos.includes('Elevador')) && (
-              <div className="mb-5 flex flex-wrap items-center gap-2">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
                 <span
                   className="font-semibold uppercase mr-1"
                   style={{ fontSize: '10px', letterSpacing: '0.08em', color: isDark ? '#737373' : '#7A6155' }}
@@ -1028,27 +1309,22 @@ export default function Landing() {
               </div>
             )}
 
-            {/* ── Action buttons row — clear hierarchy: ONE primary CTA ── */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              {/* Primary CTA — highlighted, takes visual priority */}
+            {/* ── Action buttons row ── */}
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => setShowMapModal(true)}
-                className="landing-orange-btn group h-[48px] px-6 text-white font-bold rounded-[10px] transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap text-[15px] order-1 sm:order-1"
+                className="landing-orange-btn group h-[46px] px-6 text-white font-bold rounded-[10px] transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap text-sm"
                 style={{ background: '#FF6B35', boxShadow: '0 4px 16px rgba(255,107,53,0.36)' }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#E85A25'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(255,107,53,0.50)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = '#FF6B35'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(255,107,53,0.36)'; }}
               >
-                <i className="ri-pin-distance-line" style={{ fontSize: 17 }} />
-                Abrir mapa interativo
+                <i className="ri-pin-distance-line" style={{ fontSize: 16 }} />
+                Mapa interativo
               </button>
 
-              {/* Secondary actions — outline style, lower visual weight */}
-              <div className="flex items-center gap-2 ml-auto order-2 sm:order-2 flex-wrap">
-
-              {/* Slides — demoted to secondary outline */}
               <button
                 onClick={() => { setShowSlidesMode(true); trackEvent('slides_open'); }}
-                className="inline-flex h-[44px] items-center justify-center gap-2 rounded-[10px] px-4 text-sm font-semibold transition-all duration-200 whitespace-nowrap"
+                className="inline-flex h-[46px] items-center justify-center gap-2 rounded-[10px] px-5 text-sm font-semibold transition-all duration-200 whitespace-nowrap"
                 style={{
                   background: 'transparent',
                   border: `1px solid ${isDark ? 'rgba(255,107,53,0.40)' : '#FFCFB8'}`,
@@ -1058,66 +1334,42 @@ export default function Landing() {
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               >
                 <Play size={14} />
-                Ver slides
+                Apresentação
               </button>
 
-              {/* ── PDF format toggle + generate button ── */}
-              <div className="flex items-center gap-1.5">
-                {/* Segmented format toggle — always visible, no dropdown */}
-                <div
-                  className="flex h-[44px] rounded-[10px] overflow-hidden"
-                  style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.15)' : '#DDD0CA'}` }}
-                >
-                  {[
-                    {
-                      value: 'desktop',
-                      icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>,
-                      label: 'Padrão',
-                    },
-                    {
-                      value: 'mobile',
-                      icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="18" r="1" fill="currentColor" stroke="none"/></svg>,
-                      label: 'Mobile',
-                    },
-                  ].map(({ value, icon, label }) => {
-                    const active = pdfFormat === value;
-                    return (
-                      <button
-                        key={value}
-                        onClick={() => setPdfFormat(value)}
-                        className="flex items-center gap-1.5 px-3 h-full text-xs font-semibold transition-all duration-150 whitespace-nowrap"
-                        style={{
-                          background: active
-                            ? isDark ? 'rgba(232,89,26,0.18)' : 'rgba(232,89,26,0.10)'
-                            : 'transparent',
-                          color: active ? '#E8591A' : isDark ? 'rgba(255,255,255,0.55)' : '#9C877B',
-                          borderRight: value === 'desktop' ? `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'}` : 'none',
-                        }}
-                        title={value === 'desktop' ? 'Versão padrão (landscape)' : 'Versão mobile (portrait 9:16)'}
-                      >
-                        {icon}
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
+              <button
+                onClick={() => { setShowPdfModal(true); trackEvent('pdf_modal_open'); }}
+                className="inline-flex h-[46px] items-center justify-center gap-2 rounded-[10px] px-5 text-sm font-semibold transition-all duration-200 whitespace-nowrap"
+                style={{
+                  background: 'transparent',
+                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.15)' : '#DDD0CA'}`,
+                  color: isDark ? '#fff' : '#7A6155',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.08)' : '#FDF7F4'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <i className="ri-file-pdf-2-line" style={{ fontSize: 15 }} />
+                Baixar PDF
+              </button>
 
-                {/* Generate button */}
-                <button
-                  onClick={() => handleExportPdf()}
-                  disabled={pdfStatus === 'generating' || pontos.length === 0}
-                  className="h-[44px] px-5 font-semibold rounded-[10px] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-sm"
-                  style={{
-                    background: 'transparent',
-                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.15)' : '#DDD0CA'}`,
-                    color: isDark ? '#fff' : '#7A6155',
-                  }}
-                >
-                  {pdfStatus === 'generating' ? 'Gerando PDF...' : 'Gerar PDF'}
-                </button>
-              </div>
-
-              </div>
+              <button
+                onClick={handleShareFilters}
+                disabled={shareLoading}
+                className="inline-flex h-[46px] items-center justify-center gap-2 rounded-[10px] px-4 text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-60"
+                style={{
+                  background: 'transparent',
+                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : '#DDD0CA'}`,
+                  color: isDark ? 'rgba(255,255,255,0.55)' : '#9C877B',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.06)' : '#FDF7F4'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                title={hasActiveFilters ? 'Compartilhar link com estes filtros' : 'Compartilhar mídia kit'}
+              >
+                {shareLoading
+                  ? <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  : <i className="ri-share-forward-line" style={{ fontSize: 15 }} />
+                }
+              </button>
             </div>
           </motion.div>
 
@@ -1482,7 +1734,7 @@ export default function Landing() {
       <section className={`py-12 border-b landing-divider relative ${t.sectionBorder}`}>
         {isDark && <div className="absolute inset-0 opacity-[0.022] bg-cover" style={{ backgroundImage: "url('/stock-wallpaper.jpg')", filter: 'blur(2px)' }} />}
         <div className="relative max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
             <div>
               <span
                 className="text-[11px] font-bold tracking-[0.18em] uppercase block mb-0.5"
@@ -1490,10 +1742,46 @@ export default function Landing() {
               >Inventário completo</span>
               <h2 className="text-2xl font-bold">Catálogo da seleção atual</h2>
             </div>
-            <span className={`text-xs uppercase tracking-wide ${t.textMuted}`}>
-              {searchQuery ? `${formatInt(pontosFiltrados.length)} de ${formatInt(pontos.length)}` : formatInt(pontos.length)} endereços
-            </span>
+            <div className="flex items-center gap-3">
+              <span className={`text-xs uppercase tracking-wide ${t.textMuted}`}>
+                {searchQuery ? `${formatInt(pontosFiltrados.length)} de ${formatInt(pontos.length)}` : formatInt(pontos.length)} endereços
+              </span>
+              <div className={`flex items-center gap-1 shrink-0 border rounded-lg p-0.5 ${t.toggleBg}`}>
+                <button onClick={() => setViewMode('list')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${viewMode === 'list' ? 'bg-brand-orange text-white shadow-sm' : t.toggleOff}`}>
+                  <i className="ri-list-check mr-1" style={{ fontSize: 12 }} />Lista
+                </button>
+                <button onClick={() => setViewMode('grid')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${viewMode === 'grid' ? 'bg-brand-orange text-white shadow-sm' : t.toggleOff}`}>
+                  <i className="ri-grid-fill mr-1" style={{ fontSize: 12 }} />Grid
+                </button>
+              </div>
+            </div>
           </div>
+
+          {/* Favorites hint — shown once per session, dismissed after first favorite or manual close */}
+          <AnimatePresence>
+            {!favoritesHintDismissed && favorites.length === 0 && !loading && pontos.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8, transition: { duration: 0.2 } }}
+                className={`mb-4 rounded-xl border px-4 py-3 flex items-center gap-3 text-sm ${t.favHint}`}
+              >
+                <Heart size={16} className="text-brand-orange shrink-0" fill="none" />
+                <span className="flex-1">
+                  Clique no <Heart size={12} className="inline text-brand-orange -mt-0.5 mx-0.5" fill="none" /> de cada ponto para salvar seus favoritos e compartilhar uma seleção personalizada.
+                </span>
+                <button
+                  onClick={() => { setFavoritesHintDismissed(true); sessionStorage.setItem('intermidia_fav_hint_seen', '1'); }}
+                  className={`shrink-0 p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-brand-gray-500' : 'hover:bg-neutral-200 text-neutral-400'}`}
+                  aria-label="Fechar dica"
+                >
+                  <i className="ri-close-line" style={{ fontSize: 14 }} />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Applied filters summary — shows count + quick clear */}
           {(selectedPracas.length > 0 || selectedTipos.length > 0 || selectedPublicos.length > 0 || selectedElevadorCategorias.length > 0 || searchQuery) && (
@@ -1613,35 +1901,124 @@ export default function Landing() {
                 />
               </div>
 
-              {tiposComAncora.length > 0 && (
+              {formatosParaNav.length > 0 && (
                 <div className="flex-1 w-full min-w-0">
                   <div className={`text-[10px] uppercase tracking-widest font-bold mb-2 ${t.textMuted}`}>
-                    Ancoragem por formato
+                    Filtrar por formato
                   </div>
                   <div className="flex flex-nowrap overflow-x-auto gap-2 pb-1 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                    {tiposComAncora.map((tipoInfo) => (
-                      <a
-                        key={tipoInfo.anchorId}
-                        href={`#${tipoInfo.anchorId}`}
-                        className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${t.navChip}`}
-                      >
-                        {tipoInfo.tipo} <span className="opacity-60 ml-0.5">({tipoInfo.quantidade})</span>
-                      </a>
-                    ))}
+                    <button
+                      onClick={() => {
+                        setSelectedTipos([]);
+                        pontosListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }}
+                      className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                        selectedTipos.length === 0 ? t.navChipActive : t.navChip
+                      }`}
+                    >
+                      Todos <span className="opacity-60 ml-0.5">({allPontos.length > 0 ? (selectedPracas.length ? allPontos.filter(p => selectedPracas.includes(p.cidade)).length : allPontos.length) : 0})</span>
+                    </button>
+                    {formatosParaNav.map((f) => {
+                      const isActive = selectedTipos.length === 1 && selectedTipos[0] === f.tipo;
+                      return (
+                        <button
+                          key={f.tipo}
+                          onClick={() => {
+                            if (isActive) {
+                              setSelectedTipos([]);
+                            } else {
+                              setSelectedTipos([f.tipo]);
+                            }
+                            pontosListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }}
+                          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                            isActive ? t.navChipActive : t.navChip
+                          }`}
+                        >
+                          {f.tipo} <span className="opacity-60 ml-0.5">({f.quantidade})</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          <div className="space-y-8">
+          <div ref={pontosListRef} className="space-y-8 scroll-mt-40">
             {pontosPorTipo.map((grupo, groupIndex) => (
-              <section key={grupo.anchorId} id={grupo.anchorId} className="scroll-mt-24">
+              <section key={grupo.anchorId} id={grupo.anchorId} className="scroll-mt-40">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-lg font-semibold">{grupo.tipo}</h3>
                   <span className={`text-xs uppercase tracking-wide ${t.textMuted}`}>{formatInt(grupo.quantidade)} endereços</span>
                 </div>
 
+                {/* ── GRID VIEW ── */}
+                {viewMode === 'grid' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {grupo.pontos.map((ponto, itemIndex) => (
+                      <motion.article
+                        key={ponto.id}
+                        initial={{ opacity: 0, y: 16 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: Math.min(itemIndex * 0.04, 0.3), duration: 0.35 }}
+                        className={`rounded-2xl border overflow-hidden transition-all duration-200 hover:-translate-y-0.5 group ${t.card}`}
+                      >
+                        <div className="relative">
+                          <PointImageGallery ponto={ponto} onExpand={openLightbox} compact />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isFavorite(ponto.id)) {
+                                removeFavorite(ponto.id);
+                                trackEvent('favorite_remove', { pointId: ponto.id, pointName: ponto.nome, pointCity: ponto.cidade, pointType: ponto.tipo });
+                              } else {
+                                addFavorite(ponto);
+                                trackEvent('favorite_add', { pointId: ponto.id, pointName: ponto.nome, pointCity: ponto.cidade, pointType: ponto.tipo });
+                                if (!favoritesHintDismissed) { setFavoritesHintDismissed(true); sessionStorage.setItem('intermidia_fav_hint_seen', '1'); }
+                              }
+                            }}
+                            className={`absolute top-2 right-2 z-10 p-2 rounded-full backdrop-blur-sm transition-all duration-200 ${
+                              isFavorite(ponto.id)
+                                ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/30'
+                                : isDark ? 'bg-black/40 text-white/60 hover:text-white hover:bg-black/60' : 'bg-white/80 text-neutral-400 hover:text-neutral-700 hover:bg-white'
+                            }`}
+                            title={isFavorite(ponto.id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                          >
+                            <Heart size={14} fill={isFavorite(ponto.id) ? 'currentColor' : 'none'} />
+                          </button>
+                        </div>
+                        <div className="p-4">
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            <span className={`text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 border font-semibold ${t.chipOrange}`}>{ponto.tipo}</span>
+                            {ponto.cidade && <span className={`text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 border ${t.chipGray}`}>{ponto.cidade}</span>}
+                            {ponto.publico && <span className={`text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 border ${t.chipGray}`}>{ponto.publico}</span>}
+                          </div>
+                          <h4 className="font-semibold text-sm leading-tight mb-1.5 line-clamp-2">{ponto.nome}</h4>
+                          {ponto.endereco && (
+                            <p className={`text-xs mb-3 flex items-start gap-1 line-clamp-1 ${t.textMuted}`}>
+                              <i className="ri-map-pin-line text-brand-orange shrink-0 mt-0.5" style={{ fontSize: 11 }} />{ponto.endereco}
+                            </p>
+                          )}
+                          <div className="grid grid-cols-3 gap-2 mb-3">
+                            {[['Telas', ponto.telas], ['Fluxo', ponto.fluxo], ['Inserções', ponto.insercoes]].map(([label, val]) => (
+                              <div key={label} className="text-center">
+                                <div className={`text-[10px] uppercase ${t.gridStatsLabel}`}>{label}</div>
+                                <div className={`text-sm font-bold ${t.gridStatsVal}`}>{formatInt(val || 0)}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className={`pt-3 border-t flex items-center justify-between ${t.gridPriceBorder}`}>
+                            <span className="text-brand-orange font-bold text-lg">{formatMoney(Number(ponto.preco) || 0)}</span>
+                            <span className={`text-[10px] uppercase ${t.gridStatsLabel}`}>/ mês</span>
+                          </div>
+                        </div>
+                      </motion.article>
+                    ))}
+                  </div>
+                ) : (
+                /* ── LIST VIEW (original) ── */
                 <div className="space-y-4">
                   {grupo.pontos.map((ponto, itemIndex) => (
                     <motion.article
@@ -1653,7 +2030,30 @@ export default function Landing() {
                       className={`rounded-2xl border backdrop-blur p-4 lg:p-5 transition-all duration-200 ${t.card} ${isDark ? 'hover:border-brand-orange/35 hover:shadow-[0_10px_30px_rgba(0,0,0,0.45)] hover:-translate-y-0.5' : 'hover:border-brand-orange/40 hover:shadow-lg hover:-translate-y-0.5'}`}
                     >
                       <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
-                        <PointImageGallery ponto={ponto} onExpand={openLightbox} />
+                        <div className="relative">
+                          <PointImageGallery ponto={ponto} onExpand={openLightbox} />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isFavorite(ponto.id)) {
+                                removeFavorite(ponto.id);
+                                trackEvent('favorite_remove', { pointId: ponto.id, pointName: ponto.nome, pointCity: ponto.cidade, pointType: ponto.tipo });
+                              } else {
+                                addFavorite(ponto);
+                                trackEvent('favorite_add', { pointId: ponto.id, pointName: ponto.nome, pointCity: ponto.cidade, pointType: ponto.tipo });
+                                if (!favoritesHintDismissed) { setFavoritesHintDismissed(true); sessionStorage.setItem('intermidia_fav_hint_seen', '1'); }
+                              }
+                            }}
+                            className={`absolute top-2 right-2 z-10 p-2 rounded-full backdrop-blur-sm transition-all duration-200 ${
+                              isFavorite(ponto.id)
+                                ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/30'
+                                : isDark ? 'bg-black/40 text-white/60 hover:text-white hover:bg-black/60' : 'bg-white/80 text-neutral-400 hover:text-neutral-700 hover:bg-white'
+                            }`}
+                            title={isFavorite(ponto.id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                          >
+                            <Heart size={14} fill={isFavorite(ponto.id) ? 'currentColor' : 'none'} />
+                          </button>
+                        </div>
 
                         <div>
                           <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
@@ -1673,16 +2073,38 @@ export default function Landing() {
                                     {ponto.cidade}
                                   </span>
                                 )}
+                                {/* Static types: availability badge (never say "indisponível") */}
                                 {(ponto.tipo === 'Frontlight' || ponto.tipo === 'Backlight') && (
                                   <span className={`inline-flex items-center gap-1 text-[11px] uppercase tracking-wide rounded-md px-2 py-1 border font-bold ${
                                     ponto.disponibilidade === 'indisponivel'
-                                      ? 'bg-red-500/10 text-red-500 border-red-500/30'
+                                      ? 'bg-amber-500/10 text-amber-600 border-amber-500/30'
                                       : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
                                   }`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${ponto.disponibilidade === 'indisponivel' ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`} />
-                                    {ponto.disponibilidade === 'indisponivel' ? 'Indisponível' : 'Disponível'}
+                                    <span className={`w-1.5 h-1.5 rounded-full ${ponto.disponibilidade === 'indisponivel' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500 animate-pulse'}`} />
+                                    {ponto.disponibilidade === 'indisponivel' ? 'Sob consulta' : 'Disponível'}
                                   </span>
                                 )}
+
+                                {/* Digital types: urgency signal from loop audit */}
+                                {(() => {
+                                  const signal = getUrgencySignal(ponto, availabilityMap);
+                                  if (!signal) return null;
+                                  const styles = {
+                                    critical: 'bg-red-500/10 text-red-500 border-red-500/30',
+                                    high:     'bg-amber-500/10 text-amber-600 border-amber-500/30',
+                                    medium:   'bg-orange-500/10 text-orange-600 border-orange-400/30',
+                                    moderate: 'bg-blue-500/10 text-blue-500 border-blue-500/25',
+                                    available:'bg-emerald-500/10 text-emerald-600 border-emerald-500/25',
+                                  };
+                                  const pulseOn = signal.level === 'critical' || signal.level === 'high';
+                                  return (
+                                    <span className={`inline-flex items-center gap-1 text-[11px] uppercase tracking-wide rounded-md px-2 py-1 border font-bold ${styles[signal.level] || styles.available}`}>
+                                      {pulseOn && <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
+                                      <i className={`${signal.icon}`} style={{ fontSize: 11 }} />
+                                      {signal.label}
+                                    </span>
+                                  );
+                                })()}
                               </div>
                               <h4 className="text-xl font-semibold leading-tight break-words">{ponto.nome}</h4>
                             </div>
@@ -1694,6 +2116,28 @@ export default function Landing() {
                               <div className="text-2xl font-bold text-brand-orange">{formatMoney(Number(ponto.preco) || 0)}</div>
                             </div>
                           </div>
+
+                          {/* Urgency scarcity strip for high-demand points */}
+                          {(() => {
+                            const signal = getUrgencySignal(ponto, availabilityMap);
+                            if (!signal || (signal.level !== 'critical' && signal.level !== 'high' && signal.level !== 'medium')) return null;
+                            const stripColors = {
+                              critical: isDark ? 'bg-red-500/[0.08] border-red-500/20' : 'bg-red-50 border-red-200/60',
+                              high:     isDark ? 'bg-amber-500/[0.08] border-amber-500/20' : 'bg-amber-50 border-amber-200/60',
+                              medium:   isDark ? 'bg-orange-500/[0.06] border-orange-500/15' : 'bg-orange-50/60 border-orange-200/40',
+                            };
+                            const textColors = {
+                              critical: isDark ? 'text-red-400' : 'text-red-600',
+                              high:     isDark ? 'text-amber-400' : 'text-amber-700',
+                              medium:   isDark ? 'text-orange-400' : 'text-orange-600',
+                            };
+                            return (
+                              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs ${stripColors[signal.level]}`}>
+                                <i className={`${signal.icon} ${textColors[signal.level]}`} style={{ fontSize: 14 }} />
+                                <span className={`font-semibold ${textColors[signal.level]}`}>{signal.sublabel}</span>
+                              </div>
+                            );
+                          })()}
 
                           {ponto.endereco && (
                             <p className={`text-sm mb-2 flex items-start gap-2 ${t.textLight}`}>
@@ -1742,6 +2186,7 @@ export default function Landing() {
                     </motion.article>
                   ))}
                 </div>
+                )}
               </section>
             ))}
             {!loading && pontos.length === 0 && (
@@ -1789,6 +2234,213 @@ export default function Landing() {
       <AnimatePresence>
         {showMapModal && (
           <MapModal key="map-modal" pontos={pontos} onClose={() => setShowMapModal(false)} isDark={isDark} />
+        )}
+      </AnimatePresence>
+
+      {/* ── PDF Export Modal ─────────────────────────────────── */}
+      <AnimatePresence>
+        {showPdfModal && (
+          <motion.div
+            key="pdf-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-[85] flex items-center justify-center bg-black/80 backdrop-blur-md px-4 py-6"
+            onClick={() => setShowPdfModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 16 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 16 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className={`relative w-full max-w-lg rounded-2xl border overflow-hidden ${
+                isDark ? 'border-white/10 bg-[#0a0a0a]' : 'border-[#EFE0D8] bg-white'
+              }`}
+              style={{ boxShadow: '0 30px 100px rgba(0,0,0,0.7)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div
+                className="px-6 pt-6 pb-5"
+                style={{
+                  background: isDark
+                    ? 'linear-gradient(135deg, rgba(255,107,53,0.12) 0%, rgba(255,107,53,0.04) 100%)'
+                    : 'linear-gradient(135deg, #FFF0EA 0%, #FFF8F5 100%)',
+                  borderBottom: `1px solid ${isDark ? 'rgba(255,107,53,0.15)' : '#FFCFB8'}`,
+                }}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-xl"
+                      style={{
+                        background: isDark ? 'rgba(255,107,53,0.15)' : '#FFE4D6',
+                        border: `1px solid ${isDark ? 'rgba(255,107,53,0.30)' : '#FFCFB8'}`,
+                      }}
+                    >
+                      <i className="ri-file-pdf-2-line text-brand-orange" style={{ fontSize: 20 }} />
+                    </div>
+                    <div>
+                      <h3
+                        className="text-lg font-bold"
+                        style={{ fontFamily: "'Poppins', system-ui, sans-serif", color: isDark ? '#fff' : '#1A1008' }}
+                      >
+                        Gerar Mídia Kit PDF
+                      </h3>
+                      <p className="text-xs" style={{ color: isDark ? 'rgba(255,255,255,0.45)' : '#7A6155' }}>
+                        {formatInt(pontos.length)} endereços · {selectedPracaLabel}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowPdfModal(false)}
+                    className={`h-8 w-8 flex items-center justify-center rounded-full border transition ${
+                      isDark ? 'border-white/15 bg-white/5 text-white hover:bg-white/15' : 'border-[#DDD0CA] bg-white text-[#7A6155] hover:bg-[#FDF7F4]'
+                    }`}
+                    aria-label="Fechar"
+                  >
+                    <i className="ri-close-line" style={{ fontSize: 15 }} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Lead capture */}
+              <div className="px-6 py-5 space-y-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <i className="ri-user-star-line text-brand-orange" style={{ fontSize: 15 }} />
+                    <span
+                      className="text-xs font-bold uppercase tracking-[0.12em]"
+                      style={{ color: isDark ? 'rgba(255,107,53,0.75)' : '#C94A1A' }}
+                    >
+                      Receba novidades e ofertas
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {[
+                      { key: 'nome', placeholder: 'Seu nome', icon: 'ri-user-line', colSpan: false },
+                      { key: 'empresa', placeholder: 'Empresa', icon: 'ri-building-2-line', colSpan: false },
+                      { key: 'email', placeholder: 'E-mail', icon: 'ri-mail-line', colSpan: false },
+                      { key: 'telefone', placeholder: 'Telefone / WhatsApp', icon: 'ri-phone-line', colSpan: false },
+                    ].map((field) => (
+                      <div key={field.key} className={`relative ${field.colSpan ? 'col-span-2' : ''}`}>
+                        <i
+                          className={`${field.icon} absolute left-3 top-1/2 -translate-y-1/2`}
+                          style={{ fontSize: 13, color: isDark ? 'rgba(255,255,255,0.25)' : '#9A8178' }}
+                        />
+                        <input
+                          type={field.key === 'email' ? 'email' : field.key === 'telefone' ? 'tel' : 'text'}
+                          value={leadForm[field.key]}
+                          onChange={(e) => setLeadForm((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                          placeholder={field.placeholder}
+                          className={`w-full h-[40px] pl-9 pr-3 rounded-lg border text-sm transition-colors outline-none ${
+                            isDark
+                              ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/40'
+                              : 'bg-[#FDF7F4] border-[#EFE0D8] text-[#1A1008] placeholder:text-[#9A8178] focus:border-brand-orange/50'
+                          }`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] mt-2" style={{ color: isDark ? 'rgba(255,255,255,0.25)' : '#9A8178' }}>
+                    <i className="ri-lock-line mr-0.5" style={{ fontSize: 10 }} />
+                    Opcional — seus dados ficam seguros conosco.
+                  </p>
+                </div>
+
+                {/* Divider */}
+                <div
+                  className="h-px"
+                  style={{ background: isDark ? 'rgba(255,255,255,0.07)' : '#EFE0D8' }}
+                />
+
+                {/* Format toggle */}
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-[0.12em] mb-2.5" style={{ color: isDark ? '#737373' : '#7A6155' }}>
+                    Formato do PDF
+                  </div>
+                  <div
+                    className="flex rounded-xl overflow-hidden"
+                    style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#EFE0D8'}` }}
+                  >
+                    {[
+                      {
+                        value: 'desktop',
+                        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>,
+                        label: 'Padrão (Landscape)',
+                        desc: 'Ideal para apresentação em tela',
+                      },
+                      {
+                        value: 'mobile',
+                        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="18" r="1" fill="currentColor" stroke="none"/></svg>,
+                        label: 'Mobile (9:16)',
+                        desc: 'Ideal para enviar por WhatsApp',
+                      },
+                    ].map(({ value, icon, label, desc }) => {
+                      const active = pdfFormat === value;
+                      return (
+                        <button
+                          key={value}
+                          onClick={() => setPdfFormat(value)}
+                          className="flex-1 flex items-center gap-3 px-4 py-3 text-left transition-all duration-150"
+                          style={{
+                            background: active
+                              ? isDark ? 'rgba(255,107,53,0.12)' : '#FFF0EA'
+                              : 'transparent',
+                            borderRight: value === 'desktop' ? `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#EFE0D8'}` : 'none',
+                          }}
+                        >
+                          <div style={{ color: active ? '#FF6B35' : isDark ? 'rgba(255,255,255,0.35)' : '#9C877B' }}>
+                            {icon}
+                          </div>
+                          <div>
+                            <div className="text-xs font-semibold" style={{ color: active ? (isDark ? '#fff' : '#1A1008') : (isDark ? 'rgba(255,255,255,0.55)' : '#7A6155') }}>
+                              {label}
+                            </div>
+                            <div className="text-[10px]" style={{ color: isDark ? 'rgba(255,255,255,0.30)' : '#9A8178' }}>
+                              {desc}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer / CTA */}
+              <div
+                className="px-6 py-4 flex items-center justify-between gap-3"
+                style={{
+                  background: isDark ? 'rgba(255,255,255,0.02)' : '#FDF7F4',
+                  borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : '#EFE0D8'}`,
+                }}
+              >
+                <button
+                  onClick={() => setShowPdfModal(false)}
+                  className="text-sm font-medium transition-colors"
+                  style={{ color: isDark ? 'rgba(255,255,255,0.45)' : '#7A6155' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => handleExportPdf()}
+                  disabled={pdfStatus === 'generating' || pontos.length === 0}
+                  className="h-[44px] px-7 text-white font-bold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center gap-2"
+                  style={{
+                    background: '#FF6B35',
+                    boxShadow: '0 4px 16px rgba(255,107,53,0.36)',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#E85A25'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(255,107,53,0.50)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = '#FF6B35'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(255,107,53,0.36)'; }}
+                >
+                  <i className="ri-download-2-line" style={{ fontSize: 16 }} />
+                  {pdfStatus === 'generating' ? 'Gerando...' : 'Gerar e baixar PDF'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -1866,6 +2518,25 @@ export default function Landing() {
           </motion.div>
         ) : null}
       </AnimatePresence>
+
+      {/* ── Toast "Link copiado" ──── */}
+      <AnimatePresence>
+        {shareToast && (
+          <motion.div
+            key="share-toast"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[10000] rounded-xl border border-green-500/40 bg-green-600/90 backdrop-blur-sm px-5 py-3 text-sm font-semibold text-white shadow-xl flex items-center gap-2"
+          >
+            <i className="ri-checkbox-circle-fill" style={{ fontSize: 16 }} />
+            Link copiado! Cole e envie para compartilhar.
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── FavoritesBar (sidebar direita) ──── */}
+      {!showSlidesMode && <FavoritesBar isDark={isDark} showProposalCta={false} onShareFavorites={handleShareFavorites} shareLoading={favShareLoading} />}
 
       {/* ── Botão flutuante WhatsApp (hidden during slides) ──── */}
       {!showSlidesMode && <motion.a

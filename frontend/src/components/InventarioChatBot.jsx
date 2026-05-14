@@ -13,6 +13,7 @@ import { MessageCircle, X, Send, Loader2, RotateCcw } from 'lucide-react';
 import useTheme from '../hooks/useTheme';
 import { fetchInventoryChat, checkLeadStatus, captureLeadInfo, updateLeadLastMessage } from '../lib/api';
 import { getOrCreateSessionId, trackEvent } from '../lib/tracking';
+import { useFavorites } from '../context/FavoritesContext';
 
 // ── Quick suggestions ─────────────────────────────────────────────────────────
 const SUGESTOES = [
@@ -140,6 +141,10 @@ function isValidPhone(text) {
 export default function InventarioChatBot() {
   const isDark = useTheme();
   const location = useLocation();
+  const { sidebarOpen: favoritesSidebarOpen } = useFavorites();
+
+  // Shift chat position right when favorites sidebar is expanded
+  const chatRightOffset = favoritesSidebarOpen ? 344 : 24; // 320px sidebar + 24px gap
 
   const [aberto, setAberto] = useState(false);
   const [sessionId] = useState(getOrCreateSessionId);
@@ -362,13 +367,13 @@ export default function InventarioChatBot() {
     <>
       {/* ── Chat panel — positioned to the left of WhatsApp FAB ─────── */}
       <div
-        className={`fixed bottom-24 right-6 z-[9980] w-[360px] max-w-[calc(100vw-2rem)]
+        className={`fixed bottom-24 z-[9980] w-[360px] max-w-[calc(100vw-2rem)]
           flex flex-col rounded-2xl border shadow-2xl overflow-hidden
           transition-all duration-300 ease-in-out
           ${panelBg}
           ${aberto ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'}
         `}
-        style={{ height: aberto ? '520px' : '0px', maxHeight: '80vh' }}
+        style={{ height: aberto ? '520px' : '0px', maxHeight: '80vh', right: `${chatRightOffset}px` }}
       >
         {/* Header */}
         <div className={`flex items-center justify-between px-4 py-3 border-b ${headerBg} flex-shrink-0`}>
@@ -481,15 +486,16 @@ export default function InventarioChatBot() {
             return !o;
           });
         }}
-        className={`fixed bottom-6 right-6 z-[9989] w-14 h-14 rounded-full
+        className={`fixed bottom-6 z-[9989] w-14 h-14 rounded-full
           flex items-center justify-center transition-all duration-300 group
           ${aberto
             ? isDark ? 'bg-brand-gray-800 text-white shadow-lg' : 'bg-gray-700 text-white shadow-lg'
             : 'text-white hover:scale-[1.06]'
           }`}
         style={aberto
-          ? { filter: 'none' }
+          ? { filter: 'none', right: `${chatRightOffset}px` }
           : {
+              right: `${chatRightOffset}px`,
               background: 'linear-gradient(135deg, #FE5C2B 0%, #E85A1A 55%, #C94A1A 100%)',
               boxShadow: '0 10px 30px -8px rgba(254, 92, 43, 0.55), 0 4px 12px -2px rgba(254, 92, 43, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25)',
             }
@@ -519,11 +525,12 @@ export default function InventarioChatBot() {
       {!aberto && (
         <div
           onClick={() => setAberto(true)}
-          className="fixed bottom-[28px] right-[84px] z-[9988] cursor-pointer
+          className="fixed bottom-[28px] z-[9988] cursor-pointer
             hidden sm:flex items-center gap-2 pl-3 pr-4 py-2.5 rounded-2xl
             whitespace-nowrap transition-all duration-300 hover:-translate-x-0.5
             animate-fade-in group/balloon"
           style={{
+            right: `${chatRightOffset + 60}px`,
             background: isDark
               ? 'linear-gradient(135deg, rgba(26,26,26,0.96) 0%, rgba(15,15,15,0.96) 100%)'
               : 'linear-gradient(135deg, #ffffff 0%, #fffaf6 100%)',

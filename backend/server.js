@@ -40,7 +40,7 @@ const {
 const { createBackupScheduler } = require('./backupService');
 const { startScheduledMessages } = require('./services/scheduledMessagesService');
 const { generatePdfsFromPointNames } = require('./services/technicalPdfService');
-const { renderHtmlToPdfCompressed: renderHtmlToPdf } = require('./pdfService');
+const { renderHtmlToPdfCompressed: renderHtmlToPdf, renderHtmlToScreenshot } = require('./pdfService');
 const {
   slugifyCity,
   normalizeCitySlugs,
@@ -148,6 +148,19 @@ try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_lead_proposta_links_lead ON lead_proposta_links(lead_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_lead_proposta_links_proposta ON lead_proposta_links(proposta_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_lead_proposta_links_token ON lead_proposta_links(proposta_token_id)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS shared_filters (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      code            TEXT UNIQUE NOT NULL,
+      filters_json    TEXT NOT NULL,
+      label           TEXT,
+      created_at      TEXT DEFAULT (datetime('now')),
+      views           INTEGER DEFAULT 0,
+      last_viewed_at  TEXT
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_shared_filters_code ON shared_filters(code)`);
 
   // Column migrations — safe to ignore if already applied
   try { db.exec(`ALTER TABLE chat_sessions ADD COLUMN lead_captured INTEGER DEFAULT 0`); } catch { /* exists */ }
@@ -560,19 +573,135 @@ app.post('/api/pdf/render', pdfRenderLimiter, express.json({ limit: '120mb' }), 
   }
 });
 
+// Screenshot endpoint — renderiza uma unica pagina HTML como PNG (para editor visual)
+// Se extractEditables=true, tambem extrai posicoes de [data-editable] via Puppeteer
+// e retorna JSON { png: "data:image/png;base64,...", editables: [...] }
+app.post('/api/pdf/screenshot', pdfRenderLimiter, express.json({ limit: '30mb' }), async (req, res) => {
+  const { html, width, height, scale, extractEditables } = req.body || {};
+  if (!html || typeof html !== 'string' || html.length < 10) {
+    return res.status(400).json({ error: 'Parâmetro html obrigatório.' });
+  }
+  try {
+    const result = await renderHtmlToScreenshot(html, {
+      width: Number(width) || 1366,
+      height: Number(height) || 768,
+      scale: Number(scale) || 2,
+      extractEditables: !!extractEditables,
+    });
+
+    if (extractEditables) {
+      // JSON: base64 PNG + posicoes dos editaveis (medidos no mesmo Puppeteer)
+      const base64Png = result.screenshot.toString('base64');
+      return res.json({
+        png: `data:image/png;base64,${base64Png}`,
+        editables: result.editables || [],
+      });
+    } else {
+      // Original: raw PNG buffer
+      const pngBuffer = result.screenshot;
+      res.set({
+        'Content-Type': 'image/png',
+        'Content-Length': pngBuffer.length,
+        'Cache-Control': 'no-store',
+      });
+      return res.end(pngBuffer);
+    }
+  } catch (err) {
+    console.error('[pdf/screenshot] Erro:', err.message || err);
+    return res.status(500).json({ error: 'Erro ao gerar screenshot.' });
+  }
+});
+
 app.use(express.json({ limit: '1mb' }));
 app.use(compression({ threshold: 1024 }));
 // Rotas públicas com limiter mais generoso (antes do apiLimiter geral)
 app.use('/api/p', publicLimiter);
+app.use('/api/share', publicLimiter);
 app.use('/api/track', publicLimiter);
 app.use('/api/census/profiles', publicLimiter);
 app.use('/api/leads/check', publicLimiter);
 // apiLimiter geral — skip rotas que já têm publicLimiter
-const PUBLIC_PREFIXES = ['/api/p/', '/api/p', '/api/track', '/api/census/profiles', '/api/leads/check'];
+const PUBLIC_PREFIXES = ['/api/p/', '/api/p', '/api/share', '/api/track', '/api/census/profiles', '/api/leads/check'];
 app.use('/api', (req, res, next) => {
   const fullPath = req.originalUrl || req.url;
   if (PUBLIC_PREFIXES.some(prefix => fullPath.startsWith(prefix))) return next();
   return apiLimiter(req, res, next);
+});
+
+// ── Short URL para filtros compartilhados ────────────────────────────
+function generateShortCode(length = 6) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let code = '';
+  const bytes = require('crypto').randomBytes(length);
+  for (let i = 0; i < length; i++) code += chars[bytes[i] % chars.length];
+  return code;
+}
+
+const shareLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, message: { error: 'Limite de criação de links atingido.' } });
+
+app.post('/api/share', shareLimiter, express.json({ limit: '16kb' }), (req, res) => {
+  try {
+    const { filters, label } = req.body || {};
+    if (!filters || typeof filters !== 'object') {
+      return res.status(400).json({ error: 'Filtros inválidos.' });
+    }
+    // Sanitiza — aceita arrays de strings, string de busca, e IDs de pontos (favoritos)
+    const clean = {
+      cidade: Array.isArray(filters.cidade) ? filters.cidade.filter(v => typeof v === 'string').slice(0, 20) : [],
+      tipo: Array.isArray(filters.tipo) ? filters.tipo.filter(v => typeof v === 'string').slice(0, 10) : [],
+      publico: Array.isArray(filters.publico) ? filters.publico.filter(v => typeof v === 'string').slice(0, 10) : [],
+      elevador: Array.isArray(filters.elevador) ? filters.elevador.filter(v => typeof v === 'string').slice(0, 5) : [],
+      q: typeof filters.q === 'string' ? filters.q.trim().slice(0, 100) : '',
+      pointIds: Array.isArray(filters.pointIds) ? filters.pointIds.map(v => Number(v)).filter(v => Number.isFinite(v) && v > 0).slice(0, 200) : [],
+    };
+    const hasAny = clean.cidade.length || clean.tipo.length || clean.publico.length || clean.elevador.length || clean.q || clean.pointIds.length;
+    if (!hasAny) return res.status(400).json({ error: 'Nenhum filtro selecionado.' });
+
+    // Verifica se filtros idênticos já existem para reutilizar o code
+    const filtersJson = JSON.stringify(clean);
+    const existing = db.prepare('SELECT code FROM shared_filters WHERE filters_json = ?').get(filtersJson);
+    if (existing) {
+      return res.json({ code: existing.code, url: `/s/${existing.code}`, reused: true });
+    }
+
+    // Gera código único
+    let code;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      code = generateShortCode(attempt < 5 ? 6 : 8);
+      const dup = db.prepare('SELECT id FROM shared_filters WHERE code = ?').get(code);
+      if (!dup) break;
+      if (attempt === 9) return res.status(500).json({ error: 'Falha ao gerar código único.' });
+    }
+
+    db.prepare('INSERT INTO shared_filters (code, filters_json, label) VALUES (?, ?, ?)').run(
+      code, filtersJson, typeof label === 'string' ? label.trim().slice(0, 200) : null
+    );
+
+    res.json({ code, url: `/s/${code}` });
+  } catch (err) {
+    console.error('[share/create]', err.message);
+    res.status(500).json({ error: 'Erro ao criar link compartilhável.' });
+  }
+});
+
+app.get('/api/share/:code', (req, res) => {
+  try {
+    const { code } = req.params;
+    if (!code || typeof code !== 'string' || code.length > 12) {
+      return res.status(400).json({ error: 'Código inválido.' });
+    }
+    const row = db.prepare('SELECT code, filters_json, label, created_at, views FROM shared_filters WHERE code = ?').get(code);
+    if (!row) return res.status(404).json({ error: 'Link não encontrado.' });
+
+    // Incrementa views
+    db.prepare("UPDATE shared_filters SET views = views + 1, last_viewed_at = datetime('now') WHERE code = ?").run(code);
+
+    const filters = JSON.parse(row.filters_json);
+    res.json({ code: row.code, filters, label: row.label, createdAt: row.created_at, views: row.views + 1 });
+  } catch (err) {
+    console.error('[share/get]', err.message);
+    res.status(500).json({ error: 'Erro ao buscar link.' });
+  }
 });
 
 // Responde com erro 500 genérico ao cliente e loga detalhes no servidor
@@ -8447,7 +8576,7 @@ app.post('/api/p/:token/aprovar', express.json(), (req, res) => {
 });
 
 // ── Navigation tracking (public) ──────────────────────────────────────────────
-const VALID_EVENT_TYPES = new Set(['page_view', 'pdf_generate', 'slides_open', 'chatbot_open', 'chatbot_message', 'whatsapp_click', 'instagram_click', 'contact_click', 'proposal_view', 'point_detail_view']);
+const VALID_EVENT_TYPES = new Set(['page_view', 'pdf_generate', 'slides_open', 'chatbot_open', 'chatbot_message', 'whatsapp_click', 'instagram_click', 'contact_click', 'proposal_view', 'point_detail_view', 'favorite_add', 'favorite_remove', 'favorites_shared', 'favorites_cleared']);
 
 function isPlaceholderLeadRecord(lead) {
   if (!lead) return true;
@@ -8839,6 +8968,83 @@ app.put('/api/leads/:id/status', requireRoles(['admin', 'gerente_comercial']), (
     res.json({ ok: true });
   } catch (err) {
     internalError(res, err, 'Erro ao atualizar lead.');
+  }
+});
+
+// ── Favorites analytics (authenticated) ─────────────────────────────────────
+app.get('/api/analytics/favorites', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const days = Math.max(1, Math.min(365, Number(req.query.days) || 30));
+
+    // Fetch raw favorite_add events and aggregate in JS (DB-agnostic — works on SQLite and PostgreSQL)
+    const rawAdds = db.prepare(`
+      SELECT session_id, event_data, created_at
+      FROM navigation_events
+      WHERE event_type = 'favorite_add'
+        AND created_at >= datetime('now', '-' || ? || ' days')
+      ORDER BY created_at DESC
+      LIMIT 5000
+    `).all(days);
+
+    // Parse event_data JSON and aggregate top points
+    const pointMap = new Map(); // pointId -> { point_name, city, type, count, sessions }
+    for (const row of rawAdds) {
+      try {
+        const d = JSON.parse(row.event_data || '{}');
+        if (!d.pointId) continue;
+        const key = String(d.pointId);
+        const entry = pointMap.get(key) || { point_id: d.pointId, point_name: d.pointName || '', city: d.pointCity || '', type: d.pointType || '', favorite_count: 0, sessions: new Set() };
+        entry.favorite_count++;
+        entry.sessions.add(row.session_id);
+        pointMap.set(key, entry);
+      } catch { /* skip malformed */ }
+    }
+    const topPoints = Array.from(pointMap.values())
+      .map(e => ({ ...e, unique_sessions: e.sessions.size, sessions: undefined }))
+      .sort((a, b) => b.favorite_count - a.favorite_count)
+      .slice(0, 50);
+
+    // Total favorites activity
+    const totals = db.prepare(`
+      SELECT
+        SUM(CASE WHEN event_type = 'favorite_add' THEN 1 ELSE 0 END) AS adds,
+        SUM(CASE WHEN event_type = 'favorite_remove' THEN 1 ELSE 0 END) AS removes,
+        SUM(CASE WHEN event_type = 'favorites_shared' THEN 1 ELSE 0 END) AS shares,
+        COUNT(DISTINCT session_id) AS unique_users
+      FROM navigation_events
+      WHERE event_type IN ('favorite_add', 'favorite_remove', 'favorites_shared')
+        AND created_at >= datetime('now', '-' || ? || ' days')
+    `).get(days);
+
+    // Per-lead favorites (sessions that have a lead record)
+    const rawLeadFavs = db.prepare(`
+      SELECT
+        l.id AS lead_id,
+        l.empresa,
+        l.telefone,
+        l.status,
+        ne.event_data,
+        ne.created_at
+      FROM navigation_events ne
+      JOIN leads l ON l.session_id = ne.session_id
+      WHERE ne.event_type = 'favorite_add'
+        AND ne.created_at >= datetime('now', '-' || ? || ' days')
+      ORDER BY ne.created_at DESC
+      LIMIT 200
+    `).all(days);
+
+    const leadFavorites = rawLeadFavs.map(row => {
+      try {
+        const d = JSON.parse(row.event_data || '{}');
+        return { lead_id: row.lead_id, empresa: row.empresa, telefone: row.telefone, status: row.status, point_id: d.pointId, point_name: d.pointName || '', created_at: row.created_at };
+      } catch {
+        return { lead_id: row.lead_id, empresa: row.empresa, telefone: row.telefone, status: row.status, point_id: null, point_name: '', created_at: row.created_at };
+      }
+    }).filter(r => r.point_id);
+
+    res.json({ days, topPoints, totals, leadFavorites });
+  } catch (err) {
+    internalError(res, err, 'Erro ao buscar analytics de favoritos.');
   }
 });
 

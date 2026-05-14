@@ -191,23 +191,80 @@ export default function TvWall() {
           valor: item.valor_total || item.valor_mensal || 0,
           status: item.status || 'Venda'
         });
-        // Play bell sound
+        // Play loud attention-grabbing sale alert (~10 seconds)
         try {
-          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          const playTone = (freq, start, dur) => {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sine';
-            osc.frequency.value = freq;
-            gain.gain.setValueAtTime(0.3, audioCtx.currentTime + start);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + start + dur);
-            osc.connect(gain).connect(audioCtx.destination);
-            osc.start(audioCtx.currentTime + start);
-            osc.stop(audioCtx.currentTime + start + dur);
-          };
-          playTone(830, 0, 0.3);
-          playTone(1050, 0.15, 0.3);
-          playTone(1320, 0.35, 0.5);
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const t0 = ctx.currentTime;
+          const TOTAL_DURATION = 10;
+
+          // ── Part 1: Air horn blast (0s–3s) ──
+          // Two detuned sawtooth oscillators for thick brass horn timbre
+          for (const detune of [-8, 8]) {
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(260, t0);
+            osc.frequency.linearRampToValueAtTime(290, t0 + 0.15);
+            osc.detune.value = detune;
+            g.gain.setValueAtTime(0, t0);
+            g.gain.linearRampToValueAtTime(0.45, t0 + 0.08);
+            // Three blasts
+            g.gain.setValueAtTime(0.45, t0 + 0.8);
+            g.gain.linearRampToValueAtTime(0.05, t0 + 1.0);
+            g.gain.linearRampToValueAtTime(0.45, t0 + 1.2);
+            g.gain.setValueAtTime(0.45, t0 + 1.9);
+            g.gain.linearRampToValueAtTime(0.05, t0 + 2.1);
+            g.gain.linearRampToValueAtTime(0.45, t0 + 2.3);
+            g.gain.setValueAtTime(0.45, t0 + 2.9);
+            g.gain.exponentialRampToValueAtTime(0.001, t0 + 3.2);
+            osc.connect(g).connect(ctx.destination);
+            osc.start(t0);
+            osc.stop(t0 + 3.3);
+          }
+
+          // ── Part 2: Rising siren sweep (3s–7s) ──
+          for (let i = 0; i < 4; i++) {
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.type = 'square';
+            const base = 3.2 + i * 1.0;
+            osc.frequency.setValueAtTime(500, t0 + base);
+            osc.frequency.linearRampToValueAtTime(1200, t0 + base + 0.4);
+            osc.frequency.linearRampToValueAtTime(500, t0 + base + 0.8);
+            g.gain.setValueAtTime(0, t0 + base);
+            g.gain.linearRampToValueAtTime(0.22, t0 + base + 0.05);
+            g.gain.setValueAtTime(0.22, t0 + base + 0.7);
+            g.gain.exponentialRampToValueAtTime(0.001, t0 + base + 0.95);
+            osc.connect(g).connect(ctx.destination);
+            osc.start(t0 + base);
+            osc.stop(t0 + base + 1.0);
+          }
+
+          // ── Part 3: Victory fanfare (7s–10s) ──
+          const fanfare = [
+            { freq: 523, start: 7.0, dur: 0.25 },  // C5
+            { freq: 659, start: 7.3, dur: 0.25 },  // E5
+            { freq: 784, start: 7.6, dur: 0.25 },  // G5
+            { freq: 1047, start: 7.9, dur: 0.6 },  // C6 (hold)
+            { freq: 784, start: 8.5, dur: 0.15 },  // G5
+            { freq: 1047, start: 8.7, dur: 1.1 },  // C6 (long hold)
+          ];
+          for (const note of fanfare) {
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.value = note.freq;
+            g.gain.setValueAtTime(0, t0 + note.start);
+            g.gain.linearRampToValueAtTime(0.35, t0 + note.start + 0.03);
+            g.gain.setValueAtTime(0.35, t0 + note.start + note.dur * 0.7);
+            g.gain.exponentialRampToValueAtTime(0.001, t0 + note.start + note.dur);
+            osc.connect(g).connect(ctx.destination);
+            osc.start(t0 + note.start);
+            osc.stop(t0 + note.start + note.dur + 0.05);
+          }
+
+          // Close audio context after sound ends
+          setTimeout(() => { try { ctx.close(); } catch {} }, (TOTAL_DURATION + 1) * 1000);
         } catch { /* audio not available */ }
         break; // show one popup at a time
       }
@@ -1451,29 +1508,35 @@ export default function TvWall() {
           left: 50%;
           transform: translate(-50%, -50%);
           z-index: 100;
-          min-width: 420px;
-          max-width: 560px;
-          padding: 32px 36px;
+          min-width: 460px;
+          max-width: 600px;
+          padding: 36px 40px;
           border-radius: 28px;
           background: linear-gradient(160deg, #fff8f4 0%, #fff0e6 100%);
-          border: 2px solid rgba(254, 92, 43, 0.3);
-          box-shadow: 0 40px 120px rgba(0, 0, 0, 0.25), 0 0 0 6px rgba(254, 92, 43, 0.08);
+          border: 3px solid rgba(254, 92, 43, 0.5);
+          box-shadow: 0 40px 120px rgba(0, 0, 0, 0.3), 0 0 0 8px rgba(254, 92, 43, 0.12), 0 0 60px rgba(254, 92, 43, 0.15);
           text-align: center;
-          animation: sale-popup-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          animation: sale-popup-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), sale-popup-pulse 1.5s ease-in-out 0.5s 6;
         }
 
         .tv-sale-popup-backdrop {
           position: fixed;
           inset: 0;
           z-index: 99;
-          background: rgba(0, 0, 0, 0.35);
-          backdrop-filter: blur(4px);
+          background: rgba(0, 0, 0, 0.45);
+          backdrop-filter: blur(6px);
           animation: sale-fade-in 0.3s ease;
         }
 
         @keyframes sale-popup-in {
-          0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+          0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+          50% { transform: translate(-50%, -50%) scale(1.05); }
           100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        @keyframes sale-popup-pulse {
+          0%, 100% { box-shadow: 0 40px 120px rgba(0,0,0,0.3), 0 0 0 8px rgba(254,92,43,0.12), 0 0 60px rgba(254,92,43,0.15); border-color: rgba(254,92,43,0.5); }
+          50% { box-shadow: 0 40px 120px rgba(0,0,0,0.3), 0 0 0 14px rgba(254,92,43,0.2), 0 0 90px rgba(254,92,43,0.25); border-color: rgba(254,92,43,0.8); }
         }
 
         @keyframes sale-fade-in {
@@ -1485,22 +1548,22 @@ export default function TvWall() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 64px;
-          height: 64px;
+          width: 76px;
+          height: 76px;
           border-radius: 50%;
           background: linear-gradient(135deg, #fe5c2b, #ff8c5a);
-          box-shadow: 0 12px 32px rgba(254, 92, 43, 0.35);
+          box-shadow: 0 12px 32px rgba(254, 92, 43, 0.45);
           margin-bottom: 16px;
-          animation: sale-bell-ring 0.6s ease 0.3s;
+          animation: sale-bell-ring 0.4s ease-in-out 0.3s 24;
         }
 
         @keyframes sale-bell-ring {
-          0%, 100% { transform: rotate(0); }
-          15% { transform: rotate(14deg); }
-          30% { transform: rotate(-12deg); }
-          45% { transform: rotate(8deg); }
-          60% { transform: rotate(-6deg); }
-          75% { transform: rotate(3deg); }
+          0%, 100% { transform: rotate(0) scale(1); }
+          15% { transform: rotate(18deg) scale(1.05); }
+          30% { transform: rotate(-16deg) scale(1.05); }
+          45% { transform: rotate(12deg) scale(1.02); }
+          60% { transform: rotate(-10deg) scale(1.02); }
+          75% { transform: rotate(5deg); }
         }
 
         .tv-sale-title {

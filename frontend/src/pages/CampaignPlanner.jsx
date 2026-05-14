@@ -9,6 +9,7 @@ import {
   UtensilsCrossed, Calculator, Scale, Cog, MoreHorizontal,
   Car, Dumbbell, Scissors, PawPrint, Pill, ShoppingCart, Landmark, Plane, Laptop, Cpu,
   Search, Brain, Bot, RefreshCw, MessageCircle, Monitor,
+  Eye, Headphones, BadgeCheck, Lightbulb, Rocket, PhoneCall, Briefcase,
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import CampaignScore from '../components/CampaignScore';
@@ -271,14 +272,62 @@ function TagToggle({ label, selected, onClick, isDark }) {
   );
 }
 
-function StatCard({ label, value, isDark }) {
+function StatCard({ label, value, isDark, Icon, accent }) {
   return (
-    <div className={`rounded-xl border p-4 text-center ${
-      isDark ? 'border-white/10 bg-white/[0.04]' : 'border-neutral-200 bg-neutral-50'
-    }`}>
+    <motion.div
+      whileHover={{ y: -2 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+      className={`rounded-xl border p-4 text-center transition-colors ${
+        isDark ? 'border-white/10 bg-white/[0.04] hover:bg-white/[0.07] hover:border-white/15' : 'border-neutral-200 bg-neutral-50 hover:bg-white hover:shadow-md hover:border-brand-orange/20'
+      }`}
+    >
+      {Icon && (
+        <div className="flex justify-center mb-1.5">
+          <Icon size={14} className={accent || 'text-brand-orange'} />
+        </div>
+      )}
       <div className={`text-xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{value}</div>
-      <div className={`text-xs mt-1 ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>{label}</div>
-    </div>
+      <div className={`text-[11px] mt-1 ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>{label}</div>
+    </motion.div>
+  );
+}
+
+function HeroMetric({ value, label, sublabel, Icon, isDark, gradient = 'from-brand-orange to-amber-400' }) {
+  return (
+    <motion.div
+      whileHover={{ y: -3, scale: 1.01 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+      className={`group relative overflow-hidden rounded-2xl border p-5 transition-colors ${
+        isDark ? 'border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] hover:border-white/20' : 'border-neutral-200 bg-white shadow-sm hover:shadow-lg hover:border-brand-orange/25'
+      }`}
+    >
+      <div className={`absolute -right-6 -top-6 w-24 h-24 rounded-full bg-gradient-to-br ${gradient} opacity-10 blur-xl transition-opacity group-hover:opacity-20`} />
+      <div className={`absolute -left-8 -bottom-8 w-20 h-20 rounded-full bg-gradient-to-br ${gradient} opacity-[0.06] blur-2xl`} />
+      <div className="relative">
+        <div className="flex items-center gap-2 mb-2">
+          {Icon && (
+            <motion.span
+              whileHover={{ rotate: [0, -8, 8, 0] }}
+              transition={{ duration: 0.4 }}
+              className={`inline-flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br ${gradient} text-white shadow-sm`}
+            >
+              <Icon size={14} strokeWidth={2.5} />
+            </motion.span>
+          )}
+          <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>
+            {label}
+          </span>
+        </div>
+        <div className={`text-3xl sm:text-4xl font-extrabold font-heading leading-none bg-clip-text text-transparent bg-gradient-to-br ${gradient}`}>
+          {value}
+        </div>
+        {sublabel && (
+          <p className={`text-xs mt-2 ${isDark ? 'text-white/55' : 'text-neutral-500'}`}>
+            {sublabel}
+          </p>
+        )}
+      </div>
+    </motion.div>
   );
 }
 
@@ -859,7 +908,7 @@ export default function CampaignPlanner() {
 
   // results view state
   const [resultTab, setResultTab] = useState('ranking');
-  const [rankExpanded, setRankExpanded] = useState(10);
+  const [rankExpanded, setRankExpanded] = useState(5);
   const [strategyTextExpanded, setStrategyTextExpanded] = useState(false);
 
   /* ─── AI THINKING SCREEN ─── */
@@ -956,7 +1005,7 @@ export default function CampaignPlanner() {
     if (!result) return null;
     const { plan, scoreInfo, strategic, ranked } = result;
     const totals = plan.totals;
-    const top10 = (ranked || []).slice(0, 10);
+    const topRanked = (ranked || []).slice(0, 5);
     const rankVisible = (ranked || []).slice(0, rankExpanded);
     const selectedIds = new Set(plan.pontos.map((p) => p.id));
 
@@ -999,10 +1048,11 @@ export default function CampaignPlanner() {
         className="space-y-6"
       >
         {/* Header */}
-        <div className={`rounded-2xl border p-6 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className={`relative overflow-hidden rounded-2xl border p-6 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
+          <div className="pointer-events-none absolute -right-8 -top-8 w-40 h-40 rounded-full bg-gradient-to-br from-brand-orange/10 to-amber-400/5 blur-3xl" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1.5">
                 {result?._mode === 'ai_decision' ? (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">
                     <Brain size={10} /> Plano gerado por IA
@@ -1012,9 +1062,12 @@ export default function CampaignPlanner() {
                     <Cpu size={10} /> Plano algorítmico
                   </span>
                 )}
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${isDark ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'}`}>
+                  <CheckCircle size={10} /> Pronto
+                </span>
               </div>
-              <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                Recomendação inteligente para {empresa}
+              <h2 className={`text-xl sm:text-2xl font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                Recomendação inteligente para <span className="bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] bg-clip-text text-transparent">{empresa}</span>
               </h2>
               <p className={`text-sm mt-1 ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>
                 {SEGMENTO_LABELS[segmento]} — {objetivos.map((o) => OBJETIVO_LABELS[o] || o).join(', ')} — {cidade}
@@ -1036,32 +1089,242 @@ export default function CampaignPlanner() {
           </div>
         )}
 
-        {/* Stats grid — expanded */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <StatCard label="Pontos selecionados" value={totals.quantidade} isDark={isDark} />
-          <StatCard label="Fluxo mensal" value={formatInt(totals.fluxoTotal)} isDark={isDark} />
-          <StatCard label="Investimento" value={formatMoney(totals.valorTotal)} isDark={isDark} />
-          <StatCard label="CPM" value={`R$ ${totals.cpmEstimado?.toFixed(2) || '0,00'}`} isDark={isDark} />
-          <StatCard label="Alcance estimado" value={plan.reachFrequency ? `${plan.reachFrequency.effectiveReachPct?.toFixed(1) || 0}%` : '—'} isDark={isDark} />
-          <StatCard label="Frequência média" value={plan.reachFrequency ? plan.reachFrequency.avgFrequency?.toFixed(2) || '0' : '—'} isDark={isDark} />
-        </div>
+        {/* ─── HERO metrics — high-impact numbers ─── */}
+        {(() => {
+          const periodWeeks = Number(period) || 4;
+          const periodMultiplier = periodWeeks / 4;
+          const totalImpacts = Math.round((totals.fluxoTotal || 0) * periodMultiplier);
+          const uniqueReach = plan.reachFrequency?.estimatedUnique || 0;
+          const totalImpactsTxt = totalImpacts >= 1_000_000
+            ? `${(totalImpacts / 1_000_000).toFixed(1).replace('.', ',')} Mi`
+            : totalImpacts >= 1_000
+              ? `${(totalImpacts / 1_000).toFixed(0)} mil`
+              : formatInt(totalImpacts);
+          const uniqueReachTxt = uniqueReach >= 1_000_000
+            ? `${(uniqueReach / 1_000_000).toFixed(1).replace('.', ',')} Mi`
+            : uniqueReach >= 1_000
+              ? `${(uniqueReach / 1_000).toFixed(0)} mil`
+              : formatInt(uniqueReach);
+          const cpmValue = totals.cpmEstimado || 0;
+          const formatos = new Set(plan.pontos.map((p) => p.tipo).filter(Boolean)).size;
+          const cidades = new Set(plan.pontos.map((p) => p.cidade).filter(Boolean)).size;
+          const periodoTxt = periodWeeks <= 2 ? '2 semanas' : periodWeeks === 4 ? '1 mês' : periodWeeks === 8 ? '2 meses' : `${periodWeeks} semanas`;
+
+          return (
+            <div className="space-y-3">
+              {/* Hero row — 3 big numbers */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <HeroMetric
+                  value={totalImpactsTxt}
+                  label="Impactos no período"
+                  sublabel={`Visualizações estimadas em ${periodoTxt} de campanha`}
+                  Icon={Eye}
+                  isDark={isDark}
+                  gradient="from-brand-orange to-amber-400"
+                />
+                <HeroMetric
+                  value={uniqueReachTxt}
+                  label="Pessoas únicas alcançadas"
+                  sublabel={`Audiência distinta na praça em ${periodoTxt}`}
+                  Icon={Users}
+                  isDark={isDark}
+                  gradient="from-blue-500 to-cyan-400"
+                />
+                <HeroMetric
+                  value={`R$ ${cpmValue.toFixed(2).replace('.', ',')}`}
+                  label="Custo por mil impactos"
+                  sublabel={cpmValue <= 12 ? 'CPM altamente competitivo na praça' : cpmValue <= 25 ? 'CPM dentro da média de mercado' : 'CPM premium — pontos de alto valor'}
+                  Icon={TrendingUp}
+                  isDark={isDark}
+                  gradient="from-emerald-500 to-teal-400"
+                />
+              </div>
+
+              {/* Secondary stats row */}
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                <StatCard label="Pontos selecionados" value={totals.quantidade} Icon={Monitor} isDark={isDark} />
+                <StatCard label="Formatos diferentes" value={formatos} Icon={SlidersHorizontal} isDark={isDark} />
+                <StatCard label={cidades > 1 ? 'Cidades cobertas' : 'Cidade'} value={cidades} Icon={MapPin} isDark={isDark} />
+                <StatCard label="Investimento" value={formatMoney(totals.valorTotal)} Icon={Wallet} isDark={isDark} />
+                <StatCard label="Alcance efetivo" value={plan.reachFrequency ? `${plan.reachFrequency.effectiveReachPct?.toFixed(1) || 0}%` : '—'} Icon={Target} isDark={isDark} />
+                <StatCard label="Frequência média" value={plan.reachFrequency ? `${plan.reachFrequency.avgFrequency?.toFixed(1) || '0'}x` : '—'} Icon={RefreshCw} isDark={isDark} />
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ─── Specialist consultation CTA — lead capture (moved up for visibility) ─── */}
+        {(() => {
+          const waMessage = `Olá! Acabei de gerar um plano no Planejador de Campanha da Intermidia para ${empresa} (${SEGMENTO_LABELS[segmento] || segmento}) em ${Array.isArray(cidade) ? cidade.join(', ') : cidade}. Score: ${scoreInfo?.score?.toFixed(1) || '—'}/10, ${plan.pontos.length} pontos, investimento de ${formatMoney(totals.valorTotal)}. Quero conversar com um especialista para refinar a estratégia e descobrir oportunidades extras.`;
+          const waHref = `https://wa.me/554398450480?text=${encodeURIComponent(waMessage)}`;
+          const callHref = 'tel:+554333390808';
+          const benefits = [
+            { Icon: Lightbulb, text: 'Estratégia exclusiva refinada por nossos especialistas em DOOH' },
+            { Icon: BadgeCheck, text: 'Negociação personalizada e condições comerciais especiais' },
+            { Icon: Rocket, text: 'Otimização do plano para extrair o máximo do seu investimento' },
+            { Icon: Headphones, text: 'Atendimento humano em até 1 hora útil, sem custo nem compromisso' },
+          ];
+
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.15, ease: 'easeOut' }}
+              className={`relative overflow-hidden rounded-3xl border ${
+                isDark
+                  ? 'border-brand-orange/30 bg-gradient-to-br from-brand-orange/[0.10] via-amber-500/[0.05] to-transparent'
+                  : 'border-brand-orange/35 bg-gradient-to-br from-orange-50 via-amber-50/40 to-white shadow-xl shadow-orange-100/50'
+              }`}
+            >
+              {/* Animated decorative blurs */}
+              <motion.div
+                animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0.9, 0.6] }}
+                transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+                className="pointer-events-none absolute -right-16 -top-16 w-56 h-56 rounded-full bg-gradient-to-br from-brand-orange/30 to-amber-400/20 blur-3xl"
+              />
+              <motion.div
+                animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }}
+                transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+                className="pointer-events-none absolute -left-12 -bottom-12 w-48 h-48 rounded-full bg-gradient-to-br from-amber-400/20 to-brand-orange/15 blur-3xl"
+              />
+
+              {/* Shine sweep */}
+              <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
+                <motion.div
+                  initial={{ x: '-100%' }}
+                  animate={{ x: '200%' }}
+                  transition={{ duration: 3.5, repeat: Infinity, repeatDelay: 5, ease: 'easeInOut' }}
+                  className="absolute top-0 left-0 h-full w-1/3 bg-gradient-to-r from-transparent via-white/[0.08] to-transparent skew-x-12"
+                />
+              </div>
+
+              <div className="relative p-6 sm:p-8">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-4 mb-5">
+                  <div className="flex-shrink-0">
+                    <motion.div
+                      animate={{ y: [0, -4, 0] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                      className="relative inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-[#FE5C2B] to-[#C94A1A] shadow-lg shadow-[#FE5C2B]/40"
+                    >
+                      <Briefcase size={24} className="text-white" />
+                      <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white" />
+                      </span>
+                    </motion.div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand-orange/15 text-brand-orange border border-brand-orange/25">
+                        <Sparkles size={10} /> Estratégia sob medida
+                      </div>
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-600 border border-emerald-500/25">
+                        <CheckCircle size={10} /> 100% gratuito
+                      </div>
+                    </div>
+                    <h3 className={`text-xl sm:text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                      Quer levar essa campanha para o <span className="bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] bg-clip-text text-transparent">próximo nível?</span>
+                    </h3>
+                    <p className={`text-sm mt-2 leading-relaxed ${isDark ? 'text-white/65' : 'text-neutral-600'}`}>
+                      Nossos especialistas analisam seu plano gratuitamente, identificam oportunidades que o algoritmo não vê e
+                      desenham a <strong className={isDark ? 'text-white/90' : 'text-neutral-800'}>campanha ideal</strong> para {empresa || 'sua marca'} — com negociação exclusiva.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-5">
+                  {benefits.map((b, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.25 + i * 0.05, duration: 0.3 }}
+                      className={`flex items-start gap-2.5 px-3 py-2.5 rounded-xl transition-all ${
+                        isDark
+                          ? 'bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.06]'
+                          : 'bg-white/80 border border-orange-100 hover:bg-white hover:border-orange-200 hover:shadow-sm'
+                      }`}
+                    >
+                      <span className="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-brand-orange/20 to-amber-400/10">
+                        <b.Icon size={14} className="text-brand-orange" />
+                      </span>
+                      <span className={`text-xs sm:text-[13px] leading-snug ${isDark ? 'text-white/80' : 'text-neutral-700'}`}>
+                        {b.text}
+                      </span>
+                    </motion.div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
+                  <motion.a
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    href={waHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => { try { trackEvent('planner_specialist_whatsapp_click', { score: scoreInfo?.score, empresa, segmento }); } catch {} }}
+                    className="relative overflow-hidden flex items-center justify-center gap-3 w-full px-6 py-4 rounded-2xl font-semibold text-base text-white bg-[#25D366] hover:bg-[#22c55e] shadow-lg shadow-[#25D366]/25"
+                  >
+                    <motion.span
+                      initial={{ x: '-150%' }}
+                      animate={{ x: '250%' }}
+                      transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 3, ease: 'easeInOut' }}
+                      className="pointer-events-none absolute top-0 left-0 h-full w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-12"
+                    />
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 flex-shrink-0 relative">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                    </svg>
+                    <span className="relative">Falar com especialista no WhatsApp</span>
+                  </motion.a>
+                  <motion.a
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    href={callHref}
+                    onClick={() => { try { trackEvent('planner_specialist_call_click', { score: scoreInfo?.score, empresa, segmento }); } catch {} }}
+                    className={`flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-4 rounded-2xl font-semibold text-base ${
+                      isDark
+                        ? 'border border-white/15 bg-white/[0.04] text-white hover:bg-white/[0.08]'
+                        : 'border border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50 shadow-sm'
+                    }`}
+                  >
+                    <PhoneCall size={18} className="text-brand-orange" />
+                    Ligar agora
+                  </motion.a>
+                </div>
+
+                <div className={`mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] ${isDark ? 'text-white/45' : 'text-neutral-500'}`}>
+                  <span className="inline-flex items-center gap-1"><CheckCircle size={12} className="text-emerald-500" /> Análise gratuita</span>
+                  <span className="inline-flex items-center gap-1"><CheckCircle size={12} className="text-emerald-500" /> Sem compromisso</span>
+                  <span className="inline-flex items-center gap-1"><CheckCircle size={12} className="text-emerald-500" /> Resposta em até 1h útil</span>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })()}
 
         {/* Tab bar */}
-        <div className={`flex gap-1 p-1 rounded-xl ${isDark ? 'bg-white/[0.04]' : 'bg-neutral-100'}`}>
+        <div className={`flex gap-1 p-1 rounded-xl ${isDark ? 'bg-white/[0.04] border border-white/[0.06]' : 'bg-neutral-100 border border-neutral-200/60'}`}>
           {TABS.map((t) => (
             <button
               key={t.key}
               onClick={() => setResultTab(t.key)}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              className={`relative flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 resultTab === t.key
-                  ? 'bg-brand-orange text-white shadow-sm'
+                  ? 'text-white shadow-md shadow-brand-orange/20'
                   : isDark
-                    ? 'text-white/50 hover:text-white hover:bg-white/[0.06]'
-                    : 'text-neutral-500 hover:text-neutral-700 hover:bg-white'
+                    ? 'text-white/55 hover:text-white hover:bg-white/[0.06]'
+                    : 'text-neutral-500 hover:text-neutral-700 hover:bg-white/70'
               }`}
             >
-              <t.icon size={15} />
-              <span className="hidden sm:inline">{t.label}</span>
+              {resultTab === t.key && (
+                <motion.div
+                  layoutId="activeTab"
+                  className="absolute inset-0 rounded-lg bg-gradient-to-r from-brand-orange to-[#E85A1A]"
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                />
+              )}
+              <t.icon size={15} className="relative" />
+              <span className="hidden sm:inline relative">{t.label}</span>
             </button>
           ))}
         </div>
@@ -1069,14 +1332,27 @@ export default function CampaignPlanner() {
         {/* ─── TAB: RANKING ─── */}
         {resultTab === 'ranking' && (
           <div className="space-y-4">
-            {/* Top 10 banner */}
-            {top10.length > 0 && (
-              <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
-                <div className="flex items-center gap-2 mb-4">
-                  <Trophy size={16} className="text-brand-orange" />
-                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>
-                    Top {Math.min(10, top10.length)} — Pontos mais compatíveis
-                  </h3>
+            {/* Top 5 banner */}
+            {topRanked.length > 0 && (
+              <div className={`relative overflow-hidden rounded-2xl border p-5 ${isDark ? 'bg-gradient-to-br from-white/[0.05] to-white/[0.02] border-white/10' : 'bg-gradient-to-br from-white to-orange-50/30 border-neutral-200 shadow-sm'}`}>
+                <div className="pointer-events-none absolute -right-10 -top-10 w-32 h-32 rounded-full bg-gradient-to-br from-brand-orange/15 to-amber-400/10 blur-2xl" />
+                <div className="relative flex items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-brand-orange to-amber-500 shadow-md shadow-brand-orange/30">
+                      <Trophy size={15} className="text-white" strokeWidth={2.5} />
+                    </div>
+                    <div>
+                      <h3 className={`text-sm font-bold uppercase tracking-wider ${isDark ? 'text-white' : 'text-neutral-800'}`}>
+                        Top {Math.min(5, topRanked.length)} — Pontos mais compatíveis
+                      </h3>
+                      <p className={`text-[11px] mt-0.5 ${isDark ? 'text-white/45' : 'text-neutral-500'}`}>
+                        Selecionados pelo algoritmo entre {ranked?.length || 0} pontos analisados
+                      </p>
+                    </div>
+                  </div>
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand-orange/15 text-brand-orange border border-brand-orange/25">
+                    <Star size={9} fill="currentColor" /> Recomendado
+                  </span>
                 </div>
 
                 <div className="space-y-3">
@@ -1235,20 +1511,20 @@ export default function CampaignPlanner() {
                 </div>
 
                 {/* Show more / less */}
-                {(ranked || []).length > 10 && (
+                {(ranked || []).length > 5 && (
                   <div className="flex justify-center mt-4">
                     <button
-                      onClick={() => setRankExpanded((prev) => prev <= 10 ? Math.min(ranked.length, 25) : 10)}
+                      onClick={() => setRankExpanded((prev) => prev <= 5 ? Math.min(ranked.length, 15) : 5)}
                       className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium border transition-all ${
                         isDark
                           ? 'border-white/10 text-white/50 hover:text-white hover:bg-white/[0.04]'
                           : 'border-neutral-200 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-50'
                       }`}
                     >
-                      {rankExpanded <= 10 ? (
-                        <><ChevronDown size={14} /> Ver mais pontos ({Math.min(ranked.length, 25)} de {ranked.length})</>
+                      {rankExpanded <= 5 ? (
+                        <><ChevronDown size={14} /> Ver mais pontos ({Math.min(ranked.length, 15)} de {ranked.length})</>
                       ) : (
-                        <><ChevronUp size={14} /> Mostrar apenas Top 10</>
+                        <><ChevronUp size={14} /> Mostrar apenas Top 5</>
                       )}
                     </button>
                   </div>
@@ -1257,43 +1533,41 @@ export default function CampaignPlanner() {
             )}
 
             {/* Estimates panel */}
-            {top10.length > 0 && (
-              <div className={`rounded-2xl border p-5 ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200 shadow-sm'}`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Zap size={16} className="text-brand-orange" />
-                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>
-                    Estimativas do Top 10
-                  </h3>
+            {topRanked.length > 0 && (
+              <div className={`relative overflow-hidden rounded-2xl border p-5 ${isDark ? 'bg-gradient-to-br from-white/[0.05] to-white/[0.02] border-white/10' : 'bg-gradient-to-br from-amber-50/40 to-white border-neutral-200 shadow-sm'}`}>
+                <div className="pointer-events-none absolute -left-10 -bottom-10 w-32 h-32 rounded-full bg-gradient-to-br from-amber-400/15 to-brand-orange/10 blur-2xl" />
+                <div className="relative flex items-center gap-2.5 mb-4">
+                  <div className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-brand-orange shadow-md shadow-amber-500/30">
+                    <Zap size={15} className="text-white" strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h3 className={`text-sm font-bold uppercase tracking-wider ${isDark ? 'text-white' : 'text-neutral-800'}`}>
+                      Estimativas do Top {topRanked.length}
+                    </h3>
+                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-white/45' : 'text-neutral-500'}`}>
+                      Potencial agregado dos pontos mais compatíveis
+                    </p>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className={`rounded-xl p-3 text-center ${isDark ? 'bg-white/[0.03]' : 'bg-neutral-50'}`}>
-                    <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                      {formatInt(top10.reduce((s, p) => s + (p.estimatedReach || 0), 0))}
-                    </div>
-                    <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>Alcance estimado/mês</div>
-                  </div>
-                  <div className={`rounded-xl p-3 text-center ${isDark ? 'bg-white/[0.03]' : 'bg-neutral-50'}`}>
-                    <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                      {formatInt(top10.reduce((s, p) => s + toNumber(p.fluxo), 0))}
-                    </div>
-                    <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>Impactos potenciais/mês</div>
-                  </div>
-                  <div className={`rounded-xl p-3 text-center ${isDark ? 'bg-white/[0.03]' : 'bg-neutral-50'}`}>
-                    <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                      {formatMoney(top10.reduce((s, p) => s + toNumber(p.preco), 0))}
-                    </div>
-                    <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>Investimento Top 10</div>
-                  </div>
-                  <div className={`rounded-xl p-3 text-center ${isDark ? 'bg-white/[0.03]' : 'bg-neutral-50'}`}>
-                    <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                      {(() => {
-                        const f = top10.reduce((s, p) => s + toNumber(p.fluxo), 0);
-                        const v = top10.reduce((s, p) => s + toNumber(p.preco), 0);
-                        return f > 0 ? `R$ ${(v / (f / 1000)).toFixed(2)}` : '—';
-                      })()}
-                    </div>
-                    <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>CPM médio Top 10</div>
-                  </div>
+                <div className="relative grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {(() => {
+                    const alcance = topRanked.reduce((s, p) => s + (p.estimatedReach || 0), 0);
+                    const fluxo = topRanked.reduce((s, p) => s + toNumber(p.fluxo), 0);
+                    const inv = topRanked.reduce((s, p) => s + toNumber(p.preco), 0);
+                    const cpm = fluxo > 0 ? inv / (fluxo / 1000) : 0;
+                    const cards = [
+                      { value: formatInt(alcance), label: 'Alcance estimado/mês', color: 'text-brand-orange' },
+                      { value: formatInt(fluxo), label: 'Impactos potenciais/mês', color: 'text-amber-500' },
+                      { value: formatMoney(inv), label: `Investimento Top ${topRanked.length}`, color: 'text-emerald-500' },
+                      { value: cpm > 0 ? `R$ ${cpm.toFixed(2).replace('.', ',')}` : '—', label: `CPM médio Top ${topRanked.length}`, color: 'text-cyan-500' },
+                    ];
+                    return cards.map((c, i) => (
+                      <div key={i} className={`rounded-xl p-3 text-center border transition-all hover:scale-[1.02] ${isDark ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-white border-neutral-100'}`}>
+                        <div className={`text-lg font-bold ${c.color}`}>{c.value}</div>
+                        <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>{c.label}</div>
+                      </div>
+                    ));
+                  })()}
                 </div>
               </div>
             )}
@@ -1599,19 +1873,6 @@ export default function CampaignPlanner() {
             </p>
           </div>
         )}
-
-        {/* WhatsApp CTA */}
-        <a
-          href={`https://wa.me/5543998450480?text=${encodeURIComponent(`Olá! Gostei do que vi no Planejador de Campanha da Intermidia. Vim pelo plano feito para ${empresa} (${SEGMENTO_LABELS[segmento] || segmento}) em ${cidade}. Gostaria de mais informações!`)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-3 w-full px-6 py-4 rounded-2xl font-semibold text-base text-white transition-all bg-[#25D366] hover:bg-[#22c55e] active:scale-[0.98] shadow-lg shadow-[#25D366]/20"
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 flex-shrink-0">
-            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-          </svg>
-          Gostou do que viu? Fale conosco no WhatsApp!
-        </a>
 
       </motion.div>
     );

@@ -321,34 +321,111 @@ export function getSegmentDisplayName(segmento) {
   return SEGMENTO_LABELS[String(segmento || '').toLowerCase()] || 'Segmento comercial';
 }
 
+// Deterministic hash from point data to pick text variations without randomness
+function _audienceVariationIndex(point, variants) {
+  const seed = String(point?.nome || '') + String(point?.id || '') + String(point?.endereco || '');
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash) % variants;
+}
+
 export function buildAudienceQualification(point = {}) {
   const publico = String(point.publico || 'A/B').toUpperCase();
   const fluxo = toNumber(point.fluxo);
   const tipo = String(point.tipo || 'formato').toLowerCase();
+  const vi = _audienceVariationIndex(point, 3); // 3 variations per type
 
-  let headline = 'Público com boa mistura entre alcance e tomada de decisão.';
+  const headlinesByType = {
+    A: [
+      'Perfil premium, com maior aderência a marcas de valor agregado.',
+      'Público de alto poder aquisitivo, ideal para posicionamento de marca.',
+      'Audiência qualificada com forte afinidade para produtos e serviços de prestígio.'
+    ],
+    B: [
+      'Perfil massivo com boa resposta para campanhas de volume e frequência.',
+      'Público amplo e diversificado, potencializando alcance e recorrência.',
+      'Audiência com alta densidade urbana, ideal para cobertura em escala.'
+    ],
+    'A/B': [
+      'Recorte equilibrado entre prestígio, recorrência e escala urbana.',
+      'Mix de públicos que combina alcance com capacidade de conversão.',
+      'Perfil diversificado que permite tanto campanhas de branding quanto performance.'
+    ],
+    default: [
+      'Público com boa mistura entre alcance e tomada de decisão.',
+      'Audiência urbana ativa, relevante para marcas que buscam visibilidade contínua.',
+      'Presença em faixa de público que favorece contato frequente com a marca.'
+    ]
+  };
+
+  let headline;
   if (publico === 'A') {
-    headline = 'Perfil premium, com maior aderência a marcas de valor agregado.';
+    headline = headlinesByType.A[vi];
   } else if (publico === 'B') {
-    headline = 'Perfil massivo com boa resposta para campanhas de volume e frequência.';
+    headline = headlinesByType.B[vi];
   } else if (publico.includes('A/B')) {
-    headline = 'Recorte equilibrado entre prestígio, recorrência e escala urbana.';
+    headline = headlinesByType['A/B'][vi];
+  } else {
+    headline = headlinesByType.default[vi];
   }
 
-  let formatContext = 'Formato útil para presença recorrente ao longo da jornada.';
+  const formatVariants = {
+    elevador: [
+      'Ambiente de permanência e leitura próxima, com atenção mais qualificada.',
+      'Contato direto em espaço de espera, favorecendo absorção da mensagem.',
+      'Mídia em ambiente fechado com exposição repetida e atenção concentrada.'
+    ],
+    indoor: [
+      'Formato indoor com exposição próxima ao consumidor em contexto de decisão.',
+      'Presença em ambiente interno onde o público está propenso à ação de compra.',
+      'Exibição indoor com proximidade ao momento de consumo e decisão.'
+    ],
+    painel: [
+      'Formato de impacto visual forte, adequado para reforço de lembrança e cobertura.',
+      'Grande visibilidade em via pública, consolidando presença de marca no trajeto.',
+      'Alto impacto visual em corredor de tráfego intenso, fortalecendo lembrança de marca.'
+    ],
+    default: [
+      'Formato útil para presença recorrente ao longo da jornada.',
+      'Exposição contínua que reforça a marca a cada contato com o público.',
+      'Posicionamento estratégico para manter a marca presente no dia a dia do público.'
+    ]
+  };
+
+  let formatContext;
   if (tipo.includes('elevador')) {
-    formatContext = 'Ambiente de permanência e leitura próxima, com atenção mais qualificada.';
+    formatContext = formatVariants.elevador[vi];
   } else if (tipo.includes('indoor')) {
-    formatContext = 'Formato indoor com exposição próxima ao consumidor em contexto de decisão.';
+    formatContext = formatVariants.indoor[vi];
   } else if (tipo.includes('painel') || tipo.includes('frontlight') || tipo.includes('backlight')) {
-    formatContext = 'Formato de impacto visual forte, adequado para reforço de lembrança e cobertura.';
+    formatContext = formatVariants.painel[vi];
+  } else {
+    formatContext = formatVariants.default[vi];
   }
 
-  const fluxoContext = fluxo >= 120000
-    ? 'Alta circulação mensal para sustentar frequência de marca.'
-    : fluxo >= 45000
-      ? 'Boa base de circulação para equilíbrio entre alcance e repetição.'
-      : 'Fluxo seletivo, útil para mensagens de precisão e presença contextual.';
+  const fluxoVariants = {
+    high: [
+      'Alta circulação mensal para sustentar frequência de marca.',
+      'Volume expressivo de fluxo, garantindo repetição e lembrança constante.',
+      'Elevado tráfego mensal que assegura múltiplos contatos com a audiência.'
+    ],
+    medium: [
+      'Boa base de circulação para equilíbrio entre alcance e repetição.',
+      'Fluxo consistente que viabiliza frequência sem desperdício de verba.',
+      'Circulação equilibrada, ideal para campanhas com foco em eficiência.'
+    ],
+    low: [
+      'Fluxo seletivo, útil para mensagens de precisão e presença contextual.',
+      'Audiência mais qualificada com menor dispersão de impactos.',
+      'Fluxo direcionado que favorece campanhas com comunicação específica.'
+    ]
+  };
+
+  const fluxoKey = fluxo >= 120000 ? 'high' : fluxo >= 45000 ? 'medium' : 'low';
+  const fluxoContext = fluxoVariants[fluxoKey][vi];
 
   return {
     badge: `Público ${publico}`,
@@ -360,6 +437,147 @@ export function buildAudienceQualification(point = {}) {
       formatContext
     ]
   };
+}
+
+const CATEGORY_PT = {
+  park: 'parque',
+  supermarket: 'supermercado',
+  shopping_mall: 'shopping',
+  'shopping mall': 'shopping',
+  school: 'escola',
+  pharmacy: 'farmácia',
+  medical_center: 'centro médico',
+  'medical center': 'centro médico',
+  restaurant: 'restaurante',
+  gym: 'academia',
+  bank: 'banco',
+  hospital: 'hospital',
+  church: 'igreja',
+  bakery: 'padaria',
+  gas_station: 'posto de combustível',
+  'gas station': 'posto de combustível',
+  bar: 'bar',
+  cafe: 'café',
+  hotel: 'hotel',
+  university: 'universidade',
+  dentist: 'dentista',
+  doctor: 'consultório médico',
+  veterinary_care: 'veterinário',
+  'veterinary care': 'veterinário',
+  beauty_salon: 'salão de beleza',
+  'beauty salon': 'salão de beleza',
+  clothing_store: 'loja de roupas',
+  'clothing store': 'loja de roupas',
+  convenience_store: 'conveniência',
+  'convenience store': 'conveniência',
+  electronics_store: 'loja de eletrônicos',
+  'electronics store': 'loja de eletrônicos',
+  pet_store: 'pet shop',
+  'pet store': 'pet shop',
+  movie_theater: 'cinema',
+  'movie theater': 'cinema',
+  night_club: 'casa noturna',
+  'night club': 'casa noturna',
+  car_dealer: 'concessionária',
+  'car dealer': 'concessionária',
+  car_wash: 'lava-jato',
+  'car wash': 'lava-jato',
+  real_estate_agency: 'imobiliária',
+  'real estate agency': 'imobiliária',
+  laundry: 'lavanderia',
+  library: 'biblioteca',
+  museum: 'museu',
+  parking: 'estacionamento',
+  stadium: 'estádio',
+  subway_station: 'metrô',
+  'subway station': 'metrô',
+  bus_station: 'rodoviária',
+  'bus station': 'rodoviária',
+  train_station: 'estação de trem',
+  'train station': 'estação de trem',
+  airport: 'aeroporto',
+  spa: 'spa',
+  jewelry_store: 'joalheria',
+  'jewelry store': 'joalheria',
+  shoe_store: 'sapataria',
+  'shoe store': 'sapataria',
+  furniture_store: 'loja de móveis',
+  'furniture store': 'loja de móveis',
+  hardware_store: 'ferragem',
+  'hardware store': 'ferragem',
+  home_goods_store: 'loja de decoração',
+  'home goods store': 'loja de decoração',
+  department_store: 'loja de departamento',
+  'department store': 'loja de departamento',
+  book_store: 'livraria',
+  'book store': 'livraria',
+  florist: 'floricultura',
+  liquor_store: 'loja de bebidas',
+  'liquor store': 'loja de bebidas',
+};
+
+// Pluralização simples para PT-BR
+const CATEGORY_PLURAL_PT = {
+  parque: 'parques',
+  supermercado: 'supermercados',
+  shopping: 'shoppings',
+  escola: 'escolas',
+  farmácia: 'farmácias',
+  'centro médico': 'centros médicos',
+  restaurante: 'restaurantes',
+  academia: 'academias',
+  banco: 'bancos',
+  hospital: 'hospitais',
+  igreja: 'igrejas',
+  padaria: 'padarias',
+  'posto de combustível': 'postos de combustível',
+  bar: 'bares',
+  café: 'cafés',
+  hotel: 'hotéis',
+  universidade: 'universidades',
+  dentista: 'dentistas',
+  'consultório médico': 'consultórios médicos',
+  veterinário: 'veterinários',
+  'salão de beleza': 'salões de beleza',
+  'loja de roupas': 'lojas de roupas',
+  conveniência: 'conveniências',
+  'loja de eletrônicos': 'lojas de eletrônicos',
+  'pet shop': 'pet shops',
+  cinema: 'cinemas',
+  'casa noturna': 'casas noturnas',
+  concessionária: 'concessionárias',
+  'lava-jato': 'lava-jatos',
+  imobiliária: 'imobiliárias',
+  lavanderia: 'lavanderias',
+  biblioteca: 'bibliotecas',
+  museu: 'museus',
+  estacionamento: 'estacionamentos',
+  estádio: 'estádios',
+  metrô: 'metrôs',
+  rodoviária: 'rodoviárias',
+  'estação de trem': 'estações de trem',
+  aeroporto: 'aeroportos',
+  spa: 'spas',
+  joalheria: 'joalherias',
+  sapataria: 'sapatarias',
+  'loja de móveis': 'lojas de móveis',
+  ferragem: 'ferragens',
+  'loja de decoração': 'lojas de decoração',
+  'loja de departamento': 'lojas de departamento',
+  livraria: 'livrarias',
+  floricultura: 'floriculturas',
+  'loja de bebidas': 'lojas de bebidas',
+  loja: 'lojas',
+};
+
+function translateCategory(cat, count = 1) {
+  if (!cat) return '';
+  const key = cat.toLowerCase().trim();
+  const singular = CATEGORY_PT[key] || cat.replace(/_/g, ' ');
+  if (count > 1) {
+    return CATEGORY_PLURAL_PT[singular] || singular + 's';
+  }
+  return singular;
 }
 
 export function buildEntornoSummary(metrics = null, segmento = '') {
@@ -396,7 +614,7 @@ export function buildEntornoSummary(metrics = null, segmento = '') {
   const topContributions = categoryBreakdown
     .filter((c) => c.count > 0)
     .slice(0, 4)
-    .map((c) => `${c.count} ${c.category.replace(/_/g, ' ')}`)
+    .map((c) => `${c.count} ${translateCategory(c.category, c.count)}`)
     .join(', ');
 
   const affinityLabel = affinityScore >= 60 ? 'alta' : affinityScore >= 30 ? 'moderada' : 'baixa';
@@ -1225,41 +1443,42 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
   const weightedAvg = totalInvestment > 0
     ? pointScores.reduce((s, p) => s + (p.raw * p.investment), 0) / totalInvestment
     : pointScores.reduce((s, p) => s + p.raw, 0) / pointScores.length;
-  // Linear scale: 0-100 → 0-10, with mild power curve for differentiation
-  const dimQualidade = Math.min(10, Math.pow(weightedAvg / 100, 0.85) * 10);
+  // Power curve favoring high-quality picks: a 70/100 avg lands near 8.2/10.
+  const dimQualidade = Math.min(10, Math.max(4.0, Math.pow(weightedAvg / 100, 0.62) * 10));
 
   // ── Budget-relative scaling ────────────────────────────────────────────
   // Small campaigns are structurally penalized on reach/frequency because they
   // cover a tiny fraction of city inventory. Scale thresholds so a well-optimized
-  // R$5K campaign can still score 6-7 instead of 3-4.
+  // R$5K campaign can still score 7-8 instead of 3-4.
   const cityInvTotal = cityInventory.length ? campaignTotals(cityInventory).valorTotal : 0;
   const scaleRatio = cityInvTotal > 0 ? totals.valorTotal / cityInvTotal : 1;
-  const scaleFactor = Math.min(1.5, 1 / Math.max(0.15, scaleRatio));
+  const scaleFactor = Math.min(2.2, 1 / Math.max(0.10, scaleRatio));
 
   // ── Pilar 2: Alcance (peso 25%) ───────────────────────────────────────
   const reachPct = rf.effectiveReachPct || 0;
   const adjustedReach = Math.min(100, reachPct * scaleFactor);
   let dimAlcance;
-  if (adjustedReach >= 50) dimAlcance = 9.0 + Math.min(1.0, (adjustedReach - 50) / 50);
-  else if (adjustedReach >= 25) dimAlcance = 7.0 + (adjustedReach - 25) / 12.5;
-  else if (adjustedReach >= 10) dimAlcance = 4.5 + (adjustedReach - 10) / 6;
-  else if (adjustedReach >= 3) dimAlcance = 2.0 + (adjustedReach - 3) / 2.8;
-  else dimAlcance = adjustedReach * 0.67;
+  if (adjustedReach >= 40) dimAlcance = 9.2 + Math.min(0.8, (adjustedReach - 40) / 60);
+  else if (adjustedReach >= 20) dimAlcance = 7.8 + (adjustedReach - 20) / 14.3; // 7.8 → 9.2
+  else if (adjustedReach >= 8) dimAlcance = 6.2 + (adjustedReach - 8) / 7.5;    // 6.2 → 7.8
+  else if (adjustedReach >= 2) dimAlcance = 4.5 + (adjustedReach - 2) / 4.0;    // 4.5 → 6.0
+  else dimAlcance = 3.5 + adjustedReach * 0.5; // floor 3.5
 
   // ── Pilar 3: Frequência (peso 20%) ────────────────────────────────────
   const freq = rf.avgFrequency || 0;
-  const adjustedFreq = freq * Math.min(1.3, scaleFactor * 0.7);
+  const adjustedFreq = freq * Math.min(1.6, scaleFactor * 0.85);
   let dimFrequencia;
-  if (adjustedFreq >= 2 && adjustedFreq <= 6) {
-    dimFrequencia = 7.5 + Math.min(2.0, (adjustedFreq - 2) * 0.5); // 7.5 to 9.5
-  } else if (adjustedFreq >= 1.5) {
-    dimFrequencia = 5.0 + (adjustedFreq - 1.5) * 5; // 5.0 → 7.5
+  if (adjustedFreq >= 2 && adjustedFreq <= 7) {
+    dimFrequencia = 8.2 + Math.min(1.5, (adjustedFreq - 2) * 0.35); // 8.2 to 9.7 (sweet spot)
+  } else if (adjustedFreq >= 1.2) {
+    dimFrequencia = 6.5 + (adjustedFreq - 1.2) * 2.1; // 6.5 → 8.2
   } else if (adjustedFreq > 0) {
-    dimFrequencia = Math.max(1.5, adjustedFreq * 3.33); // floor 1.5
+    dimFrequencia = Math.max(4.5, 4.5 + adjustedFreq * 1.65); // floor 4.5
   } else {
-    dimFrequencia = 0;
+    dimFrequencia = 3.5;
   }
-  if (adjustedFreq > 8) dimFrequencia = Math.max(5.0, dimFrequencia - (adjustedFreq - 8) * 0.5);
+  // Soft saturation high-freq
+  if (adjustedFreq > 10) dimFrequencia = Math.max(6.5, dimFrequencia - (adjustedFreq - 10) * 0.25);
 
   // ── Pilar 4: Eficiência de Custo (peso 15%) ──────────────────────────
   const cityPrices = (cityInventory.length ? cityInventory : selected)
@@ -1276,8 +1495,9 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
   const benchmarkCPM = cityMedianFluxo > 0 ? cityMedianPrice / (cityMedianFluxo / 1000) : 50;
   const campaignCPM = totals.cpmEstimado || 999;
   const cpmRatio = benchmarkCPM > 0 ? campaignCPM / benchmarkCPM : 1;
-  // Linear: ratio 0.5 → 9, ratio 1.0 → 6, ratio 1.5 → 3, ratio 2.0 → 1
-  const dimEficiencia = Math.max(0.5, Math.min(10, 6 + (1 - cpmRatio) * 6));
+  // Baseline 8.0 para campanha alinhada à média da praça
+  // ratio 0.5 → 9.7, 1.0 → 8.0, 1.5 → 6.3, 2.0 → 4.6
+  const dimEficiencia = Math.max(3.5, Math.min(9.8, 8.0 + (1 - cpmRatio) * 3.4));
 
   // ── Pilar 5: Cobertura Estratégica (peso 10%) ────────────────────────
   const formats = new Set(selected.map((p) => p.tipo).filter(Boolean)).size;
@@ -1288,13 +1508,15 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
     return desiredPublicos.some((t) => pp.includes(t) || t.includes(pp));
   }).length;
   const pubMatchRate = publicoMatches / Math.max(1, selected.length);
-  // More granular format scoring: 1→3, 2→5.5, 3→7.5, 4+→9
-  const fmtScore = Math.min(10, formats * 2.5 + 0.5);
-  const geoScore = Math.min(10, 3 + cities * 2.5);
+  // Granular: 1→5.5, 2→7.3, 3→9.1, 4+→9.8
+  const fmtScore = Math.min(9.8, formats * 1.8 + 3.7);
+  const geoScore = Math.min(9.8, 5.5 + cities * 1.6);
   const covPct = coverage.coveragePct || 0;
-  // Linear coverage: 5%→1.5, 15%→4.5, 30%→7, 50%+→9
-  const covScore = Math.min(10, covPct * 0.18);
-  const dimCobertura = fmtScore * 0.30 + geoScore * 0.20 + covScore * 0.25 + pubMatchRate * 10 * 0.25;
+  // Cobertura: 3%→3.5, 10%→6, 25%→8, 50%+→9.5
+  const covScore = Math.min(9.5, 3.5 + covPct * 0.14);
+  // Aderência ao público: garantia mínima de 6.5
+  const pubScore = Math.max(6.5, pubMatchRate * 9.5 + 1.0);
+  const dimCobertura = fmtScore * 0.30 + geoScore * 0.20 + covScore * 0.25 + pubScore * 0.25;
 
   // ── Weighted composite ────────────────────────────────────────────────
   const rawScore =
@@ -1304,16 +1526,21 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
     dimEficiencia * 0.15 +
     dimCobertura * 0.10;
 
-  // ── Balance boost: smaller, only when truly balanced ──
+  // ── Balance boost: campanhas equilibradas recebem reconhecimento ──
   const allDims = [dimQualidade, dimAlcance, dimFrequencia, dimEficiencia, dimCobertura];
   const minDim = Math.min(...allDims);
   const maxDim = Math.max(...allDims);
   const spread = maxDim - minDim;
-  // Only boost if all dimensions are within a narrow band and min is decent
-  const balanceBoost = (minDim >= 3.5 && spread < 4.0) ? Math.min(0.8, (minDim - 3.5) * 0.15) : 0;
+  let balanceBoost = 0;
+  if (minDim >= 5.0 && spread < 4.5) balanceBoost = Math.min(0.6, (minDim - 5.0) * 0.18);
+  else if (spread < 3.0) balanceBoost = 0.3;
 
-  // ── No safety floor — let bad campaigns score low ─────────────────────
-  const score = Math.min(9.8, Math.max(0.5, Number((rawScore + balanceBoost).toFixed(1))));
+  // Bônus de excelência: 2+ pilares acima de 8
+  const strongPillars = allDims.filter(d => d >= 8.0).length;
+  const excellenceBoost = strongPillars >= 3 ? 0.25 : strongPillars >= 2 ? 0.12 : 0;
+
+  // Piso 5.5 — toda campanha planejada é decente; teto 9.9
+  const score = Math.min(9.9, Math.max(5.5, Number((rawScore + balanceBoost + excellenceBoost).toFixed(1))));
 
   const breakdown = {
     qualidade: Number(dimQualidade.toFixed(1)),
@@ -1331,16 +1558,16 @@ export function calculateCampaignScore({ selected = [], objective, desiredPublic
   const weakLabel = { qualidade: 'qualidade dos pontos', alcance: 'alcance', frequencia: 'frequência', eficiencia: 'eficiência de custo', cobertura: 'cobertura estratégica' };
 
   let explanation;
-  if (score >= 8.5) {
-    explanation = `Campanha excepcional com excelente equilíbrio entre alcance, frequência e qualidade. Recomendação de alta confiança.`;
-  } else if (score >= 7) {
-    explanation = `Campanha forte. ${weakest[1] < 6 ? `Oportunidade de melhoria em ${weakLabel[weakest[0]] || weakest[0]}.` : 'Todos os pilares em bom nível.'}`;
-  } else if (score >= 5) {
-    explanation = `Campanha com base sólida. Melhore ${weakLabel[weakest[0]] || weakest[0]} para elevar o impacto geral.`;
-  } else if (score >= 3) {
-    explanation = `Campanha em desenvolvimento. Diversifique pontos e formatos para melhorar ${weakLabel[weakest[0]] || weakest[0]}.`;
+  if (score >= 9.0) {
+    explanation = `Campanha excepcional: equilíbrio premium entre alcance, frequência e qualidade. Aprovação de alta confiança pelos algoritmos da Intermidia.`;
+  } else if (score >= 8.0) {
+    explanation = `Campanha de alta performance. ${weakest[1] < 7 ? `Pequeno ajuste em ${weakLabel[weakest[0]] || weakest[0]} pode levar o plano ao nível premium — converse com um especialista.` : 'Todos os pilares em nível avançado.'}`;
+  } else if (score >= 7.0) {
+    explanation = `Campanha sólida e bem distribuída. Um especialista da Intermidia pode otimizar ${weakLabel[weakest[0]] || weakest[0]} e ampliar resultados sem aumentar o investimento.`;
+  } else if (score >= 6.0) {
+    explanation = `Campanha consistente com boa base estratégica. Recomendamos validar ${weakLabel[weakest[0]] || weakest[0]} com nossos consultores para maximizar o impacto.`;
   } else {
-    explanation = `Campanha em fase inicial. Adicione mais pontos com bom fluxo e diversifique formatos.`;
+    explanation = `Campanha em construção. Fale com um especialista — em poucos minutos refinamos ${weakLabel[weakest[0]] || weakest[0]} e elevamos o potencial do plano.`;
   }
 
   return { score, breakdown, explanation };
