@@ -14,11 +14,15 @@ export default function FavoritesBar({ isDark = true, showProposalCta = true, on
   const [showProposal, setShowProposal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
 
-  // Sync sidebar open state with context so other components (chat) can react
+  // Auto-expand sidebar whenever a favorite is added
   useEffect(() => {
     if (favorites.length > 0) setSidebarOpen(true);
-    return () => setSidebarOpen(false); // cleanup on unmount
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [favorites.length, setSidebarOpen]);
+
+  // Close sidebar on unmount
+  useEffect(() => {
+    return () => setSidebarOpen(false);
+  }, [setSidebarOpen]);
 
   const collapsed = !sidebarOpen;
   const setCollapsed = (val) => setSidebarOpen(!val);
