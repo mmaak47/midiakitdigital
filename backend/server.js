@@ -8977,14 +8977,16 @@ app.get('/api/analytics/favorites', requireRoles(['admin', 'gerente_comercial'])
     const days = Math.max(1, Math.min(365, Number(req.query.days) || 30));
 
     // Fetch raw favorite_add events and aggregate in JS (DB-agnostic — works on SQLite and PostgreSQL)
+    // Compute cutoff date in JS to avoid SQLite datetime() vs PostgreSQL INTERVAL incompatibility
+    const cutoffDate = new Date(Date.now() - days * 86400000).toISOString();
     const rawAdds = db.prepare(`
       SELECT session_id, event_data, created_at
       FROM navigation_events
       WHERE event_type = 'favorite_add'
-        AND created_at >= datetime('now', '-' || ? || ' days')
+        AND created_at >= ?
       ORDER BY created_at DESC
       LIMIT 5000
-    `).all(days);
+    `).all(cutoffDate);
 
     // Parse event_data JSON and aggregate top points
     const pointMap = new Map(); // pointId -> { point_name, city, type, count, sessions }
@@ -9013,8 +9015,8 @@ app.get('/api/analytics/favorites', requireRoles(['admin', 'gerente_comercial'])
         COUNT(DISTINCT session_id) AS unique_users
       FROM navigation_events
       WHERE event_type IN ('favorite_add', 'favorite_remove', 'favorites_shared')
-        AND created_at >= datetime('now', '-' || ? || ' days')
-    `).get(days);
+        AND created_at >= ?
+    `).get(cutoffDate);
 
     // Per-lead favorites (sessions that have a lead record)
     const rawLeadFavs = db.prepare(`
@@ -9028,10 +9030,10 @@ app.get('/api/analytics/favorites', requireRoles(['admin', 'gerente_comercial'])
       FROM navigation_events ne
       JOIN leads l ON l.session_id = ne.session_id
       WHERE ne.event_type = 'favorite_add'
-        AND ne.created_at >= datetime('now', '-' || ? || ' days')
+        AND ne.created_at >= ?
       ORDER BY ne.created_at DESC
       LIMIT 200
-    `).all(days);
+    `).all(cutoffDate);
 
     const leadFavorites = rawLeadFavs.map(row => {
       try {
