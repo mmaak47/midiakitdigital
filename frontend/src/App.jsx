@@ -32,30 +32,61 @@ function shouldShowInventoryChat() {
   return path === '/' || path === '/planejar';
 }
 
+/**
+ * Wrapper components that scope FavoritesProvider per area.
+ * Landing (public) uses storageKey="landing", Explorer (commercial) uses storageKey="explorer".
+ * This keeps their favorites lists completely independent.
+ */
+function LandingWithFavorites() {
+  return (
+    <FavoritesProvider storageKey="landing">
+      <Landing />
+    </FavoritesProvider>
+  );
+}
+
+function ExplorerWithFavorites() {
+  return (
+    <FavoritesProvider storageKey="explorer">
+      <Explorer />
+    </FavoritesProvider>
+  );
+}
+
+function SharedViewWithFavorites() {
+  return (
+    <FavoritesProvider storageKey="shared">
+      <SharedView />
+    </FavoritesProvider>
+  );
+}
+
 export default function App() {
   return (
-    <FavoritesProvider>
-      <BrowserRouter>
-        <RouteTransitionOverlay />
-        <Suspense fallback={<AppLoader />}>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/planejar" element={<CampaignPlanner />} />
-            <Route path="/comercial" element={<Admin />} />
-            <Route path="/comercial/admin" element={<Admin />} />
-            <Route path="/comercial/gestao" element={<RequireCommercialAuth><GestaoComercial /></RequireCommercialAuth>} />
-            <Route path="/gestao" element={<RequireCommercialAuth><Navigate to="/comercial/gestao" replace /></RequireCommercialAuth>} />
-            <Route path="/comercial/explorar" element={<RequireCommercialAuth><Explorer /></RequireCommercialAuth>} />
-            <Route path="/painel-tv" element={<TvWall />} />
-            <Route path="/p/:token" element={<PropostaPublica />} />
-            <Route path="/s/:code" element={<SharedView />} />
-            <Route path="/explorar" element={<Navigate to="/" replace />} />
-            <Route path="/admin" element={<Navigate to="/comercial/admin" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
-        {shouldShowInventoryChat() ? <InventarioChatBot /> : null}
-      </BrowserRouter>
-    </FavoritesProvider>
+    <BrowserRouter>
+      <RouteTransitionOverlay />
+      <Suspense fallback={<AppLoader />}>
+        <Routes>
+          <Route path="/" element={<LandingWithFavorites />} />
+          <Route path="/planejar" element={<CampaignPlanner />} />
+          <Route path="/comercial" element={<Admin />} />
+          <Route path="/comercial/admin" element={<Admin />} />
+          <Route path="/comercial/gestao" element={<RequireCommercialAuth><GestaoComercial /></RequireCommercialAuth>} />
+          <Route path="/gestao" element={<RequireCommercialAuth><Navigate to="/comercial/gestao" replace /></RequireCommercialAuth>} />
+          <Route path="/comercial/explorar" element={<RequireCommercialAuth><ExplorerWithFavorites /></RequireCommercialAuth>} />
+          <Route path="/painel-tv" element={<TvWall />} />
+          <Route path="/p/:token" element={<PropostaPublica />} />
+          <Route path="/s/:code" element={<SharedViewWithFavorites />} />
+          <Route path="/explorar" element={<Navigate to="/" replace />} />
+          <Route path="/admin" element={<Navigate to="/comercial/admin" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+      {shouldShowInventoryChat() ? (
+        <FavoritesProvider storageKey="landing">
+          <InventarioChatBot />
+        </FavoritesProvider>
+      ) : null}
+    </BrowserRouter>
   );
 }

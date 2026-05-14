@@ -1437,16 +1437,22 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets, isMultiCit
   // Mirrors the same differentiation applied in buildProposalPointPage:
   // hero image layout with static-specific metrics instead of digital ones.
   if (isStaticPrintFormat(ponto?.tipo)) {
-    const dimensoesRaw = String(ponto?.dimensoes || ponto?.dimensao || '').trim();
-    // Format dimensions: ensure "m" suffix and clean separators (e.g. "9x3" → "9 × 3 m")
+    // Build dimensions from midia_largura_m × midia_altura_m (DB columns), fallback to dimensoes field
     const dimensoes = (() => {
-      if (!dimensoesRaw) return '';
-      // Already has 'm' or 'metro' — return as-is
-      if (/m(etro)?/i.test(dimensoesRaw)) return dimensoesRaw;
-      // Pattern like "9x3", "9.00x3.00", "9 x 3"
-      const match = dimensoesRaw.match(/^([\d.,]+)\s*[xX×]\s*([\d.,]+)$/);
+      const w = Number(ponto?.midia_largura_m);
+      const h = Number(ponto?.midia_altura_m);
+      if (Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0) {
+        // Format: remove trailing zeros (e.g. 9.00 → 9, 3.50 → 3.5)
+        const fw = w % 1 === 0 ? String(w) : w.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+        const fh = h % 1 === 0 ? String(h) : h.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+        return `${fw} × ${fh} m`;
+      }
+      const raw = String(ponto?.dimensoes || ponto?.dimensao || '').trim();
+      if (!raw) return '';
+      if (/m(etro)?/i.test(raw)) return raw;
+      const match = raw.match(/^([\d.,]+)\s*[xX×]\s*([\d.,]+)$/);
       if (match) return `${match[1]} × ${match[2]} m`;
-      return `${dimensoesRaw} m`;
+      return `${raw} m`;
     })();
     const nota = String(ponto?.observacao || ponto?.nota || '').trim();
     const disponibilidade = String(ponto?.disponibilidade || '').trim();
@@ -1475,8 +1481,8 @@ function buildMidiaKitPointPage({ ponto, index, total, image, assets, isMultiCit
         <!-- Top bar -->
         <div style="position:absolute;left:0;top:8px;right:0;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:16px 32px 12px;">
           <div style="display:flex;align-items:center;gap:14px;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;padding:6px 14px;border-radius:12px;background:rgba(255,255,255,0.95);box-shadow:0 2px 12px rgba(0,0,0,0.15);backdrop-filter:blur(4px);">
-              <img src="${assets.logoLight || assets.logo || ''}" alt="" style="height:30px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
+            <div style="display:inline-flex;align-items:center;justify-content:center;padding:8px 16px;border-radius:14px;background:rgba(0,0,0,0.60);box-shadow:0 2px 12px rgba(0,0,0,0.30);">
+              <img src="${assets.logo || ''}" alt="" style="height:28px;width:auto;${LOGO_IMG_STYLE_BASE}flex-shrink:0;" />
             </div>
             <span style="display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 14px;border-radius:999px;background:${BRAND_ORANGE};font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#fff;box-shadow:0 2px 8px rgba(232,89,26,0.40);">
               ${midiaKitDetailIcon('type', '#ffffff', 13)} <span style="margin-left:6px;">${escapeHtml(getPointTypeLabel(ponto))}</span>

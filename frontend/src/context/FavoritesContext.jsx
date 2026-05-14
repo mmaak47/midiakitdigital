@@ -2,10 +2,20 @@ import { createContext, useContext, useState, useCallback, useEffect } from 'rea
 
 const FavoritesContext = createContext();
 
-export function FavoritesProvider({ children }) {
+/**
+ * FavoritesProvider — manages a list of favorited points with localStorage persistence.
+ *
+ * @param {string} storageKey — localStorage namespace. Different keys create independent
+ *   favorites lists (e.g. 'landing' for public visitors, 'explorer' for commercial users).
+ *   Defaults to 'landing'.
+ */
+export function FavoritesProvider({ children, storageKey = 'landing' }) {
+  const favKey = `intermidia:favorites:${storageKey}`;
+  const histKey = `intermidia:history:${storageKey}`;
+
   const [favorites, setFavorites] = useState(() => {
     try {
-      const raw = localStorage.getItem('intermidia:favorites');
+      const raw = localStorage.getItem(favKey);
       return raw ? JSON.parse(raw) : [];
     } catch {
       return [];
@@ -13,7 +23,7 @@ export function FavoritesProvider({ children }) {
   });
   const [history, setHistory] = useState(() => {
     try {
-      const raw = localStorage.getItem('intermidia:history');
+      const raw = localStorage.getItem(histKey);
       return raw ? JSON.parse(raw) : [];
     } catch {
       return [];
@@ -29,12 +39,12 @@ export function FavoritesProvider({ children }) {
   }, [favorites.length]);
 
   useEffect(() => {
-    localStorage.setItem('intermidia:favorites', JSON.stringify(favorites));
-  }, [favorites]);
+    localStorage.setItem(favKey, JSON.stringify(favorites));
+  }, [favorites, favKey]);
 
   useEffect(() => {
-    localStorage.setItem('intermidia:history', JSON.stringify(history.slice(-80)));
-  }, [history]);
+    localStorage.setItem(histKey, JSON.stringify(history.slice(-80)));
+  }, [history, histKey]);
 
   const pushHistory = useCallback((item) => {
     setHistory((prev) => ([...prev, { id: `${Date.now()}-${Math.random()}`, at: Date.now(), ...item }].slice(-80)));
