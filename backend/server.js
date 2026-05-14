@@ -172,6 +172,23 @@ try {
   try { db.exec(`ALTER TABLE leads ADD COLUMN orcamento TEXT`); } catch { /* exists */ }
   try { db.exec(`ALTER TABLE leads ADD COLUMN origem TEXT`); } catch { /* exists */ }
   try { db.exec(`ALTER TABLE leads ADD COLUMN ultima_mensagem TEXT`); } catch { /* exists */ }
+
+  // Commercial share links — client_name + share_type
+  try { db.exec(`ALTER TABLE shared_filters ADD COLUMN client_name TEXT`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE shared_filters ADD COLUMN share_type TEXT DEFAULT 'public'`); } catch { /* exists */ }
+
+  // Client favorites on shared links — what the client liked
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS shared_link_favorites (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      share_code      TEXT NOT NULL,
+      point_id        INTEGER NOT NULL,
+      point_name      TEXT,
+      client_note     TEXT,
+      created_at      TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_slf_code ON shared_link_favorites(share_code)`);
 } catch (e) {
   console.error('[schema bootstrap]', e.message);
 }
@@ -641,7 +658,7 @@ const shareLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, message: { e
 
 app.post('/api/share', shareLimiter, express.json({ limit: '16kb' }), (req, res) => {
   try {
-    const { filters, label } = req.body || {};
+    const { filters, label, client_name, share_type } = req.body || {};
     if (!filters || typeof filters !== 'object') {
       return res.status(400).json({ error: 'Filtros inválidos.' });
     }
@@ -657,12 +674,19 @@ app.post('/api/share', shareLimiter, express.json({ limit: '16kb' }), (req, res)
     const hasAny = clean.cidade.length || clean.tipo.length || clean.publico.length || clean.elevador.length || clean.q || clean.pointIds.length;
     if (!hasAny) return res.status(400).json({ error: 'Nenhum filtro selecionado.' });
 
-    // Verifica se filtros idênticos já existem para reutilizar o code
-    const filtersJson = JSON.stringify(clean);
-    const existing = db.prepare('SELECT code FROM shared_filters WHERE filters_json = ?').get(filtersJson);
-    if (existing) {
-      return res.json({ code: existing.code, url: `/s/${existing.code}`, reused: true });
+    const sanitizedClientName = typeof client_name === 'string' ? client_name.trim().slice(0, 200) : null;
+    const sanitizedShareType = share_type === 'commercial' ? 'commercial' : 'public';
+
+    // Commercial links are always unique (never reuse) since they're client-specific
+    if (sanitizedShareType !== 'commercial') {
+      const filtersJson = JSON.stringify(clean);
+      const existing = db.prepare('SELECT code FROM shared_filters WHERE filters_json = ? AND share_type = ?').get(filtersJson, 'public');
+      if (existing) {
+        return res.json({ code: existing.code, url: `/s/${existing.code}`, reused: true });
+      }
     }
+
+    const filtersJson = JSON.stringify(clean);
 
     // Gera código único
     let code;
@@ -673,8 +697,11 @@ app.post('/api/share', shareLimiter, express.json({ limit: '16kb' }), (req, res)
       if (attempt === 9) return res.status(500).json({ error: 'Falha ao gerar código único.' });
     }
 
-    db.prepare('INSERT INTO shared_filters (code, filters_json, label) VALUES (?, ?, ?)').run(
-      code, filtersJson, typeof label === 'string' ? label.trim().slice(0, 200) : null
+    db.prepare('INSERT INTO shared_filters (code, filters_json, label, client_name, share_type) VALUES (?, ?, ?, ?, ?)').run(
+      code, filtersJson,
+      typeof label === 'string' ? label.trim().slice(0, 200) : null,
+      sanitizedClientName,
+      sanitizedShareType
     );
 
     res.json({ code, url: `/s/${code}` });
@@ -690,17 +717,120 @@ app.get('/api/share/:code', (req, res) => {
     if (!code || typeof code !== 'string' || code.length > 12) {
       return res.status(400).json({ error: 'Código inválido.' });
     }
-    const row = db.prepare('SELECT code, filters_json, label, created_at, views FROM shared_filters WHERE code = ?').get(code);
+    const row = db.prepare('SELECT code, filters_json, label, client_name, share_type, created_at, views FROM shared_filters WHERE code = ?').get(code);
     if (!row) return res.status(404).json({ error: 'Link não encontrado.' });
 
     // Incrementa views
     db.prepare("UPDATE shared_filters SET views = views + 1, last_viewed_at = datetime('now') WHERE code = ?").run(code);
 
     const filters = JSON.parse(row.filters_json);
-    res.json({ code: row.code, filters, label: row.label, createdAt: row.created_at, views: row.views + 1 });
+    const resp = { code: row.code, filters, label: row.label, createdAt: row.created_at, views: row.views + 1 };
+    if (row.client_name) resp.clientName = row.client_name;
+    if (row.share_type && row.share_type !== 'public') resp.shareType = row.share_type;
+    res.json(resp);
   } catch (err) {
     console.error('[share/get]', err.message);
     res.status(500).json({ error: 'Erro ao buscar link.' });
+  }
+});
+
+// ── Client favorites on commercial share links ────────────────────────
+// Client submits which points they liked from a commercial share link
+app.post('/api/share/:code/client-favorites', express.json({ limit: '32kb' }), (req, res) => {
+  try {
+    const { code } = req.params;
+    if (!code || typeof code !== 'string' || code.length > 12) {
+      return res.status(400).json({ error: 'Código inválido.' });
+    }
+
+    const row = db.prepare('SELECT id, code, client_name, share_type FROM shared_filters WHERE code = ?').get(code);
+    if (!row) return res.status(404).json({ error: 'Link não encontrado.' });
+    if (row.share_type !== 'commercial') {
+      return res.status(400).json({ error: 'Este link não aceita favoritos de cliente.' });
+    }
+
+    const { favorites } = req.body || {};
+    if (!Array.isArray(favorites) || !favorites.length) {
+      return res.status(400).json({ error: 'Nenhum favorito enviado.' });
+    }
+
+    // Sanitize and insert favorites (max 200)
+    const items = favorites.slice(0, 200).map(f => ({
+      point_id: Number(f.point_id) || 0,
+      point_name: typeof f.point_name === 'string' ? f.point_name.trim().slice(0, 200) : '',
+    })).filter(f => f.point_id > 0);
+
+    if (!items.length) {
+      return res.status(400).json({ error: 'Favoritos inválidos.' });
+    }
+
+    // Clear previous favorites for this code (client can re-submit)
+    db.prepare('DELETE FROM shared_link_favorites WHERE share_code = ?').run(code);
+
+    const now = new Date().toISOString();
+    const stmt = db.prepare('INSERT INTO shared_link_favorites (share_code, point_id, point_name, created_at) VALUES (?, ?, ?, ?)');
+    for (const item of items) {
+      stmt.run(code, item.point_id, item.point_name, now);
+    }
+
+    console.log(`[share/client-favorites] Client submitted ${items.length} favorites for code=${code} (client: ${row.client_name || 'N/I'})`);
+    res.json({ ok: true, count: items.length });
+  } catch (err) {
+    console.error('[share/client-favorites]', err.message);
+    res.status(500).json({ error: 'Erro ao salvar favoritos.' });
+  }
+});
+
+// Admin: get client favorites for a commercial share link
+app.get('/api/share/:code/client-favorites', (req, res) => {
+  try {
+    const { code } = req.params;
+    if (!code || typeof code !== 'string' || code.length > 12) {
+      return res.status(400).json({ error: 'Código inválido.' });
+    }
+
+    const row = db.prepare('SELECT code, client_name, share_type FROM shared_filters WHERE code = ?').get(code);
+    if (!row) return res.status(404).json({ error: 'Link não encontrado.' });
+
+    const favorites = db.prepare('SELECT point_id, point_name, created_at FROM shared_link_favorites WHERE share_code = ? ORDER BY id ASC').all(code);
+    res.json({ code, clientName: row.client_name, favorites });
+  } catch (err) {
+    console.error('[share/get-client-favorites]', err.message);
+    res.status(500).json({ error: 'Erro ao buscar favoritos.' });
+  }
+});
+
+// Admin: list all commercial share links with their client favorites count
+app.get('/api/commercial-shares', (req, res) => {
+  try {
+    // Require auth
+    const token = extractTokenFromCookie(req) || extractBearerToken(req.headers.authorization);
+    if (!token) return res.status(401).json({ error: 'Não autorizado.' });
+    try { parseAuthToken(token); } catch { return res.status(401).json({ error: 'Token inválido.' }); }
+
+    const rows = db.prepare(`
+      SELECT sf.code, sf.filters_json, sf.label, sf.client_name, sf.created_at, sf.views,
+             (SELECT COUNT(*) FROM shared_link_favorites slf WHERE slf.share_code = sf.code) AS client_favorites_count
+      FROM shared_filters sf
+      WHERE sf.share_type = 'commercial'
+      ORDER BY sf.created_at DESC
+      LIMIT 100
+    `).all();
+
+    const result = rows.map(r => ({
+      code: r.code,
+      clientName: r.client_name,
+      pointCount: (() => { try { const f = JSON.parse(r.filters_json); return f.pointIds?.length || 0; } catch { return 0; } })(),
+      clientFavoritesCount: r.client_favorites_count || 0,
+      views: r.views || 0,
+      createdAt: r.created_at,
+      url: `/s/${r.code}`,
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error('[commercial-shares/list]', err.message);
+    res.status(500).json({ error: 'Erro ao listar links comerciais.' });
   }
 });
 

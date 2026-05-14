@@ -583,7 +583,7 @@ export default function Explorer() {
       {selected && <PointModal ponto={selected} onClose={() => setSelected(null)} isDark={isDark} geoProfile={geoProfiles?.[selected.id]} censusProfile={censusProfiles?.[selected.id]} />}
 
       {/* Favorites bar */}
-      <FavoritesBar isDark={isDark} />
+      <FavoritesBar isDark={isDark} showCommercialShare />
     </div>
   );
 }

@@ -1,16 +1,18 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Trash2, FileText, X, ChevronRight, Link2 } from 'lucide-react';
-import { lazy, Suspense, useState, useEffect } from 'react';
+import { Heart, Trash2, FileText, X, ChevronRight, Link2, Send, Copy, Check, ExternalLink, Users } from 'lucide-react';
+import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
 import { useFavorites } from '../context/FavoritesContext';
 import { trackEvent } from '../lib/tracking';
+import { createCommercialShareLink } from '../lib/api';
 
 const ProposalModal = lazy(() => import('./ProposalModal'));
 
 const SIDEBAR_WIDTH = 'w-80'; // 320px
 
-export default function FavoritesBar({ isDark = true, showProposalCta = true, onShareFavorites = null, shareLoading = false }) {
+export default function FavoritesBar({ isDark = true, showProposalCta = true, onShareFavorites = null, shareLoading = false, showCommercialShare = false }) {
   const { favorites, removeFavorite, clearFavorites, totalPreco, totalFluxo, totalTelas, sidebarOpen, setSidebarOpen } = useFavorites();
   const [showProposal, setShowProposal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // Sync sidebar open state with context so other components (chat) can react
   useEffect(() => {
@@ -147,6 +149,15 @@ export default function FavoritesBar({ isDark = true, showProposalCta = true, on
               )}
             </button>
           )}
+          {showCommercialShare && (
+            <button
+              onClick={() => setShowShareModal(true)}
+              className={`w-full flex items-center justify-center gap-2 px-5 py-3 font-semibold rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] text-sm mb-2 ${isDark ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/30' : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'}`}
+            >
+              <Send size={16} />
+              Enviar para cliente
+            </button>
+          )}
           {showProposalCta && (
             <button
               onClick={() => setShowProposal(true)}
@@ -160,6 +171,218 @@ export default function FavoritesBar({ isDark = true, showProposalCta = true, on
       </motion.aside>
 
       {showProposal && <Suspense fallback={null}><ProposalModal onClose={() => setShowProposal(false)} isDark={isDark} /></Suspense>}
+
+      {/* Commercial share modal */}
+      <AnimatePresence>
+        {showShareModal && (
+          <CommercialShareModal
+            isDark={isDark}
+            favorites={favorites}
+            onClose={() => setShowShareModal(false)}
+          />
+        )}
+      </AnimatePresence>
     </>
+  );
+}
+
+/* ─── Commercial Share Modal ─── */
+function CommercialShareModal({ isDark, favorites, onClose }) {
+  const [clientName, setClientName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [generatedUrl, setGeneratedUrl] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleGenerate = useCallback(async () => {
+    const name = clientName.trim();
+    if (!name) return setError('Informe o nome do cliente.');
+    if (!favorites.length) return setError('Nenhum ponto selecionado.');
+    setError('');
+    setLoading(true);
+    try {
+      const result = await createCommercialShareLink({
+        pointIds: favorites.map(p => p.id),
+        clientName: name,
+      });
+      const fullUrl = `${window.location.origin}${result.url}`;
+      setGeneratedUrl(fullUrl);
+      trackEvent('commercial_share_created', { count: favorites.length, client: name });
+    } catch (err) {
+      setError(err.message || 'Erro ao gerar link.');
+    } finally {
+      setLoading(false);
+    }
+  }, [clientName, favorites]);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(generatedUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      window.prompt('Copie o link:', generatedUrl);
+    }
+  }, [generatedUrl]);
+
+  const handleWhatsApp = useCallback(() => {
+    const text = encodeURIComponent(
+      `Olá ${clientName.trim()}! Preparamos uma seleção especial de ${favorites.length} ponto${favorites.length > 1 ? 's' : ''} de mídia OOH para você:\n\n${generatedUrl}\n\nAcesse o link para ver os detalhes e selecione os seus favoritos!`
+    );
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+  }, [clientName, favorites.length, generatedUrl]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ duration: 0.2 }}
+        className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden ${isDark ? 'bg-[#0A0A0A] border-white/10' : 'bg-white border-neutral-200'}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className={`px-6 py-4 border-b flex items-center justify-between ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-blue-500/20' : 'bg-blue-50'}`}>
+              <Send size={16} className="text-blue-400" />
+            </div>
+            <div>
+              <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Enviar para cliente</h3>
+              <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>{favorites.length} ponto{favorites.length > 1 ? 's' : ''} selecionado{favorites.length > 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-brand-gray-500' : 'hover:bg-neutral-100 text-neutral-400'}`}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {!generatedUrl ? (
+            <>
+              {/* Client name input */}
+              <div>
+                <label className={`text-xs font-semibold mb-1.5 block ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>
+                  Nome do cliente / empresa
+                </label>
+                <input
+                  type="text"
+                  value={clientName}
+                  onChange={(e) => { setClientName(e.target.value); setError(''); }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+                  placeholder="Ex: João Silva — Empresa ABC"
+                  autoFocus
+                  className={`w-full px-4 py-3 rounded-xl border text-sm outline-none transition-colors ${
+                    isDark
+                      ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-brand-gray-600 focus:border-blue-500/50'
+                      : 'bg-neutral-50 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-blue-400'
+                  }`}
+                />
+              </div>
+
+              {/* Points preview */}
+              <div className={`rounded-xl border p-3 max-h-36 overflow-y-auto ${isDark ? 'border-white/5 bg-white/[0.02]' : 'border-neutral-100 bg-neutral-50'}`}>
+                <div className={`text-[10px] uppercase tracking-wider font-semibold mb-2 ${isDark ? 'text-brand-gray-600' : 'text-neutral-400'}`}>
+                  Pontos incluídos
+                </div>
+                <div className="space-y-1">
+                  {favorites.map((p) => (
+                    <div key={p.id} className={`flex items-center justify-between text-xs ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>
+                      <span className="truncate mr-2">{p.nome}</span>
+                      <span className="shrink-0 text-brand-orange font-medium">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(p.preco || 0)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Info text */}
+              <p className={`text-[11px] ${isDark ? 'text-brand-gray-600' : 'text-neutral-400'}`}>
+                O cliente verá os pontos selecionados com o nome dele e poderá escolher seus favoritos. Você será notificado quando ele responder.
+              </p>
+
+              {error && (
+                <p className="text-red-400 text-xs">{error}</p>
+              )}
+
+              {/* Generate button */}
+              <button
+                onClick={handleGenerate}
+                disabled={loading || !clientName.trim()}
+                className={`w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] ${
+                  loading || !clientName.trim()
+                    ? 'opacity-50 cursor-not-allowed bg-blue-500/50 text-white'
+                    : 'bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-500/20'
+                }`}
+              >
+                {loading ? (
+                  <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Gerando link...</>
+                ) : (
+                  <><Send size={15} /> Gerar link para {clientName.trim() || 'cliente'}</>
+                )}
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Success state */}
+              <div className="text-center py-2">
+                <div className={`w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center ${isDark ? 'bg-green-500/20' : 'bg-green-50'}`}>
+                  <Check size={24} className="text-green-400" />
+                </div>
+                <h4 className={`font-bold mb-1 ${isDark ? 'text-white' : 'text-neutral-900'}`}>Link gerado!</h4>
+                <p className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                  Envie para <span className="font-semibold text-brand-orange">{clientName.trim()}</span>
+                </p>
+              </div>
+
+              {/* URL display */}
+              <div className={`flex items-center gap-2 rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
+                <input
+                  type="text"
+                  readOnly
+                  value={generatedUrl}
+                  className={`flex-1 text-xs bg-transparent outline-none select-all ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}
+                  onClick={(e) => e.target.select()}
+                />
+                <button
+                  onClick={handleCopy}
+                  className={`shrink-0 p-2 rounded-lg transition-colors ${
+                    copied
+                      ? 'bg-green-500/20 text-green-400'
+                      : isDark ? 'hover:bg-white/10 text-brand-gray-400' : 'hover:bg-neutral-200 text-neutral-500'
+                  }`}
+                  title="Copiar link"
+                >
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              </div>
+
+              {/* Action buttons */}
+              <div className="space-y-2">
+                <button
+                  onClick={handleWhatsApp}
+                  className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors"
+                >
+                  <i className="ri-whatsapp-line" style={{ fontSize: 16 }} />
+                  Enviar pelo WhatsApp
+                </button>
+                <button
+                  onClick={handleCopy}
+                  className={`w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm border transition-colors ${
+                    isDark ? 'border-white/10 text-brand-gray-300 hover:bg-white/5' : 'border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                  }`}
+                >
+                  {copied ? <><Check size={15} /> Copiado!</> : <><Copy size={15} /> Copiar link</>}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }

@@ -5,8 +5,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Heart, TrendingUp, Users, Share2, Loader2, RefreshCcw, MapPin, Building2, Phone, ChevronDown, ChevronUp } from 'lucide-react';
-import { fetchFavoritesAnalytics } from '../../lib/api';
+import { Heart, TrendingUp, Users, Share2, Loader2, RefreshCcw, MapPin, Building2, Phone, ChevronDown, ChevronUp, Send, ExternalLink, Eye } from 'lucide-react';
+import { fetchFavoritesAnalytics, fetchCommercialShares, fetchClientFavorites } from '../../lib/api';
 
 function formatInt(n) {
   return new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
@@ -248,6 +248,137 @@ export default function FavoritesAnalyticsTab({ isDark }) {
           </div>
         </div>
       )}
+
+      {/* Commercial shares section */}
+      <CommercialSharesSection isDark={isDark} t={t} />
+    </div>
+  );
+}
+
+/* ─── Commercial Shares Section ─── */
+function CommercialSharesSection({ isDark, t }) {
+  const [shares, setShares] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [expandedCode, setExpandedCode] = useState(null);
+  const [clientFavsData, setClientFavsData] = useState({});
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchCommercialShares();
+      setShares(data);
+    } catch { setShares([]); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggleExpand = useCallback(async (code) => {
+    if (expandedCode === code) { setExpandedCode(null); return; }
+    setExpandedCode(code);
+    if (!clientFavsData[code]) {
+      try {
+        const data = await fetchClientFavorites(code);
+        setClientFavsData((prev) => ({ ...prev, [code]: data.favorites || [] }));
+      } catch { setClientFavsData((prev) => ({ ...prev, [code]: [] })); }
+    }
+  }, [expandedCode, clientFavsData]);
+
+  if (loading && !shares) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <Loader2 size={20} className="animate-spin text-blue-400" />
+        <span className={`ml-2 text-sm ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>Carregando links comerciais...</span>
+      </div>
+    );
+  }
+
+  if (!shares?.length) return null;
+
+  return (
+    <div className={`rounded-xl border overflow-hidden ${t.card}`}>
+      <div className={`px-5 py-3 border-b flex items-center gap-2 ${t.tableHead}`}>
+        <Send size={15} className="text-blue-400" />
+        <h3 className="text-sm font-bold">Links Comerciais (enviados para clientes)</h3>
+        <span className={`ml-auto text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-400'}`}>{shares.length} links</span>
+      </div>
+
+      <div className="divide-y divide-inherit">
+        {shares.map((share) => (
+          <div key={share.code}>
+            <button
+              onClick={() => toggleExpand(share.code)}
+              className={`w-full px-5 py-3 flex items-center gap-4 text-left transition-colors ${t.tableRow}`}
+            >
+              <div className="flex-1 min-w-0">
+                <div className={`font-medium text-sm ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                  <Building2 size={13} className="inline mr-1.5 text-blue-400" />
+                  {share.clientName || 'Cliente N/I'}
+                </div>
+                <div className={`text-xs mt-0.5 flex items-center gap-3 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                  <span>{formatInt(share.pointCount)} pontos</span>
+                  <span>·</span>
+                  <span className="inline-flex items-center gap-1"><Eye size={10} />{share.views || 0} views</span>
+                  <span>·</span>
+                  <span>{fmtDate(share.createdAt)}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {share.clientFavoritesCount > 0 ? (
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${isDark ? 'bg-green-500/20 text-green-300 border-green-500/30' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                    <Heart size={10} fill="currentColor" />{share.clientFavoritesCount} fav.
+                  </span>
+                ) : (
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${isDark ? 'bg-white/5 text-brand-gray-500 border-white/10' : 'bg-neutral-50 text-neutral-400 border-neutral-200'}`}>
+                    Aguardando
+                  </span>
+                )}
+                <a
+                  href={share.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-brand-gray-500' : 'hover:bg-neutral-100 text-neutral-400'}`}
+                  title="Abrir link"
+                >
+                  <ExternalLink size={13} />
+                </a>
+                {expandedCode === share.code ? <ChevronUp size={14} className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'} /> : <ChevronDown size={14} className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'} />}
+              </div>
+            </button>
+
+            {expandedCode === share.code && (
+              <div className={`px-5 pb-4 pt-1 ${isDark ? 'bg-white/[0.01]' : 'bg-neutral-50/50'}`}>
+                {!clientFavsData[share.code] ? (
+                  <div className="flex items-center gap-2 py-3">
+                    <Loader2 size={14} className="animate-spin text-blue-400" />
+                    <span className={`text-xs ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>Carregando favoritos...</span>
+                  </div>
+                ) : clientFavsData[share.code].length === 0 ? (
+                  <p className={`text-xs py-3 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                    O cliente ainda não enviou seus favoritos.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    <p className={`text-[10px] uppercase tracking-wider font-semibold mb-2 ${isDark ? 'text-brand-gray-600' : 'text-neutral-400'}`}>
+                      Pontos favoritos do cliente ({clientFavsData[share.code].length})
+                    </p>
+                    {clientFavsData[share.code].map((fav, i) => (
+                      <div key={i} className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs ${isDark ? 'bg-white/[0.03]' : 'bg-white border border-neutral-100'}`}>
+                        <span className="flex items-center gap-2">
+                          <Heart size={11} className="text-brand-orange" fill="currentColor" />
+                          <span className={`font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>{fav.point_name || `Ponto ${fav.point_id}`}</span>
+                        </span>
+                        <span className={isDark ? 'text-brand-gray-500' : 'text-neutral-400'}>{fmtDate(fav.created_at)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

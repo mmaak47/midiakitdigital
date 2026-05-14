@@ -1480,3 +1480,46 @@ export async function fetchLoopAvailability() {
     return null;
   }
 }
+
+// ── Commercial share links ──────────────────────────────────────────
+export async function createCommercialShareLink({ pointIds, clientName }) {
+  const res = await fetch('/api/share', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      filters: { pointIds },
+      client_name: clientName,
+      share_type: 'commercial',
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Falha ao criar link');
+  }
+  return res.json();
+}
+
+export async function submitClientFavorites(code, favorites) {
+  const res = await fetch(`/api/share/${code}/client-favorites`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ favorites }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Falha ao enviar favoritos');
+  }
+  return res.json();
+}
+
+export async function fetchCommercialShares() {
+  const res = await apiRequest('/commercial-shares');
+  if (!res.ok) throw new Error('Falha ao buscar links comerciais');
+  return res.json();
+}
+
+export async function fetchClientFavorites(code) {
+  const res = await apiRequest(`/share/${code}/client-favorites`);
+  if (!res.ok) throw new Error('Falha ao buscar favoritos do cliente');
+  return res.json();
+}

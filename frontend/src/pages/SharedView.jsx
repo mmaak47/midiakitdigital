@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fetchPontos } from '../lib/api';
+import { fetchPontos, submitClientFavorites } from '../lib/api';
 import { getPointDisplayImages } from '../lib/pointImages';
 import { normalizeHorarioForPdf } from '../lib/horarioUtils';
 
@@ -171,6 +171,43 @@ export default function SharedView() {
   const [lightbox, setLightbox] = useState({ ponto: null, imageIndex: 0 });
   const [copyToast, setCopyToast] = useState(false);
 
+  // Commercial mode: client favorites
+  const [clientFavs, setClientFavs] = useState(new Set());
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [submitToast, setSubmitToast] = useState(false);
+
+  const isCommercial = shareData?.shareType === 'commercial';
+  const clientName = shareData?.clientName || '';
+
+  const toggleClientFav = useCallback((ponto) => {
+    setClientFavs((prev) => {
+      const next = new Set(prev);
+      if (next.has(ponto.id)) next.delete(ponto.id);
+      else next.add(ponto.id);
+      return next;
+    });
+  }, []);
+
+  const handleSubmitFavorites = useCallback(async () => {
+    if (!clientFavs.size || !code) return;
+    setSubmitting(true);
+    try {
+      const favArr = [...clientFavs].map((id) => {
+        const p = allPontos.find((pt) => pt.id === id);
+        return { point_id: id, point_name: p?.nome || '' };
+      });
+      await submitClientFavorites(code, favArr);
+      setSubmitted(true);
+      setSubmitToast(true);
+      setTimeout(() => setSubmitToast(false), 4000);
+    } catch {
+      alert('Erro ao enviar favoritos. Tente novamente.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [clientFavs, code, allPontos]);
+
   useEffect(() => {
     let active = true;
     async function load() {
@@ -325,12 +362,20 @@ export default function SharedView() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
             <div>
+              {isCommercial && clientName && (
+                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-3 ${isDark ? 'bg-blue-500/15 text-blue-300 border border-blue-500/25' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
+                  <i className="ri-user-smile-line" style={{ fontSize: 13 }} />
+                  Preparado especialmente para {clientName}
+                </div>
+              )}
               <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-                {shareData?.label || (isFavoritesLink ? 'Seleção de Pontos' : filters?.cidade?.length === 1 ? `Mídia OOH em ${filters.cidade[0]}` : 'Seleção de Pontos')}
+                {isCommercial
+                  ? `Seleção para ${clientName || 'Você'}`
+                  : shareData?.label || (isFavoritesLink ? 'Seleção de Pontos' : filters?.cidade?.length === 1 ? `Mídia OOH em ${filters.cidade[0]}` : 'Seleção de Pontos')}
               </h1>
               <div className={`flex flex-wrap items-center gap-3 text-sm ${t.textSec}`}>
                 <span className="inline-flex items-center gap-1.5">
-                  <i className={`${isFavoritesLink ? 'ri-heart-3-fill' : 'ri-map-pin-2-fill'} text-brand-orange`} style={{ fontSize: 14 }} />{formatInt(pontos.length)} {isFavoritesLink ? 'pontos selecionados' : 'pontos'}
+                  <i className={`${isFavoritesLink || isCommercial ? 'ri-heart-3-fill' : 'ri-map-pin-2-fill'} text-brand-orange`} style={{ fontSize: 14 }} />{formatInt(pontos.length)} {isFavoritesLink || isCommercial ? 'pontos selecionados' : 'pontos'}
                 </span>
                 <span className={t.separator}>|</span>
                 <span className="inline-flex items-center gap-1.5">
@@ -341,7 +386,13 @@ export default function SharedView() {
                   <i className="ri-group-line text-brand-orange" style={{ fontSize: 14 }} />{formatInt(stats.totalFluxo)} fluxo/mês
                 </span>
               </div>
-              {filters && !isFavoritesLink && (
+              {isCommercial && !submitted && (
+                <p className={`text-xs mt-3 ${t.textMuted}`}>
+                  <i className="ri-information-line mr-1" style={{ fontSize: 12 }} />
+                  Clique no <i className="ri-heart-3-line text-brand-orange" style={{ fontSize: 11 }} /> dos pontos que mais gostou e envie sua seleção
+                </p>
+              )}
+              {filters && !isFavoritesLink && !isCommercial && (
                 <div className="flex flex-wrap gap-1.5 mt-3">
                   {[...(filters.cidade || []).map((c) => ({ icon: 'ri-map-pin-line', label: c })),
                     ...(filters.tipo || []).map((tp) => ({ icon: 'ri-layers-line', label: tp })),
@@ -355,7 +406,7 @@ export default function SharedView() {
                   ))}
                 </div>
               )}
-              {isFavoritesLink && (
+              {(isFavoritesLink && !isCommercial) && (
                 <div className="flex flex-wrap gap-1.5 mt-3">
                   <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border ${t.filterChip}`}>
                     <i className="ri-heart-3-fill" style={{ fontSize: 10 }} />{formatInt(pontos.length)} pontos favoritos
@@ -399,7 +450,27 @@ export default function SharedView() {
                     initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
                     transition={{ delay: Math.min(i * 0.04, 0.3), duration: 0.35 }}
                     className={`rounded-2xl border overflow-hidden transition-all duration-200 hover:-translate-y-0.5 group ${t.card}`}>
-                    <CardGallery ponto={ponto} onExpand={(p, idx) => setLightbox({ ponto: p, imageIndex: idx })} />
+                    <div className="relative">
+                      <CardGallery ponto={ponto} onExpand={(p, idx) => setLightbox({ ponto: p, imageIndex: idx })} />
+                      {isCommercial && !submitted && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleClientFav(ponto); }}
+                          className={`absolute top-2 right-2 z-10 p-2 rounded-full backdrop-blur-sm transition-all ${
+                            clientFavs.has(ponto.id)
+                              ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/30 scale-110'
+                              : 'bg-black/40 text-white/60 hover:text-white hover:bg-black/60'
+                          }`}
+                          title={clientFavs.has(ponto.id) ? 'Remover dos favoritos' : 'Marcar como favorito'}
+                        >
+                          <i className={clientFavs.has(ponto.id) ? 'ri-heart-3-fill' : 'ri-heart-3-line'} style={{ fontSize: 14 }} />
+                        </button>
+                      )}
+                      {isCommercial && submitted && clientFavs.has(ponto.id) && (
+                        <div className="absolute top-2 right-2 z-10 p-2 rounded-full bg-brand-orange text-white">
+                          <i className="ri-heart-3-fill" style={{ fontSize: 14 }} />
+                        </div>
+                      )}
+                    </div>
                     <div className="p-4">
                       <div className="flex flex-wrap gap-1 mb-2">
                         <span className="text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 border font-semibold bg-brand-orange/10 border-brand-orange/25 text-brand-orange">{ponto.tipo}</span>
@@ -457,9 +528,24 @@ export default function SharedView() {
                           <span><i className="ri-time-line text-brand-orange mr-1" style={{ fontSize: 11 }} />{normalizeHorarioForPdf(ponto.horario, 'N/I')}</span>
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-brand-orange font-bold text-xl">{formatMoney(ponto.preco)}</div>
-                        <div className={`text-[10px] uppercase ${t.statsLabel}`}>/ mês</div>
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <div className="text-right">
+                          <div className="text-brand-orange font-bold text-xl">{formatMoney(ponto.preco)}</div>
+                          <div className={`text-[10px] uppercase ${t.statsLabel}`}>/ mês</div>
+                        </div>
+                        {isCommercial && !submitted && (
+                          <button
+                            onClick={() => toggleClientFav(ponto)}
+                            className={`p-2 rounded-full transition-all ${
+                              clientFavs.has(ponto.id)
+                                ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/30'
+                                : isDark ? 'bg-white/10 text-brand-gray-400 hover:text-white hover:bg-white/20' : 'bg-neutral-100 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200'
+                            }`}
+                            title={clientFavs.has(ponto.id) ? 'Remover dos favoritos' : 'Marcar como favorito'}
+                          >
+                            <i className={clientFavs.has(ponto.id) ? 'ri-heart-3-fill' : 'ri-heart-3-line'} style={{ fontSize: 16 }} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </motion.article>
@@ -470,26 +556,85 @@ export default function SharedView() {
         ))}
       </main>
 
-      {/* ── Footer CTA ── */}
-      <div className={`border-t bg-gradient-to-t transition-colors duration-300 ${t.footerBg}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 text-center">
-          <h3 className="text-lg font-bold mb-2">Interessado nesta seleção?</h3>
-          <p className={`text-sm mb-5 ${t.footerText}`}>Fale com um especialista para montar sua campanha personalizada.</p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a href={`https://wa.me/${WA_COMERCIAL}?text=${waText}`} target="_blank" rel="noopener noreferrer"
+      {/* ── Commercial floating submit bar ── */}
+      {isCommercial && !submitted && (
+        <div className={`fixed bottom-0 inset-x-0 z-50 border-t backdrop-blur-xl transition-all ${isDark ? 'bg-[#050505]/95 border-white/10' : 'bg-white/95 border-[#EFE0D8]'}`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+            <div className={`text-sm ${t.textSec}`}>
+              {clientFavs.size > 0 ? (
+                <span className="flex items-center gap-2">
+                  <i className="ri-heart-3-fill text-brand-orange" style={{ fontSize: 16 }} />
+                  <span><strong className={t.text}>{clientFavs.size}</strong> ponto{clientFavs.size > 1 ? 's' : ''} selecionado{clientFavs.size > 1 ? 's' : ''}</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <i className="ri-heart-3-line" style={{ fontSize: 16 }} />
+                  Selecione os pontos que mais gostou
+                </span>
+              )}
+            </div>
+            <button
+              onClick={handleSubmitFavorites}
+              disabled={submitting || !clientFavs.size}
+              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all ${
+                clientFavs.size
+                  ? 'bg-brand-orange text-white hover:bg-[#E85A25] shadow-lg shadow-brand-orange/20'
+                  : isDark ? 'bg-white/10 text-brand-gray-500 cursor-not-allowed' : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
+              }`}
+            >
+              {submitting ? (
+                <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
+              ) : (
+                <><i className="ri-send-plane-fill" style={{ fontSize: 14 }} /> Enviar meus favoritos</>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Commercial submitted state ── */}
+      {isCommercial && submitted && (
+        <div className={`border-t bg-gradient-to-t transition-colors duration-300 ${t.footerBg}`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 text-center">
+            <div className={`w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center ${isDark ? 'bg-green-500/20' : 'bg-green-50'}`}>
+              <i className="ri-check-double-line text-green-400" style={{ fontSize: 28 }} />
+            </div>
+            <h3 className="text-lg font-bold mb-2">Obrigado, {clientName}!</h3>
+            <p className={`text-sm mb-5 ${t.footerText}`}>Sua seleção de {clientFavs.size} ponto{clientFavs.size > 1 ? 's' : ''} favorito{clientFavs.size > 1 ? 's' : ''} foi enviada com sucesso. Nossa equipe entrará em contato em breve!</p>
+            <a href={`https://wa.me/${WA_COMERCIAL}?text=${encodeURIComponent(`Olá! Sou ${clientName} e acabei de enviar meus pontos favoritos na seleção que recebi. Gostaria de conversar sobre a campanha!`)}`}
+              target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors shadow-lg shadow-[#25D366]/20">
               <i className="ri-whatsapp-line" style={{ fontSize: 16 }} />Falar pelo WhatsApp
             </a>
-            <button onClick={() => navigate('/')}
-              className={`inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold border transition-colors ${t.btnSecondary}`}>
-              <i className="ri-compass-3-line" style={{ fontSize: 16 }} />Ver catálogo completo
-            </button>
-          </div>
-          <div className={`mt-8 pt-6 border-t text-[11px] ${isDark ? 'border-white/5' : 'border-[#F2DDD4]'} ${t.footerMuted}`}>
-            Intermídia Comunicação Visual &mdash; Mídia Kit Digital
+            <div className={`mt-8 pt-6 border-t text-[11px] ${isDark ? 'border-white/5' : 'border-[#F2DDD4]'} ${t.footerMuted}`}>
+              Intermídia Comunicação Visual &mdash; Mídia Kit Digital
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Footer CTA (non-commercial) ── */}
+      {!isCommercial && (
+        <div className={`border-t bg-gradient-to-t transition-colors duration-300 ${t.footerBg}`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 text-center">
+            <h3 className="text-lg font-bold mb-2">Interessado nesta seleção?</h3>
+            <p className={`text-sm mb-5 ${t.footerText}`}>Fale com um especialista para montar sua campanha personalizada.</p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <a href={`https://wa.me/${WA_COMERCIAL}?text=${waText}`} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors shadow-lg shadow-[#25D366]/20">
+                <i className="ri-whatsapp-line" style={{ fontSize: 16 }} />Falar pelo WhatsApp
+              </a>
+              <button onClick={() => navigate('/')}
+                className={`inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold border transition-colors ${t.btnSecondary}`}>
+                <i className="ri-compass-3-line" style={{ fontSize: 16 }} />Ver catálogo completo
+              </button>
+            </div>
+            <div className={`mt-8 pt-6 border-t text-[11px] ${isDark ? 'border-white/5' : 'border-[#F2DDD4]'} ${t.footerMuted}`}>
+              Intermídia Comunicação Visual &mdash; Mídia Kit Digital
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Lightbox ── */}
       <AnimatePresence>
@@ -500,7 +645,7 @@ export default function SharedView() {
         )}
       </AnimatePresence>
 
-      {/* ── Toast ── */}
+      {/* ── Toasts ── */}
       <AnimatePresence>
         {copyToast && (
           <motion.div key="copy-toast" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
@@ -508,7 +653,16 @@ export default function SharedView() {
             <i className="ri-checkbox-circle-fill" style={{ fontSize: 16 }} />Link copiado!
           </motion.div>
         )}
+        {submitToast && (
+          <motion.div key="submit-toast" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[10000] rounded-xl border border-green-500/40 bg-green-600/90 backdrop-blur-sm px-5 py-3 text-sm font-semibold text-white shadow-xl flex items-center gap-2">
+            <i className="ri-heart-3-fill text-brand-orange" style={{ fontSize: 16 }} />Seus favoritos foram enviados!
+          </motion.div>
+        )}
       </AnimatePresence>
+
+      {/* Bottom padding when commercial submit bar is showing */}
+      {isCommercial && !submitted && <div className="h-16" />}
     </div>
   );
 }
