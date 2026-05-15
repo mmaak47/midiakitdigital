@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react';
 import { FavoritesProvider } from './context/FavoritesContext';
 import Landing from './pages/Landing';
 import InventarioChatBot from './components/InventarioChatBot';
+import ConsentBanner from './components/ConsentBanner';
 import AppLoader, { RouteTransitionOverlay } from './components/AppLoader';
 
 const Explorer = lazy(() => import('./pages/Explorer'));
@@ -30,6 +31,13 @@ function shouldShowInventoryChat() {
   // Chat is shown ONLY on public areas: Landing ("/") and Planejar ("/planejar").
   // Internal/private areas (/comercial/*, /painel-tv, /p/:token, etc.) never show the chat.
   return path === '/' || path === '/planejar';
+}
+
+function shouldShowConsentBanner() {
+  if (typeof window === 'undefined') return false;
+  const path = String(window.location.pathname || '/');
+  // Consent banner on public-facing pages only (not admin/commercial internal areas)
+  return path === '/' || path === '/planejar' || path.startsWith('/s/') || path.startsWith('/p/');
 }
 
 /**
@@ -87,6 +95,7 @@ export default function App() {
           <InventarioChatBot />
         </FavoritesProvider>
       ) : null}
+      {shouldShowConsentBanner() ? <ConsentBanner /> : null}
     </BrowserRouter>
   );
 }
