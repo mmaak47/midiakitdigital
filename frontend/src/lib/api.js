@@ -1518,6 +1518,48 @@ export async function submitClientFavorites(code, favorites) {
   return res.json();
 }
 
+export async function uploadVendedorAudio(file) {
+  const formData = new FormData();
+  formData.append('audio', file);
+  const headers = {};
+  const token = getAdminToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch('/api/users/me/audio', {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Falha ao enviar áudio');
+  }
+  return res.json();
+}
+
+export async function deleteVendedorAudio() {
+  const res = await apiRequest('/users/me/audio', { method: 'DELETE' });
+  if (!res.ok) throw new Error('Falha ao remover áudio');
+  return res.json();
+}
+
+export async function sendShareWhatsApp(code, phone) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getAdminToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`/api/share/${code}/send-whatsapp`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify({ phone }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Falha ao enviar WhatsApp');
+  }
+  return res.json();
+}
+
 export async function fetchCommercialShares() {
   const res = await apiRequest('/commercial-shares');
   if (!res.ok) throw new Error('Falha ao buscar links comerciais');

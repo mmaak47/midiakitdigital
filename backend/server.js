@@ -214,6 +214,11 @@ const ELEVADOR_TIPO = 'Elevador';
 const ELEVADOR_ARTE_LARGURA = 1080;
 const ELEVADOR_ARTE_ALTURA = 1920;
 const ALLOWED_UPLOAD_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED_AUDIO_MIME = new Set([
+  'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/webm', 'audio/wav',
+  'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/opus',
+  'video/webm',           // browser MediaRecorder pode gravar como video/webm com codec de áudio
+]);
 const DEFAULT_AUDIENCE_TAGS = [
   { key: 'classe-a', label: 'Classe A', weight: 1 },
   { key: 'classe-b', label: 'Classe B', weight: 1 },
@@ -470,6 +475,17 @@ function extensionFromMime(mimeType) {
       return '.webp';
     default:
       return '';
+  }
+}
+
+function audioExtensionFromMime(mimeType) {
+  switch (mimeType) {
+    case 'audio/mpeg': case 'audio/mp3': return '.mp3';
+    case 'audio/ogg': case 'audio/opus': return '.ogg';
+    case 'audio/webm': case 'video/webm': return '.webm';
+    case 'audio/wav': return '.wav';
+    case 'audio/mp4': case 'audio/x-m4a': case 'audio/aac': return '.m4a';
+    default: return '.ogg';
   }
 }
 
@@ -749,13 +765,14 @@ app.get('/api/share/:code', (req, res) => {
 
     // Include vendedor info for commercial links
     if (row.created_by_user_id) {
-      const vendedor = db.prepare('SELECT id, first_name, last_name, whatsapp, photo_url FROM admin_users WHERE id = ?').get(row.created_by_user_id);
+      const vendedor = db.prepare('SELECT id, first_name, last_name, whatsapp, photo_url, audio_url FROM admin_users WHERE id = ?').get(row.created_by_user_id);
       if (vendedor) {
         resp.vendedor = {
           name: [vendedor.first_name, vendedor.last_name].filter(Boolean).join(' ') || 'Consultor',
           firstName: vendedor.first_name || 'Consultor',
           whatsapp: vendedor.whatsapp || null,
           photoUrl: vendedor.photo_url || null,
+          audioUrl: vendedor.audio_url || null,
         };
       }
     }
@@ -884,6 +901,88 @@ app.get('/api/share/:code/client-favorites', (req, res) => {
   } catch (err) {
     console.error('[share/get-client-favorites]', err.message);
     res.status(500).json({ error: 'Erro ao buscar favoritos.' });
+  }
+});
+
+// ── Send WhatsApp message (text + áudio do vendedor) to client ──
+app.post('/api/share/:code/send-whatsapp', express.json({ limit: '32kb' }), resolveAuthenticatedUser, async (req, res) => {
+  try {
+    const { code } = req.params;
+    const { phone } = req.body || {};
+    if (!code || typeof code !== 'string') return res.status(400).json({ error: 'Código inválido.' });
+    if (!phone || typeof phone !== 'string') return res.status(400).json({ error: 'Telefone do cliente é obrigatório.' });
+
+    const row = db.prepare('SELECT id, code, client_name, share_type, created_by_user_id FROM shared_filters WHERE code = ?').get(code);
+    if (!row) return res.status(404).json({ error: 'Link não encontrado.' });
+
+    // Garante que o vendedor é o dono do link (ou admin/diretor)
+    const isOwner = row.created_by_user_id === req.authUser.id;
+    const isFullAccess = ['admin', 'diretor', 'gerente_comercial'].includes(req.authUser.role);
+    if (!isOwner && !isFullAccess) return res.status(403).json({ error: 'Sem permissão.' });
+
+    const evo = getEvolutionSettings();
+    if (!evo.evolution_api_url || !evo.evolution_instance || !evo.evolution_api_key) {
+      return res.status(400).json({ error: 'Evolution API não configurada. Configure nas Configurações.' });
+    }
+
+    const clientPhone = sanitizePhoneForWhatsApp(phone);
+    if (!clientPhone) return res.status(400).json({ error: 'Número de WhatsApp inválido.' });
+
+    const clientLabel = row.client_name || 'Cliente';
+    const linkUrl = `${req.protocol}://${req.get('host')}/s/${code}`;
+
+    // Dados do vendedor
+    const vendedor = db.prepare('SELECT first_name, last_name, audio_url FROM admin_users WHERE id = ?').get(req.authUser.id);
+    const vendedorName = [vendedor?.first_name, vendedor?.last_name].filter(Boolean).join(' ') || 'Consultor';
+
+    // 1) Envia áudio primeiro (se existir)
+    let audioSent = false;
+    if (vendedor?.audio_url) {
+      const audioFile = path.join(uploadsPath, path.basename(vendedor.audio_url));
+      if (fs.existsSync(audioFile)) {
+        try {
+          await sendEvolutionAudio({
+            apiUrl: evo.evolution_api_url,
+            instance: String(evo.evolution_pdf_instance || evo.evolution_instance || 'aux adm').trim(),
+            apiKey: evo.evolution_api_key,
+            number: clientPhone,
+            audioFilePath: audioFile,
+          });
+          audioSent = true;
+          console.log(`[share/send-whatsapp] Áudio do vendedor ${vendedorName} enviado para ${clientPhone}`);
+        } catch (audioErr) {
+          console.error(`[share/send-whatsapp] Erro ao enviar áudio: ${audioErr.message}`);
+          // Continua e envia o texto mesmo se o áudio falhar
+        }
+      }
+    }
+
+    // 2) Envia texto com o link
+    const filters = JSON.parse(row.filters_json || '{}');
+    const pointCount = Array.isArray(filters.pointIds) ? filters.pointIds.length : 0;
+    const text = [
+      `Olá, ${clientLabel}! 👋`,
+      ``,
+      `Sou ${vendedorName}, da *Intermídia*. Preparamos uma seleção especial de ${pointCount} ponto${pointCount !== 1 ? 's' : ''} de mídia OOH para você:`,
+      ``,
+      `📎 ${linkUrl}`,
+      ``,
+      `Acesse o link para ver os detalhes e selecione os seus favoritos!`,
+    ].join('\n');
+
+    await sendEvolutionText({
+      apiUrl: evo.evolution_api_url,
+      instance: String(evo.evolution_pdf_instance || evo.evolution_instance || 'aux adm').trim(),
+      apiKey: evo.evolution_api_key,
+      number: clientPhone,
+      text,
+    });
+
+    console.log(`[share/send-whatsapp] Mensagem enviada para ${clientPhone} (link=${code}, vendedor=${vendedorName})`);
+    res.json({ ok: true, audioSent });
+  } catch (err) {
+    console.error('[share/send-whatsapp]', err.message);
+    res.status(500).json({ error: 'Erro ao enviar WhatsApp.' });
   }
 });
 
@@ -1165,6 +1264,26 @@ const upload = multer({
     files: 4,
     fields: 60
   }
+});
+
+// Multer para upload de áudio do vendedor
+const audioStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsPath),
+  filename: (req, file, cb) => {
+    const ext = audioExtensionFromMime(file.mimetype);
+    cb(null, `audio-${randomUUID()}${ext}`);
+  }
+});
+const uploadAudio = multer({
+  storage: audioStorage,
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_AUDIO_MIME.has(file.mimetype)) {
+      cb(new Error('Tipo de arquivo não permitido. Use MP3, OGG, WAV, M4A ou WebM.'));
+      return;
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 16 * 1024 * 1024, files: 1 }
 });
 
 const POINT_IMPORT_ALLOWED_EXTENSIONS = new Set(['.xlsx', '.xls', '.csv']);
@@ -5481,8 +5600,8 @@ app.delete('/api/admin/pdf-layout', requireRoles(['admin']), (req, res) => {
 // ==================== USUÁRIO ATUAL ====================
 
 app.get('/api/users/me', resolveAuthenticatedUser, (req, res) => {
-  const { id, first_name, last_name, username, email, whatsapp, role, is_vendedor, photo_url } = req.authUser;
-  res.json({ id, first_name, last_name, username, email, whatsapp, role, is_vendedor: !!is_vendedor, photo_url });
+  const { id, first_name, last_name, username, email, whatsapp, role, is_vendedor, photo_url, audio_url } = req.authUser;
+  res.json({ id, first_name, last_name, username, email, whatsapp, role, is_vendedor: !!is_vendedor, photo_url, audio_url });
 });
 
 // Upload photo for own user
@@ -5493,6 +5612,40 @@ app.post('/api/users/me/photo', resolveAuthenticatedUser, upload.fields([{ name:
     const photoUrl = `/uploads/${file.filename}`;
     db.prepare("UPDATE admin_users SET photo_url = ?, updated_at = datetime('now') WHERE id = ?").run(photoUrl, req.authUser.id);
     res.json({ success: true, photo_url: photoUrl });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// Upload áudio personalizado do vendedor
+app.post('/api/users/me/audio', resolveAuthenticatedUser, uploadAudio.fields([{ name: 'audio', maxCount: 1 }]), (req, res) => {
+  try {
+    const file = req.files?.audio?.[0];
+    if (!file) return res.status(400).json({ error: 'Nenhum arquivo de áudio enviado' });
+    const audioUrl = `/uploads/${file.filename}`;
+    // Remove áudio anterior se existir
+    const prev = db.prepare('SELECT audio_url FROM admin_users WHERE id = ?').get(req.authUser.id);
+    if (prev?.audio_url) {
+      const oldPath = path.join(uploadsPath, path.basename(prev.audio_url));
+      try { if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath); } catch { /* ignore */ }
+    }
+    db.prepare("UPDATE admin_users SET audio_url = ?, updated_at = datetime('now') WHERE id = ?").run(audioUrl, req.authUser.id);
+    res.json({ success: true, audio_url: audioUrl });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// Remove áudio do vendedor
+app.delete('/api/users/me/audio', resolveAuthenticatedUser, (req, res) => {
+  try {
+    const prev = db.prepare('SELECT audio_url FROM admin_users WHERE id = ?').get(req.authUser.id);
+    if (prev?.audio_url) {
+      const oldPath = path.join(uploadsPath, path.basename(prev.audio_url));
+      try { if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath); } catch { /* ignore */ }
+    }
+    db.prepare("UPDATE admin_users SET audio_url = NULL, updated_at = datetime('now') WHERE id = ?").run(req.authUser.id);
+    res.json({ success: true });
   } catch (err) {
     internalError(res, err);
   }
@@ -5643,6 +5796,7 @@ try {
   'ALTER TABLE pontos ADD COLUMN monitor_last_seen TEXT DEFAULT NULL',
   'ALTER TABLE admin_users ADD COLUMN is_vendedor INTEGER DEFAULT 0',
   'ALTER TABLE admin_users ADD COLUMN photo_url TEXT DEFAULT NULL',
+  'ALTER TABLE admin_users ADD COLUMN audio_url TEXT DEFAULT NULL',
   'ALTER TABLE vendas ADD COLUMN email TEXT',
   'ALTER TABLE vendas ADD COLUMN criativo_nome TEXT',
   'ALTER TABLE vendas ADD COLUMN criativo_whatsapp TEXT',
@@ -6286,6 +6440,23 @@ async function sendEvolutionDocument({ apiUrl, instance, apiKey, number, caption
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`Evolution [documento]: ${res.status} ${body.slice(0, 120)}`);
+  }
+  return res.json();
+}
+
+async function sendEvolutionAudio({ apiUrl, instance, apiKey, number, audioFilePath, ptt = true }) {
+  const fileBuffer = fs.readFileSync(audioFilePath);
+  const base64 = fileBuffer.toString('base64');
+  const base = apiUrl.replace(/\/$/, '');
+  const url = `${base}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
+    body: JSON.stringify({ number: String(number).trim(), audio: base64 })
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Evolution [audio]: ${res.status} ${body.slice(0, 120)}`);
   }
   return res.json();
 }

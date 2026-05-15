@@ -1,9 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Trash2, FileText, X, ChevronRight, Link2, Send, Copy, Check, ExternalLink, Users } from 'lucide-react';
-import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
+import { Heart, Trash2, FileText, X, ChevronRight, Link2, Send, Copy, Check, ExternalLink, Users, Mic, Square, Play, Pause, Loader2, Volume2 } from 'lucide-react';
+import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { useFavorites } from '../context/FavoritesContext';
 import { trackEvent } from '../lib/tracking';
-import { createCommercialShareLink } from '../lib/api';
+import { createCommercialShareLink, uploadVendedorAudio, deleteVendedorAudio, sendShareWhatsApp, fetchCurrentUser } from '../lib/api';
 
 const ProposalModal = lazy(() => import('./ProposalModal'));
 
@@ -268,13 +268,137 @@ export default function FavoritesBar({ isDark = true, showProposalCta = true, on
   );
 }
 
+/* ─── Audio Recorder Hook ─── */
+function useAudioRecorder() {
+  const [recording, setRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [audioUrl, setAudioUrl] = useState('');
+  const [duration, setDuration] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const timerRef = useRef(null);
+  const streamRef = useRef(null);
+
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : undefined });
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        setAudioBlob(blob);
+        if (audioUrl) URL.revokeObjectURL(audioUrl);
+        setAudioUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+      setDuration(0);
+      timerRef.current = setInterval(() => setDuration(d => d + 1), 1000);
+    } catch {
+      // Microfone negado — silencioso
+    }
+  }, [audioUrl]);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    setRecording(false);
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+  }, []);
+
+  const clearRecording = useCallback(() => {
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioBlob(null);
+    setAudioUrl('');
+    setDuration(0);
+  }, [audioUrl]);
+
+  return { recording, audioBlob, audioUrl, duration, startRecording, stopRecording, clearRecording };
+}
+
+/* ─── Inline Audio Player ─── */
+function MiniAudioPlayer({ src, isDark, label = 'Áudio' }) {
+  const audioRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+
+  const toggle = () => {
+    if (!audioRef.current) return;
+    if (playing) { audioRef.current.pause(); }
+    else { audioRef.current.play().catch(() => {}); }
+    setPlaying(!playing);
+  };
+
+  return (
+    <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${isDark ? 'border-white/10 bg-white/[0.04]' : 'border-neutral-200 bg-neutral-50'}`}>
+      <audio ref={audioRef} src={src} onEnded={() => setPlaying(false)} preload="metadata" />
+      <button type="button" onClick={toggle} className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors ${isDark ? 'bg-brand-orange/20 text-brand-orange hover:bg-brand-orange/30' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}>
+        {playing ? <Pause size={12} /> : <Play size={12} className="ml-0.5" />}
+      </button>
+      <span className={`text-xs truncate ${isDark ? 'text-brand-gray-400' : 'text-neutral-500'}`}>{label}</span>
+    </div>
+  );
+}
+
 /* ─── Commercial Share Modal ─── */
 function CommercialShareModal({ isDark, favorites, totalPreco = 0, discountMode = 'percent', discountValue = '', onClose }) {
   const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [generatedUrl, setGeneratedUrl] = useState('');
+  const [generatedCode, setGeneratedCode] = useState('');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
+  const [sendingWa, setSendingWa] = useState(false);
+  const [waSent, setWaSent] = useState(false);
+  const [waError, setWaError] = useState('');
+  // Audio do vendedor (perfil salvo no server)
+  const [vendedorAudioUrl, setVendedorAudioUrl] = useState(null);
+  const [audioUploading, setAudioUploading] = useState(false);
+  const audioFileRef = useRef(null);
+  const { recording, audioBlob, audioUrl: recAudioUrl, duration, startRecording, stopRecording, clearRecording } = useAudioRecorder();
+
+  // Busca dados do vendedor ao abrir
+  useEffect(() => {
+    fetchCurrentUser().then(u => {
+      if (u?.audio_url) setVendedorAudioUrl(u.audio_url);
+    }).catch(() => {});
+  }, []);
+
+  const handleUploadAudio = useCallback(async (blob) => {
+    if (!blob) return;
+    setAudioUploading(true);
+    try {
+      const file = blob instanceof File ? blob : new File([blob], 'audio.webm', { type: blob.type || 'audio/webm' });
+      const result = await uploadVendedorAudio(file);
+      setVendedorAudioUrl(result.audio_url);
+      clearRecording();
+    } catch (err) {
+      setError(err.message || 'Erro ao enviar áudio.');
+    } finally {
+      setAudioUploading(false);
+    }
+  }, [clearRecording]);
+
+  const handleFileAudioUpload = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (file) handleUploadAudio(file);
+    if (e.target) e.target.value = '';
+  }, [handleUploadAudio]);
+
+  const handleRemoveAudio = useCallback(async () => {
+    try {
+      await deleteVendedorAudio();
+      setVendedorAudioUrl(null);
+    } catch { /* ignore */ }
+  }, []);
+
+  const formatDuration = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   const handleGenerate = useCallback(async () => {
     const name = clientName.trim();
@@ -283,10 +407,8 @@ function CommercialShareModal({ isDark, favorites, totalPreco = 0, discountMode 
     setError('');
     setLoading(true);
     try {
-      // Compute discount for the link
       const parsedDiscount = parseFloat(String(discountValue).replace(',', '.')) || 0;
       const discountData = parsedDiscount > 0 ? { mode: discountMode, value: parsedDiscount } : null;
-
       const result = await createCommercialShareLink({
         pointIds: favorites.map(p => p.id),
         clientName: name,
@@ -294,13 +416,14 @@ function CommercialShareModal({ isDark, favorites, totalPreco = 0, discountMode 
       });
       const fullUrl = `${window.location.origin}${result.url}`;
       setGeneratedUrl(fullUrl);
+      setGeneratedCode(result.url.split('/').pop());
       trackEvent('commercial_share_created', { count: favorites.length, client: name });
     } catch (err) {
       setError(err.message || 'Erro ao gerar link.');
     } finally {
       setLoading(false);
     }
-  }, [clientName, favorites]);
+  }, [clientName, favorites, discountValue, discountMode]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -312,12 +435,39 @@ function CommercialShareModal({ isDark, favorites, totalPreco = 0, discountMode 
     }
   }, [generatedUrl]);
 
-  const handleWhatsApp = useCallback(() => {
+  // Envia via Evolution API (texto + áudio)
+  const handleWhatsAppAPI = useCallback(async () => {
+    const phone = clientPhone.trim();
+    if (!phone) {
+      setWaError('Informe o WhatsApp do cliente para enviar diretamente.');
+      return;
+    }
+    setSendingWa(true);
+    setWaError('');
+    try {
+      const result = await sendShareWhatsApp(generatedCode, phone);
+      setWaSent(true);
+      trackEvent('commercial_share_whatsapp_sent', { code: generatedCode, hasAudio: result.audioSent });
+    } catch (err) {
+      setWaError(err.message || 'Erro ao enviar WhatsApp.');
+    } finally {
+      setSendingWa(false);
+    }
+  }, [clientPhone, generatedCode]);
+
+  // Fallback: abre wa.me manualmente
+  const handleWhatsAppManual = useCallback(() => {
     const text = encodeURIComponent(
       `Olá ${clientName.trim()}! Preparamos uma seleção especial de ${favorites.length} ponto${favorites.length > 1 ? 's' : ''} de mídia OOH para você:\n\n${generatedUrl}\n\nAcesse o link para ver os detalhes e selecione os seus favoritos!`
     );
     window.open(`https://wa.me/?text=${text}`, '_blank');
   }, [clientName, favorites.length, generatedUrl]);
+
+  const inputCls = `w-full px-4 py-3 rounded-xl border text-sm outline-none transition-colors ${
+    isDark
+      ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-brand-gray-600 focus:border-blue-500/50'
+      : 'bg-neutral-50 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-blue-400'
+  }`;
 
   return (
     <motion.div
@@ -347,31 +497,89 @@ function CommercialShareModal({ isDark, favorites, totalPreco = 0, discountMode 
           </button>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-4 max-h-[75vh] overflow-y-auto">
           {!generatedUrl ? (
             <>
-              {/* Client name input */}
+              {/* Client name */}
               <div>
                 <label className={`text-xs font-semibold mb-1.5 block ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>
                   Nome do cliente / empresa
                 </label>
-                <input
-                  type="text"
-                  value={clientName}
-                  onChange={(e) => { setClientName(e.target.value); setError(''); }}
-                  onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
-                  placeholder="Ex: João Silva — Empresa ABC"
-                  autoFocus
-                  className={`w-full px-4 py-3 rounded-xl border text-sm outline-none transition-colors ${
-                    isDark
-                      ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-brand-gray-600 focus:border-blue-500/50'
-                      : 'bg-neutral-50 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-blue-400'
-                  }`}
-                />
+                <input type="text" value={clientName} onChange={(e) => { setClientName(e.target.value); setError(''); }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleGenerate()} placeholder="Ex: João Silva — Empresa ABC" autoFocus className={inputCls} />
+              </div>
+
+              {/* Client phone */}
+              <div>
+                <label className={`text-xs font-semibold mb-1.5 block ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>
+                  WhatsApp do cliente <span className={isDark ? 'text-brand-gray-600' : 'text-neutral-400'}>(opcional)</span>
+                </label>
+                <input type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)}
+                  placeholder="(99) 99999-9999" className={inputCls} />
+                <p className={`text-[10px] mt-1 ${isDark ? 'text-brand-gray-600' : 'text-neutral-400'}`}>
+                  Com o número, enviamos o link + áudio direto pelo WhatsApp.
+                </p>
+              </div>
+
+              {/* Audio section */}
+              <div className={`rounded-xl border p-3 space-y-2.5 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-100 bg-neutral-50'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Volume2 size={14} className="text-brand-orange" />
+                    <span className={`text-xs font-semibold ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}>Áudio personalizado</span>
+                  </div>
+                  {vendedorAudioUrl && (
+                    <button type="button" onClick={handleRemoveAudio} className={`text-[10px] underline ${isDark ? 'text-brand-gray-500 hover:text-red-400' : 'text-neutral-400 hover:text-red-500'}`}>
+                      Remover
+                    </button>
+                  )}
+                </div>
+
+                {vendedorAudioUrl ? (
+                  <MiniAudioPlayer src={vendedorAudioUrl} isDark={isDark} label="Seu áudio salvo" />
+                ) : recAudioUrl ? (
+                  <>
+                    <MiniAudioPlayer src={recAudioUrl} isDark={isDark} label={`Gravação (${formatDuration(duration)})`} />
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => handleUploadAudio(audioBlob)} disabled={audioUploading}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-brand-orange text-white hover:bg-brand-orange-hover disabled:opacity-50 transition-colors">
+                        {audioUploading ? <><Loader2 size={12} className="animate-spin" /> Salvando...</> : <><Check size={12} /> Salvar áudio</>}
+                      </button>
+                      <button type="button" onClick={clearRecording}
+                        className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${isDark ? 'border-white/10 text-brand-gray-400 hover:bg-white/5' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-100'}`}>
+                        Descartar
+                      </button>
+                    </div>
+                  </>
+                ) : recording ? (
+                  <div className="flex items-center gap-3">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                    <span className={`text-xs font-mono ${isDark ? 'text-red-400' : 'text-red-600'}`}>{formatDuration(duration)}</span>
+                    <button type="button" onClick={stopRecording}
+                      className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition-colors">
+                      <Square size={10} /> Parar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button type="button" onClick={startRecording}
+                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${isDark ? 'border-brand-orange/30 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20' : 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}>
+                      <Mic size={12} /> Gravar áudio
+                    </button>
+                    <button type="button" onClick={() => audioFileRef.current?.click()}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${isDark ? 'border-white/10 text-brand-gray-400 hover:bg-white/5' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-100'}`}>
+                      Enviar arquivo
+                    </button>
+                    <input ref={audioFileRef} type="file" accept="audio/*" className="hidden" onChange={handleFileAudioUpload} />
+                  </div>
+                )}
+                <p className={`text-[10px] ${isDark ? 'text-brand-gray-600' : 'text-neutral-400'}`}>
+                  Grave uma mensagem personalizada que será enviada junto com o link. Fica salvo no seu perfil.
+                </p>
               </div>
 
               {/* Points preview */}
-              <div className={`rounded-xl border p-3 max-h-36 overflow-y-auto ${isDark ? 'border-white/5 bg-white/[0.02]' : 'border-neutral-100 bg-neutral-50'}`}>
+              <div className={`rounded-xl border p-3 max-h-28 overflow-y-auto ${isDark ? 'border-white/5 bg-white/[0.02]' : 'border-neutral-100 bg-neutral-50'}`}>
                 <div className={`text-[10px] uppercase tracking-wider font-semibold mb-2 ${isDark ? 'text-brand-gray-600' : 'text-neutral-400'}`}>
                   Pontos incluídos
                 </div>
@@ -387,30 +595,14 @@ function CommercialShareModal({ isDark, favorites, totalPreco = 0, discountMode 
                 </div>
               </div>
 
-              {/* Info text */}
-              <p className={`text-[11px] ${isDark ? 'text-brand-gray-600' : 'text-neutral-400'}`}>
-                O cliente verá os pontos selecionados com o nome dele e poderá escolher seus favoritos. Você será notificado quando ele responder.
-              </p>
+              {error && <p className="text-red-400 text-xs">{error}</p>}
 
-              {error && (
-                <p className="text-red-400 text-xs">{error}</p>
-              )}
-
-              {/* Generate button */}
-              <button
-                onClick={handleGenerate}
-                disabled={loading || !clientName.trim()}
+              <button onClick={handleGenerate} disabled={loading || !clientName.trim()}
                 className={`w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] ${
-                  loading || !clientName.trim()
-                    ? 'opacity-50 cursor-not-allowed bg-blue-500/50 text-white'
-                    : 'bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-500/20'
-                }`}
-              >
-                {loading ? (
-                  <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Gerando link...</>
-                ) : (
-                  <><Send size={15} /> Gerar link para {clientName.trim() || 'cliente'}</>
-                )}
+                  loading || !clientName.trim() ? 'opacity-50 cursor-not-allowed bg-blue-500/50 text-white' : 'bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-500/20'
+                }`}>
+                {loading ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Gerando link...</>
+                  : <><Send size={15} /> Gerar link para {clientName.trim() || 'cliente'}</>}
               </button>
             </>
           ) : (
@@ -428,41 +620,49 @@ function CommercialShareModal({ isDark, favorites, totalPreco = 0, discountMode 
 
               {/* URL display */}
               <div className={`flex items-center gap-2 rounded-xl border p-3 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
-                <input
-                  type="text"
-                  readOnly
-                  value={generatedUrl}
+                <input type="text" readOnly value={generatedUrl}
                   className={`flex-1 text-xs bg-transparent outline-none select-all ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'}`}
-                  onClick={(e) => e.target.select()}
-                />
-                <button
-                  onClick={handleCopy}
-                  className={`shrink-0 p-2 rounded-lg transition-colors ${
-                    copied
-                      ? 'bg-green-500/20 text-green-400'
-                      : isDark ? 'hover:bg-white/10 text-brand-gray-400' : 'hover:bg-neutral-200 text-neutral-500'
-                  }`}
-                  title="Copiar link"
-                >
+                  onClick={(e) => e.target.select()} />
+                <button onClick={handleCopy}
+                  className={`shrink-0 p-2 rounded-lg transition-colors ${copied ? 'bg-green-500/20 text-green-400' : isDark ? 'hover:bg-white/10 text-brand-gray-400' : 'hover:bg-neutral-200 text-neutral-500'}`}
+                  title="Copiar link">
                   {copied ? <Check size={14} /> : <Copy size={14} />}
                 </button>
               </div>
 
+              {/* Audio badge */}
+              {vendedorAudioUrl && (
+                <div className={`flex items-center gap-2 text-xs rounded-lg px-3 py-2 ${isDark ? 'bg-brand-orange/10 text-brand-orange border border-brand-orange/20' : 'bg-orange-50 text-orange-700 border border-orange-200'}`}>
+                  <Volume2 size={13} />
+                  <span>Áudio personalizado será enviado junto</span>
+                </div>
+              )}
+
+              {waError && <p className="text-red-400 text-xs">{waError}</p>}
+
               {/* Action buttons */}
               <div className="space-y-2">
-                <button
-                  onClick={handleWhatsApp}
-                  className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors"
-                >
-                  <i className="ri-whatsapp-line" style={{ fontSize: 16 }} />
-                  Enviar pelo WhatsApp
-                </button>
-                <button
-                  onClick={handleCopy}
+                {waSent ? (
+                  <div className={`w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm bg-green-500/20 text-green-400 border border-green-500/30`}>
+                    <Check size={15} /> Enviado com sucesso!
+                  </div>
+                ) : clientPhone.trim() ? (
+                  <button onClick={handleWhatsAppAPI} disabled={sendingWa}
+                    className={`w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-colors ${sendingWa ? 'opacity-60 cursor-not-allowed' : ''} bg-[#25D366] text-white hover:bg-[#1EB954]`}>
+                    {sendingWa ? <><Loader2 size={15} className="animate-spin" /> Enviando...</>
+                      : <><i className="ri-whatsapp-line" style={{ fontSize: 16 }} /> Enviar pelo WhatsApp{vendedorAudioUrl ? ' (com áudio)' : ''}</>}
+                  </button>
+                ) : (
+                  <button onClick={handleWhatsAppManual}
+                    className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors">
+                    <i className="ri-whatsapp-line" style={{ fontSize: 16 }} />
+                    Abrir WhatsApp manualmente
+                  </button>
+                )}
+                <button onClick={handleCopy}
                   className={`w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm border transition-colors ${
                     isDark ? 'border-white/10 text-brand-gray-300 hover:bg-white/5' : 'border-neutral-200 text-neutral-700 hover:bg-neutral-50'
-                  }`}
-                >
+                  }`}>
                   {copied ? <><Check size={15} /> Copiado!</> : <><Copy size={15} /> Copiar link</>}
                 </button>
               </div>
