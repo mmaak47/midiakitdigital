@@ -681,7 +681,7 @@ export default function SharedView() {
               </a>
             )}
             <div className={`mt-8 pt-6 border-t text-[11px] ${isDark ? 'border-white/5' : 'border-[#F2DDD4]'} ${t.footerMuted}`}>
-              Intermidia Digital OOH &mdash; Mídia Kit Digital
+              Intermidia Digital OOH | Mídia Kit Digital
             </div>
           </div>
         </div>
@@ -704,7 +704,7 @@ export default function SharedView() {
               </button>
             </div>
             <div className={`mt-8 pt-6 border-t text-[11px] ${isDark ? 'border-white/5' : 'border-[#F2DDD4]'} ${t.footerMuted}`}>
-              Intermidia Digital OOH &mdash; Mídia Kit Digital
+              Intermidia Digital OOH | Mídia Kit Digital
             </div>
           </div>
         </div>

@@ -578,7 +578,7 @@ export default function Landing() {
       // Tenta Web Share API (mobile) primeiro
       if (navigator.share) {
         await navigator.share({
-          title: 'Intermidia — Midia Kit Digital',
+          title: 'Intermidia | Midia Kit Digital',
           text: `Veja esta selecao de pontos de midia OOH`,
           url: fullUrl,
         });
@@ -617,7 +617,7 @@ export default function Landing() {
 
       if (navigator.share) {
         try {
-          await navigator.share({ title: 'Intermidia — Minha Seleção', text: `${favorites.length} pontos selecionados`, url: fullUrl });
+          await navigator.share({ title: 'Intermidia | Minha Seleção', text: `${favorites.length} pontos selecionados`, url: fullUrl });
         } catch { /* user cancelled share sheet */ }
         return;
       }
@@ -680,7 +680,7 @@ export default function Landing() {
   };
 
   useEffect(() => {
-    document.title = 'Intermidia — Mídia Kit Digital | OOH e DOOH';
+    document.title = 'Intermidia | Mídia Kit Digital | OOH e DOOH';
     trackEvent('page_view', { page: 'landing' });
   }, []);
 

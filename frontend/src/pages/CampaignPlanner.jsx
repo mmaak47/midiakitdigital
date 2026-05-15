@@ -374,7 +374,7 @@ export default function CampaignPlanner() {
   useEffect(() => {
     document.title = 'Planejador de Campanha | Intermidia Mídia Kit Digital';
     trackEvent('page_view', { page: 'campaign_planner' });
-    return () => { document.title = 'Intermidia — Mídia Kit Digital | OOH e DOOH'; };
+    return () => { document.title = 'Intermidia | Mídia Kit Digital | OOH e DOOH'; };
   }, []);
 
   useEffect(() => {
