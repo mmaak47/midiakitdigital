@@ -300,12 +300,23 @@ export default function ArteAIPanel({
   isDark = true,
   onArteEscolhida,
   manualOnly = false,
+  initialArtAssignments = null,
 }) {
   const [expandido, setExpandido] = useState(manualOnly);
   const [loteEstado, setLoteEstado] = useState('idle'); // idle | gerando | concluido | erro
   const [loteProgresso, setLoteProgresso] = useState({ atual: 0, total: 0, erros: 0 });
   const [loteResultados, setLoteResultados] = useState([]);
-  const [artesPorPonto, setArtesPorPonto] = useState({}); // pontoId → urlArte
+  const [artesPorPonto, setArtesPorPonto] = useState(() => {
+    // Restaura artes já atribuídas pelo pai (ex.: ao voltar para o step 3)
+    if (initialArtAssignments && typeof initialArtAssignments === 'object') {
+      const restored = {};
+      for (const [k, v] of Object.entries(initialArtAssignments)) {
+        if (v && typeof v === 'string') restored[k] = v;
+      }
+      return restored;
+    }
+    return {};
+  }); // pontoId → urlArte
   const [logoUrl, setLogoUrl] = useState('');
   const [logoNome, setLogoNome] = useState('');
   const [logoUploading, setLogoUploading] = useState(false);

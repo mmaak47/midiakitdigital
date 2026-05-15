@@ -2206,6 +2206,7 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
                     isDark={isDark}
                     onArteEscolhida={handleAiArteEscolhida}
                     manualOnly
+                    initialArtAssignments={pointArtAssignments}
                   />
 
                   <div className="grid sm:grid-cols-4 gap-3">
@@ -2746,6 +2747,9 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
               {/* ═══ STEP 6 — Gerar proposta ═══ */}
               {wizardStep === 6 && (
                 <motion.div key="step6" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="space-y-5">
+
+                  {/* Preview da simulação */}
+                  <PreviewPanel proposalPoints={proposalPointsForPdf} activePreviewPoint={activePreviewPoint} onSelect={setActivePreviewPointId} onExpand={() => setShowPreviewLightbox(true)} requireGeneratedPreview={hasPointArtAssignments} isDark={isDark} />
 
                   {/* Layout dos endereços no PDF */}
                   <Card isDark={isDark} title="Layout dos endereços">
