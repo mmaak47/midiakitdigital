@@ -54,7 +54,7 @@ export default function ConsentBanner() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white/90 leading-relaxed">
-                  Usamos cookies essenciais para o funcionamento do site e cookies de analytics para melhorar sua experiencia.{' '}
+                  Usamos cookies essenciais para o funcionamento do site e cookies de analytics para melhorar sua experiência.{' '}
                   <button
                     onClick={() => setExpanded(!expanded)}
                     className="text-[#FE5C2B] hover:text-[#ff7a52] underline underline-offset-2 decoration-[#FE5C2B]/40 transition-colors"
@@ -91,8 +91,8 @@ export default function ConsentBanner() {
                   Cookies essenciais
                 </h4>
                 <p>
-                  Necessarios para o funcionamento basico do site: autenticacao, preferencias de tema e favoritos salvos localmente.
-                  Nao coletam dados pessoais. Sempre ativos.
+                  Necessários para o funcionamento básico do site: autenticação, preferências de tema e favoritos salvos localmente.
+                  Não coletam dados pessoais. Sempre ativos.
                 </p>
               </div>
               <div>
@@ -101,15 +101,15 @@ export default function ConsentBanner() {
                   Cookies de analytics
                 </h4>
                 <p>
-                  Registram eventos anonimos de navegacao (visualizacoes de pagina, cliques) para nos ajudar a melhorar o site.
-                  Usam um identificador anonimo (UUID) sem vincular a dados pessoais. Podem ser desativados.
+                  Registram eventos anônimos de navegação (visualizações de página, cliques) para nos ajudar a melhorar o site.
+                  Usam um identificador anônimo (UUID) sem vincular a dados pessoais. Podem ser desativados.
                 </p>
               </div>
               <div className="sm:col-span-2 pt-2 border-t border-white/5">
                 <p className="text-white/40 text-[11px]">
-                  Em conformidade com a Lei Geral de Protecao de Dados (LGPD - Lei 13.709/2018).
-                  Seus dados de navegacao sao anonimos e nunca compartilhados com terceiros.
-                  Voce pode alterar sua escolha a qualquer momento limpando os cookies do navegador.
+                  Em conformidade com a Lei Geral de Proteção de Dados (LGPD — Lei 13.709/2018).
+                  Seus dados de navegação são anônimos e nunca compartilhados com terceiros.
+                  Você pode alterar sua escolha a qualquer momento limpando os cookies do navegador.
                 </p>
               </div>
             </div>
