@@ -455,13 +455,32 @@ function CommercialShareModal({ isDark, favorites, totalPreco = 0, discountMode 
     }
   }, [clientPhone, generatedCode]);
 
-  // Fallback: abre wa.me manualmente
-  const handleWhatsAppManual = useCallback(() => {
-    const text = encodeURIComponent(
-      `Olá ${clientName.trim()}! Preparamos uma seleção especial de ${favorites.length} ponto${favorites.length > 1 ? 's' : ''} de mídia OOH para você:\n\n${generatedUrl}\n\nAcesse o link para ver os detalhes e selecione os seus favoritos!`
-    );
-    window.open(`https://wa.me/?text=${text}`, '_blank');
-  }, [clientName, favorites.length, generatedUrl]);
+  // Fallback: abre wa.me ou Web Share API (com áudio se possível)
+  const handleWhatsAppManual = useCallback(async () => {
+    const messageText = `Olá ${clientName.trim()}! Preparamos uma seleção especial de ${favorites.length} ponto${favorites.length > 1 ? 's' : ''} de mídia OOH para você:\n\n${generatedUrl}\n\nAcesse o link para ver os detalhes e selecione os seus favoritos!`;
+
+    // Se tem áudio, tenta Web Share API (funciona no mobile — envia áudio + texto direto pro WhatsApp)
+    if (vendedorAudioUrl && navigator.share) {
+      try {
+        const audioResponse = await fetch(vendedorAudioUrl);
+        const audioBlob = await audioResponse.blob();
+        const ext = vendedorAudioUrl.split('.').pop() || 'ogg';
+        const audioFile = new File([audioBlob], `mensagem.${ext}`, { type: audioBlob.type || 'audio/ogg' });
+
+        if (navigator.canShare?.({ files: [audioFile] })) {
+          await navigator.share({ text: messageText, files: [audioFile] });
+          return;
+        }
+      } catch (shareErr) {
+        // AbortError = usuário cancelou, não é erro real
+        if (shareErr?.name === 'AbortError') return;
+        // Fallback para wa.me se Web Share falhar
+      }
+    }
+
+    // Fallback: wa.me (só texto)
+    window.open(`https://wa.me/?text=${encodeURIComponent(messageText)}`, '_blank');
+  }, [clientName, favorites.length, generatedUrl, vendedorAudioUrl]);
 
   const inputCls = `w-full px-4 py-3 rounded-xl border text-sm outline-none transition-colors ${
     isDark
@@ -656,7 +675,7 @@ function CommercialShareModal({ isDark, favorites, totalPreco = 0, discountMode 
                   <button onClick={handleWhatsAppManual}
                     className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors">
                     <i className="ri-whatsapp-line" style={{ fontSize: 16 }} />
-                    Abrir WhatsApp manualmente
+                    Enviar pelo WhatsApp{vendedorAudioUrl ? ' (com áudio)' : ''}
                   </button>
                 )}
                 <button onClick={handleCopy}
