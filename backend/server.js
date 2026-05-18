@@ -10579,6 +10579,68 @@ app.get('/api/analytics/favorites', requireRoles(['admin', 'gerente_comercial', 
   }
 });
 
+// ─── Dynamic OG meta tags for social previews (WhatsApp, Facebook, etc.) ─────
+// WhatsApp/crawlers don't execute JS, so we inject meta tags server-side into
+// the SPA index.html before serving it for specific shareable URLs.
+const indexHtmlRaw = fs.readFileSync(path.join(frontendDistPath, 'index.html'), 'utf8');
+
+app.get('/pacote/:code', (req, res) => {
+  try {
+    const code = String(req.params.code).trim();
+    const comp = db.prepare('SELECT * FROM pacote_compartilhamentos WHERE code = ?').get(code);
+
+    if (!comp) {
+      res.set('Cache-Control', 'no-cache');
+      return res.send(indexHtmlRaw);
+    }
+
+    const pacote = db.prepare('SELECT id, nome, descricao FROM pacotes WHERE id = ? AND status = ?').get(comp.pacote_id, 'aprovado');
+    if (!pacote) {
+      res.set('Cache-Control', 'no-cache');
+      return res.send(indexHtmlRaw);
+    }
+
+    // Pega primeira imagem do primeiro ponto do pacote para usar como OG image
+    const firstPonto = db.prepare(`
+      SELECT p.imagem, p.imagem2, p.nome as ponto_nome
+      FROM pacote_pontos pp
+      JOIN pontos p ON p.id = pp.ponto_id
+      WHERE pp.pacote_id = ? AND p.ativo = 1
+      ORDER BY pp.ordem ASC LIMIT 1
+    `).get(pacote.id);
+
+    const baseUrl = 'https://midiakit.redeintermidia.com';
+    const ogImage = firstPonto?.imagem2
+      ? `${baseUrl}${firstPonto.imagem2}`
+      : firstPonto?.imagem
+        ? `${baseUrl}${firstPonto.imagem}`
+        : `${baseUrl}/og-image.jpg`;
+    const ogTitle = `${pacote.nome} | Intermidia Mídia Kit`;
+    const ogDesc = pacote.descricao
+      ? pacote.descricao.slice(0, 200)
+      : 'Confira este pacote de mídia OOH da Intermidia.';
+    const ogUrl = `${baseUrl}/pacote/${code}`;
+
+    // Substitui as meta tags estáticas pelas dinâmicas do pacote
+    let html = indexHtmlRaw;
+    html = html.replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${ogTitle.replace(/"/g, '&quot;')}" />`);
+    html = html.replace(/<meta property="og:description"[^>]*>/, `<meta property="og:description" content="${ogDesc.replace(/"/g, '&quot;')}" />`);
+    html = html.replace(/<meta property="og:image" content="[^"]*"/, `<meta property="og:image" content="${ogImage}"`);
+    html = html.replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${ogUrl}" />`);
+    html = html.replace(/<meta name="twitter:title"[^>]*>/, `<meta name="twitter:title" content="${ogTitle.replace(/"/g, '&quot;')}" />`);
+    html = html.replace(/<meta name="twitter:description"[^>]*>/, `<meta name="twitter:description" content="${ogDesc.replace(/"/g, '&quot;')}" />`);
+    html = html.replace(/<meta name="twitter:image"[^>]*>/, `<meta name="twitter:image" content="${ogImage}" />`);
+    html = html.replace(/<title>[^<]*<\/title>/, `<title>${ogTitle.replace(/</g, '&lt;')}</title>`);
+
+    res.set('Cache-Control', 'no-cache');
+    res.send(html);
+  } catch (err) {
+    console.error('[og-meta] Error injecting OG tags for pacote:', err.message);
+    res.set('Cache-Control', 'no-cache');
+    res.sendFile(path.join(frontendDistPath, 'index.html'));
+  }
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.set('Cache-Control', 'no-cache');

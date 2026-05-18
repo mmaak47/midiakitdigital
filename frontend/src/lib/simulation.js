@@ -9,14 +9,14 @@ const EDGE_POINT_COUNT = 8;
 
 export const defaultDisplaySettings = {
   opacity: 1.0,
-  // Brilho da tela acesa. screen-blend branco em alpha = (brightness-1)*0.55.
-  // 1.50 → 27.5% lift — tela LED parece acesa e vibrante sem precisar de slider.
-  brightness: 1.50,
-  reflection: 0.08,
-  spill: 0.16,
-  ledPixelIntensity: 0.02,
+  // Brilho da tela acesa. screen-blend branco em alpha = (brightness-1)*0.65.
+  // 1.75 → ~49% lift — tela LED parece realmente acesa emitindo luz própria.
+  brightness: 1.75,
+  reflection: 0.06,
+  spill: 0.22,
+  ledPixelIntensity: 0.008,
   ledPixelSize: 5,
-  glare: 0.14
+  glare: 0.24
 };
 
 export const defaultMediaParams = {
@@ -666,10 +666,10 @@ function drawScreenGlow(ctx, corners, settings, style, canvasWidth, canvasHeight
   ctx.clip();
 
   // Brightness lift via screen-blend with white.
-  // Multiplier 0.55 → brightness=1.50 gives 27.5% lift (vivid LED look).
+  // Multiplier 0.65 → brightness=1.75 gives ~49% lift — tela realmente acesa.
   if (settings.brightness > 1) {
     ctx.globalCompositeOperation = 'screen';
-    ctx.fillStyle = `rgba(255,255,255,${(settings.brightness - 1) * 0.55})`;
+    ctx.fillStyle = `rgba(255,255,255,${(settings.brightness - 1) * 0.65})`;
     ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
   }
 
@@ -679,10 +679,11 @@ function drawScreenGlow(ctx, corners, settings, style, canvasWidth, canvasHeight
     ctx.globalCompositeOperation = 'screen';
     const cx = bounds.centerX;
     const cy = bounds.centerY;
-    const maxR = Math.max(bounds.width, bounds.height) * 0.65;
+    const maxR = Math.max(bounds.width, bounds.height) * 0.70;
     const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
-    glow.addColorStop(0, `rgba(255,255,255,${settings.glare * 0.50})`);
-    glow.addColorStop(0.45, `rgba(255,255,255,${settings.glare * 0.18})`);
+    glow.addColorStop(0, `rgba(255,255,255,${settings.glare * 0.65})`);
+    glow.addColorStop(0.35, `rgba(255,255,255,${settings.glare * 0.30})`);
+    glow.addColorStop(0.7, `rgba(255,255,255,${settings.glare * 0.08})`);
     glow.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = glow;
     ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
@@ -814,18 +815,19 @@ function drawLightSpill(ctx, corners, settings, style) {
   if (settings.spill <= 0) return;
   const bounds = getSelectionBoundsRaw(corners);
 
-  // Soft warm glow outside the screen — simulates light cast onto surrounding surfaces.
-  // Kept intentionally subtle so it doesn't overpower the photo.
+  // Glow outside the screen — simulates light cast onto surrounding surfaces.
+  // Mais intenso para parecer que a tela está realmente iluminando o ambiente.
   ctx.save();
   ctx.globalCompositeOperation = 'screen';
   const maxDim = Math.max(bounds.width, bounds.height);
-  const outerR = maxDim * (0.8 + settings.spill * 1.0);
+  const outerR = maxDim * (0.85 + settings.spill * 1.2);
   const glow = ctx.createRadialGradient(
-    bounds.centerX, bounds.centerY, maxDim * 0.28,
+    bounds.centerX, bounds.centerY, maxDim * 0.22,
     bounds.centerX, bounds.centerY, outerR
   );
-  glow.addColorStop(0, `rgba(255,200,140,${0.06 + settings.spill * 0.14})`);
-  glow.addColorStop(0.5, `rgba(255,180,110,${0.02 + settings.spill * 0.06})`);
+  glow.addColorStop(0, `rgba(255,220,170,${0.10 + settings.spill * 0.18})`);
+  glow.addColorStop(0.4, `rgba(255,200,140,${0.04 + settings.spill * 0.10})`);
+  glow.addColorStop(0.7, `rgba(255,180,110,${0.01 + settings.spill * 0.04})`);
   glow.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = glow;
   const pad = outerR;
@@ -1177,23 +1179,24 @@ function drawEdgeFeather(ctx, corners, style, canvasWidth, canvasHeight) {
 // superfícies reflexivas. Sem esse boost, o criativo parece impresso/apagado.
 function drawLedVibranceBoost(ctx, corners, style, settings) {
   const bounds = getSelectionBoundsRaw(corners);
-  const intensity = clamp((settings.brightness - 1) * 0.6, 0, 0.35);
+  const intensity = clamp((settings.brightness - 1) * 0.7, 0, 0.50);
   if (intensity <= 0) return;
 
   ctx.save();
   createQuadPath(ctx, corners, style);
   ctx.clip();
 
-  // Overlay blend com cinza escuro aumenta contraste (escurece sombras,
-  // ilumina highlights) sem alterar o matiz
+  // Overlay blend com cinza claro aumenta contraste — highlights mais
+  // brilhantes, sombras mais profundas. Cinza 160 (vs 140) puxa o
+  // ponto de inflexão para cima, levantando o brilho geral.
   ctx.globalCompositeOperation = 'overlay';
-  ctx.globalAlpha = intensity * 0.28;
-  ctx.fillStyle = 'rgba(140,140,140,1)';
+  ctx.globalAlpha = intensity * 0.38;
+  ctx.fillStyle = 'rgba(160,160,160,1)';
   ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
 
-  // Boost de saturação via saturate blend — cores mais vivas
+  // Boost de saturação via saturate blend — cores mais vivas como LED real
   ctx.globalCompositeOperation = 'saturation';
-  ctx.globalAlpha = intensity * 0.15;
+  ctx.globalAlpha = intensity * 0.22;
   ctx.fillStyle = 'hsl(0, 100%, 50%)';
   ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
 
