@@ -757,12 +757,12 @@ export default function PacotePublico() {
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5">
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold mb-1">
-                    {permiteEscolha ? 'Escolha seus pontos favoritos' : 'Pontos do pacote'}
+                    {permiteEscolha ? 'Escolha seus pontos favoritos' : 'Endereços do pacote'}
                   </h2>
                   <p className={`text-sm ${t.textMuted}`}>
                     {permiteEscolha
                       ? 'Toque no coração para selecionar os pontos que mais gostou'
-                      : 'Conheça os pontos incluídos neste pacote'}
+                      : 'Conheça os endereços incluídos neste pacote'}
                   </p>
                 </div>
                 {permiteEscolha && !leadSubmitted && (
@@ -786,17 +786,17 @@ export default function PacotePublico() {
                         className={`group relative rounded-2xl border overflow-hidden transition-all duration-200 ${t.card} ${isSelected ? t.cardSelected : t.cardHover}`}>
                         {hasExtraImage ? (
                           <>
-                            {/* ── HERO: OOH screen image — full width, prominent, LED glow ── */}
-                            <div className="relative aspect-[16/9] overflow-hidden bg-black cursor-pointer group/hero rounded-t-2xl ring-1 ring-brand-orange/20 shadow-[0_0_25px_rgba(254,92,43,0.15),0_0_60px_rgba(254,92,43,0.06)]"
+                            {/* ── HERO: OOH screen image — tall showcase, LED glow ── */}
+                            <div className="relative aspect-[3/4] overflow-hidden bg-black cursor-pointer group/hero rounded-t-2xl ring-1 ring-brand-orange/25 shadow-[0_0_30px_rgba(254,92,43,0.18),0_0_80px_rgba(254,92,43,0.07)]"
                               onClick={() => openLightbox(ponto, 1)}>
                               <img src={dualImages[1]} alt={`${ponto.nome} - Ponto de Impacto`}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover/hero:scale-[1.03] brightness-105 contrast-105"
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover/hero:scale-[1.03] brightness-110 contrast-105 saturate-105"
                                 loading="lazy" />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-                              {/* Subtle LED edge glow */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/5 to-transparent" />
+                              {/* LED edge glow */}
                               <div className="absolute inset-0 pointer-events-none rounded-t-2xl ring-1 ring-inset ring-white/10" />
-                              <span className="absolute bottom-2.5 left-3 text-[10px] uppercase tracking-wider font-bold text-white bg-brand-orange/90 backdrop-blur-sm px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-lg shadow-brand-orange/25">
-                                <Monitor className="w-3 h-3" /> Ponto de Impacto
+                              <span className="absolute bottom-3 left-3 text-[11px] uppercase tracking-wider font-bold text-white bg-brand-orange/90 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg shadow-brand-orange/30">
+                                <Monitor className="w-3.5 h-3.5" /> Ponto de Impacto
                               </span>
                               {/* Heart overlay */}
                               {permiteEscolha && !leadSubmitted && (
@@ -964,20 +964,20 @@ export default function PacotePublico() {
                         initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
                         transition={{ delay: Math.min(i * 0.03, 0.25), duration: 0.3 }}
                         className={`rounded-xl border p-4 transition-all duration-200 ${t.card} ${isSelected ? t.cardSelected : t.cardHover}`}>
-                        <div className={`grid grid-cols-1 ${hasExtraImage ? 'md:grid-cols-[280px_120px_1fr_auto]' : 'md:grid-cols-[200px_1fr_auto]'} gap-4 items-center`}>
+                        <div className={`grid grid-cols-1 ${hasExtraImage ? 'md:grid-cols-[320px_100px_1fr_auto]' : 'md:grid-cols-[200px_1fr_auto]'} gap-4 items-center`}>
                           {/* OOH screen image — large, prominent */}
                           {hasExtraImage && (
                             <div
-                              className="relative rounded-xl overflow-hidden cursor-pointer group/hero aspect-[16/10] shadow-[0_0_20px_rgba(254,92,43,0.12),0_4px_16px_rgba(0,0,0,0.3)] ring-1 ring-brand-orange/20"
+                              className="relative rounded-xl overflow-hidden cursor-pointer group/hero aspect-[4/5] shadow-[0_0_25px_rgba(254,92,43,0.15),0_4px_20px_rgba(0,0,0,0.3)] ring-1 ring-brand-orange/25"
                               onClick={() => openLightbox(ponto, 1)}
                             >
                               <img src={dualImages[1]} alt={`${ponto.nome} - Ponto de Impacto`}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover/hero:scale-[1.03] brightness-105 contrast-105"
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover/hero:scale-[1.03] brightness-110 contrast-105 saturate-105"
                                 loading="lazy" />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
                               <div className="absolute inset-0 pointer-events-none rounded-xl ring-1 ring-inset ring-white/10" />
-                              <span className="absolute bottom-2 left-2 text-[9px] uppercase tracking-wider font-bold text-white bg-brand-orange/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full flex items-center gap-1 shadow-md shadow-brand-orange/20">
-                                <Monitor className="w-2.5 h-2.5" /> Impacto
+                              <span className="absolute bottom-2 left-2 text-[9px] uppercase tracking-wider font-bold text-white bg-brand-orange/90 backdrop-blur-sm px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md shadow-brand-orange/25">
+                                <Monitor className="w-2.5 h-2.5" /> Ponto de Impacto
                               </span>
                             </div>
                           )}
