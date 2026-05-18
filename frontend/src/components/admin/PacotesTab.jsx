@@ -58,9 +58,13 @@ function canSubmit(pacote, currentUser) {
   return pacote.status === 'rascunho';
 }
 
+function isPrivilegedRole(role) {
+  return role === 'admin' || role === 'gerente_comercial' || role === 'diretor';
+}
+
 function canApprove(pacote, currentUser) {
   if (!currentUser) return false;
-  return pacote.status === 'pendente_aprovacao' && (currentUser.role === 'admin' || currentUser.role === 'gerente_comercial');
+  return pacote.status === 'pendente_aprovacao' && isPrivilegedRole(currentUser.role);
 }
 
 function canReject(pacote, currentUser) {
@@ -1021,7 +1025,8 @@ export default function PacotesTab({ isDark = true, currentUser = null, pontos =
     try {
       await submitPacote(pacote.id);
       load();
-      setNotice({ msg: 'Pacote enviado para aprovação.', type: 'ok' });
+      const privileged = isPrivilegedRole(currentUser?.role);
+      setNotice({ msg: privileged ? 'Pacote aprovado com sucesso.' : 'Pacote enviado para aprovação.', type: 'ok' });
     } catch (e) {
       setNotice({ msg: 'Erro ao enviar: ' + e.message, type: 'err' });
     } finally {
@@ -1330,10 +1335,14 @@ export default function PacotesTab({ isDark = true, currentUser = null, pontos =
                         {canSubmit(p, currentUser) && (
                           <button
                             onClick={() => handleSubmit(p)}
-                            className={`p-2 rounded-lg border transition-colors ${isDark ? 'border-white/10 text-blue-400 hover:bg-blue-500/10 hover:border-blue-500/20' : 'border-blue-200 text-blue-600 hover:bg-blue-50'}`}
-                            title="Enviar para aprovação"
+                            className={`p-2 rounded-lg border transition-colors ${
+                              isPrivilegedRole(currentUser?.role)
+                                ? isDark ? 'border-white/10 text-green-400 hover:bg-green-500/10 hover:border-green-500/20' : 'border-green-200 text-green-600 hover:bg-green-50'
+                                : isDark ? 'border-white/10 text-blue-400 hover:bg-blue-500/10 hover:border-blue-500/20' : 'border-blue-200 text-blue-600 hover:bg-blue-50'
+                            }`}
+                            title={isPrivilegedRole(currentUser?.role) ? 'Aprovar pacote' : 'Enviar para aprovação'}
                           >
-                            <Send size={13} />
+                            {isPrivilegedRole(currentUser?.role) ? <Check size={13} /> : <Send size={13} />}
                           </button>
                         )}
                         {canApprove(p, currentUser) && (

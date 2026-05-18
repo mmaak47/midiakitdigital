@@ -6090,12 +6090,21 @@ app.post('/api/pacotes', requireRoles(['admin', 'gerente_comercial', 'vendedor']
     if (!nome || !nome.trim()) return res.status(400).json({ error: 'Nome é obrigatório.' });
     if (!Array.isArray(ponto_ids) || ponto_ids.length === 0) return res.status(400).json({ error: 'Selecione pelo menos 1 ponto.' });
 
+    // Não-vendedor (admin, gerente, diretor) cria já aprovado
+    const isPrivileged = req.authUser.role !== 'vendedor';
+    const initialStatus = isPrivileged ? 'aprovado' : 'rascunho';
+
     const result = db.prepare(`
-      INSERT INTO pacotes (nome, descricao, desconto_empilhavel, permite_escolha_pontos, criado_por)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(nome.trim(), descricao || null, desconto_empilhavel ? 1 : 0, permite_escolha_pontos === false ? 0 : 1, req.authUser.id);
+      INSERT INTO pacotes (nome, descricao, desconto_empilhavel, permite_escolha_pontos, criado_por, status)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(nome.trim(), descricao || null, desconto_empilhavel ? 1 : 0, permite_escolha_pontos === false ? 0 : 1, req.authUser.id, initialStatus);
 
     const pacoteId = result.lastInsertRowid;
+
+    // Se auto-aprovado, registrar timestamp
+    if (isPrivileged) {
+      db.prepare("UPDATE pacotes SET aprovado_em = datetime('now') WHERE id = ?").run(pacoteId);
+    }
 
     // Inserir pontos
     const insertPonto = db.prepare('INSERT INTO pacote_pontos (pacote_id, ponto_id, ordem) VALUES (?, ?, ?)');
@@ -6113,7 +6122,7 @@ app.post('/api/pacotes', requireRoles(['admin', 'gerente_comercial', 'vendedor']
       }
     }
 
-    res.json({ id: pacoteId, message: 'Pacote criado com sucesso.' });
+    res.json({ id: pacoteId, status: initialStatus, message: isPrivileged ? 'Pacote criado e aprovado.' : 'Pacote criado com sucesso.' });
   } catch (err) {
     internalError(res, err);
   }
@@ -6199,8 +6208,8 @@ app.delete('/api/pacotes/:id', requireRoles(['admin', 'gerente_comercial', 'vend
   }
 });
 
-// ─── Workflow: Submeter para aprovação ────────────────────────────────────────
-app.post('/api/pacotes/:id/submit', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+// ─── Workflow: Submeter para aprovação (auto-aprova para não-vendedor) ────────
+app.post('/api/pacotes/:id/submit', requireRoles(['admin', 'gerente_comercial', 'diretor', 'vendedor']), (req, res) => {
   try {
     const id = Number(req.params.id);
     const pacote = db.prepare('SELECT * FROM pacotes WHERE id = ?').get(id);
@@ -6210,15 +6219,22 @@ app.post('/api/pacotes/:id/submit', requireRoles(['admin', 'gerente_comercial', 
       return res.status(403).json({ error: 'Sem permissão.' });
     }
 
-    db.prepare("UPDATE pacotes SET status = 'pendente_aprovacao', updated_at = datetime('now') WHERE id = ?").run(id);
-    res.json({ ok: true, status: 'pendente_aprovacao' });
+    // Não-vendedor aprova direto, vendedor vai para pendente
+    const isPrivileged = req.authUser.role !== 'vendedor';
+    if (isPrivileged) {
+      db.prepare("UPDATE pacotes SET status = 'aprovado', aprovado_em = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(id);
+      res.json({ ok: true, status: 'aprovado' });
+    } else {
+      db.prepare("UPDATE pacotes SET status = 'pendente_aprovacao', updated_at = datetime('now') WHERE id = ?").run(id);
+      res.json({ ok: true, status: 'pendente_aprovacao' });
+    }
   } catch (err) {
     internalError(res, err);
   }
 });
 
 // ─── Workflow: Aprovar pacote ─────────────────────────────────────────────────
-app.post('/api/pacotes/:id/aprovar', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+app.post('/api/pacotes/:id/aprovar', requireRoles(['admin', 'gerente_comercial', 'diretor']), (req, res) => {
   try {
     const id = Number(req.params.id);
     const pacote = db.prepare('SELECT * FROM pacotes WHERE id = ?').get(id);
@@ -6239,7 +6255,7 @@ app.post('/api/pacotes/:id/aprovar', requireRoles(['admin', 'gerente_comercial']
 });
 
 // ─── Workflow: Rejeitar pacote ────────────────────────────────────────────────
-app.post('/api/pacotes/:id/rejeitar', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+app.post('/api/pacotes/:id/rejeitar', requireRoles(['admin', 'gerente_comercial', 'diretor']), (req, res) => {
   try {
     const id = Number(req.params.id);
     const motivo = req.body.motivo || '';
