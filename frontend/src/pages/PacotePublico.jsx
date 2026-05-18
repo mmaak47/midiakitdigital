@@ -479,7 +479,7 @@ export default function PacotePublico() {
   const handleCustomDuracao = useCallback((val) => {
     const num = parseInt(val, 10);
     setCustomDuracao(val);
-    if (num >= 1 && num <= 60) setDuracao(num);
+    if (num >= 2 && num <= 60) setDuracao(num);
   }, []);
 
   // ── Lead form handlers ──
@@ -1328,7 +1328,7 @@ function PricingPanel({
             </button>
           ) : (
             <div className="flex items-center gap-1.5">
-              <input type="number" min="1" max="60" value={customDuracao}
+              <input type="number" min="2" max="60" value={customDuracao}
                 onChange={(e) => onCustomDuracao(e.target.value)} placeholder="Ex: 9" autoFocus
                 className={`w-20 px-3 py-2 rounded-xl border text-sm font-semibold outline-none ${t.input}`} />
               <span className={`text-xs ${t.textMuted}`}>meses</span>

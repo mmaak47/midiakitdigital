@@ -5885,21 +5885,23 @@ function calcularPrecoPacote(pontos, duracaoMeses, descontos, empilhavel) {
     }
   }
 
-  // Desconto por duração
+  // Desconto por duração (mínimo 2 meses para aplicar — 1 mês não tem desconto)
   let descDur = 0;
-  const regrasDur = descontos.filter(d => d.tipo === 'duracao');
-  for (const r of regrasDur) {
-    if (duracaoMeses >= r.min_valor && (!r.max_valor || duracaoMeses <= r.max_valor)) {
-      descDur = Math.max(descDur, r.desconto_pct);
-    }
-  }
-  // Fallback: se nenhuma regra de duração bateu mas existem regras configuradas,
-  // aplica o maior desconto dentre regras cujo min_valor <= duracaoMeses
-  // (ex: cliente escolhe 24 meses mas só há regra até 12-23 → aplica desconto da faixa mais alta)
-  if (descDur === 0 && regrasDur.length > 0) {
+  if (duracaoMeses >= 2) {
+    const regrasDur = descontos.filter(d => d.tipo === 'duracao');
     for (const r of regrasDur) {
-      if (duracaoMeses >= r.min_valor) {
+      if (duracaoMeses >= r.min_valor && (!r.max_valor || duracaoMeses <= r.max_valor)) {
         descDur = Math.max(descDur, r.desconto_pct);
+      }
+    }
+    // Fallback: se nenhuma regra de duração bateu mas existem regras configuradas,
+    // aplica o maior desconto dentre regras cujo min_valor <= duracaoMeses
+    // (ex: cliente escolhe 24 meses mas só há regra até 12-23 → aplica desconto da faixa mais alta)
+    if (descDur === 0 && regrasDur.length > 0) {
+      for (const r of regrasDur) {
+        if (duracaoMeses >= r.min_valor) {
+          descDur = Math.max(descDur, r.desconto_pct);
+        }
       }
     }
   }
