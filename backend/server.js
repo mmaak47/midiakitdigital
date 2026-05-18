@@ -10630,7 +10630,7 @@ app.get('/pacote/:code', (req, res) => {
       ? `${baseUrl}${firstPonto.imagem2}`
       : firstPonto?.imagem
         ? `${baseUrl}${firstPonto.imagem}`
-        : `${baseUrl}/og-image.jpg`;
+        : `${baseUrl}/OG.png`;
     const ogTitle = `${pacote.nome} | Intermidia Mídia Kit`;
     const ogDesc = pacote.descricao
       ? pacote.descricao.slice(0, 200)
