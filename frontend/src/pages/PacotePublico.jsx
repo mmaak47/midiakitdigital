@@ -786,15 +786,17 @@ export default function PacotePublico() {
                         className={`group relative rounded-2xl border overflow-hidden transition-all duration-200 ${t.card} ${isSelected ? t.cardSelected : t.cardHover}`}>
                         {hasExtraImage ? (
                           <>
-                            {/* ── HERO: OOH screen image — full width, prominent ── */}
-                            <div className="relative aspect-[16/9] overflow-hidden bg-black cursor-pointer group/hero"
+                            {/* ── HERO: OOH screen image — full width, prominent, LED glow ── */}
+                            <div className="relative aspect-[16/9] overflow-hidden bg-black cursor-pointer group/hero rounded-t-2xl ring-1 ring-brand-orange/20 shadow-[0_0_25px_rgba(254,92,43,0.15),0_0_60px_rgba(254,92,43,0.06)]"
                               onClick={() => openLightbox(ponto, 1)}>
-                              <img src={dualImages[1]} alt={`${ponto.nome} - Tela OOH`}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover/hero:scale-[1.03]"
+                              <img src={dualImages[1]} alt={`${ponto.nome} - Ponto de Impacto`}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover/hero:scale-[1.03] brightness-105 contrast-105"
                                 loading="lazy" />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-                              <span className="absolute bottom-2.5 left-3 text-[10px] uppercase tracking-wider font-bold text-white/90 bg-brand-orange/80 backdrop-blur-sm px-2 py-0.5 rounded-full flex items-center gap-1">
-                                <Monitor className="w-3 h-3" /> Tela de Midia
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                              {/* Subtle LED edge glow */}
+                              <div className="absolute inset-0 pointer-events-none rounded-t-2xl ring-1 ring-inset ring-white/10" />
+                              <span className="absolute bottom-2.5 left-3 text-[10px] uppercase tracking-wider font-bold text-white bg-brand-orange/90 backdrop-blur-sm px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-lg shadow-brand-orange/25">
+                                <Monitor className="w-3 h-3" /> Ponto de Impacto
                               </span>
                               {/* Heart overlay */}
                               {permiteEscolha && !leadSubmitted && (
@@ -966,15 +968,16 @@ export default function PacotePublico() {
                           {/* OOH screen image — large, prominent */}
                           {hasExtraImage && (
                             <div
-                              className="relative rounded-xl overflow-hidden cursor-pointer group/hero aspect-[16/10] shadow-md"
+                              className="relative rounded-xl overflow-hidden cursor-pointer group/hero aspect-[16/10] shadow-[0_0_20px_rgba(254,92,43,0.12),0_4px_16px_rgba(0,0,0,0.3)] ring-1 ring-brand-orange/20"
                               onClick={() => openLightbox(ponto, 1)}
                             >
-                              <img src={dualImages[1]} alt={`${ponto.nome} - Tela OOH`}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover/hero:scale-[1.03]"
+                              <img src={dualImages[1]} alt={`${ponto.nome} - Ponto de Impacto`}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover/hero:scale-[1.03] brightness-105 contrast-105"
                                 loading="lazy" />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-                              <span className="absolute bottom-2 left-2 text-[9px] uppercase tracking-wider font-bold text-white/90 bg-brand-orange/80 backdrop-blur-sm px-1.5 py-0.5 rounded-full flex items-center gap-1">
-                                <Monitor className="w-2.5 h-2.5" /> Tela
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
+                              <div className="absolute inset-0 pointer-events-none rounded-xl ring-1 ring-inset ring-white/10" />
+                              <span className="absolute bottom-2 left-2 text-[9px] uppercase tracking-wider font-bold text-white bg-brand-orange/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full flex items-center gap-1 shadow-md shadow-brand-orange/20">
+                                <Monitor className="w-2.5 h-2.5" /> Impacto
                               </span>
                             </div>
                           )}
@@ -1245,7 +1248,7 @@ export default function PacotePublico() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <a href="/" className="shrink-0">
-              <img src={isDark ? '/logo.png' : '/logo-light.png'} alt="Intermidia" className="h-6 opacity-60" />
+              <img src={isDark ? '/logo.png' : '/logo-light.png'} alt="Intermidia" className="h-6 opacity-60 hover:opacity-100 transition-opacity duration-300" />
             </a>
             <span className={`text-sm ${t.footerText}`}>Publicidade Out-of-Home</span>
           </div>
