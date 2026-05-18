@@ -1322,6 +1322,21 @@ function PricingPanel({
               {m} meses
             </button>
           ))}
+          {!showCustomDuracao ? (
+            <button onClick={onShowCustom} className={`px-3.5 py-2 rounded-xl text-sm font-semibold border transition-all duration-200 ${t.selectAllBtn}`}>
+              Outro
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <input type="number" min="2" max="60" value={customDuracao}
+                onChange={(e) => onCustomDuracao(e.target.value)} placeholder="Ex: 9" autoFocus
+                className={`w-20 px-3 py-2 rounded-xl border text-sm font-semibold outline-none ${t.input}`} />
+              <span className={`text-xs ${t.textMuted}`}>meses</span>
+              <button onClick={onHideCustom} className={`w-7 h-7 rounded-lg flex items-center justify-center ${t.textMuted} hover:text-brand-orange transition-colors`}>
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
