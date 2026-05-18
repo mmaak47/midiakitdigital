@@ -6051,7 +6051,7 @@ app.get('/api/pacotes/analytics', requireRoles(['admin', 'gerente_comercial', 'd
              ) as leads
       FROM pacote_compartilhamentos pc
       JOIN admin_users u ON u.id = pc.vendedor_id
-      GROUP BY pc.vendedor_id
+      GROUP BY pc.vendedor_id, u.username
       ORDER BY views DESC
       LIMIT 20
     `).all();
