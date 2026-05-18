@@ -5980,6 +5980,88 @@ app.get('/api/pacotes', requireRoles(['admin', 'gerente_comercial', 'vendedor'])
   }
 });
 
+// ─── Meus compartilhamentos (MUST be before /api/pacotes/:id) ────────────────
+app.get('/api/pacotes/meus-compartilhamentos', requireRoles(['admin', 'gerente_comercial', 'diretor', 'vendedor']), (req, res) => {
+  try {
+    const userId = req.authUser.id;
+    const isAdmin = req.authUser.role === 'admin' || req.authUser.role === 'gerente_comercial' || req.authUser.role === 'diretor';
+
+    let sql, params;
+    if (isAdmin) {
+      sql = `SELECT pc.*, p.nome as pacote_nome, p.status as pacote_status, u.username as vendedor_nome,
+                    (SELECT COUNT(*) FROM pacote_leads pl WHERE pl.compartilhamento_id = pc.id) as leads,
+                    (SELECT COUNT(*) FROM pacote_analytics pa WHERE pa.compartilhamento_id = pc.id AND pa.event_type = 'whatsapp_click') as whatsapp_clicks
+             FROM pacote_compartilhamentos pc
+             JOIN pacotes p ON p.id = pc.pacote_id
+             LEFT JOIN admin_users u ON u.id = pc.vendedor_id
+             ORDER BY pc.created_at DESC`;
+      params = [];
+    } else {
+      sql = `SELECT pc.*, p.nome as pacote_nome, p.status as pacote_status,
+                    (SELECT COUNT(*) FROM pacote_leads pl WHERE pl.compartilhamento_id = pc.id) as leads,
+                    (SELECT COUNT(*) FROM pacote_analytics pa WHERE pa.compartilhamento_id = pc.id AND pa.event_type = 'whatsapp_click') as whatsapp_clicks
+             FROM pacote_compartilhamentos pc
+             JOIN pacotes p ON p.id = pc.pacote_id
+             WHERE pc.vendedor_id = ?
+             ORDER BY pc.created_at DESC`;
+      params = [userId];
+    }
+
+    res.json(db.prepare(sql).all(...params));
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── Analytics: Dashboard de pacotes (MUST be before /api/pacotes/:id) ───────
+app.get('/api/pacotes/analytics', requireRoles(['admin', 'gerente_comercial', 'diretor']), (req, res) => {
+  try {
+    const pacotes = db.prepare(`
+      SELECT p.id, p.nome, p.status,
+        COALESCE(SUM(pc.views), 0) as total_views,
+        COUNT(DISTINCT pc.id) as total_compartilhamentos,
+        COUNT(DISTINCT pc.vendedor_id) as vendedores_ativos
+      FROM pacotes p
+      LEFT JOIN pacote_compartilhamentos pc ON pc.pacote_id = p.id
+      WHERE p.status IN ('aprovado', 'arquivado')
+      GROUP BY p.id
+      ORDER BY total_views DESC
+    `).all();
+
+    for (const pac of pacotes) {
+      pac.total_leads = db.prepare(`
+        SELECT COUNT(*) as c FROM pacote_leads pl
+        JOIN pacote_compartilhamentos pc ON pl.compartilhamento_id = pc.id
+        WHERE pc.pacote_id = ?
+      `).get(pac.id).c;
+
+      pac.whatsapp_clicks = db.prepare(`
+        SELECT COUNT(*) as c FROM pacote_analytics pa
+        JOIN pacote_compartilhamentos pc ON pa.compartilhamento_id = pc.id
+        WHERE pc.pacote_id = ? AND pa.event_type = 'whatsapp_click'
+      `).get(pac.id).c;
+    }
+
+    // Top vendedores
+    const topVendedores = db.prepare(`
+      SELECT u.username as vendedor, COUNT(DISTINCT pc.id) as compartilhamentos,
+             COALESCE(SUM(pc.views), 0) as views,
+             (SELECT COUNT(*) FROM pacote_leads pl2 WHERE pl2.compartilhamento_id IN
+               (SELECT id FROM pacote_compartilhamentos WHERE vendedor_id = pc.vendedor_id)
+             ) as leads
+      FROM pacote_compartilhamentos pc
+      JOIN admin_users u ON u.id = pc.vendedor_id
+      GROUP BY pc.vendedor_id
+      ORDER BY views DESC
+      LIMIT 20
+    `).all();
+
+    res.json({ pacotes, topVendedores });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
 // ─── CRUD: Buscar pacote por ID ───────────────────────────────────────────────
 app.get('/api/pacotes/:id', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
@@ -6224,39 +6306,6 @@ app.post('/api/pacotes/:id/compartilhar', requireRoles(['admin', 'gerente_comerc
       views: 0,
       existing: false,
     });
-  } catch (err) {
-    internalError(res, err);
-  }
-});
-
-// ─── Meus compartilhamentos ──────────────────────────────────────────────────
-app.get('/api/pacotes/meus-compartilhamentos', requireRoles(['admin', 'gerente_comercial', 'diretor', 'vendedor']), (req, res) => {
-  try {
-    const userId = req.authUser.id;
-    const isAdmin = req.authUser.role === 'admin' || req.authUser.role === 'gerente_comercial' || req.authUser.role === 'diretor';
-
-    let sql, params;
-    if (isAdmin) {
-      sql = `SELECT pc.*, p.nome as pacote_nome, p.status as pacote_status, u.username as vendedor_nome,
-                    (SELECT COUNT(*) FROM pacote_leads pl WHERE pl.compartilhamento_id = pc.id) as leads,
-                    (SELECT COUNT(*) FROM pacote_analytics pa WHERE pa.compartilhamento_id = pc.id AND pa.event_type = 'whatsapp_click') as whatsapp_clicks
-             FROM pacote_compartilhamentos pc
-             JOIN pacotes p ON p.id = pc.pacote_id
-             LEFT JOIN admin_users u ON u.id = pc.vendedor_id
-             ORDER BY pc.created_at DESC`;
-      params = [];
-    } else {
-      sql = `SELECT pc.*, p.nome as pacote_nome, p.status as pacote_status,
-                    (SELECT COUNT(*) FROM pacote_leads pl WHERE pl.compartilhamento_id = pc.id) as leads,
-                    (SELECT COUNT(*) FROM pacote_analytics pa WHERE pa.compartilhamento_id = pc.id AND pa.event_type = 'whatsapp_click') as whatsapp_clicks
-             FROM pacote_compartilhamentos pc
-             JOIN pacotes p ON p.id = pc.pacote_id
-             WHERE pc.vendedor_id = ?
-             ORDER BY pc.created_at DESC`;
-      params = [userId];
-    }
-
-    res.json(db.prepare(sql).all(...params));
   } catch (err) {
     internalError(res, err);
   }
@@ -6509,55 +6558,6 @@ app.post('/api/pacote/:code/favoritos', express.json({ limit: '16kb' }), (req, r
   } catch (err) {
     console.error('[pacote/favoritos]', err.message);
     res.status(500).json({ error: 'Erro ao salvar favoritos.' });
-  }
-});
-
-// ─── Analytics: Dashboard de pacotes ─────────────────────────────────────────
-app.get('/api/pacotes/analytics', requireRoles(['admin', 'gerente_comercial', 'diretor']), (req, res) => {
-  try {
-    const pacotes = db.prepare(`
-      SELECT p.id, p.nome, p.status,
-        COALESCE(SUM(pc.views), 0) as total_views,
-        COUNT(DISTINCT pc.id) as total_compartilhamentos,
-        COUNT(DISTINCT pc.vendedor_id) as vendedores_ativos
-      FROM pacotes p
-      LEFT JOIN pacote_compartilhamentos pc ON pc.pacote_id = p.id
-      WHERE p.status IN ('aprovado', 'arquivado')
-      GROUP BY p.id
-      ORDER BY total_views DESC
-    `).all();
-
-    for (const pac of pacotes) {
-      pac.total_leads = db.prepare(`
-        SELECT COUNT(*) as c FROM pacote_leads pl
-        JOIN pacote_compartilhamentos pc ON pl.compartilhamento_id = pc.id
-        WHERE pc.pacote_id = ?
-      `).get(pac.id).c;
-
-      pac.whatsapp_clicks = db.prepare(`
-        SELECT COUNT(*) as c FROM pacote_analytics pa
-        JOIN pacote_compartilhamentos pc ON pa.compartilhamento_id = pc.id
-        WHERE pc.pacote_id = ? AND pa.event_type = 'whatsapp_click'
-      `).get(pac.id).c;
-    }
-
-    // Top vendedores
-    const topVendedores = db.prepare(`
-      SELECT u.username as vendedor, COUNT(DISTINCT pc.id) as compartilhamentos,
-             COALESCE(SUM(pc.views), 0) as views,
-             (SELECT COUNT(*) FROM pacote_leads pl2 WHERE pl2.compartilhamento_id IN
-               (SELECT id FROM pacote_compartilhamentos WHERE vendedor_id = pc.vendedor_id)
-             ) as leads
-      FROM pacote_compartilhamentos pc
-      JOIN admin_users u ON u.id = pc.vendedor_id
-      GROUP BY pc.vendedor_id
-      ORDER BY views DESC
-      LIMIT 20
-    `).all();
-
-    res.json({ pacotes, topVendedores });
-  } catch (err) {
-    internalError(res, err);
   }
 });
 
