@@ -6278,6 +6278,13 @@ app.get('/api/pacote/:code', (req, res) => {
     // Info do vendedor (inclui whatsapp e first_name para CTA e notificações)
     const vendedor = db.prepare('SELECT id, username, first_name, photo_url, whatsapp FROM admin_users WHERE id = ?').get(comp.vendedor_id);
 
+    // Fallback: se vendedor não tem WhatsApp, pegar do admin (id=1)
+    let vendedorWhatsapp = vendedor?.whatsapp || null;
+    if (!vendedorWhatsapp) {
+      const adminRow = db.prepare('SELECT whatsapp FROM admin_users WHERE id = 1').get();
+      vendedorWhatsapp = adminRow?.whatsapp || null;
+    }
+
     // Filtra pontos inativos
     pacote.pontos = pacote.pontos.filter(p => p.ativo !== 0);
 
@@ -6295,7 +6302,7 @@ app.get('/api/pacote/:code', (req, res) => {
         nome: vendedor?.username || 'Consultor',
         first_name: vendedor?.first_name || vendedor?.username || 'Consultor',
         photo_url: vendedor?.photo_url || null,
-        whatsapp: vendedor?.whatsapp || null,
+        whatsapp: vendedorWhatsapp,
       },
       compartilhamento_id: comp.id,
     });
@@ -6385,8 +6392,20 @@ app.post('/api/pacote/:code/interesse', express.json({ limit: '8kb' }), (req, re
       setImmediate(async () => {
         try {
           const vendedorRow = db.prepare('SELECT first_name, whatsapp FROM admin_users WHERE id = ?').get(comp.vendedor_id);
-          const vendedorPhone = sanitizePhoneForWhatsApp(vendedorRow?.whatsapp);
-          if (!vendedorPhone) return;
+          let vendedorPhone = sanitizePhoneForWhatsApp(vendedorRow?.whatsapp);
+          let notifyName = vendedorRow?.first_name || 'Vendedor';
+
+          // Fallback: se vendedor não tem WhatsApp, notificar admin (id=1)
+          if (!vendedorPhone) {
+            console.warn(`[pacote/interesse] Vendedor ${notifyName} (id=${comp.vendedor_id}) sem WhatsApp cadastrado. Enviando para admin.`);
+            const adminRow = db.prepare('SELECT first_name, whatsapp FROM admin_users WHERE id = 1').get();
+            vendedorPhone = sanitizePhoneForWhatsApp(adminRow?.whatsapp);
+            notifyName = adminRow?.first_name || 'Admin';
+            if (!vendedorPhone) {
+              console.warn(`[pacote/interesse] Admin também sem WhatsApp. Notificação não enviada.`);
+              return;
+            }
+          }
 
           const evo = getEvolutionSettings();
           if (!evo.evolution_api_url || !evo.evolution_api_key) return;
@@ -6428,7 +6447,7 @@ app.post('/api/pacote/:code/interesse', express.json({ limit: '8kb' }), (req, re
           ].filter(Boolean).join('\n');
 
           const evoInstance = String(evo.evolution_pdf_instance || evo.evolution_instance || 'aux adm').trim();
-          console.log(`[pacote/interesse] Enviando WhatsApp via "${evoInstance}" para ${vendedorPhone} (${vendedorRow.first_name})`);
+          console.log(`[pacote/interesse] Enviando WhatsApp via "${evoInstance}" para ${vendedorPhone} (${notifyName})`);
           await sendEvolutionText({
             apiUrl: evo.evolution_api_url,
             instance: evoInstance,
@@ -6436,7 +6455,7 @@ app.post('/api/pacote/:code/interesse', express.json({ limit: '8kb' }), (req, re
             number: vendedorPhone,
             text: message,
           });
-          console.log(`[pacote/interesse] WhatsApp enviado com sucesso via "${evoInstance}" para ${vendedorRow.first_name} (${vendedorPhone})`);
+          console.log(`[pacote/interesse] WhatsApp enviado com sucesso via "${evoInstance}" para ${notifyName} (${vendedorPhone})`);
         } catch (err) {
           console.error(`[pacote/interesse] Erro WhatsApp:`, err.message);
         }
