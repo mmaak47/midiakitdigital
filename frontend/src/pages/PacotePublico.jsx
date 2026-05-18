@@ -702,7 +702,7 @@ export default function PacotePublico() {
               <div className="flex flex-wrap items-center gap-3 sm:gap-5 text-sm">
                 <span className="inline-flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-brand-orange" />
-                  <strong>{stats.totalPontos}</strong> pontos
+                  <strong>{stats.totalPontos}</strong> {stats.totalPontos === 1 ? 'endereço' : 'endereços'}
                 </span>
                 <span className={t.separator}>|</span>
                 <span className="inline-flex items-center gap-1.5">
