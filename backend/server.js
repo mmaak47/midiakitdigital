@@ -3452,6 +3452,7 @@ function getMonthlyVendorRanking() {
     FROM vendas
     WHERE vendedor_nome IS NOT NULL AND TRIM(vendedor_nome) <> ''
       AND TRIM(COALESCE(responsavel_nome, '')) != ''
+      AND COALESCE(venda_escritorio, 0) = 0
   `).all();
 
   for (const row of vRows) {
