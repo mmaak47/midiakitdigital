@@ -59,7 +59,7 @@ export default function Explorer() {
     if (typeof window === 'undefined') return;
     localStorage.setItem('intermidia_explorer_auto', showAutomatic ? '1' : '0');
   }, [showAutomatic]);
-  const { favorites, addFavorites, history, registerView } = useFavorites();
+  const { favorites, addFavorites, clearFavorites, history, registerView } = useFavorites();
   const [geoProfiles, setGeoProfiles] = useState(null);
   const [censusProfiles, setCensusProfiles] = useState(null);
 
@@ -124,12 +124,15 @@ export default function Explorer() {
   }, []);
 
   // Pre-load favorites from URL ?pontos=1,2,3 (e.g. vendedor clicking from WhatsApp notification)
+  // Limpa o carrinho existente antes de carregar os novos pontos para que o
+  // vendedor comece com exatamente os pontos do cliente, sem resquícios anteriores.
   const [urlPontosLoaded, setUrlPontosLoaded] = useState(false);
   useEffect(() => {
     if (!urlPontoIds?.length || !allPontos.length || urlPontosLoaded) return;
     const idSet = new Set(urlPontoIds);
     const matched = allPontos.filter(p => idSet.has(p.id));
     if (matched.length) {
+      clearFavorites();
       addFavorites(matched);
       // Clean URL params after loading to avoid re-adding on context changes
       const next = new URLSearchParams(searchParams);
@@ -138,7 +141,7 @@ export default function Explorer() {
       setSearchParams(next, { replace: true });
     }
     setUrlPontosLoaded(true);
-  }, [allPontos, urlPontoIds, urlPontosLoaded, addFavorites, searchParams, setSearchParams]);
+  }, [allPontos, urlPontoIds, urlPontosLoaded, clearFavorites, addFavorites, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -606,7 +609,7 @@ export default function Explorer() {
       {selected && <PointModal ponto={selected} onClose={() => setSelected(null)} isDark={isDark} geoProfile={geoProfiles?.[selected.id]} censusProfile={censusProfiles?.[selected.id]} />}
 
       {/* Favorites bar */}
-      <FavoritesBar isDark={isDark} showCommercialShare autoOpenProposal={autoProposal && urlPontosLoaded} />
+      <FavoritesBar isDark={isDark} showCommercialShare autoOpenProposal={autoProposal && urlPontosLoaded} title="Carrinho" />
     </div>
   );
 }

@@ -9,7 +9,7 @@ const ProposalModal = lazy(() => import('./ProposalModal'));
 
 const SIDEBAR_WIDTH = 'w-80'; // 320px
 
-export default function FavoritesBar({ isDark = true, showProposalCta = true, onShareFavorites = null, shareLoading = false, showCommercialShare = false, autoOpenProposal = false }) {
+export default function FavoritesBar({ isDark = true, showProposalCta = true, onShareFavorites = null, shareLoading = false, showCommercialShare = false, autoOpenProposal = false, title = 'Meus favoritos' }) {
   const { favorites, removeFavorite, clearFavorites, totalPreco, totalFluxo, totalTelas, sidebarOpen, setSidebarOpen } = useFavorites();
   const [showProposal, setShowProposal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -83,7 +83,7 @@ export default function FavoritesBar({ isDark = true, showProposalCta = true, on
               </span>
             </div>
             <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-neutral-800'}`}>
-              Meus favoritos
+              {title}
             </span>
           </div>
           <div className="flex items-center gap-1">
