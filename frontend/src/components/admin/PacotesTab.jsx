@@ -1067,32 +1067,43 @@ export default function PacotesTab({ isDark = true, currentUser = null, pontos =
   }
 
   // Load analytics
+  const [analyticsError, setAnalyticsError] = useState('');
   const loadAnalytics = useCallback(async () => {
     setAnalyticsLoading(true);
+    setAnalyticsError('');
     try {
       const data = await fetchPacotesAnalytics();
       setAnalytics(data);
-    } catch { /* silent */ }
-    finally { setAnalyticsLoading(false); }
+    } catch (err) {
+      console.error('[PacotesTab] analytics error:', err);
+      setAnalyticsError(err.message || 'Erro desconhecido');
+    } finally { setAnalyticsLoading(false); }
   }, []);
 
   useEffect(() => {
-    if (showAnalytics && !analytics && isAdmin) loadAnalytics();
-  }, [showAnalytics, analytics, isAdmin, loadAnalytics]);
+    if (showAnalytics && !analytics && !analyticsError && isAdmin) loadAnalytics();
+  }, [showAnalytics, analytics, analyticsError, isAdmin, loadAnalytics]);
 
   // Load my links
+  const [linksError, setLinksError] = useState('');
+  const [linksLoaded, setLinksLoaded] = useState(false);
   const loadLinks = useCallback(async () => {
     setLinksLoading(true);
+    setLinksError('');
     try {
       const data = await fetchMeusCompartilhamentos();
       setMyLinks(Array.isArray(data) ? data : []);
-    } catch { /* silent */ }
-    finally { setLinksLoading(false); }
+      setLinksLoaded(true);
+    } catch (err) {
+      console.error('[PacotesTab] links error:', err);
+      setLinksError(err.message || 'Erro desconhecido');
+      setLinksLoaded(true);
+    } finally { setLinksLoading(false); }
   }, []);
 
   useEffect(() => {
-    if (showLinks && !myLinks.length) loadLinks();
-  }, [showLinks, myLinks.length, loadLinks]);
+    if (showLinks && !linksLoaded) loadLinks();
+  }, [showLinks, linksLoaded, loadLinks]);
 
   // Theme helpers
   const th = isDark
@@ -1412,7 +1423,11 @@ export default function PacotesTab({ isDark = true, currentUser = null, pontos =
             {linksLoading ? (
               <div className="flex justify-center py-6"><Loader2 size={18} className="animate-spin text-gray-400" /></div>
             ) : myLinks.length === 0 ? (
-              <p className={`text-sm py-4 text-center ${th.muted}`}>Nenhum link compartilhado ainda.</p>
+              linksError ? (
+                <p className="text-sm py-4 text-center text-red-400">{linksError}</p>
+              ) : (
+                <p className={`text-sm py-4 text-center ${th.muted}`}>Nenhum link compartilhado ainda.</p>
+              )
             ) : (
               <div className="space-y-2">
                 {myLinks.map(link => (
@@ -1462,7 +1477,7 @@ export default function PacotesTab({ isDark = true, currentUser = null, pontos =
               {analyticsLoading ? (
                 <div className="flex justify-center py-6"><Loader2 size={18} className="animate-spin text-gray-400" /></div>
               ) : !analytics ? (
-                <p className={`text-sm py-4 text-center ${th.muted}`}>Erro ao carregar analytics.</p>
+                <p className="text-sm py-4 text-center text-red-400">{analyticsError || 'Erro ao carregar analytics.'}</p>
               ) : (
                 <div className="space-y-5">
                   {/* Global stats */}

@@ -781,54 +781,75 @@ export default function PacotePublico() {
                     const isSelected = selectedIds.has(ponto.ponto_id);
                     const dualImages = showDualImages ? getPointDisplayImages(ponto) : [];
                     const hasExtraImage = showDualImages && dualImages.length > 1;
+                    const isSinglePoint = pontos.length === 1 && hasExtraImage;
                     return (
                       <motion.div key={ponto.ponto_id} variants={cardVariants} layout
-                        className={`group relative rounded-2xl border overflow-hidden transition-all duration-200 ${t.card} ${isSelected ? t.cardSelected : t.cardHover}`}>
+                        className={`group relative rounded-2xl border overflow-hidden transition-all duration-200 ${isSinglePoint ? 'col-span-full' : ''} ${t.card} ${isSelected ? t.cardSelected : t.cardHover}`}>
                         {hasExtraImage ? (
                           <>
-                            {/* ── HERO: OOH screen image — tall showcase, LED glow ── */}
-                            <div className="relative aspect-[3/4] overflow-hidden bg-black cursor-pointer group/hero rounded-t-2xl ring-1 ring-brand-orange/25 shadow-[0_0_30px_rgba(254,92,43,0.18),0_0_80px_rgba(254,92,43,0.07)]"
-                              onClick={() => openLightbox(ponto, 1)}>
-                              <img src={dualImages[1]} alt={`${ponto.nome} - Ponto de Impacto`}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover/hero:scale-[1.03] brightness-110 contrast-105 saturate-105"
-                                loading="lazy" />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/5 to-transparent" />
-                              {/* LED edge glow */}
-                              <div className="absolute inset-0 pointer-events-none rounded-t-2xl ring-1 ring-inset ring-white/10" />
-                              <span className="absolute bottom-3 left-3 text-[11px] uppercase tracking-wider font-bold text-white bg-brand-orange/90 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg shadow-brand-orange/30">
-                                <Monitor className="w-3.5 h-3.5" /> Ponto de Impacto
-                              </span>
-                              {/* Heart overlay */}
-                              {permiteEscolha && !leadSubmitted && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); toggleHeart(ponto.ponto_id); }}
-                                  className={`absolute top-3 right-3 z-10 p-2.5 rounded-full backdrop-blur-sm transition-all ${
-                                    isSelected
-                                      ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/30 scale-110'
-                                      : 'bg-black/40 text-white/60 hover:text-white hover:bg-black/60'
-                                  }`}
-                                  title={isSelected ? 'Remover dos favoritos' : 'Favoritar'}
-                                >
-                                  <Heart className="w-5 h-5" fill={isSelected ? 'currentColor' : 'none'} />
-                                </button>
-                              )}
-                              {permiteEscolha && leadSubmitted && isSelected && (
-                                <div className="absolute top-3 right-3 z-10 p-2.5 rounded-full bg-brand-orange text-white">
-                                  <Heart className="w-5 h-5" fill="currentColor" />
+                            {/* ── DUAL IMAGES: side by side when single point, hero when multiple ── */}
+                            <div className={isSinglePoint ? 'grid grid-cols-2 gap-0.5 bg-black/20' : ''}>
+                              <div className={`relative overflow-hidden bg-black cursor-pointer group/hero ${
+                                isSinglePoint
+                                  ? 'aspect-[3/4] ring-1 ring-brand-orange/25'
+                                  : 'aspect-[3/4] rounded-t-2xl ring-1 ring-brand-orange/25 shadow-[0_0_30px_rgba(254,92,43,0.18),0_0_80px_rgba(254,92,43,0.07)]'
+                              }`}
+                                onClick={() => openLightbox(ponto, 1)}>
+                                <img src={dualImages[1]} alt={`${ponto.nome} - Ponto de Impacto`}
+                                  className="w-full h-full object-cover transition-transform duration-500 group-hover/hero:scale-[1.03] brightness-110 contrast-105 saturate-105"
+                                  loading="lazy" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/5 to-transparent" />
+                                <div className="absolute inset-0 pointer-events-none ring-1 ring-inset ring-white/10" />
+                                <span className="absolute bottom-3 left-3 text-[11px] uppercase tracking-wider font-bold text-white bg-brand-orange/90 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg shadow-brand-orange/30">
+                                  <Monitor className="w-3.5 h-3.5" /> Ponto de Impacto
+                                </span>
+                                {/* Heart overlay */}
+                                {permiteEscolha && !leadSubmitted && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleHeart(ponto.ponto_id); }}
+                                    className={`absolute top-3 right-3 z-10 p-2.5 rounded-full backdrop-blur-sm transition-all ${
+                                      isSelected
+                                        ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/30 scale-110'
+                                        : 'bg-black/40 text-white/60 hover:text-white hover:bg-black/60'
+                                    }`}
+                                    title={isSelected ? 'Remover dos favoritos' : 'Favoritar'}
+                                  >
+                                    <Heart className="w-5 h-5" fill={isSelected ? 'currentColor' : 'none'} />
+                                  </button>
+                                )}
+                                {permiteEscolha && leadSubmitted && isSelected && (
+                                  <div className="absolute top-3 right-3 z-10 p-2.5 rounded-full bg-brand-orange text-white">
+                                    <Heart className="w-5 h-5" fill="currentColor" />
+                                  </div>
+                                )}
+                              </div>
+                              {/* Street view — side by side when single, thumbnail when multiple */}
+                              {isSinglePoint && (
+                                <div className="relative aspect-[3/4] overflow-hidden bg-black cursor-pointer group/street"
+                                  onClick={() => openLightbox(ponto, 0)}>
+                                  <img src={dualImages[0]} alt={`${ponto.nome} - localização`}
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover/street:scale-[1.03]"
+                                    loading="lazy" />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                                  <span className="absolute bottom-3 left-3 text-[11px] uppercase tracking-wider font-bold text-white/80 bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                                    <Navigation className="w-3.5 h-3.5" /> Localização
+                                  </span>
                                 </div>
                               )}
                             </div>
 
-                            {/* Card body with street view thumbnail */}
+                            {/* Card body */}
                             <div className="p-4">
-                              <div className="flex gap-3 mb-3">
-                                {/* Street view thumbnail */}
-                                <div className="w-24 h-[4.5rem] shrink-0 rounded-lg overflow-hidden cursor-pointer group/thumb border border-white/10"
-                                  onClick={() => openLightbox(ponto, 0)}>
-                                  <img src={dualImages[0]} alt={`${ponto.nome} - localização`}
-                                    className="w-full h-full object-cover transition-transform duration-300 group-hover/thumb:scale-105"
-                                    loading="lazy" />
-                                </div>
+                              <div className={`flex gap-3 mb-3 ${isSinglePoint ? '' : ''}`}>
+                                {/* Street view thumbnail — only when multiple points */}
+                                {!isSinglePoint && (
+                                  <div className="w-24 h-[4.5rem] shrink-0 rounded-lg overflow-hidden cursor-pointer group/thumb border border-white/10"
+                                    onClick={() => openLightbox(ponto, 0)}>
+                                    <img src={dualImages[0]} alt={`${ponto.nome} - localização`}
+                                      className="w-full h-full object-cover transition-transform duration-300 group-hover/thumb:scale-105"
+                                      loading="lazy" />
+                                  </div>
+                                )}
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap gap-1 mb-1">
                                     {ponto.tipo && (
@@ -839,7 +860,7 @@ export default function PacotePublico() {
                                     {ponto.cidade && <span className={`text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 border ${t.chipTag}`}>{ponto.cidade}</span>}
                                     {ponto.publico && <span className={`text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 border ${t.chipTag}`}>{ponto.publico}</span>}
                                   </div>
-                                  <h3 className="font-bold text-sm leading-tight mb-1 line-clamp-2">{ponto.nome}</h3>
+                                  <h3 className={`font-bold leading-tight mb-1 ${isSinglePoint ? 'text-base' : 'text-sm'} line-clamp-2`}>{ponto.nome}</h3>
                                   {ponto.endereco && (
                                     <p className={`text-xs flex items-start gap-1 line-clamp-1 ${t.textMuted}`}>
                                       <MapPin className="w-3 h-3 text-brand-orange shrink-0 mt-0.5" />{ponto.endereco}
