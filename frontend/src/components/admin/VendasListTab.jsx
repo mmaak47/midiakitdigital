@@ -368,7 +368,14 @@ function VendaRow({ venda, isDark, onEdit, onDelete, onReplayTv, replaying }) {
         <td className={`${td} text-sm ${isDark ? 'text-brand-gray-300' : 'text-neutral-700'} whitespace-nowrap`}>
           {venda.valor_mensal ? `R$ ${venda.valor_mensal}` : '—'}
         </td>
-        <td className={`${td} text-xs ${textXs} whitespace-nowrap`}>{venda.vendedor_nome || '—'}</td>
+        <td className={`${td} text-xs ${textXs} whitespace-nowrap`}>
+          {venda.vendedor_nome || '—'}
+          {!!venda.venda_escritorio && (
+            <span className={`ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold ${isDark ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' : 'bg-amber-100 text-amber-700 border border-amber-200'}`}>
+              Escritório
+            </span>
+          )}
+        </td>
         <td className={td}><StatusBadge status={venda.status || 'ativa'} isDark={isDark} /></td>
         <td className={td}>
           <span className={`text-xs flex items-center gap-1 ${waColor}`}>
@@ -505,8 +512,9 @@ export default function VendasListTab({ isDark = true, pontos = [], currentUser 
   const [replayingId, setReplayingId] = useState(null);
   const [notice, setNotice] = useState(null); // { msg, type: 'ok'|'err' }
 
-  // Admin+vendedor only sees their own sales
-  const isAdminVendedor = currentUser && currentUser.role === 'admin' && currentUser.is_vendedor;
+  // Superior roles (admin, diretor, gerente) always see ALL sales, even with is_vendedor tag
+  const isSuperiorRole = currentUser && ['admin', 'diretor', 'gerente_comercial'].includes(currentUser.role);
+  const isAdminVendedor = currentUser && !isSuperiorRole && currentUser.is_vendedor;
   const myVendorName = isAdminVendedor ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() : null;
 
   const load = useCallback(async () => {

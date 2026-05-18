@@ -230,7 +230,7 @@ function SmartMap({
     setPopupPoint(selected);
   }, [selectedId, valid]);
 
-  useEffect(() => {
+  const fitMapBounds = useCallback(() => {
     const map = mapRef.current?.getMap?.();
     if (!map) return;
 
@@ -279,6 +279,9 @@ function SmartMap({
     shouldAutoFitRef.current = false;
   }, [focusCoords, valid, selectedCidades, cityBounds]);
 
+  // Re-fit when data/filters change
+  useEffect(() => { fitMapBounds(); }, [fitMapBounds]);
+
   const handleMapClick = useCallback((event) => {
     const feature = event.features?.[0];
     if (!feature) return;
@@ -302,6 +305,10 @@ function SmartMap({
         interactiveLayerIds={['unclustered-point']}
         attributionControl={false}
         onClick={handleMapClick}
+        onLoad={() => {
+          shouldAutoFitRef.current = true;
+          fitMapBounds();
+        }}
         onDragStart={() => {
           shouldAutoFitRef.current = false;
         }}

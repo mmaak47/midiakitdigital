@@ -190,6 +190,117 @@ try {
     )
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_slf_code ON shared_link_favorites(share_code)`);
+
+  // Broadcast share links — client self-identification + favorites
+  // Add client_name + client_contact columns to shared_link_favorites for broadcast leads
+  try { db.exec(`ALTER TABLE shared_link_favorites ADD COLUMN client_name TEXT`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE shared_link_favorites ADD COLUMN client_contact TEXT`); } catch { /* exists */ }
+  // broadcast_text on shared_filters — custom marketing text for broadcast links
+  try { db.exec(`ALTER TABLE shared_filters ADD COLUMN broadcast_text TEXT`); } catch { /* exists */ }
+
+  // ─── Pacotes Comerciais ─────────────────────────────────────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pacotes (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      nome                TEXT NOT NULL,
+      descricao           TEXT,
+      status              TEXT DEFAULT 'rascunho',
+      desconto_empilhavel INTEGER DEFAULT 0,
+      criado_por          INTEGER NOT NULL,
+      aprovado_por        INTEGER,
+      aprovado_em         TEXT,
+      motivo_rejeicao     TEXT,
+      imagem_capa         TEXT,
+      created_at          TEXT DEFAULT (datetime('now')),
+      updated_at          TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_pacotes_status ON pacotes(status)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_pacotes_criado_por ON pacotes(criado_por)`);
+  // permite_escolha_pontos — vendedor decide se cliente pode selecionar/favoritar pontos
+  try { db.exec('ALTER TABLE pacotes ADD COLUMN permite_escolha_pontos INTEGER DEFAULT 1'); } catch { /* exists */ }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pacote_pontos (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      pacote_id  INTEGER NOT NULL,
+      ponto_id   INTEGER NOT NULL,
+      ordem      INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_pacote_pontos_pacote ON pacote_pontos(pacote_id)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pacote_descontos (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      pacote_id    INTEGER NOT NULL,
+      tipo         TEXT NOT NULL,
+      min_valor    INTEGER NOT NULL,
+      max_valor    INTEGER,
+      desconto_pct REAL NOT NULL DEFAULT 0,
+      created_at   TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_pacote_descontos_pacote ON pacote_descontos(pacote_id)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pacote_compartilhamentos (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      pacote_id      INTEGER NOT NULL,
+      vendedor_id    INTEGER NOT NULL,
+      code           TEXT UNIQUE NOT NULL,
+      views          INTEGER DEFAULT 0,
+      last_viewed_at TEXT,
+      created_at     TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_pacote_comp_pacote ON pacote_compartilhamentos(pacote_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_pacote_comp_vendedor ON pacote_compartilhamentos(vendedor_id)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pacote_analytics (
+      id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+      compartilhamento_id   INTEGER NOT NULL,
+      session_id            TEXT,
+      event_type            TEXT NOT NULL,
+      event_data            TEXT,
+      ip_hash               TEXT,
+      created_at            TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_pacote_analytics_comp ON pacote_analytics(compartilhamento_id)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pacote_leads (
+      id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+      compartilhamento_id   INTEGER NOT NULL,
+      nome                  TEXT NOT NULL,
+      empresa               TEXT,
+      telefone              TEXT,
+      email                 TEXT,
+      pontos_selecionados   TEXT,
+      duracao_meses         INTEGER,
+      valor_estimado        REAL,
+      created_at            TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_pacote_leads_comp ON pacote_leads(compartilhamento_id)`);
+
+  // ─── Pacote Favoritos (client favorites on public page) ──────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pacote_favoritos (
+      id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+      compartilhamento_id   INTEGER NOT NULL,
+      client_name           TEXT,
+      client_phone          TEXT,
+      client_empresa        TEXT,
+      point_id              INTEGER NOT NULL,
+      point_name            TEXT,
+      created_at            TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_pacote_fav_comp ON pacote_favoritos(compartilhamento_id)`);
 } catch (e) {
   console.error('[schema bootstrap]', e.message);
 }
@@ -512,6 +623,7 @@ app.use((req, res, next) => {
     "font-src 'self' data: https://fonts.gstatic.com",
     "connect-src 'self' https:",
     "worker-src 'self' blob:",
+    "frame-src 'self' https://www.openstreetmap.org",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'"
@@ -675,7 +787,7 @@ const shareLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, message: { e
 
 app.post('/api/share', shareLimiter, express.json({ limit: '16kb' }), (req, res) => {
   try {
-    const { filters, label, client_name, share_type, discount } = req.body || {};
+    const { filters, label, client_name, share_type, discount, broadcast_text } = req.body || {};
     if (!filters || typeof filters !== 'object') {
       return res.status(400).json({ error: 'Filtros inválidos.' });
     }
@@ -699,7 +811,8 @@ app.post('/api/share', shareLimiter, express.json({ limit: '16kb' }), (req, res)
     if (!hasAny) return res.status(400).json({ error: 'Nenhum filtro selecionado.' });
 
     const sanitizedClientName = typeof client_name === 'string' ? client_name.trim().slice(0, 200) : null;
-    const sanitizedShareType = share_type === 'commercial' ? 'commercial' : 'public';
+    const sanitizedShareType = share_type === 'commercial' ? 'commercial' : share_type === 'broadcast' ? 'broadcast' : 'public';
+    const sanitizedBroadcastText = typeof broadcast_text === 'string' ? broadcast_text.trim().slice(0, 2000) : null;
 
     // Try to extract vendedor from auth token (optional — public share doesn't require auth)
     let createdByUserId = null;
@@ -711,8 +824,8 @@ app.post('/api/share', shareLimiter, express.json({ limit: '16kb' }), (req, res)
       }
     } catch { /* no auth — that's fine for public shares */ }
 
-    // Commercial links are always unique (never reuse) since they're client-specific
-    if (sanitizedShareType !== 'commercial') {
+    // Commercial/broadcast links are always unique (never reuse)
+    if (sanitizedShareType !== 'commercial' && sanitizedShareType !== 'broadcast') {
       const filtersJson = JSON.stringify(clean);
       const existing = db.prepare('SELECT code FROM shared_filters WHERE filters_json = ? AND share_type = ?').get(filtersJson, 'public');
       if (existing) {
@@ -731,12 +844,13 @@ app.post('/api/share', shareLimiter, express.json({ limit: '16kb' }), (req, res)
       if (attempt === 9) return res.status(500).json({ error: 'Falha ao gerar código único.' });
     }
 
-    db.prepare('INSERT INTO shared_filters (code, filters_json, label, client_name, share_type, created_by_user_id) VALUES (?, ?, ?, ?, ?, ?)').run(
+    db.prepare('INSERT INTO shared_filters (code, filters_json, label, client_name, share_type, created_by_user_id, broadcast_text) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
       code, filtersJson,
       typeof label === 'string' ? label.trim().slice(0, 200) : null,
       sanitizedClientName,
       sanitizedShareType,
-      createdByUserId
+      createdByUserId,
+      sanitizedBroadcastText
     );
 
     res.json({ code, url: `/s/${code}` });
@@ -752,7 +866,7 @@ app.get('/api/share/:code', (req, res) => {
     if (!code || typeof code !== 'string' || code.length > 12) {
       return res.status(400).json({ error: 'Código inválido.' });
     }
-    const row = db.prepare('SELECT code, filters_json, label, client_name, share_type, created_by_user_id, created_at, views FROM shared_filters WHERE code = ?').get(code);
+    const row = db.prepare('SELECT code, filters_json, label, client_name, share_type, created_by_user_id, created_at, views, broadcast_text FROM shared_filters WHERE code = ?').get(code);
     if (!row) return res.status(404).json({ error: 'Link não encontrado.' });
 
     // Incrementa views
@@ -762,6 +876,7 @@ app.get('/api/share/:code', (req, res) => {
     const resp = { code: row.code, filters, label: row.label, createdAt: row.created_at, views: row.views + 1 };
     if (row.client_name) resp.clientName = row.client_name;
     if (row.share_type && row.share_type !== 'public') resp.shareType = row.share_type;
+    if (row.broadcast_text) resp.broadcastText = row.broadcast_text;
 
     // Include vendedor info for commercial links
     if (row.created_by_user_id) {
@@ -795,13 +910,21 @@ app.post('/api/share/:code/client-favorites', express.json({ limit: '32kb' }), (
 
     const row = db.prepare('SELECT id, code, client_name, share_type, created_by_user_id FROM shared_filters WHERE code = ?').get(code);
     if (!row) return res.status(404).json({ error: 'Link não encontrado.' });
-    if (row.share_type !== 'commercial') {
+    if (row.share_type !== 'commercial' && row.share_type !== 'broadcast') {
       return res.status(400).json({ error: 'Este link não aceita favoritos de cliente.' });
     }
 
-    const { favorites } = req.body || {};
+    const { favorites, client_name: bodyClientName, client_contact: bodyClientContact } = req.body || {};
     if (!Array.isArray(favorites) || !favorites.length) {
       return res.status(400).json({ error: 'Nenhum favorito enviado.' });
+    }
+
+    // For broadcast links, require client identification
+    const isBroadcast = row.share_type === 'broadcast';
+    const sanitizedClientName = typeof bodyClientName === 'string' ? bodyClientName.trim().slice(0, 200) : null;
+    const sanitizedClientContact = typeof bodyClientContact === 'string' ? bodyClientContact.trim().slice(0, 100) : null;
+    if (isBroadcast && (!sanitizedClientName || !sanitizedClientContact)) {
+      return res.status(400).json({ error: 'Nome e contato são obrigatórios para enviar favoritos.' });
     }
 
     // Sanitize and insert favorites (max 200)
@@ -814,16 +937,20 @@ app.post('/api/share/:code/client-favorites', express.json({ limit: '32kb' }), (
       return res.status(400).json({ error: 'Favoritos inválidos.' });
     }
 
-    // Clear previous favorites for this code (client can re-submit)
-    db.prepare('DELETE FROM shared_link_favorites WHERE share_code = ?').run(code);
-
-    const now = new Date().toISOString();
-    const stmt = db.prepare('INSERT INTO shared_link_favorites (share_code, point_id, point_name, created_at) VALUES (?, ?, ?, ?)');
-    for (const item of items) {
-      stmt.run(code, item.point_id, item.point_name, now);
+    // For broadcast links, DON'T delete previous entries (multiple clients can submit)
+    // For commercial links, clear previous (single client can re-submit)
+    if (!isBroadcast) {
+      db.prepare('DELETE FROM shared_link_favorites WHERE share_code = ?').run(code);
     }
 
-    console.log(`[share/client-favorites] Client submitted ${items.length} favorites for code=${code} (client: ${row.client_name || 'N/I'})`);
+    const now = new Date().toISOString();
+    const resolvedClientName = isBroadcast ? sanitizedClientName : (row.client_name || sanitizedClientName || 'Cliente');
+    const stmt = db.prepare('INSERT INTO shared_link_favorites (share_code, point_id, point_name, client_name, client_contact, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+    for (const item of items) {
+      stmt.run(code, item.point_id, item.point_name, resolvedClientName, sanitizedClientContact, now);
+    }
+
+    console.log(`[share/client-favorites] Client submitted ${items.length} favorites for code=${code} (client: ${resolvedClientName || 'N/I'}, contact: ${sanitizedClientContact || 'N/I'})`);
 
     // ── Send WhatsApp notification to vendedor via Evolution API ──
     if (row.created_by_user_id) {
@@ -842,17 +969,22 @@ app.post('/api/share/:code/client-favorites', express.json({ limit: '32kb' }), (
             return;
           }
 
-          const clientLabel = row.client_name || 'Cliente';
+          const clientLabel = resolvedClientName || row.client_name || 'Cliente';
           const pointsList = items.slice(0, 10).map((p, i) => `  ${i + 1}. ${p.point_name || `Ponto ${p.point_id}`}`).join('\n');
           const moreText = items.length > 10 ? `\n  ... e mais ${items.length - 10} ponto(s)` : '';
-          const linkUrl = `https://midiakit.intermidia.tv/s/${code}`;
+          const linkUrl = `https://midiakit.redeintermidia.com/s/${code}`;
           const pontosIds = items.map(p => p.point_id).join(',');
-          const propostaUrl = `https://midiakit.intermidia.tv/comercial/explorar?pontos=${pontosIds}&proposta=1`;
+          const propostaUrl = `https://midiakit.redeintermidia.com/comercial/explorar?pontos=${pontosIds}&proposta=1`;
+
+          const contactLine = sanitizedClientContact ? `📱 Contato: ${sanitizedClientContact}` : '';
+          const broadcastBadge = isBroadcast ? '📢 _(via link de disparo em massa)_\n' : '';
 
           const message = [
             `🔔 *Novo retorno de cliente!*`,
             ``,
+            broadcastBadge,
             `O cliente *${clientLabel}* acabou de selecionar ${items.length} ponto${items.length > 1 ? 's' : ''} favorito${items.length > 1 ? 's' : ''} na seleção que você enviou:`,
+            contactLine,
             ``,
             pointsList + moreText,
             ``,
@@ -862,16 +994,17 @@ app.post('/api/share/:code/client-favorites', express.json({ limit: '32kb' }), (
             propostaUrl,
             ``,
             `Clique no link acima para abrir o gerador de propostas com os pontos do cliente já carregados.`,
-          ].join('\n');
+          ].filter(Boolean).join('\n');
 
+          const evoInstance = String(evo.evolution_pdf_instance || evo.evolution_instance || 'aux adm').trim();
           await sendEvolutionText({
             apiUrl: evo.evolution_api_url,
-            instance: String(evo.evolution_pdf_instance || evo.evolution_instance || 'aux adm').trim(),
+            instance: evoInstance,
             apiKey: evo.evolution_api_key,
             number: vendedorPhone,
             text: message,
           });
-          console.log(`[share/client-favorites] WhatsApp enviado para vendedor ${vendedor.first_name} (${vendedor.whatsapp})`);
+          console.log(`[share/client-favorites] WhatsApp enviado via "${evoInstance}" para vendedor ${vendedor.first_name} (${vendedor.whatsapp})`);
         } catch (err) {
           console.error('[share/client-favorites] Erro ao enviar WhatsApp:', err.message);
         }
@@ -896,8 +1029,22 @@ app.get('/api/share/:code/client-favorites', (req, res) => {
     const row = db.prepare('SELECT code, client_name, share_type FROM shared_filters WHERE code = ?').get(code);
     if (!row) return res.status(404).json({ error: 'Link não encontrado.' });
 
-    const favorites = db.prepare('SELECT point_id, point_name, created_at FROM shared_link_favorites WHERE share_code = ? ORDER BY id ASC').all(code);
-    res.json({ code, clientName: row.client_name, favorites });
+    const favorites = db.prepare('SELECT point_id, point_name, client_name, client_contact, created_at FROM shared_link_favorites WHERE share_code = ? ORDER BY id ASC').all(code);
+
+    // For broadcast links, group favorites by client
+    if (row.share_type === 'broadcast' && favorites.length) {
+      const clientsMap = new Map();
+      for (const f of favorites) {
+        const key = `${f.client_name || ''}|||${f.client_contact || ''}`;
+        if (!clientsMap.has(key)) {
+          clientsMap.set(key, { clientName: f.client_name || 'Cliente N/I', clientContact: f.client_contact || '', favorites: [], submittedAt: f.created_at });
+        }
+        clientsMap.get(key).favorites.push({ point_id: f.point_id, point_name: f.point_name, created_at: f.created_at });
+      }
+      return res.json({ code, shareType: row.share_type, clientName: row.client_name, clients: Array.from(clientsMap.values()), favorites });
+    }
+
+    res.json({ code, shareType: row.share_type, clientName: row.client_name, favorites });
   } catch (err) {
     console.error('[share/get-client-favorites]', err.message);
     res.status(500).json({ error: 'Erro ao buscar favoritos.' });
@@ -1004,24 +1151,24 @@ app.get('/api/commercial-shares', (req, res) => {
     let rows;
     if (isFullAccess) {
       rows = db.prepare(`
-        SELECT sf.code, sf.filters_json, sf.label, sf.client_name, sf.created_at, sf.views,
+        SELECT sf.code, sf.filters_json, sf.label, sf.client_name, sf.share_type, sf.created_at, sf.views,
                sf.created_by_user_id,
                (SELECT COUNT(*) FROM shared_link_favorites slf WHERE slf.share_code = sf.code) AS client_favorites_count,
                au.first_name AS vendedor_first, au.last_name AS vendedor_last
         FROM shared_filters sf
         LEFT JOIN admin_users au ON au.id = sf.created_by_user_id
-        WHERE sf.share_type = 'commercial'
+        WHERE sf.share_type IN ('commercial', 'broadcast')
         ORDER BY sf.created_at DESC
         LIMIT 200
       `).all();
     } else {
       // Vendedor: only their own links
       rows = db.prepare(`
-        SELECT sf.code, sf.filters_json, sf.label, sf.client_name, sf.created_at, sf.views,
+        SELECT sf.code, sf.filters_json, sf.label, sf.client_name, sf.share_type, sf.created_at, sf.views,
                sf.created_by_user_id,
                (SELECT COUNT(*) FROM shared_link_favorites slf WHERE slf.share_code = sf.code) AS client_favorites_count
         FROM shared_filters sf
-        WHERE sf.share_type = 'commercial' AND sf.created_by_user_id = ?
+        WHERE sf.share_type IN ('commercial', 'broadcast') AND sf.created_by_user_id = ?
         ORDER BY sf.created_at DESC
         LIMIT 100
       `).all(authUser.id);
@@ -1031,6 +1178,7 @@ app.get('/api/commercial-shares', (req, res) => {
       const out = {
         code: r.code,
         clientName: r.client_name,
+        shareType: r.share_type || 'commercial',
         pointCount: (() => { try { const f = JSON.parse(r.filters_json); return f.pointIds?.length || 0; } catch { return 0; } })(),
         clientFavoritesCount: r.client_favorites_count || 0,
         views: r.views || 0,
@@ -1050,6 +1198,90 @@ app.get('/api/commercial-shares', (req, res) => {
   } catch (err) {
     console.error('[commercial-shares/list]', err.message);
     res.status(500).json({ error: 'Erro ao listar links comerciais.' });
+  }
+});
+
+// ─── Pacote leads para MeusLeads ──────────────────────────────────────────
+app.get('/api/pacote-commercial-leads', (req, res) => {
+  try {
+    const token = extractTokenFromCookie(req) || extractBearerToken(req.headers.authorization);
+    if (!token) return res.status(401).json({ error: 'Não autorizado.' });
+    let claims;
+    try { claims = parseAuthToken(token); } catch { return res.status(401).json({ error: 'Token inválido.' }); }
+
+    const authUser = db.prepare('SELECT id, role FROM admin_users WHERE id = ? AND lower(username) = lower(?)').get(Number(claims.sub), String(claims.username || ''));
+    if (!authUser) return res.status(401).json({ error: 'Usuário não encontrado.' });
+
+    const isFullAccess = ['admin', 'diretor', 'gerente_comercial'].includes(authUser.role);
+
+    let rows;
+    if (isFullAccess) {
+      rows = db.prepare(`
+        SELECT pc.id, pc.code, pc.views, pc.created_at, pc.vendedor_id,
+               p.nome AS pacote_nome,
+               u.first_name AS vendedor_first, u.last_name AS vendedor_last,
+               (SELECT COUNT(*) FROM pacote_leads pl WHERE pl.compartilhamento_id = pc.id) AS leads_count,
+               (SELECT COUNT(*) FROM pacote_favoritos pf WHERE pf.compartilhamento_id = pc.id) AS favs_count
+        FROM pacote_compartilhamentos pc
+        JOIN pacotes p ON p.id = pc.pacote_id
+        LEFT JOIN admin_users u ON u.id = pc.vendedor_id
+        ORDER BY pc.created_at DESC LIMIT 200
+      `).all();
+    } else {
+      rows = db.prepare(`
+        SELECT pc.id, pc.code, pc.views, pc.created_at, pc.vendedor_id,
+               p.nome AS pacote_nome,
+               (SELECT COUNT(*) FROM pacote_leads pl WHERE pl.compartilhamento_id = pc.id) AS leads_count,
+               (SELECT COUNT(*) FROM pacote_favoritos pf WHERE pf.compartilhamento_id = pc.id) AS favs_count
+        FROM pacote_compartilhamentos pc
+        JOIN pacotes p ON p.id = pc.pacote_id
+        WHERE pc.vendedor_id = ?
+        ORDER BY pc.created_at DESC LIMIT 100
+      `).all(authUser.id);
+    }
+
+    const result = rows.map(r => {
+      // Fetch leads for this compartilhamento
+      const leads = db.prepare('SELECT nome, empresa, telefone, duracao_meses, valor_estimado, pontos_selecionados, created_at FROM pacote_leads WHERE compartilhamento_id = ? ORDER BY created_at DESC').all(r.id);
+      const favs = db.prepare('SELECT point_id, point_name, client_name, created_at FROM pacote_favoritos WHERE compartilhamento_id = ? ORDER BY id ASC').all(r.id);
+
+      const latestLead = leads[0] || null;
+      const out = {
+        code: r.code,
+        clientName: latestLead?.nome || null,
+        shareType: 'pacote',
+        pacoteNome: r.pacote_nome,
+        pointCount: favs.length || (latestLead?.pontos_selecionados ? (() => { try { return JSON.parse(latestLead.pontos_selecionados).length; } catch { return 0; } })() : 0),
+        clientFavoritesCount: leads.length > 0 ? (favs.length || leads.length) : 0,
+        views: r.views || 0,
+        createdAt: r.created_at,
+        url: `/pacote/${r.code}`,
+        leads: leads.map(l => ({
+          nome: l.nome,
+          empresa: l.empresa,
+          telefone: l.telefone,
+          duracao_meses: l.duracao_meses,
+          valor_estimado: l.valor_estimado,
+          pontos_selecionados: (() => { try { return JSON.parse(l.pontos_selecionados || '[]'); } catch { return []; } })(),
+          created_at: l.created_at,
+        })),
+        favorites: favs.map(f => ({
+          point_id: f.point_id,
+          point_name: f.point_name,
+          client_name: f.client_name,
+          created_at: f.created_at,
+        })),
+      };
+      if (isFullAccess && r.vendedor_first) {
+        out.vendedorName = [r.vendedor_first, r.vendedor_last].filter(Boolean).join(' ');
+      }
+      return out;
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error('[pacote-commercial-leads]', err.message);
+    res.status(500).json({ error: 'Erro ao listar leads de pacotes.' });
   }
 });
 
@@ -1189,7 +1421,8 @@ function authenticateSensitiveApi(req, res, next) {
     '/ai/stats',
     '/ai/point',
     '/leads/check',
-    '/integracoes/manutencao/pontos'
+    '/integracoes/manutencao/pontos',
+    '/pacote'
   ];
 
   if (method === 'GET' && publicGetPrefixes.some((prefix) => routePath === prefix || routePath.startsWith(`${prefix}/`))) {
@@ -1198,6 +1431,11 @@ function authenticateSensitiveApi(req, res, next) {
 
   // AI campaign analysis + recommendation — public for /planejar
   const publicPostPaths = ['/ai/campaign', '/ai/recommend', '/ai/plan-decision', '/inventory-chat', '/ai/proposta-texto', '/track', '/leads/capture', '/leads/capture-contact', '/leads/last-message'];
+
+  // Pacote public POST routes (track + interesse + favoritos)
+  if (method === 'POST' && /^\/pacote\/[A-Za-z0-9]+\/(track|interesse|favoritos)$/.test(routePath)) {
+    return next();
+  }
   if (method === 'POST' && publicPostPaths.includes(routePath)) {
     return next();
   }
@@ -3143,10 +3381,15 @@ function getMonthlyVendorRanking() {
 
   // Primary source: vendas_comercial (same source as GestaoComercial)
   const vcRows = db.prepare(`
-    SELECT vendedor_nome, valor_mensal, total_contrato, permuta_valor_receber, permuta_total_receber, COALESCE(tipo, 'Nova Venda') as tipo
-    FROM vendas_comercial
-    WHERE ano = ? AND mes = ?
-      AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
+    SELECT vc.vendedor_nome, vc.valor_mensal, vc.total_contrato, vc.permuta_valor_receber, vc.permuta_total_receber, COALESCE(vc.tipo, 'Nova Venda') as tipo
+    FROM vendas_comercial vc
+    JOIN vendas v ON v.id = vc.venda_id
+    WHERE vc.ano = ? AND vc.mes = ?
+      AND vc.renovacao_status IS NULL
+      AND vc.venda_id IS NOT NULL
+      AND COALESCE(vc.venda_escritorio, 0) = 0
+      AND TRIM(COALESCE(v.responsavel_nome, '')) != ''
+      AND UPPER(COALESCE(vc.cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
   `).all(year, mes);
 
   // Separate Permuta totals
@@ -3208,6 +3451,7 @@ function getMonthlyVendorRanking() {
     SELECT vendedor_nome, valor_mensal, permuta_valor_receber, tipo, created_at
     FROM vendas
     WHERE vendedor_nome IS NOT NULL AND TRIM(vendedor_nome) <> ''
+      AND TRIM(COALESCE(responsavel_nome, '')) != ''
   `).all();
 
   for (const row of vRows) {
@@ -3316,18 +3560,22 @@ function getTvGoalsSnapshot() {
   const realizedRow = db.prepare(`
     SELECT
       COALESCE(SUM(CASE
-        WHEN TRIM(LOWER(COALESCE(tipo, 'nova venda'))) LIKE '%permuta%' THEN COALESCE(permuta_valor_receber, 0)
-        ELSE COALESCE(valor_mensal, 0)
+        WHEN TRIM(LOWER(COALESCE(vc.tipo, 'nova venda'))) LIKE '%permuta%' THEN COALESCE(vc.permuta_valor_receber, 0)
+        ELSE COALESCE(vc.valor_mensal, 0)
       END), 0) AS realizado_mensal,
       COALESCE(SUM(CASE
-        WHEN TRIM(LOWER(COALESCE(tipo, 'nova venda'))) LIKE '%permuta%' THEN COALESCE(permuta_total_receber, 0)
-        ELSE COALESCE(total_contrato, 0)
+        WHEN TRIM(LOWER(COALESCE(vc.tipo, 'nova venda'))) LIKE '%permuta%' THEN COALESCE(vc.permuta_total_receber, 0)
+        ELSE COALESCE(vc.total_contrato, 0)
       END), 0) AS realizado_recorrencia,
       COUNT(*) AS vendas
-    FROM vendas_comercial
-    WHERE ano = ?
-      AND mes = ?
-      AND UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
+    FROM vendas_comercial vc
+    JOIN vendas v ON v.id = vc.venda_id
+    WHERE vc.ano = ?
+      AND vc.mes = ?
+      AND vc.renovacao_status IS NULL
+      AND vc.venda_id IS NOT NULL
+      AND TRIM(COALESCE(v.responsavel_nome, '')) != ''
+      AND UPPER(COALESCE(vc.cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
   `).get(ano, mes) || {};
 
   const metaMensal = Number(metaRow.valor_meta || 0);
@@ -3352,10 +3600,14 @@ function getTvRecentActivity(limit = 5) {
   const max = Math.max(1, Math.min(20, Number(limit) || 5));
 
   const salesRows = db.prepare(`
-    SELECT vendedor_nome, cliente, valor_mensal, total_contrato, data_venda, created_at
-    FROM vendas_comercial
-    WHERE UPPER(COALESCE(cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
-    ORDER BY created_at DESC
+    SELECT vc.vendedor_nome, vc.cliente, vc.valor_mensal, vc.total_contrato, vc.data_venda, vc.created_at
+    FROM vendas_comercial vc
+    JOIN vendas v ON v.id = vc.venda_id
+    WHERE UPPER(COALESCE(vc.cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
+      AND vc.renovacao_status IS NULL
+      AND vc.venda_id IS NOT NULL
+      AND TRIM(COALESCE(v.responsavel_nome, '')) != ''
+    ORDER BY vc.created_at DESC
     LIMIT 40
   `).all();
 
@@ -5248,12 +5500,13 @@ app.post('/api/admin/test-financeiro-reminder', requireRoles(['admin']), async (
       return res.status(400).json({ error: 'Evolution API não configurada' });
     }
 
-    // Busca vendas sem contrato assinado
+    // Busca vendas sem contrato assinado (somente nativas do sistema)
     const vendas = db.prepare(`
       SELECT v.id, v.razao_social, v.cnpj, v.vendedor_nome, v.valor_mensal,
              v.created_at, v.pontos_nomes
       FROM vendas v
       WHERE v.status = 'ativa'
+        AND TRIM(COALESCE(v.responsavel_nome, '')) != ''
         AND v.id NOT IN (
           SELECT ve.venda_id FROM venda_etapas ve
           WHERE ve.etapa_key = 'contrato_assinado'
@@ -5592,6 +5845,695 @@ app.delete('/api/admin/pdf-layout', requireRoles(['admin']), (req, res) => {
   try {
     db.prepare('DELETE FROM app_settings WHERE key = ?').run(PDF_LAYOUT_SETTINGS_KEY);
     res.json({ success: true, overrides: {}, updatedAt: null });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ============== PACOTES COMERCIAIS ENDPOINTS ==============
+
+// ─── Helper: Carrega pacote completo (pontos + descontos) ─────────────────────
+function loadPacoteFull(pacoteId) {
+  const pacote = db.prepare('SELECT * FROM pacotes WHERE id = ?').get(pacoteId);
+  if (!pacote) return null;
+  pacote.pontos = db.prepare(`
+    SELECT pp.ponto_id, pp.ordem, p.nome, p.cidade, p.tipo, p.endereco,
+           p.preco AS preco_mensal, p.fluxo AS fluxo_mensal,
+           p.lat, p.lng, p.imagem, p.imagem2, p.ativo, p.telas, p.publico,
+           p.horario, p.insercoes, p.tempo, p.loop, p.descricao AS ponto_descricao,
+           p.imagem_foco_x, p.imagem_foco_y
+    FROM pacote_pontos pp
+    JOIN pontos p ON p.id = pp.ponto_id
+    WHERE pp.pacote_id = ?
+    ORDER BY pp.ordem ASC, pp.id ASC
+  `).all(pacoteId);
+  pacote.descontos = db.prepare('SELECT * FROM pacote_descontos WHERE pacote_id = ? ORDER BY tipo, min_valor').all(pacoteId);
+  return pacote;
+}
+
+// ─── Helper: Calcula preço com descontos ───────────────────────────────────────
+function calcularPrecoPacote(pontos, duracaoMeses, descontos, empilhavel) {
+  const precoBase = pontos.reduce((s, p) => s + Number(p.preco_mensal || 0), 0);
+  const qtdPontos = pontos.length;
+
+  // Desconto por quantidade
+  let descQtd = 0;
+  const regrasQtd = descontos.filter(d => d.tipo === 'quantidade');
+  for (const r of regrasQtd) {
+    if (qtdPontos >= r.min_valor && (!r.max_valor || qtdPontos <= r.max_valor)) {
+      descQtd = Math.max(descQtd, r.desconto_pct);
+    }
+  }
+
+  // Desconto por duração
+  let descDur = 0;
+  const regrasDur = descontos.filter(d => d.tipo === 'duracao');
+  for (const r of regrasDur) {
+    if (duracaoMeses >= r.min_valor && (!r.max_valor || duracaoMeses <= r.max_valor)) {
+      descDur = Math.max(descDur, r.desconto_pct);
+    }
+  }
+  // Fallback: se nenhuma regra de duração bateu mas existem regras configuradas,
+  // aplica o maior desconto dentre regras cujo min_valor <= duracaoMeses
+  // (ex: cliente escolhe 24 meses mas só há regra até 12-23 → aplica desconto da faixa mais alta)
+  if (descDur === 0 && regrasDur.length > 0) {
+    for (const r of regrasDur) {
+      if (duracaoMeses >= r.min_valor) {
+        descDur = Math.max(descDur, r.desconto_pct);
+      }
+    }
+  }
+
+  let fator;
+  if (empilhavel) {
+    fator = (1 - descQtd / 100) * (1 - descDur / 100);
+  } else {
+    fator = 1 - Math.max(descQtd, descDur) / 100;
+  }
+
+  const precoFinal = Math.round(precoBase * fator * 100) / 100;
+  const descontoTotal = Math.round((1 - fator) * 10000) / 100;
+
+  return {
+    preco_base_mensal: precoBase,
+    preco_final_mensal: precoFinal,
+    preco_total_contrato: Math.round(precoFinal * duracaoMeses * 100) / 100,
+    desconto_quantidade_pct: descQtd,
+    desconto_duracao_pct: descDur,
+    desconto_total_pct: descontoTotal,
+    empilhavel: !!empilhavel,
+    duracao_meses: duracaoMeses,
+    qtd_pontos: qtdPontos,
+  };
+}
+
+// ─── CRUD: Listar pacotes ─────────────────────────────────────────────────────
+app.get('/api/pacotes', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { role, id: userId } = req.authUser;
+    const status = req.query.status;
+    let sql, params;
+
+    if (role === 'vendedor') {
+      // Vendedor vê: aprovados + seus próprios drafts
+      if (status) {
+        sql = `SELECT p.*, u.username as criado_por_nome FROM pacotes p LEFT JOIN admin_users u ON p.criado_por = u.id
+               WHERE (p.status = 'aprovado' OR p.criado_por = ?) AND p.status = ? ORDER BY p.updated_at DESC`;
+        params = [userId, status];
+      } else {
+        sql = `SELECT p.*, u.username as criado_por_nome FROM pacotes p LEFT JOIN admin_users u ON p.criado_por = u.id
+               WHERE p.status = 'aprovado' OR p.criado_por = ? ORDER BY p.updated_at DESC`;
+        params = [userId];
+      }
+    } else {
+      // Admin/gerente vê todos
+      if (status) {
+        sql = `SELECT p.*, u.username as criado_por_nome FROM pacotes p LEFT JOIN admin_users u ON p.criado_por = u.id
+               WHERE p.status = ? ORDER BY p.updated_at DESC`;
+        params = [status];
+      } else {
+        sql = `SELECT p.*, u.username as criado_por_nome FROM pacotes p LEFT JOIN admin_users u ON p.criado_por = u.id
+               ORDER BY p.updated_at DESC`;
+        params = [];
+      }
+    }
+
+    const pacotes = db.prepare(sql).all(...params);
+
+    // Anexa contagem de pontos e compartilhamentos
+    for (const pac of pacotes) {
+      pac.qtd_pontos = db.prepare('SELECT COUNT(*) as c FROM pacote_pontos WHERE pacote_id = ?').get(pac.id).c;
+      pac.qtd_compartilhamentos = db.prepare('SELECT COUNT(*) as c FROM pacote_compartilhamentos WHERE pacote_id = ?').get(pac.id).c;
+      pac.qtd_leads = db.prepare(`
+        SELECT COUNT(*) as c FROM pacote_leads pl
+        JOIN pacote_compartilhamentos pc ON pl.compartilhamento_id = pc.id
+        WHERE pc.pacote_id = ?
+      `).get(pac.id).c;
+    }
+
+    res.json(pacotes);
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── CRUD: Buscar pacote por ID ───────────────────────────────────────────────
+app.get('/api/pacotes/:id', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const pacote = loadPacoteFull(Number(req.params.id));
+    if (!pacote) return res.status(404).json({ error: 'Pacote não encontrado.' });
+
+    // Vendedor só vê aprovados ou os seus
+    if (req.authUser.role === 'vendedor' && pacote.status !== 'aprovado' && pacote.criado_por !== req.authUser.id) {
+      return res.status(403).json({ error: 'Acesso negado.' });
+    }
+
+    // Anexa info do criador
+    const criador = db.prepare('SELECT username FROM admin_users WHERE id = ?').get(pacote.criado_por);
+    pacote.criado_por_nome = criador?.username || null;
+
+    res.json(pacote);
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── CRUD: Criar pacote ──────────────────────────────────────────────────────
+app.post('/api/pacotes', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const { nome, descricao, ponto_ids, descontos, desconto_empilhavel, permite_escolha_pontos } = req.body;
+    if (!nome || !nome.trim()) return res.status(400).json({ error: 'Nome é obrigatório.' });
+    if (!Array.isArray(ponto_ids) || ponto_ids.length === 0) return res.status(400).json({ error: 'Selecione pelo menos 1 ponto.' });
+
+    const result = db.prepare(`
+      INSERT INTO pacotes (nome, descricao, desconto_empilhavel, permite_escolha_pontos, criado_por)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(nome.trim(), descricao || null, desconto_empilhavel ? 1 : 0, permite_escolha_pontos === false ? 0 : 1, req.authUser.id);
+
+    const pacoteId = result.lastInsertRowid;
+
+    // Inserir pontos
+    const insertPonto = db.prepare('INSERT INTO pacote_pontos (pacote_id, ponto_id, ordem) VALUES (?, ?, ?)');
+    ponto_ids.forEach((pid, idx) => {
+      insertPonto.run(pacoteId, Number(pid), idx);
+    });
+
+    // Inserir descontos
+    if (Array.isArray(descontos)) {
+      const insertDesc = db.prepare('INSERT INTO pacote_descontos (pacote_id, tipo, min_valor, max_valor, desconto_pct) VALUES (?, ?, ?, ?, ?)');
+      for (const d of descontos) {
+        if (d.tipo && d.min_valor != null && d.desconto_pct != null) {
+          insertDesc.run(pacoteId, d.tipo, Number(d.min_valor), d.max_valor != null ? Number(d.max_valor) : null, Number(d.desconto_pct));
+        }
+      }
+    }
+
+    res.json({ id: pacoteId, message: 'Pacote criado com sucesso.' });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── CRUD: Atualizar pacote ──────────────────────────────────────────────────
+app.put('/api/pacotes/:id', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const pacote = db.prepare('SELECT * FROM pacotes WHERE id = ?').get(id);
+    if (!pacote) return res.status(404).json({ error: 'Pacote não encontrado.' });
+
+    // Vendedor só edita os seus em rascunho
+    if (req.authUser.role === 'vendedor') {
+      if (pacote.criado_por !== req.authUser.id) return res.status(403).json({ error: 'Acesso negado.' });
+      if (pacote.status !== 'rascunho') return res.status(400).json({ error: 'Só é possível editar pacotes em rascunho.' });
+    }
+    // Admin/gerente pode editar em qualquer status (exceto arquivado)
+    if (pacote.status === 'arquivado' && req.authUser.role !== 'admin') {
+      return res.status(400).json({ error: 'Pacote arquivado não pode ser editado.' });
+    }
+
+    const { nome, descricao, ponto_ids, descontos, desconto_empilhavel, permite_escolha_pontos } = req.body;
+
+    db.prepare(`
+      UPDATE pacotes SET nome = ?, descricao = ?, desconto_empilhavel = ?, permite_escolha_pontos = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(nome?.trim() || pacote.nome, descricao ?? pacote.descricao, desconto_empilhavel ? 1 : 0, permite_escolha_pontos === false ? 0 : (pacote.permite_escolha_pontos ?? 1), id);
+
+    // Recriar pontos
+    if (Array.isArray(ponto_ids)) {
+      db.prepare('DELETE FROM pacote_pontos WHERE pacote_id = ?').run(id);
+      const insertPonto = db.prepare('INSERT INTO pacote_pontos (pacote_id, ponto_id, ordem) VALUES (?, ?, ?)');
+      ponto_ids.forEach((pid, idx) => insertPonto.run(id, Number(pid), idx));
+    }
+
+    // Recriar descontos
+    if (Array.isArray(descontos)) {
+      db.prepare('DELETE FROM pacote_descontos WHERE pacote_id = ?').run(id);
+      const insertDesc = db.prepare('INSERT INTO pacote_descontos (pacote_id, tipo, min_valor, max_valor, desconto_pct) VALUES (?, ?, ?, ?, ?)');
+      for (const d of descontos) {
+        if (d.tipo && d.min_valor != null && d.desconto_pct != null) {
+          insertDesc.run(id, d.tipo, Number(d.min_valor), d.max_valor != null ? Number(d.max_valor) : null, Number(d.desconto_pct));
+        }
+      }
+    }
+
+    // Se estava pendente e foi editado, volta pra rascunho
+    if (pacote.status === 'pendente_aprovacao') {
+      db.prepare("UPDATE pacotes SET status = 'rascunho' WHERE id = ?").run(id);
+    }
+
+    res.json(loadPacoteFull(id));
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── CRUD: Deletar pacote ────────────────────────────────────────────────────
+app.delete('/api/pacotes/:id', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const pacote = db.prepare('SELECT * FROM pacotes WHERE id = ?').get(id);
+    if (!pacote) return res.status(404).json({ error: 'Pacote não encontrado.' });
+
+    // Vendedor só deleta os seus em rascunho
+    if (req.authUser.role === 'vendedor') {
+      if (pacote.criado_por !== req.authUser.id || pacote.status !== 'rascunho') {
+        return res.status(403).json({ error: 'Sem permissão.' });
+      }
+    }
+
+    db.prepare('DELETE FROM pacote_pontos WHERE pacote_id = ?').run(id);
+    db.prepare('DELETE FROM pacote_descontos WHERE pacote_id = ?').run(id);
+    db.prepare('DELETE FROM pacote_analytics WHERE compartilhamento_id IN (SELECT id FROM pacote_compartilhamentos WHERE pacote_id = ?)').run(id);
+    db.prepare('DELETE FROM pacote_leads WHERE compartilhamento_id IN (SELECT id FROM pacote_compartilhamentos WHERE pacote_id = ?)').run(id);
+    db.prepare('DELETE FROM pacote_compartilhamentos WHERE pacote_id = ?').run(id);
+    db.prepare('DELETE FROM pacotes WHERE id = ?').run(id);
+
+    res.json({ ok: true });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── Workflow: Submeter para aprovação ────────────────────────────────────────
+app.post('/api/pacotes/:id/submit', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const pacote = db.prepare('SELECT * FROM pacotes WHERE id = ?').get(id);
+    if (!pacote) return res.status(404).json({ error: 'Pacote não encontrado.' });
+    if (pacote.status !== 'rascunho') return res.status(400).json({ error: 'Só rascunhos podem ser submetidos.' });
+    if (req.authUser.role === 'vendedor' && pacote.criado_por !== req.authUser.id) {
+      return res.status(403).json({ error: 'Sem permissão.' });
+    }
+
+    db.prepare("UPDATE pacotes SET status = 'pendente_aprovacao', updated_at = datetime('now') WHERE id = ?").run(id);
+    res.json({ ok: true, status: 'pendente_aprovacao' });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── Workflow: Aprovar pacote ─────────────────────────────────────────────────
+app.post('/api/pacotes/:id/aprovar', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const pacote = db.prepare('SELECT * FROM pacotes WHERE id = ?').get(id);
+    if (!pacote) return res.status(404).json({ error: 'Pacote não encontrado.' });
+    if (pacote.status !== 'pendente_aprovacao' && pacote.status !== 'rascunho') {
+      return res.status(400).json({ error: 'Pacote não está pendente de aprovação.' });
+    }
+
+    db.prepare(`
+      UPDATE pacotes SET status = 'aprovado', aprovado_por = ?, aprovado_em = datetime('now'), motivo_rejeicao = NULL, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(req.authUser.id, id);
+
+    res.json({ ok: true, status: 'aprovado' });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── Workflow: Rejeitar pacote ────────────────────────────────────────────────
+app.post('/api/pacotes/:id/rejeitar', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const motivo = req.body.motivo || '';
+    const pacote = db.prepare('SELECT * FROM pacotes WHERE id = ?').get(id);
+    if (!pacote) return res.status(404).json({ error: 'Pacote não encontrado.' });
+
+    db.prepare(`
+      UPDATE pacotes SET status = 'rascunho', motivo_rejeicao = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(motivo, id);
+
+    res.json({ ok: true, status: 'rascunho' });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── Workflow: Arquivar pacote ────────────────────────────────────────────────
+app.post('/api/pacotes/:id/arquivar', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    db.prepare("UPDATE pacotes SET status = 'arquivado', updated_at = datetime('now') WHERE id = ?").run(id);
+    res.json({ ok: true, status: 'arquivado' });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── Compartilhar: Gera link único por vendedor ──────────────────────────────
+app.post('/api/pacotes/:id/compartilhar', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const pacoteId = Number(req.params.id);
+    const pacote = db.prepare('SELECT * FROM pacotes WHERE id = ?').get(pacoteId);
+    if (!pacote) return res.status(404).json({ error: 'Pacote não encontrado.' });
+    if (pacote.status !== 'aprovado') return res.status(400).json({ error: 'Só pacotes aprovados podem ser compartilhados.' });
+
+    // Verifica se já existe link deste vendedor pra este pacote
+    const existing = db.prepare('SELECT * FROM pacote_compartilhamentos WHERE pacote_id = ? AND vendedor_id = ?')
+      .get(pacoteId, req.authUser.id);
+
+    if (existing) {
+      return res.json({
+        code: existing.code,
+        url: `/pacote/${existing.code}`,
+        views: existing.views,
+        existing: true,
+      });
+    }
+
+    // Gera novo código
+    let code;
+    for (let i = 0; i < 10; i++) {
+      code = generateShortCode(8);
+      const dup = db.prepare('SELECT id FROM pacote_compartilhamentos WHERE code = ?').get(code);
+      if (!dup) break;
+    }
+
+    db.prepare('INSERT INTO pacote_compartilhamentos (pacote_id, vendedor_id, code) VALUES (?, ?, ?)')
+      .run(pacoteId, req.authUser.id, code);
+
+    res.json({
+      code,
+      url: `/pacote/${code}`,
+      views: 0,
+      existing: false,
+    });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── Meus compartilhamentos ──────────────────────────────────────────────────
+app.get('/api/pacotes/meus-compartilhamentos', requireRoles(['admin', 'gerente_comercial', 'diretor', 'vendedor']), (req, res) => {
+  try {
+    const userId = req.authUser.id;
+    const isAdmin = req.authUser.role === 'admin' || req.authUser.role === 'gerente_comercial' || req.authUser.role === 'diretor';
+
+    let sql, params;
+    if (isAdmin) {
+      sql = `SELECT pc.*, p.nome as pacote_nome, p.status as pacote_status, u.username as vendedor_nome,
+                    (SELECT COUNT(*) FROM pacote_leads pl WHERE pl.compartilhamento_id = pc.id) as leads,
+                    (SELECT COUNT(*) FROM pacote_analytics pa WHERE pa.compartilhamento_id = pc.id AND pa.event_type = 'whatsapp_click') as whatsapp_clicks
+             FROM pacote_compartilhamentos pc
+             JOIN pacotes p ON p.id = pc.pacote_id
+             LEFT JOIN admin_users u ON u.id = pc.vendedor_id
+             ORDER BY pc.created_at DESC`;
+      params = [];
+    } else {
+      sql = `SELECT pc.*, p.nome as pacote_nome, p.status as pacote_status,
+                    (SELECT COUNT(*) FROM pacote_leads pl WHERE pl.compartilhamento_id = pc.id) as leads,
+                    (SELECT COUNT(*) FROM pacote_analytics pa WHERE pa.compartilhamento_id = pc.id AND pa.event_type = 'whatsapp_click') as whatsapp_clicks
+             FROM pacote_compartilhamentos pc
+             JOIN pacotes p ON p.id = pc.pacote_id
+             WHERE pc.vendedor_id = ?
+             ORDER BY pc.created_at DESC`;
+      params = [userId];
+    }
+
+    res.json(db.prepare(sql).all(...params));
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── PÚBLICO: Ver pacote por código ──────────────────────────────────────────
+app.get('/api/pacote/:code', (req, res) => {
+  try {
+    const code = String(req.params.code).trim();
+    const comp = db.prepare('SELECT * FROM pacote_compartilhamentos WHERE code = ?').get(code);
+    if (!comp) return res.status(404).json({ error: 'Link não encontrado.' });
+
+    const pacote = loadPacoteFull(comp.pacote_id);
+    if (!pacote || pacote.status !== 'aprovado') return res.status(404).json({ error: 'Pacote não disponível.' });
+
+    // Incrementa views
+    db.prepare("UPDATE pacote_compartilhamentos SET views = views + 1, last_viewed_at = datetime('now') WHERE id = ?").run(comp.id);
+
+    // Info do vendedor (inclui whatsapp e first_name para CTA e notificações)
+    const vendedor = db.prepare('SELECT id, username, first_name, photo_url, whatsapp FROM admin_users WHERE id = ?').get(comp.vendedor_id);
+
+    // Filtra pontos inativos
+    pacote.pontos = pacote.pontos.filter(p => p.ativo !== 0);
+
+    res.json({
+      pacote: {
+        id: pacote.id,
+        nome: pacote.nome,
+        descricao: pacote.descricao,
+        desconto_empilhavel: !!pacote.desconto_empilhavel,
+        permite_escolha_pontos: pacote.permite_escolha_pontos !== 0,
+        descontos: pacote.descontos,
+        pontos: pacote.pontos,
+      },
+      vendedor: {
+        nome: vendedor?.username || 'Consultor',
+        first_name: vendedor?.first_name || vendedor?.username || 'Consultor',
+        photo_url: vendedor?.photo_url || null,
+        whatsapp: vendedor?.whatsapp || null,
+      },
+      compartilhamento_id: comp.id,
+    });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── PÚBLICO: Calcular preço dinâmico ────────────────────────────────────────
+app.get('/api/pacote/:code/preco', (req, res) => {
+  try {
+    const code = String(req.params.code).trim();
+    const comp = db.prepare('SELECT * FROM pacote_compartilhamentos WHERE code = ?').get(code);
+    if (!comp) return res.status(404).json({ error: 'Link não encontrado.' });
+
+    const pacote = loadPacoteFull(comp.pacote_id);
+    if (!pacote) return res.status(404).json({ error: 'Pacote não encontrado.' });
+
+    const pontoIdsParam = String(req.query.ponto_ids || '');
+    const duracao = Math.max(1, Math.min(60, Number(req.query.duracao) || 12));
+
+    let pontosSelecionados;
+    if (pontoIdsParam) {
+      const idSet = new Set(pontoIdsParam.split(',').map(Number).filter(n => n > 0));
+      pontosSelecionados = pacote.pontos.filter(p => idSet.has(p.ponto_id) && p.ativo !== 0);
+    } else {
+      pontosSelecionados = pacote.pontos.filter(p => p.ativo !== 0);
+    }
+
+    const resultado = calcularPrecoPacote(pontosSelecionados, duracao, pacote.descontos, pacote.desconto_empilhavel);
+    res.json(resultado);
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── PÚBLICO: Tracking de eventos ────────────────────────────────────────────
+app.post('/api/pacote/:code/track', express.json({ limit: '4kb' }), (req, res) => {
+  try {
+    const code = String(req.params.code).trim();
+    const comp = db.prepare('SELECT id FROM pacote_compartilhamentos WHERE code = ?').get(code);
+    if (!comp) return res.status(404).end();
+
+    const { session_id, event_type, event_data } = req.body;
+    const allowedTypes = ['page_view', 'point_click', 'point_expand', 'whatsapp_click', 'interesse_submit', 'duration_change', 'selection_change', 'scroll_depth'];
+    if (!allowedTypes.includes(event_type)) return res.status(400).end();
+
+    const crypto = require('crypto');
+    const ipRaw = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '';
+    const ipHash = crypto.createHash('sha256').update(ipRaw + 'pacote-salt').digest('hex').slice(0, 16);
+
+    db.prepare('INSERT INTO pacote_analytics (compartilhamento_id, session_id, event_type, event_data, ip_hash) VALUES (?, ?, ?, ?, ?)')
+      .run(comp.id, session_id || null, event_type, typeof event_data === 'object' ? JSON.stringify(event_data) : (event_data || null), ipHash);
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).end();
+  }
+});
+
+// ─── PÚBLICO: Captura de lead ("Tenho interesse") ────────────────────────────
+app.post('/api/pacote/:code/interesse', express.json({ limit: '8kb' }), (req, res) => {
+  try {
+    const code = String(req.params.code).trim();
+    const comp = db.prepare('SELECT * FROM pacote_compartilhamentos WHERE code = ?').get(code);
+    if (!comp) return res.status(404).json({ error: 'Link não encontrado.' });
+
+    const { nome, empresa, telefone, email, pontos_selecionados, duracao_meses, valor_estimado } = req.body;
+    if (!nome || !nome.trim()) return res.status(400).json({ error: 'Nome é obrigatório.' });
+
+    const result = db.prepare(`
+      INSERT INTO pacote_leads (compartilhamento_id, nome, empresa, telefone, email, pontos_selecionados, duracao_meses, valor_estimado)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      comp.id,
+      nome.trim(),
+      empresa || null,
+      telefone || null,
+      email || null,
+      Array.isArray(pontos_selecionados) ? JSON.stringify(pontos_selecionados) : (pontos_selecionados || null),
+      duracao_meses ? Number(duracao_meses) : null,
+      valor_estimado ? Number(valor_estimado) : null
+    );
+
+    // ── Send single unified WhatsApp notification to vendedor ──
+    if (comp.vendedor_id) {
+      setImmediate(async () => {
+        try {
+          const vendedorRow = db.prepare('SELECT first_name, whatsapp FROM admin_users WHERE id = ?').get(comp.vendedor_id);
+          const vendedorPhone = sanitizePhoneForWhatsApp(vendedorRow?.whatsapp);
+          if (!vendedorPhone) return;
+
+          const evo = getEvolutionSettings();
+          if (!evo.evolution_api_url || !evo.evolution_api_key) return;
+
+          const pacoteData = db.prepare('SELECT nome FROM pacotes WHERE id = ?').get(comp.pacote_id);
+          const clientPhone = telefone ? formatPhoneForMessage(telefone) : '';
+          const phoneDisplay = clientPhone ? `\n📱 WhatsApp: ${clientPhone}` : '';
+          const empresaDisplay = empresa ? `\n🏢 Empresa: ${empresa}` : '';
+
+          // Build favorites list from pontos_selecionados IDs
+          const selectedArr = Array.isArray(pontos_selecionados) ? pontos_selecionados : [];
+          let pointsList = '';
+          let moreText = '';
+          let propostaUrl = '';
+          if (selectedArr.length > 0) {
+            // Resolve point names from DB
+            const pontoRows = selectedArr.slice(0, 200).map(id => {
+              const row = db.prepare('SELECT id, nome FROM pontos WHERE id = ?').get(Number(id));
+              return row ? { point_id: row.id, point_name: row.nome } : { point_id: Number(id), point_name: `Ponto ${id}` };
+            }).filter(p => p.point_id > 0);
+            pointsList = pontoRows.slice(0, 10).map((p, i) => `  ${i + 1}. ${p.point_name}`).join('\n');
+            moreText = pontoRows.length > 10 ? `\n  ... e mais ${pontoRows.length - 10} ponto(s)` : '';
+            const pontosIds = selectedArr.join(',');
+            propostaUrl = `https://midiakit.redeintermidia.com/comercial/explorar?pontos=${pontosIds}&proposta=1`;
+          }
+
+          const message = [
+            `❤️ *Novo interesse no pacote!*`,
+            ``,
+            `O cliente *${nome.trim()}* demonstrou interesse no pacote *"${pacoteData?.nome || 'N/I'}"*.${empresaDisplay}${phoneDisplay}`,
+            duracao_meses ? `📅 Duração: ${duracao_meses} meses` : '',
+            valor_estimado ? `💰 Valor estimado: R$ ${Number(valor_estimado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '',
+            selectedArr.length > 0 ? `\n📍 *Pontos favoritos (${selectedArr.length}):*` : '',
+            pointsList ? pointsList + moreText : '',
+            ``,
+            `📎 Link do pacote: https://midiakit.redeintermidia.com/pacote/${code}`,
+            propostaUrl ? `\n📝 *Gerar proposta com esses pontos:*\n${propostaUrl}` : '',
+            propostaUrl ? `\nClique no link acima para abrir o gerador de propostas com os pontos do cliente já carregados.` : '',
+          ].filter(Boolean).join('\n');
+
+          const evoInstance = String(evo.evolution_pdf_instance || evo.evolution_instance || 'aux adm').trim();
+          console.log(`[pacote/interesse] Enviando WhatsApp via "${evoInstance}" para ${vendedorPhone} (${vendedorRow.first_name})`);
+          await sendEvolutionText({
+            apiUrl: evo.evolution_api_url,
+            instance: evoInstance,
+            apiKey: evo.evolution_api_key,
+            number: vendedorPhone,
+            text: message,
+          });
+          console.log(`[pacote/interesse] WhatsApp enviado com sucesso via "${evoInstance}" para ${vendedorRow.first_name} (${vendedorPhone})`);
+        } catch (err) {
+          console.error(`[pacote/interesse] Erro WhatsApp:`, err.message);
+        }
+      });
+    }
+
+    res.json({ ok: true, lead_id: result.lastInsertRowid });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
+// ─── PÚBLICO: Cliente envia favoritos (coração) ─────────────────────────────
+app.post('/api/pacote/:code/favoritos', express.json({ limit: '16kb' }), (req, res) => {
+  try {
+    const code = String(req.params.code).trim();
+    const comp = db.prepare('SELECT * FROM pacote_compartilhamentos WHERE code = ?').get(code);
+    if (!comp) return res.status(404).json({ error: 'Link não encontrado.' });
+
+    const pacote = db.prepare('SELECT id, nome, permite_escolha_pontos FROM pacotes WHERE id = ? AND status = ?').get(comp.pacote_id, 'aprovado');
+    if (!pacote) return res.status(404).json({ error: 'Pacote não disponível.' });
+    if (pacote.permite_escolha_pontos === 0) return res.status(403).json({ error: 'Seleção de pontos não habilitada.' });
+
+    const { client_name, client_phone, client_empresa, favorites } = req.body;
+    if (!client_name?.trim()) return res.status(400).json({ error: 'Nome é obrigatório.' });
+    if (!Array.isArray(favorites) || favorites.length === 0) return res.status(400).json({ error: 'Selecione ao menos um ponto.' });
+
+    const items = favorites.slice(0, 200).map(f => ({
+      point_id: Number(f.point_id) || 0,
+      point_name: typeof f.point_name === 'string' ? f.point_name.trim().slice(0, 200) : '',
+    })).filter(f => f.point_id > 0);
+
+    if (!items.length) return res.status(400).json({ error: 'Favoritos inválidos.' });
+
+    // Clear previous submissions for this share link + insert new
+    db.prepare('DELETE FROM pacote_favoritos WHERE compartilhamento_id = ?').run(comp.id);
+
+    const now = new Date().toISOString();
+    const insertStmt = db.prepare('INSERT INTO pacote_favoritos (compartilhamento_id, client_name, client_phone, client_empresa, point_id, point_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const safeName = (client_name || '').trim().slice(0, 200);
+    const safePhone = (client_phone || '').replace(/\D/g, '').slice(0, 15);
+    const safeEmpresa = (client_empresa || '').trim().slice(0, 200);
+    for (const item of items) {
+      insertStmt.run(comp.id, safeName, safePhone, safeEmpresa, item.point_id, item.point_name, now);
+    }
+
+    console.log(`[pacote/favoritos] Cliente "${safeName}" enviou ${items.length} favoritos para pacote "${pacote.nome}" (code=${code})`);
+    // WhatsApp notification is sent by /interesse endpoint (unified message with favorites included)
+
+    res.json({ ok: true, count: items.length });
+  } catch (err) {
+    console.error('[pacote/favoritos]', err.message);
+    res.status(500).json({ error: 'Erro ao salvar favoritos.' });
+  }
+});
+
+// ─── Analytics: Dashboard de pacotes ─────────────────────────────────────────
+app.get('/api/pacotes/analytics', requireRoles(['admin', 'gerente_comercial', 'diretor']), (req, res) => {
+  try {
+    const pacotes = db.prepare(`
+      SELECT p.id, p.nome, p.status,
+        COALESCE(SUM(pc.views), 0) as total_views,
+        COUNT(DISTINCT pc.id) as total_compartilhamentos,
+        COUNT(DISTINCT pc.vendedor_id) as vendedores_ativos
+      FROM pacotes p
+      LEFT JOIN pacote_compartilhamentos pc ON pc.pacote_id = p.id
+      WHERE p.status IN ('aprovado', 'arquivado')
+      GROUP BY p.id
+      ORDER BY total_views DESC
+    `).all();
+
+    for (const pac of pacotes) {
+      pac.total_leads = db.prepare(`
+        SELECT COUNT(*) as c FROM pacote_leads pl
+        JOIN pacote_compartilhamentos pc ON pl.compartilhamento_id = pc.id
+        WHERE pc.pacote_id = ?
+      `).get(pac.id).c;
+
+      pac.whatsapp_clicks = db.prepare(`
+        SELECT COUNT(*) as c FROM pacote_analytics pa
+        JOIN pacote_compartilhamentos pc ON pa.compartilhamento_id = pc.id
+        WHERE pc.pacote_id = ? AND pa.event_type = 'whatsapp_click'
+      `).get(pac.id).c;
+    }
+
+    // Top vendedores
+    const topVendedores = db.prepare(`
+      SELECT u.username as vendedor, COUNT(DISTINCT pc.id) as compartilhamentos,
+             COALESCE(SUM(pc.views), 0) as views,
+             (SELECT COUNT(*) FROM pacote_leads pl2 WHERE pl2.compartilhamento_id IN
+               (SELECT id FROM pacote_compartilhamentos WHERE vendedor_id = pc.vendedor_id)
+             ) as leads
+      FROM pacote_compartilhamentos pc
+      JOIN admin_users u ON u.id = pc.vendedor_id
+      GROUP BY pc.vendedor_id
+      ORDER BY views DESC
+      LIMIT 20
+    `).all();
+
+    res.json({ pacotes, topVendedores });
   } catch (err) {
     internalError(res, err);
   }
@@ -5966,6 +6908,69 @@ try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN vendedor_id INTEGER").
 try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN permuta_valor_servico REAL DEFAULT 0").run(); } catch {}
 try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN permuta_valor_receber REAL DEFAULT 0").run(); } catch {}
 try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN permuta_total_receber REAL DEFAULT 0").run(); } catch {}
+// Renovação status on vendas_comercial (unifies renovacoes pipeline into vendas)
+try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN renovacao_status TEXT").run(); } catch {}
+try { db.prepare("ALTER TABLE vendas_comercial ADD COLUMN venda_escritorio INTEGER DEFAULT 0").run(); } catch {}
+try { db.prepare("ALTER TABLE vendas ADD COLUMN venda_escritorio INTEGER DEFAULT 0").run(); } catch {}
+
+// ── One-time migration: copy old renovacoes into vendas_comercial + vendas ──
+try {
+  const oldRens = db.prepare(`SELECT * FROM renovacoes`).all();
+  if (oldRens.length > 0) {
+    const alreadyMigrated = db.prepare(`SELECT COUNT(*) AS cnt FROM vendas_comercial WHERE tipo = 'Renovação' AND obs LIKE '%[migrado-renovacoes]%'`).get();
+    if (!alreadyMigrated || alreadyMigrated.cnt === 0) {
+      console.log(`[migration] Migrating ${oldRens.length} renovacoes → vendas_comercial + vendas...`);
+      const insertVC = db.prepare(`
+        INSERT INTO vendas_comercial (vendedor_nome, ano, mes, cliente, cnpj, pontos_contratados,
+          valor_mensal, total_contrato, tipo, renovacao_status, obs, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Renovação', ?, ?, COALESCE(?, datetime('now')))
+      `);
+      const insertV = db.prepare(`
+        INSERT INTO vendas (tipo, razao_social, cnpj, pontos_nomes, valor_mensal,
+          vendedor_nome, whatsapp_status, status, obs, created_at)
+        VALUES ('Renovação', ?, ?, ?, ?, ?, 'nao_configurado', ?, ?, COALESCE(?, datetime('now')))
+      `);
+      const linkVC = db.prepare(`UPDATE vendas_comercial SET venda_id = ? WHERE id = ?`);
+      for (const r of oldRens) {
+        const pontosJson = r.pontos ? JSON.stringify(r.pontos.split(',').map(s => s.trim()).filter(Boolean)) : '[]';
+        const obsTag = (r.obs || '') + ' [migrado-renovacoes]';
+        const vendaStatus = r.status === 'concluida' ? 'ativa' : r.status === 'perdida' ? 'cancelada' : 'pendente';
+        const vcResult = insertVC.run(
+          r.vendedor_nome || '', Number(r.ano), Number(r.mes), r.cliente || '', r.cnpj || null,
+          r.pontos || null, Number(r.valor_mensal || 0), Number(r.valor_mensal || 0),
+          r.status || 'pendente', obsTag, r.created_at || null
+        );
+        const vResult = insertV.run(
+          r.cliente || '', r.cnpj || null, pontosJson, Number(r.valor_mensal || 0),
+          r.vendedor_nome || '', vendaStatus, obsTag, r.created_at || null
+        );
+        linkVC.run(vResult.lastInsertRowid, vcResult.lastInsertRowid);
+      }
+      console.log(`[migration] Done — ${oldRens.length} renovacoes migrated.`);
+    }
+  }
+} catch (migErr) { console.warn('[migration] renovacoes→vendas_comercial failed:', migErr.message); }
+
+// ── Cleanup: remove false vendas records created by renovação tracking entries ──
+// Renovações são rastreamento de contratos a vencer, NÃO vendas reais.
+// A migração anterior criou registros em `vendas` incorretamente.
+try {
+  const falseVendaIds = db.prepare(`
+    SELECT venda_id FROM vendas_comercial
+    WHERE renovacao_status IS NOT NULL AND venda_id IS NOT NULL
+  `).all().map(r => r.venda_id).filter(Boolean);
+  if (falseVendaIds.length > 0) {
+    console.log(`[cleanup] Removing ${falseVendaIds.length} false vendas records from renovacao tracking...`);
+    // Bulk cascade delete: todas as dependências primeiro, depois as vendas, depois limpa links
+    const subquery = `(SELECT venda_id FROM vendas_comercial WHERE renovacao_status IS NOT NULL AND venda_id IS NOT NULL)`;
+    db.prepare(`DELETE FROM venda_etapas WHERE venda_id IN ${subquery}`).run();
+    db.prepare(`DELETE FROM whatsapp_send_log WHERE venda_id IN ${subquery}`).run();
+    db.prepare(`DELETE FROM tv_sale_replays WHERE venda_id IN ${subquery}`).run();
+    db.prepare(`DELETE FROM vendas WHERE id IN ${subquery}`).run();
+    db.prepare(`UPDATE vendas_comercial SET venda_id = NULL WHERE renovacao_status IS NOT NULL AND venda_id IS NOT NULL`).run();
+    console.log(`[cleanup] Done — ${falseVendaIds.length} false vendas removed, venda_id links cleared.`);
+  }
+} catch (cleanErr) { console.warn('[cleanup] renovacao vendas cleanup failed:', cleanErr.message); }
 
 // Repair seller linkage in vendas_comercial to use seller user (vendedor_id/username)
 try {
@@ -6258,6 +7263,20 @@ try {
     )
   `).run();
 } catch (e) { console.error('[renovacoes] init:', e.message); }
+
+// Tabela de acompanhamento de renovações (status/obs por venda que vence)
+try {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS renovacao_tracking (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      venda_comercial_id INTEGER NOT NULL UNIQUE,
+      status TEXT DEFAULT 'pendente',
+      obs TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT
+    )
+  `).run();
+} catch (e) { console.error('[renovacao_tracking] init:', e.message); }
 
 function getEvolutionSettings() {
   const keys = [
@@ -6978,7 +7997,8 @@ app.post(
         pontos_precos,
         permuta_valor_servico,
         permuta_valor_receber,
-        vendedor_nome
+        vendedor_nome,
+        venda_escritorio
       } = req.body;
 
       if (!razao_social || !String(razao_social).trim()) {
@@ -7051,8 +8071,9 @@ app.post(
           responsavel_nome, responsavel_whatsapp, responsavel_fixo, email, criativo_nome, criativo_whatsapp, criativo_email,
           obs, pi_path, vendedor_id, vendedor_nome,
           tipo_documento, pi_numero, endereco_cep,
+          venda_escritorio,
           whatsapp_status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', datetime('now'))
       `);
 
       const dbResult = stmt.run(
@@ -7089,7 +8110,8 @@ app.post(
         vendedorNomeCanonical,
         tipo_documento ? String(tipo_documento).trim() : null,
         pi_numero ? String(pi_numero).trim() : null,
-        endereco_cep ? String(endereco_cep).trim() : null
+        endereco_cep ? String(endereco_cep).trim() : null,
+        (venda_escritorio === 'true' || venda_escritorio === true) ? 1 : 0
       );
 
       const vendaId = dbResult.lastInsertRowid;
@@ -7247,8 +8269,8 @@ app.post(
           INSERT INTO vendas_comercial
             (vendedor_nome, vendedor_id, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
              valor_mensal, total_contrato, permuta_valor_servico, permuta_valor_receber, permuta_total_receber,
-             qtde_parcelas, contato, email, obs, venda_id, tipo)
-          VALUES (?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             qtde_parcelas, contato, email, obs, venda_id, tipo, venda_escritorio)
+          VALUES (?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           vNome,
           vId,
@@ -7267,7 +8289,8 @@ app.post(
           email || null,
           obs || null,
           vendaId,
-          tipo || 'Nova Venda'
+          tipo || 'Nova Venda',
+          (venda_escritorio === 'true' || venda_escritorio === true) ? 1 : 0
         );
       } catch (syncErr) {
         console.warn('[vendas] auto-sync vendas_comercial falhou:', syncErr.message);
@@ -7618,7 +8641,7 @@ app.post('/api/vendas/test-pdf', requireRoles(['admin', 'gerente_comercial']), a
 // ─── Listagem de vendas ───────────────────────────────────────────────────────
 app.get('/api/vendas', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
-    const { status, q } = req.query;
+    const { status, q, native_only } = req.query;
     const { role, id: userId } = req.authUser;
     let sql = `SELECT * FROM vendas`;
     const conditions = [];
@@ -7635,6 +8658,13 @@ app.get('/api/vendas', requireRoles(['admin', 'gerente_comercial', 'vendedor']),
     if (q) {
       conditions.push(`(razao_social ILIKE ? OR cnpj ILIKE ? OR vendedor_nome ILIKE ?)`);
       params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    }
+    // Por padrão retorna APENAS vendas nativas (criadas pelo formulário Nova Venda).
+    // Vendas backfilled da planilha (sem responsavel_nome) são excluídas.
+    // Passe include_all=1 para incluir tudo (uso interno apenas).
+    const includeAll = req.query.include_all === 'true' || req.query.include_all === '1';
+    if (!includeAll) {
+      conditions.push(`TRIM(COALESCE(responsavel_nome, '')) != ''`);
     }
     if (conditions.length) sql += ` WHERE ${conditions.join(' AND ')}`;
     sql += ` ORDER BY created_at DESC`;
@@ -8206,11 +9236,15 @@ app.get('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vendedo
       LEFT JOIN admin_users u_v ON u_v.id = v.vendedor_id
       LEFT JOIN admin_users u_name ON lower(u_name.username) = lower(vc.vendedor_nome)
       WHERE vc.ano = ?
+        AND vc.renovacao_status IS NULL
+        AND vc.venda_id IS NOT NULL
         AND UPPER(COALESCE(vc.cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
     `;
     const params = [ano];
     if (mes) { sql += ' AND vc.mes = ?'; params.push(mes); }
-    if (vendedor) {
+    if (vendedor === '__ESCRITORIO__') {
+      sql += ' AND COALESCE(vc.venda_escritorio, 0) = 1';
+    } else if (vendedor) {
       sql += ' AND (lower(COALESCE(u_vc.username, u_v.username, u_name.username, vc.vendedor_nome)) = lower(?) OR lower(vc.vendedor_nome) = lower(?))';
       params.push(vendedor, vendedor);
     }
@@ -8257,15 +9291,16 @@ app.post('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vended
       INSERT INTO vendas_comercial
         (vendedor_nome, vendedor_id, ano, mes, data_venda, cliente, cnpj, pontos_contratados,
          valor_mensal, total_contrato, qtde_parcelas, previsao_veiculacao,
-         data_emissao_nf, vencimento_boletos, contato, email, obs, tipo)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         data_emissao_nf, vencimento_boletos, contato, email, obs, tipo, venda_escritorio)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       vendedorNomeCanonical, vendedorIdCanonical, Number(b.ano), Number(b.mes),
       b.data_venda || null, b.cliente, b.cnpj || null, b.pontos_contratados || null,
       parseBRLCurrency(b.valor_mensal), parseBRLCurrency(b.total_contrato), Number(b.qtde_parcelas || 1),
       b.previsao_veiculacao || null, b.data_emissao_nf || null, b.vencimento_boletos || null,
       b.contato || null, b.email || null, b.obs || null,
-      b.tipo || 'Nova Venda'
+      b.tipo || 'Nova Venda',
+      b.venda_escritorio ? 1 : 0
     );
     const vcId = result.lastInsertRowid;
 
@@ -8326,7 +9361,7 @@ app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','ven
         status_contrato = ?, status_contrato_assinado = ?,
         status_conteudo = ?, status_checkin = ?,
         status_faturado = ?, status_excel_pastas = ?,
-        obs = ?, tipo = ?, updated_at = datetime('now')
+        obs = ?, tipo = ?, venda_escritorio = ?, updated_at = datetime('now')
       WHERE id = ?
     `).run(
       vendedorNomeCanonical,
@@ -8339,7 +9374,7 @@ app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','ven
       b.status_contrato ? 1 : 0, b.status_contrato_assinado ? 1 : 0,
       b.status_conteudo ? 1 : 0, b.status_checkin ? 1 : 0,
       b.status_faturado ? 1 : 0, b.status_excel_pastas ? 1 : 0,
-      b.obs || null, b.tipo || 'Nova Venda', id
+      b.obs || null, b.tipo || 'Nova Venda', b.venda_escritorio ? 1 : 0, id
     );
 
     // Reverse-sync: update linked vendas record if exists
@@ -8525,65 +9560,85 @@ app.delete('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial'])
   }
 });
 
-// ─── RENOVAÇÕES ──────────────────────────────────────────────────────────
+// ─── RENOVAÇÕES (auto-calculadas: vendas cujo contrato vence no mês-alvo) ──────────
+// Lógica: venda no mês M com qtde_parcelas P → contrato vence no mês M+P → aparece em renovações.
+// Ex: venda maio/2026, 6 meses → aparece em novembro/2026.
 app.get('/api/gestao/renovacoes', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
   try {
-    const ano = Number(req.query.ano) || new Date().getFullYear();
-    const mes = req.query.mes ? Number(req.query.mes) : null;
-    let sql = 'SELECT * FROM renovacoes WHERE ano = ?';
-    const params = [ano];
-    if (mes) { sql += ' AND mes = ?'; params.push(mes); }
-    sql += ' ORDER BY mes, cliente';
+    const targetAno = Number(req.query.ano) || new Date().getFullYear();
+    const targetMes = req.query.mes ? Number(req.query.mes) : null;
+
+    // Busca vendas reais (não tracking) cujo contrato vence no período-alvo
+    // Fórmula: (ano_venda * 12 + mes_venda + qtde_parcelas) = (ano_alvo * 12 + mes_alvo)
+    let sql = `
+      SELECT vc.id, vc.vendedor_nome, vc.ano, vc.mes, vc.cliente, vc.cnpj,
+             vc.pontos_contratados, vc.valor_mensal, vc.total_contrato,
+             vc.qtde_parcelas, vc.venda_id, vc.tipo, vc.data_venda, vc.created_at,
+             rt.status AS ren_status, rt.obs AS ren_obs, rt.updated_at AS ren_updated_at
+      FROM vendas_comercial vc
+      LEFT JOIN renovacao_tracking rt ON rt.venda_comercial_id = vc.id
+      WHERE vc.renovacao_status IS NULL
+        AND vc.venda_id IS NOT NULL
+        AND COALESCE(vc.qtde_parcelas, 0) > 0
+        AND UPPER(COALESCE(vc.cliente,'')) NOT IN ('META BASE','HIPER META','META MÊS','META MES')
+    `;
+    const params = [];
+    if (targetMes) {
+      // Mês específico
+      sql += ` AND (vc.ano * 12 + vc.mes + COALESCE(vc.qtde_parcelas, 1)) = ?`;
+      params.push(targetAno * 12 + targetMes);
+    } else {
+      // Ano inteiro: vence entre jan e dez do ano-alvo
+      sql += ` AND (vc.ano * 12 + vc.mes + COALESCE(vc.qtde_parcelas, 1)) BETWEEN ? AND ?`;
+      params.push(targetAno * 12 + 1, targetAno * 12 + 12);
+    }
+    sql += ' ORDER BY (vc.ano * 12 + vc.mes + COALESCE(vc.qtde_parcelas, 1)), vc.cliente';
+
     const rows = db.prepare(sql).all(...params);
-    res.json(rows);
+
+    // Mapeia para o shape que o frontend Renovacoes.jsx espera
+    res.json(rows.map(r => {
+      const expiryTotalMonth = r.ano * 12 + r.mes + (r.qtde_parcelas || 1);
+      const expiryMes = ((expiryTotalMonth - 1) % 12) + 1;
+      const expiryAno = Math.floor((expiryTotalMonth - 1) / 12);
+      return {
+        id: r.id,
+        ano: expiryAno,
+        mes: expiryMes,
+        cliente: r.cliente,
+        cnpj: r.cnpj,
+        pontos: r.pontos_contratados,
+        valor_mensal: r.valor_mensal,
+        status: r.ren_status || 'pendente',
+        vendedor_nome: r.vendedor_nome,
+        obs: r.ren_obs || '',
+        venda_id: r.venda_id,
+        qtde_parcelas: r.qtde_parcelas,
+        tipo_venda: r.tipo,
+        venda_ano: r.ano,
+        venda_mes: r.mes,
+        created_at: r.created_at,
+        updated_at: r.ren_updated_at,
+      };
+    }));
   } catch (err) {
     internalError(res, err);
   }
 });
 
-app.post('/api/gestao/renovacoes', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
-  try {
-    const b = req.body;
-    if (!b.cliente || !b.ano || !b.mes) return res.status(400).json({ error: 'Campos obrigatórios: cliente, ano, mes' });
-    const result = db.prepare(`
-      INSERT INTO renovacoes (ano, mes, cliente, cnpj, pontos, valor_mensal, status, vendedor_nome, obs)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      Number(b.ano), Number(b.mes), b.cliente, b.cnpj || null,
-      b.pontos || null, Number(b.valor_mensal || 0),
-      b.status || 'pendente', b.vendedor_nome ? String(b.vendedor_nome) : null,
-      b.obs || null
-    );
-    res.json({ ok: true, id: result.lastInsertRowid });
-  } catch (err) {
-    internalError(res, err);
-  }
-});
-
+// Atualizar status/obs de acompanhamento de renovação (cria ou atualiza em renovacao_tracking)
 app.put('/api/gestao/renovacoes/:id', requireRoles(['admin','gerente_comercial','vendedor']), (req, res) => {
   try {
-    const b = req.body;
-    const id = Number(req.params.id);
+    const vcId = Number(req.params.id);
+    const { status, obs } = req.body;
     db.prepare(`
-      UPDATE renovacoes SET
-        cliente = ?, cnpj = ?, pontos = ?, valor_mensal = ?,
-        status = ?, vendedor_nome = ?, obs = ?, updated_at = datetime('now')
-      WHERE id = ?
-    `).run(
-      b.cliente || '', b.cnpj || null, b.pontos || null,
-      Number(b.valor_mensal || 0), b.status || 'pendente',
-      b.vendedor_nome ? String(b.vendedor_nome).toUpperCase() : null,
-      b.obs || null, id
-    );
-    res.json({ ok: true });
-  } catch (err) {
-    internalError(res, err);
-  }
-});
-
-app.delete('/api/gestao/renovacoes/:id', requireRoles(['admin','gerente_comercial']), (req, res) => {
-  try {
-    db.prepare('DELETE FROM renovacoes WHERE id = ?').run(Number(req.params.id));
+      INSERT INTO renovacao_tracking (venda_comercial_id, status, obs, updated_at)
+      VALUES (?, ?, ?, datetime('now'))
+      ON CONFLICT(venda_comercial_id) DO UPDATE SET
+        status = excluded.status,
+        obs = excluded.obs,
+        updated_at = excluded.updated_at
+    `).run(vcId, status || 'pendente', obs || null);
     res.json({ ok: true });
   } catch (err) {
     internalError(res, err);
@@ -8598,9 +9653,10 @@ app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vend
     // Metas por vendedor/mês
     const metas = db.prepare('SELECT * FROM metas_vendedor WHERE ano = ? ORDER BY vendedor_nome, mes').all(ano);
 
-    // Vendas realizadas agregadas por vendedor/mês (permuta conta pela parte "a receber")
+    // Vendas realizadas agregadas por vendedor/mês (exclui renovações tracking; permuta conta pela parte "a receber")
     const vendas = db.prepare(`
-      SELECT vendedor_nome, mes,
+      SELECT CASE WHEN COALESCE(venda_escritorio, 0) = 1 THEN '__ESCRITORIO__' ELSE vendedor_nome END as vendedor_nome,
+             mes,
              COUNT(*) as qtde_vendas,
              COALESCE(SUM(CASE
                WHEN TRIM(LOWER(COALESCE(tipo, 'nova venda'))) LIKE '%permuta%' THEN COALESCE(permuta_valor_receber, 0)
@@ -8612,7 +9668,9 @@ app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vend
              END), 0) as total_contrato
       FROM vendas_comercial
       WHERE ano = ?
-      GROUP BY vendedor_nome, mes
+        AND renovacao_status IS NULL
+        AND venda_id IS NOT NULL
+      GROUP BY CASE WHEN COALESCE(venda_escritorio, 0) = 1 THEN '__ESCRITORIO__' ELSE vendedor_nome END, mes
       ORDER BY vendedor_nome, mes
     `).all(ano);
 
@@ -8627,19 +9685,20 @@ app.get('/api/gestao/acumulado', requireRoles(['admin','gerente_comercial','vend
       FROM vendas_comercial
       WHERE ano = ?
         AND TRIM(LOWER(COALESCE(tipo, 'nova venda'))) LIKE '%permuta%'
+        AND venda_id IS NOT NULL
       GROUP BY mes
       ORDER BY mes
     `).all(ano);
 
-    // Renovações agregadas por mês
+    // Renovações agregadas por mês (rastreamento de contratos a vencer, não são vendas)
     const renovacoes = db.prepare(`
       SELECT mes,
              COUNT(*) as total,
-             SUM(CASE WHEN status = 'concluida' THEN 1 ELSE 0 END) as concluidas,
-             SUM(CASE WHEN status != 'concluida' THEN 1 ELSE 0 END) as pendentes,
+             SUM(CASE WHEN renovacao_status = 'concluida' THEN 1 ELSE 0 END) as concluidas,
+             SUM(CASE WHEN renovacao_status != 'concluida' THEN 1 ELSE 0 END) as pendentes,
              COALESCE(SUM(valor_mensal), 0) as valor_total
-      FROM renovacoes
-      WHERE ano = ?
+      FROM vendas_comercial
+      WHERE tipo = 'Renovação' AND renovacao_status IS NOT NULL AND ano = ?
       GROUP BY mes
       ORDER BY mes
     `).all(ano);
@@ -8742,16 +9801,26 @@ app.post('/api/proposta-publica/upload-image', resolveAuthenticatedUser, upload.
   }
 });
 
-// GET /api/admin/propostas — listar todas as propostas públicas (admin/gerente)
-app.get('/api/admin/propostas', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+// GET /api/admin/propostas — listar propostas públicas (admin/gerente veem todas, vendedor/diretor veem as próprias)
+app.get('/api/admin/propostas', requireRoles(['admin', 'gerente_comercial', 'diretor', 'vendedor']), (req, res) => {
   try {
-    const rows = db.prepare(`
-      SELECT pt.*, au.first_name, au.last_name, au.username AS creator_username
-      FROM proposta_tokens pt
-      LEFT JOIN admin_users au ON au.id = pt.created_by
-      ORDER BY pt.created_at DESC
-      LIMIT 500
-    `).all();
+    const isFullAccess = ['admin', 'gerente_comercial'].includes(req.authUser.role);
+    const rows = isFullAccess
+      ? db.prepare(`
+          SELECT pt.*, au.first_name, au.last_name, au.username AS creator_username
+          FROM proposta_tokens pt
+          LEFT JOIN admin_users au ON au.id = pt.created_by
+          ORDER BY pt.created_at DESC
+          LIMIT 500
+        `).all()
+      : db.prepare(`
+          SELECT pt.*, au.first_name, au.last_name, au.username AS creator_username
+          FROM proposta_tokens pt
+          LEFT JOIN admin_users au ON au.id = pt.created_by
+          WHERE pt.created_by = ?
+          ORDER BY pt.created_at DESC
+          LIMIT 200
+        `).all(req.authUser.id);
     const propostas = rows.map(row => {
       let data = {};
       try { data = JSON.parse(row.proposta_data || '{}'); } catch { /* ignore */ }
@@ -8786,26 +9855,34 @@ app.get('/api/admin/propostas', requireRoles(['admin', 'gerente_comercial']), (r
   }
 });
 
-// DELETE /api/admin/propostas/:id — excluir proposta (admin/gerente)
-app.delete('/api/admin/propostas/:id', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+// DELETE /api/admin/propostas/:id — excluir proposta (admin/gerente veem todas, vendedor/diretor apenas as próprias)
+app.delete('/api/admin/propostas/:id', requireRoles(['admin', 'gerente_comercial', 'diretor', 'vendedor']), (req, res) => {
   try {
     const id = Number(req.params.id);
+    const isFullAccess = ['admin', 'gerente_comercial'].includes(req.authUser.role);
+
+    // Verificar se proposta existe e se o usuário tem permissão
+    const propRow = db.prepare('SELECT id, created_by, proposta_data FROM proposta_tokens WHERE id = ?').get(id);
+    if (!propRow) return res.status(404).json({ error: 'Proposta não encontrada.' });
+
+    if (!isFullAccess && propRow.created_by !== req.authUser.id) {
+      return res.status(403).json({ error: 'Sem permissão para excluir esta proposta.' });
+    }
+
     // Remover imagens de simulação associadas
-    const row = db.prepare('SELECT proposta_data FROM proposta_tokens WHERE id = ?').get(id);
-    if (row) {
-      try {
-        const data = JSON.parse(row.proposta_data || '{}');
-        if (Array.isArray(data.points)) {
-          for (const p of data.points) {
-            const imgUrl = p.proposalSimulationPreview || '';
-            if (imgUrl.startsWith('/uploads/proposal-images/')) {
-              const filePath = path.join(__dirname, imgUrl);
-              if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-            }
+    try {
+      const data = JSON.parse(propRow.proposta_data || '{}');
+      if (Array.isArray(data.points)) {
+        for (const p of data.points) {
+          const imgUrl = p.proposalSimulationPreview || '';
+          if (imgUrl.startsWith('/uploads/proposal-images/')) {
+            const filePath = path.join(__dirname, imgUrl);
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
           }
         }
-      } catch { /* ignore parse errors */ }
-    }
+      }
+    } catch { /* ignore parse errors */ }
+
     db.prepare('DELETE FROM proposta_tokens WHERE id = ?').run(id);
     res.json({ ok: true });
   } catch (err) {
@@ -9401,8 +10478,8 @@ app.put('/api/leads/:id/status', requireRoles(['admin', 'gerente_comercial']), (
   }
 });
 
-// ── Favorites analytics (authenticated) ─────────────────────────────────────
-app.get('/api/analytics/favorites', requireRoles(['admin', 'gerente_comercial']), (req, res) => {
+// ── Favorites analytics (authenticated — all commercial roles) ───────────────
+app.get('/api/analytics/favorites', requireRoles(['admin', 'gerente_comercial', 'diretor', 'vendedor']), (req, res) => {
   try {
     const days = Math.max(1, Math.min(365, Number(req.query.days) || 30));
 

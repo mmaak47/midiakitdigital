@@ -9,14 +9,14 @@ const EDGE_POINT_COUNT = 8;
 
 export const defaultDisplaySettings = {
   opacity: 1.0,
-  // Brilho da tela acesa. screen-blend branco em alpha = (brightness-1)*0.45.
-  // 1.30 → 13.5% lift — simulação realista sem precisar mexer em slider.
-  brightness: 1.30,
-  reflection: 0.10,
-  spill: 0.14,
-  ledPixelIntensity: 0.03,
+  // Brilho da tela acesa. screen-blend branco em alpha = (brightness-1)*0.55.
+  // 1.50 → 27.5% lift — tela LED parece acesa e vibrante sem precisar de slider.
+  brightness: 1.50,
+  reflection: 0.08,
+  spill: 0.16,
+  ledPixelIntensity: 0.02,
   ledPixelSize: 5,
-  glare: 0.10
+  glare: 0.14
 };
 
 export const defaultMediaParams = {
@@ -666,13 +666,28 @@ function drawScreenGlow(ctx, corners, settings, style, canvasWidth, canvasHeight
   ctx.clip();
 
   // Brightness lift via screen-blend with white.
-  // The multiplier controls how much the brightness slider matters:
-  //   brightness=1.20 → 9% lift, 1.50 → 22%, 1.80 → 36%
+  // Multiplier 0.55 → brightness=1.50 gives 27.5% lift (vivid LED look).
   if (settings.brightness > 1) {
     ctx.globalCompositeOperation = 'screen';
-    ctx.fillStyle = `rgba(255,255,255,${(settings.brightness - 1) * 0.45})`;
+    ctx.fillStyle = `rgba(255,255,255,${(settings.brightness - 1) * 0.55})`;
     ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
   }
+
+  // Glare hotspot — radial center-bright glow simulating LED panel emission.
+  // Real LED screens are brighter in the center and dimmer at corners in photos.
+  if (settings.glare > 0) {
+    ctx.globalCompositeOperation = 'screen';
+    const cx = bounds.centerX;
+    const cy = bounds.centerY;
+    const maxR = Math.max(bounds.width, bounds.height) * 0.65;
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+    glow.addColorStop(0, `rgba(255,255,255,${settings.glare * 0.50})`);
+    glow.addColorStop(0.45, `rgba(255,255,255,${settings.glare * 0.18})`);
+    glow.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
+  }
+
   ctx.restore();
 }
 
@@ -751,9 +766,9 @@ function drawLedPixels(ctx, corners, settings, style) {
   ctx.clip();
 
   // Multiply pass: the thin dark gap darkens the image at pixel edges.
-  // Alpha intentionally very low — just a hint of texture, not a grid.
+  // Alpha very low — just a subtle hint of texture, not a visible grid.
   ctx.globalCompositeOperation = 'multiply';
-  ctx.globalAlpha = 0.06 + settings.ledPixelIntensity * 0.18;
+  ctx.globalAlpha = 0.04 + settings.ledPixelIntensity * 0.14;
   ctx.fillStyle = pattern;
   ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
   ctx.restore();
@@ -1118,7 +1133,7 @@ function drawPhotoGrain(ctx, corners, style) {
   createQuadPath(ctx, corners, style);
   ctx.clip();
   ctx.globalCompositeOperation = 'overlay';
-  ctx.globalAlpha = 0.045;  // ~4.5% — sutil, apenas matching de textura
+  ctx.globalAlpha = 0.03;  // ~3% — sutil, matching de textura sem opacificar
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(noiseCanvas, bounds.minX, bounds.minY, w, h);
   ctx.restore();
@@ -1140,19 +1155,47 @@ function drawEdgeFeather(ctx, corners, style, canvasWidth, canvasHeight) {
   // Passo 1: stroke escuro fino alinhado à borda interna do quad
   // Simula a sombra natural de contato entre o conteúdo e a moldura
   ctx.globalCompositeOperation = 'multiply';
-  ctx.globalAlpha = 0.18;
+  ctx.globalAlpha = 0.12;
   createQuadPath(ctx, corners, style);
-  ctx.lineWidth = featherWidth * 2;  // metade fica fora do clip, metade dentro
+  ctx.lineWidth = featherWidth * 2;
   ctx.strokeStyle = 'rgba(0,0,0,1)';
   ctx.stroke();
 
   // Passo 2: segundo stroke mais largo e suave para transição gradual
   ctx.globalCompositeOperation = 'source-over';
-  ctx.globalAlpha = 0.12;
+  ctx.globalAlpha = 0.08;
   createQuadPath(ctx, corners, style);
-  ctx.lineWidth = featherWidth * 4;
+  ctx.lineWidth = featherWidth * 3;
   ctx.strokeStyle = 'rgba(0,0,0,1)';
   ctx.stroke();
+
+  ctx.restore();
+}
+
+// Boost de contraste e saturação para modo LED. Telas LED reais emitem
+// luz própria, produzindo cores muito mais vívidas e contrastadas do que
+// superfícies reflexivas. Sem esse boost, o criativo parece impresso/apagado.
+function drawLedVibranceBoost(ctx, corners, style, settings) {
+  const bounds = getSelectionBoundsRaw(corners);
+  const intensity = clamp((settings.brightness - 1) * 0.6, 0, 0.35);
+  if (intensity <= 0) return;
+
+  ctx.save();
+  createQuadPath(ctx, corners, style);
+  ctx.clip();
+
+  // Overlay blend com cinza escuro aumenta contraste (escurece sombras,
+  // ilumina highlights) sem alterar o matiz
+  ctx.globalCompositeOperation = 'overlay';
+  ctx.globalAlpha = intensity * 0.28;
+  ctx.fillStyle = 'rgba(140,140,140,1)';
+  ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
+
+  // Boost de saturação via saturate blend — cores mais vivas
+  ctx.globalCompositeOperation = 'saturation';
+  ctx.globalAlpha = intensity * 0.15;
+  ctx.fillStyle = 'hsl(0, 100%, 50%)';
+  ctx.fillRect(bounds.minX, bounds.minY, bounds.width, bounds.height);
 
   ctx.restore();
 }
@@ -1254,6 +1297,7 @@ export async function generateSimulationPreview({
     drawRoundedCornerMask(ctx, face.corners, face.style);
 
     if (isLed) {
+      drawLedVibranceBoost(ctx, face.corners, face.style, face.settings);
       drawLightSpill(ctx, face.corners, face.settings, face.style);
       drawScreenGlow(ctx, face.corners, face.settings, face.style, outW, outH);
       drawReflection(ctx, face.corners, face.settings, face.style);

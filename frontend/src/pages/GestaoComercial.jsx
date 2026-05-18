@@ -1,31 +1,50 @@
 ﻿import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   BarChart3, RefreshCcw, ChevronLeft, ChevronRight, Calculator, X, TrendingUp,
-  ArrowLeft, PlusCircle, ListChecks, Users
+  ArrowLeft, Zap, ClipboardList, Users, FileText, Heart, Settings, Package
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import GestaoUnificada from '../components/gestao/GestaoUnificada';
 import Renovacoes from '../components/gestao/Renovacoes';
 import MeusLeads from '../components/gestao/MeusLeads';
+import NovaVendaTab from '../components/admin/NovaVendaTab';
+import VendasListTab from '../components/admin/VendasListTab';
+import PropostasTab from '../components/admin/PropostasTab';
+import FavoritesAnalyticsTab from '../components/admin/FavoritesAnalyticsTab';
+import PacotesTab from '../components/admin/PacotesTab';
 import ComercialChatBot from '../components/gestao/ComercialChatBot';
-import { fetchCurrentUser } from '../lib/api';
+import { fetchCurrentUser, fetchAdminPontos } from '../lib/api';
 
 const TABS = [
-  { key: 'vendas', label: 'Vendas & Metas', icon: BarChart3 },
+  { key: 'metas', label: 'Metas', icon: BarChart3 },
+  { key: 'nova_venda', label: 'Nova Venda', icon: Zap },
+  { key: 'historico', label: 'Vendas', icon: ClipboardList },
   { key: 'renovacoes', label: 'Renovações', icon: RefreshCcw },
   { key: 'leads', label: 'Meus Leads', icon: Users },
+  { key: 'propostas', label: 'Propostas', icon: FileText },
+  { key: 'favoritos', label: 'Favoritos', icon: Heart },
+  { key: 'pacotes', label: 'Pacotes', icon: Package },
 ];
 
 export default function GestaoComercial() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem('intermidia_theme') === 'dark';
   });
-  const [activeTab, setActiveTab] = useState('vendas');
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const search = new URLSearchParams(window.location.search);
+      const requested = search.get('tab');
+      if (requested && TABS.find(t => t.key === requested)) return requested;
+    } catch {}
+    return 'metas';
+  });
   const [ano, setAno] = useState(new Date().getFullYear());
   const [currentUser, setCurrentUser] = useState(null);
+  const [pontos, setPontos] = useState([]);
   const [welcome, setWelcome] = useState(null); // { nome, pct, realizado, meta }
 
   useEffect(() => {
@@ -54,7 +73,18 @@ export default function GestaoComercial() {
         }
       } catch {}
     }).catch(() => navigate('/comercial'));
+    // Carrega pontos para Nova Venda / Vendas
+    fetchAdminPontos().then(setPontos).catch(() => {});
   }, [navigate]);
+
+  // Respeita ?tab= na URL quando muda
+  useEffect(() => {
+    try {
+      const search = new URLSearchParams(location.search);
+      const requested = search.get('tab');
+      if (requested && TABS.find(t => t.key === requested)) setActiveTab(requested);
+    } catch {}
+  }, [location.search]);
 
   useEffect(() => {
     const cls = isDark ? 'dark' : 'light';
@@ -95,43 +125,21 @@ export default function GestaoComercial() {
             </div>
           </div>
 
-          {/* Quick actions: back + shortcuts to Admin painel */}
+          {/* Quick action: painel admin (only for admin/diretor) */}
           {(currentUser.role === 'admin' || currentUser.role === 'diretor') && (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => navigate('/comercial')}
-                className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-all ${
-                  isDark
-                    ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
-                    : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 shadow-sm'
-                }`}
-                title="Voltar ao painel comercial"
-              >
-                <ArrowLeft size={16} />
-                Voltar ao painel
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/comercial?tab=vendas')}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] px-4 py-2 text-sm font-semibold text-white shadow-md shadow-[#FE5C2B]/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <PlusCircle size={16} />
-                Nova Venda
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/comercial?tab=historico_vendas')}
-                className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors ${
-                  isDark
-                    ? 'border-brand-orange/40 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/15'
-                    : 'border-[#FFD9C6] bg-white text-[#C94A1A] hover:bg-[#FFF1EA]'
-                }`}
-              >
-                <ListChecks size={16} />
-                Vendas
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/comercial')}
+              className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-all ${
+                isDark
+                  ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
+                  : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 shadow-sm'
+              }`}
+              title="Painel administrativo"
+            >
+              <Settings size={16} />
+              Painel Admin
+            </button>
           )}
         </div>
 
@@ -188,9 +196,14 @@ export default function GestaoComercial() {
         </div>
 
         <div>
-          {activeTab === 'vendas' && <GestaoUnificada isDark={isDark} ano={ano} />}
+          {activeTab === 'metas' && <GestaoUnificada isDark={isDark} ano={ano} />}
+          {activeTab === 'nova_venda' && <NovaVendaTab isDark={isDark} pontos={pontos.filter(p => Number(p.ativo) === 1)} currentUser={currentUser} />}
+          {activeTab === 'historico' && <VendasListTab isDark={isDark} pontos={pontos.filter(p => Number(p.ativo) === 1)} currentUser={currentUser} />}
           {activeTab === 'renovacoes' && <Renovacoes isDark={isDark} ano={ano} />}
           {activeTab === 'leads' && <MeusLeads isDark={isDark} currentUser={currentUser} />}
+          {activeTab === 'propostas' && <PropostasTab isDark={isDark} />}
+          {activeTab === 'favoritos' && <FavoritesAnalyticsTab isDark={isDark} />}
+          {activeTab === 'pacotes' && <PacotesTab isDark={isDark} currentUser={currentUser} pontos={pontos.filter(p => Number(p.ativo) === 1)} />}
         </div>
       </div>
 

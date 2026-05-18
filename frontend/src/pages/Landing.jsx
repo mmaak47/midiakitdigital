@@ -7,7 +7,7 @@ import FavoritesBar from '../components/FavoritesBar';
 import { useFavorites } from '../context/FavoritesContext';
 import CustomSelect from '../components/CustomSelect';
 import SmartMap from '../components/SmartMap';
-import { fetchPontos, fetchLoopAvailability } from '../lib/api';
+import { fetchPontos, fetchLoopAvailability, fetchCurrentUser } from '../lib/api';
 import { getPointDisplayImages, getPrimaryPointMediaKitImage } from '../lib/pointImages';
 import { campaignTotals, sortFormatos, estimateReachFrequency } from '../lib/strategy';
 import { normalizeHorarioForPdf } from '../lib/horarioUtils';
@@ -526,8 +526,14 @@ export default function Landing() {
   const [tableSortDir, setTableSortDir] = useState('asc');
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [availabilityMap, setAvailabilityMap] = useState(null); // Map<normalizedLocal, { cotas_livres, pct_ocupado, risk_level }>
+  const [isVendedor, setIsVendedor] = useState(false);
   const pontosListRef = useRef(null);
   const isInitialMount = useRef(true);
+
+  // ── Detecta se o usuário é vendedor autenticado ──
+  useEffect(() => {
+    fetchCurrentUser().then(() => setIsVendedor(true)).catch(() => setIsVendedor(false));
+  }, []);
 
   // ── Sincroniza filtros → URL (replaceState para não criar histórico a cada clique) ──
   useEffect(() => {
@@ -2536,7 +2542,7 @@ export default function Landing() {
       </AnimatePresence>
 
       {/* ── FavoritesBar (sidebar direita) ──── */}
-      {!showSlidesMode && <FavoritesBar isDark={isDark} showProposalCta={false} onShareFavorites={handleShareFavorites} shareLoading={favShareLoading} />}
+      {!showSlidesMode && <FavoritesBar isDark={isDark} showProposalCta={false} onShareFavorites={isVendedor ? null : handleShareFavorites} shareLoading={favShareLoading} showCommercialShare={isVendedor} />}
 
       {/* ── Botão flutuante WhatsApp (hidden during slides) ──── */}
       {!showSlidesMode && <motion.a

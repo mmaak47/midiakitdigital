@@ -13,6 +13,7 @@ const GestaoComercial = lazy(() => import('./pages/GestaoComercial'));
 const PropostaPublica = lazy(() => import('./pages/PropostaPublica'));
 const SharedView = lazy(() => import('./pages/SharedView'));
 const TvWall = lazy(() => import('./pages/TvWall'));
+const PacotePublico = lazy(() => import('./pages/PacotePublico'));
 
 function hasAuthHintCookie() {
   if (typeof document === 'undefined') return false;
@@ -37,7 +38,7 @@ function shouldShowConsentBanner() {
   if (typeof window === 'undefined') return false;
   const path = String(window.location.pathname || '/');
   // Consent banner on public-facing pages only (not admin/commercial internal areas)
-  return path === '/' || path === '/planejar' || path.startsWith('/s/') || path.startsWith('/p/');
+  return path === '/' || path === '/planejar' || path.startsWith('/s/') || path.startsWith('/p/') || path.startsWith('/pacote/');
 }
 
 /**
@@ -69,6 +70,14 @@ function SharedViewWithFavorites() {
   );
 }
 
+function PlannerWithFavorites() {
+  return (
+    <FavoritesProvider storageKey="planner">
+      <CampaignPlanner />
+    </FavoritesProvider>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -76,7 +85,7 @@ export default function App() {
       <Suspense fallback={<AppLoader />}>
         <Routes>
           <Route path="/" element={<LandingWithFavorites />} />
-          <Route path="/planejar" element={<CampaignPlanner />} />
+          <Route path="/planejar" element={<PlannerWithFavorites />} />
           <Route path="/comercial" element={<Admin />} />
           <Route path="/comercial/admin" element={<Admin />} />
           <Route path="/comercial/gestao" element={<RequireCommercialAuth><GestaoComercial /></RequireCommercialAuth>} />
@@ -85,6 +94,7 @@ export default function App() {
           <Route path="/painel-tv" element={<TvWall />} />
           <Route path="/p/:token" element={<PropostaPublica />} />
           <Route path="/s/:code" element={<SharedViewWithFavorites />} />
+          <Route path="/pacote/:code" element={<PacotePublico />} />
           <Route path="/explorar" element={<Navigate to="/" replace />} />
           <Route path="/admin" element={<Navigate to="/comercial/admin" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />

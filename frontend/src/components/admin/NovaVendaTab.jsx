@@ -12,6 +12,7 @@ const PLANO_FIDELIDADE_AUTO_OBS = 'Cota de 10 Segundos com Loop de 6 Minutos. (A
 
 const emptyForm = {
   tipo: 'Nova Venda',
+  venda_escritorio: false,
   razao_social: '',
   nome_fantasia: '',
   cnpj: '',
@@ -199,10 +200,10 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
     setVendasAntError('');
     (async () => {
       try {
-        const data = await fetchVendas();
+        const data = await fetchVendas({ native_only: true });
         if (cancelled) return;
         const list = Array.isArray(data) ? data : [];
-        // Só vendas que vêm do sistema (não renovações de si mesmas para evitar lixo) e ativas/concluídas.
+        // Só vendas nativas do sistema (criadas pelo formulário Nova Venda, não da planilha).
         const filtered = list.filter((v) => v && v.id && (v.razao_social || v.nome_fantasia));
         setVendasAnteriores(filtered);
       } catch (e) {
@@ -584,6 +585,7 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
         ? resolvePermutaSplit(form.valor_mensal, form.permuta_valor_servico, form.permuta_valor_receber)
         : null;
       fd.append('tipo', form.tipo);
+      fd.append('venda_escritorio', form.venda_escritorio ? 'true' : 'false');
       fd.append('razao_social', form.razao_social.trim());
       fd.append('nome_fantasia', form.nome_fantasia.trim());
       fd.append('cnpj', form.cnpj.trim());
@@ -850,6 +852,25 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
                 {t}
               </button>
             ))}
+          </div>
+
+          {/* Venda do Escritório */}
+          <div className="flex items-center gap-3 mt-1">
+            <button
+              type="button"
+              onClick={() => set('venda_escritorio', !form.venda_escritorio)}
+              className={`w-10 h-5 rounded-full transition-colors relative ${form.venda_escritorio ? 'bg-brand-orange' : isDark ? 'bg-white/20' : 'bg-neutral-300'}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.venda_escritorio ? 'left-5' : 'left-0.5'}`} />
+            </button>
+            <div>
+              <label className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                Venda do Escritório
+              </label>
+              <p className={`text-[11px] mt-0.5 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
+                Entra na soma geral das metas, mas não é atribuída a nenhum vendedor específico.
+              </p>
+            </div>
           </div>
 
           {/* Renovação: lista de vendas anteriores realizadas pelo sistema */}
@@ -1605,7 +1626,7 @@ function buildMsgPreview({ form, selectedPontos, pontoPrecos, currentUser }) {
   }
 
   const lines = [
-    `${isRenovacao ? '🔄 *RENOVAÇÃO*' : '🟠 *NOVA VENDA*'} — ${vendedorNome}`,
+    `${isRenovacao ? '🔄 *RENOVAÇÃO*' : '🟠 *NOVA VENDA*'}${form.venda_escritorio ? ' 🏢 _(Escritório)_' : ''} — ${vendedorNome}`,
     '━━━━━━━━━━━━━━━━━━━━━━━━━',
     '',
     form.cnpj

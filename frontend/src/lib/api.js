@@ -696,10 +696,11 @@ export async function fetchCurrentUser() {
 }
 
 // Listagem de vendas
-export async function fetchVendas({ status, q } = {}) {
+export async function fetchVendas({ status, q, native_only } = {}) {
   const params = new URLSearchParams();
   if (status && status !== 'todas') params.set('status', status);
   if (q) params.set('q', q);
+  if (native_only) params.set('native_only', '1');
   const res = await apiRequest(`/vendas?${params}`);
   if (!res.ok) throw new Error('Erro ao buscar vendas');
   return res.json();
@@ -1505,11 +1506,36 @@ export async function createCommercialShareLink({ pointIds, clientName, discount
   return res.json();
 }
 
-export async function submitClientFavorites(code, favorites) {
+export async function createBroadcastShareLink({ pointIds, broadcastText }) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getAdminToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const payload = {
+    filters: { pointIds },
+    share_type: 'broadcast',
+    broadcast_text: broadcastText || null,
+  };
+  const res = await fetch('/api/share', {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Falha ao criar link de disparo');
+  }
+  return res.json();
+}
+
+export async function submitClientFavorites(code, favorites, { clientName, clientContact } = {}) {
+  const body = { favorites };
+  if (clientName) body.client_name = clientName;
+  if (clientContact) body.client_contact = clientContact;
   const res = await fetch(`/api/share/${code}/client-favorites`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ favorites }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -1569,5 +1595,121 @@ export async function fetchCommercialShares() {
 export async function fetchClientFavorites(code) {
   const res = await apiRequest(`/share/${code}/client-favorites`);
   if (!res.ok) throw new Error('Falha ao buscar favoritos do cliente');
+  return res.json();
+}
+
+export async function fetchPacoteCommercialLeads() {
+  const res = await apiRequest('/pacote-commercial-leads');
+  if (!res.ok) throw new Error('Falha ao buscar leads de pacotes');
+  return res.json();
+}
+
+// ============== PACOTES COMERCIAIS ==============
+
+export async function fetchPacotes(status) {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  const qs = params.toString();
+  const res = await apiRequest(`/pacotes${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error('Erro ao carregar pacotes');
+  return res.json();
+}
+
+export async function fetchPacote(id) {
+  const res = await apiRequest(`/pacotes/${id}`);
+  if (!res.ok) throw new Error('Pacote não encontrado');
+  return res.json();
+}
+
+export async function createPacote(data) {
+  const res = await apiRequest('/pacotes', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const msg = await parseErrorResponse(res);
+    throw new Error(msg || 'Erro ao criar pacote');
+  }
+  return res.json();
+}
+
+export async function updatePacote(id, data) {
+  const res = await apiRequest(`/pacotes/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const msg = await parseErrorResponse(res);
+    throw new Error(msg || 'Erro ao atualizar pacote');
+  }
+  return res.json();
+}
+
+export async function deletePacote(id) {
+  const res = await apiRequest(`/pacotes/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const msg = await parseErrorResponse(res);
+    throw new Error(msg || 'Erro ao deletar pacote');
+  }
+  return res.json();
+}
+
+export async function submitPacote(id) {
+  const res = await apiRequest(`/pacotes/${id}/submit`, { method: 'POST' });
+  if (!res.ok) {
+    const msg = await parseErrorResponse(res);
+    throw new Error(msg || 'Erro ao submeter pacote');
+  }
+  return res.json();
+}
+
+export async function aprovarPacote(id) {
+  const res = await apiRequest(`/pacotes/${id}/aprovar`, { method: 'POST' });
+  if (!res.ok) {
+    const msg = await parseErrorResponse(res);
+    throw new Error(msg || 'Erro ao aprovar pacote');
+  }
+  return res.json();
+}
+
+export async function rejeitarPacote(id, motivo) {
+  const res = await apiRequest(`/pacotes/${id}/rejeitar`, {
+    method: 'POST',
+    body: JSON.stringify({ motivo }),
+  });
+  if (!res.ok) {
+    const msg = await parseErrorResponse(res);
+    throw new Error(msg || 'Erro ao rejeitar pacote');
+  }
+  return res.json();
+}
+
+export async function arquivarPacote(id) {
+  const res = await apiRequest(`/pacotes/${id}/arquivar`, { method: 'POST' });
+  if (!res.ok) {
+    const msg = await parseErrorResponse(res);
+    throw new Error(msg || 'Erro ao arquivar pacote');
+  }
+  return res.json();
+}
+
+export async function compartilharPacote(id) {
+  const res = await apiRequest(`/pacotes/${id}/compartilhar`, { method: 'POST' });
+  if (!res.ok) {
+    const msg = await parseErrorResponse(res);
+    throw new Error(msg || 'Erro ao compartilhar pacote');
+  }
+  return res.json();
+}
+
+export async function fetchMeusCompartilhamentos() {
+  const res = await apiRequest('/pacotes/meus-compartilhamentos');
+  if (!res.ok) throw new Error('Erro ao carregar compartilhamentos');
+  return res.json();
+}
+
+export async function fetchPacotesAnalytics() {
+  const res = await apiRequest('/pacotes/analytics');
+  if (!res.ok) throw new Error('Erro ao carregar analytics de pacotes');
   return res.json();
 }

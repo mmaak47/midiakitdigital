@@ -5,7 +5,7 @@ import {
   LogIn, Plus, Pencil, Trash2, Eye, EyeOff, X, Upload,
   Building2, Save, Loader2, RefreshCcw, Users, MapPinned, PanelsTopLeft, UserPlus, Settings,
   Copy, Check, MapPin, FileText, Download, Square, CheckSquare, Zap, ClipboardList, Activity,
-  LogOut, Camera, Info, Send, Heart
+  LogOut, Camera, Info, Send, Heart, Link2
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { normalizeHorarioForPdf } from '../lib/horarioUtils';
@@ -52,6 +52,7 @@ import AuditoriaLoopTab from '../components/admin/AuditoriaLoopTab';
 import LeadsTab from '../components/admin/LeadsTab';
 import FavoritesAnalyticsTab from '../components/admin/FavoritesAnalyticsTab';
 import PropostasTab from '../components/admin/PropostasTab';
+import MeusLeads from '../components/gestao/MeusLeads';
 import WhatsappLogsTab from '../components/admin/WhatsappLogsTab';
 import CustomSelect from '../components/CustomSelect';
 import { defaultScreenStyle, parseSimulationConfig, parseScreen, serializeSimulationConfig } from '../lib/simulation';
@@ -82,13 +83,10 @@ const USER_ROLES = [
 
 const ADMIN_TAB_GROUPS = [
   { key: 'comercial', label: 'Comercial', tabs: [
-    { key: 'vendas',           label: 'Nova Venda',         icon: Zap,           roles: ['admin', 'diretor', 'gerente_comercial', 'vendedor'] },
-    { key: 'historico_vendas', label: 'Vendas',             icon: ClipboardList, roles: ['admin', 'diretor', 'gerente_comercial', 'vendedor'] },
     { key: 'gestao_comercial', label: 'Gestão Comercial',   icon: Activity,      roles: ['admin', 'diretor', 'gerente_comercial', 'vendedor'], href: '/comercial/gestao' },
-    { key: 'leads',            label: 'Leads',              icon: UserPlus,      roles: ['admin', 'gerente_comercial'] },
-    { key: 'favoritos',        label: 'Favoritos',          icon: Heart,         roles: ['admin', 'gerente_comercial'] },
-    { key: 'propostas',        label: 'Propostas',          icon: FileText,      roles: ['admin', 'gerente_comercial'] },
-    { key: 'auditoria_loop',   label: 'Auditoria de Loop',  icon: RefreshCcw,    roles: ['admin', 'gerente_comercial', 'vendedor'] },
+    { key: 'links_comerciais', label: 'Links Comerciais',   icon: Link2,         roles: ['admin', 'gerente_comercial'] },
+    { key: 'leads',            label: 'Leads Chatbot',      icon: UserPlus,      roles: ['admin', 'gerente_comercial'] },
+    { key: 'auditoria_loop',   label: 'Auditoria de Loop',  icon: RefreshCcw,    roles: ['admin', 'gerente_comercial'] },
   ]},
   { key: 'pontos_midia', label: 'Pontos & Mídia', tabs: [
     { key: 'pontos',   label: 'Pontos',             icon: PanelsTopLeft, roles: ['admin', 'gerente_comercial'] },
@@ -108,8 +106,7 @@ function getVisibleGroups(role) {
 }
 
 function getDefaultTab(role) {
-  if (role === 'vendedor') return 'vendas';
-  return 'vendas';
+  return 'links_comerciais';
 }
 
 const emptyForm = {
@@ -505,9 +502,8 @@ export default function Admin() {
                 .catch(() => {});
             }
           } catch {}
-          // Diretor e admin ficam no painel (/comercial) com as abas visíveis.
-          // Gerente comercial e vendedor vão direto para /comercial/gestao.
-          if (location.pathname === '/comercial' && u?.role && u.role !== 'admin' && u.role !== 'diretor') {
+          // Vendedores/gerentes/diretores vão para gestão; admin fica no painel admin.
+          if (location.pathname === '/comercial' && u?.role && u.role !== 'admin') {
             navigate('/comercial/gestao', { replace: true });
             return;
           }
@@ -1887,6 +1883,10 @@ export default function Admin() {
 
         {activeTab === 'auditoria_loop' ? (
           <AuditoriaLoopTab isDark={isDark} pontos={pontos} />
+        ) : null}
+
+        {activeTab === 'links_comerciais' ? (
+          <MeusLeads isDark={isDark} currentUser={currentUser} />
         ) : null}
 
         {activeTab === 'leads' ? (

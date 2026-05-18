@@ -178,8 +178,16 @@ export default function SharedView() {
   const [submitToast, setSubmitToast] = useState(false);
 
   const isCommercial = shareData?.shareType === 'commercial';
+  const isBroadcast = shareData?.shareType === 'broadcast';
+  const isInteractive = isCommercial || isBroadcast; // modes where client selects favorites
   const clientName = shareData?.clientName || '';
   const vendedor = shareData?.vendedor || null;
+  const broadcastText = shareData?.broadcastText || '';
+
+  // Broadcast: client self-identification
+  const [bcClientName, setBcClientName] = useState('');
+  const [bcClientContact, setBcClientContact] = useState('');
+  const [bcIdentified, setBcIdentified] = useState(false);
 
   const toggleClientFav = useCallback((ponto) => {
     setClientFavs((prev) => {
@@ -198,7 +206,8 @@ export default function SharedView() {
         const p = allPontos.find((pt) => pt.id === id);
         return { point_id: id, point_name: p?.nome || '' };
       });
-      await submitClientFavorites(code, favArr);
+      const extraInfo = isBroadcast ? { clientName: bcClientName.trim(), clientContact: bcClientContact.trim() } : {};
+      await submitClientFavorites(code, favArr, extraInfo);
       setSubmitted(true);
       setSubmitToast(true);
       setTimeout(() => setSubmitToast(false), 4000);
@@ -207,7 +216,7 @@ export default function SharedView() {
     } finally {
       setSubmitting(false);
     }
-  }, [clientFavs, code, allPontos]);
+  }, [clientFavs, code, allPontos, isBroadcast, bcClientName, bcClientContact]);
 
   useEffect(() => {
     let active = true;
@@ -295,6 +304,24 @@ export default function SharedView() {
     };
   }, [pontos, filters]);
 
+  // ── Broadcast tiered discount ──
+  const broadcastDiscount = useMemo(() => {
+    if (!isBroadcast) return null;
+    const count = clientFavs.size;
+    let percent = 0;
+    if (count >= 8) percent = 20;
+    else if (count >= 6) percent = 15;
+    else if (count >= 4) percent = 10;
+    else if (count >= 2) percent = 5;
+
+    const selectedPreco = [...clientFavs].reduce((sum, id) => {
+      const p = pontos.find(pt => pt.id === id);
+      return sum + (Number(p?.preco) || 0);
+    }, 0);
+    const discountAmount = selectedPreco * percent / 100;
+    return { percent, count, selectedPreco, discountAmount, finalPreco: Math.max(0, selectedPreco - discountAmount) };
+  }, [isBroadcast, clientFavs, pontos]);
+
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -333,6 +360,85 @@ export default function SharedView() {
             <i className="ri-arrow-left-line mr-1.5" style={{ fontSize: 14 }} />Ver catálogo completo
           </button>
         </div>
+      </div>
+    );
+  }
+
+  // ── Broadcast: identification gate ──
+  if (isBroadcast && !bcIdentified) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center px-4 transition-colors duration-300 ${t.bg} ${t.text}`}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+          className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden ${isDark ? 'bg-[#0A0A0A] border-white/10' : 'bg-white border-[#EFE0D8]'}`}>
+          {/* Logo + header */}
+          <div className={`px-6 pt-8 pb-4 text-center border-b ${isDark ? 'border-white/10' : 'border-[#F2DDD4]'}`}>
+            <img src={isDark ? '/logo.png' : '/logo-light.png'} alt="Intermidia" className="h-8 mx-auto mb-4"
+              onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }} />
+            <h1 className="text-xl font-bold mb-1.5">Seleção especial de mídia OOH</h1>
+            <p className={`text-sm ${t.textMuted}`}>{formatInt(pontos.length)} pontos disponíveis para você</p>
+          </div>
+
+          {/* Vendedor card */}
+          {vendedor && (
+            <div className={`mx-6 mt-4 flex items-center gap-3 px-4 py-3 rounded-xl border ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-[#EFE0D8] bg-[#FFF8F5]'}`}>
+              {vendedor.photoUrl ? (
+                <img src={vendedor.photoUrl} alt={vendedor.name} className="w-10 h-10 rounded-full object-cover border-2 border-brand-orange/30" />
+              ) : (
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${isDark ? 'bg-brand-orange/20 text-brand-orange' : 'bg-[#FFF0EA] text-[#C94A1A]'}`}>
+                  {(vendedor.firstName || 'C')[0].toUpperCase()}
+                </div>
+              )}
+              <div>
+                <div className={`text-sm font-semibold ${t.text}`}>{vendedor.name}</div>
+                <div className={`text-[11px] ${t.textMuted}`}>Seu consultor Intermidia</div>
+              </div>
+            </div>
+          )}
+
+          {/* Discount tiers */}
+          <div className={`mx-6 mt-4 rounded-xl border p-4 space-y-2 ${isDark ? 'border-purple-500/20 bg-purple-500/5' : 'border-purple-200 bg-purple-50'}`}>
+            <div className={`text-xs font-bold mb-1 ${isDark ? 'text-purple-300' : 'text-purple-700'}`}>
+              🎉 Desconto progressivo
+            </div>
+            <div className={`text-xs space-y-1.5 ${isDark ? 'text-purple-200/80' : 'text-purple-700/80'}`}>
+              <div className="flex justify-between items-center"><span>2 a 3 pontos</span><span className="font-bold text-brand-orange">5% OFF</span></div>
+              <div className="flex justify-between items-center"><span>4 a 5 pontos</span><span className="font-bold text-brand-orange">10% OFF</span></div>
+              <div className="flex justify-between items-center"><span>6 a 7 pontos</span><span className="font-bold text-brand-orange">15% OFF</span></div>
+              <div className="flex justify-between items-center"><span>8 a 10 pontos</span><span className="font-bold text-brand-orange">20% OFF</span></div>
+            </div>
+          </div>
+
+          {/* Identification form */}
+          <div className="px-6 py-5 space-y-4">
+            <p className={`text-xs text-center ${t.textMuted}`}>
+              Informe seus dados para ver os pontos e garantir seu desconto
+            </p>
+            <div>
+              <label className={`text-xs font-semibold mb-1.5 block ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>Seu nome / empresa</label>
+              <input type="text" value={bcClientName} onChange={(e) => setBcClientName(e.target.value)}
+                placeholder="Ex: João Silva — Empresa ABC"
+                className={`w-full px-4 py-3 rounded-xl border text-sm outline-none transition-colors ${isDark ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/50' : 'bg-neutral-50 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-brand-orange/50'}`} />
+            </div>
+            <div>
+              <label className={`text-xs font-semibold mb-1.5 block ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>Seu WhatsApp</label>
+              <input type="tel" value={bcClientContact} onChange={(e) => setBcClientContact(e.target.value)}
+                placeholder="(99) 99999-9999"
+                onKeyDown={(e) => e.key === 'Enter' && bcClientName.trim() && bcClientContact.trim() && setBcIdentified(true)}
+                className={`w-full px-4 py-3 rounded-xl border text-sm outline-none transition-colors ${isDark ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-brand-gray-600 focus:border-brand-orange/50' : 'bg-neutral-50 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-brand-orange/50'}`} />
+            </div>
+            <button
+              onClick={() => setBcIdentified(true)}
+              disabled={!bcClientName.trim() || !bcClientContact.trim()}
+              className={`w-full flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] ${
+                !bcClientName.trim() || !bcClientContact.trim()
+                  ? 'opacity-50 cursor-not-allowed bg-brand-orange/50 text-white'
+                  : 'bg-brand-orange text-white hover:bg-[#E85A25] shadow-lg shadow-brand-orange/20'
+              }`}>
+              Ver pontos disponíveis
+              <i className="ri-arrow-right-line" style={{ fontSize: 14 }} />
+            </button>
+          </div>
+        </motion.div>
       </div>
     );
   }
@@ -383,14 +489,22 @@ export default function SharedView() {
                   Preparado especialmente para {clientName}
                 </div>
               )}
+              {isBroadcast && bcClientName && (
+                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-3 ${isDark ? 'bg-purple-500/15 text-purple-300 border border-purple-500/25' : 'bg-purple-50 text-purple-700 border border-purple-200'}`}>
+                  <i className="ri-user-smile-line" style={{ fontSize: 13 }} />
+                  Olá, {bcClientName}! Escolha seus favoritos e garanta seu desconto
+                </div>
+              )}
               <h1 className="text-2xl sm:text-3xl font-bold mb-2">
                 {isCommercial
                   ? `Seleção para ${clientName || 'Você'}`
-                  : shareData?.label || (isFavoritesLink ? 'Seleção de Pontos' : filters?.cidade?.length === 1 ? `Mídia OOH em ${filters.cidade[0]}` : 'Seleção de Pontos')}
+                  : isBroadcast
+                    ? 'Seleção de Mídia OOH'
+                    : shareData?.label || (isFavoritesLink ? 'Seleção de Pontos' : filters?.cidade?.length === 1 ? `Mídia OOH em ${filters.cidade[0]}` : 'Seleção de Pontos')}
               </h1>
               <div className={`flex flex-wrap items-center gap-3 text-sm ${t.textSec}`}>
                 <span className="inline-flex items-center gap-1.5">
-                  <i className={`${isFavoritesLink || isCommercial ? 'ri-heart-3-fill' : 'ri-map-pin-2-fill'} text-brand-orange`} style={{ fontSize: 14 }} />{formatInt(pontos.length)} {isFavoritesLink || isCommercial ? 'pontos selecionados' : 'pontos'}
+                  <i className={`${isFavoritesLink || isInteractive ? 'ri-heart-3-fill' : 'ri-map-pin-2-fill'} text-brand-orange`} style={{ fontSize: 14 }} />{formatInt(pontos.length)} {isFavoritesLink || isInteractive ? 'pontos disponíveis' : 'pontos'}
                 </span>
                 <span className={t.separator}>|</span>
                 <span className="inline-flex items-center gap-1.5">
@@ -401,14 +515,15 @@ export default function SharedView() {
                   <i className="ri-group-line text-brand-orange" style={{ fontSize: 14 }} />{formatInt(stats.totalFluxo)} fluxo/mês
                 </span>
               </div>
-              {isCommercial && !submitted && (
+              {isInteractive && !submitted && (
                 <p className={`text-xs mt-3 ${t.textMuted}`}>
                   <i className="ri-information-line mr-1" style={{ fontSize: 12 }} />
                   Clique no <i className="ri-heart-3-line text-brand-orange" style={{ fontSize: 11 }} /> dos pontos que mais gostou e envie sua seleção
+                  {isBroadcast && ' — quanto mais pontos, maior seu desconto!'}
                 </p>
               )}
               {/* Vendedor signature */}
-              {isCommercial && vendedor && (
+              {isInteractive && vendedor && (
                 <div className={`mt-4 inline-flex items-center gap-3 px-4 py-2.5 rounded-xl border ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-[#EFE0D8] bg-white/60'}`}>
                   {vendedor.photoUrl ? (
                     <img src={vendedor.photoUrl} alt={vendedor.name} className="w-9 h-9 rounded-full object-cover border-2 border-brand-orange/30" />
@@ -433,7 +548,7 @@ export default function SharedView() {
                   )}
                 </div>
               )}
-              {filters && !isFavoritesLink && !isCommercial && (
+              {filters && !isFavoritesLink && !isInteractive && (
                 <div className="flex flex-wrap gap-1.5 mt-3">
                   {[...(filters.cidade || []).map((c) => ({ icon: 'ri-map-pin-line', label: c })),
                     ...(filters.tipo || []).map((tp) => ({ icon: 'ri-layers-line', label: tp })),
@@ -447,7 +562,7 @@ export default function SharedView() {
                   ))}
                 </div>
               )}
-              {(isFavoritesLink && !isCommercial) && (
+              {(isFavoritesLink && !isInteractive) && (
                 <div className="flex flex-wrap gap-1.5 mt-3">
                   <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border ${t.filterChip}`}>
                     <i className="ri-heart-3-fill" style={{ fontSize: 10 }} />{formatInt(pontos.length)} pontos favoritos
@@ -515,7 +630,7 @@ export default function SharedView() {
                     className={`rounded-2xl border overflow-hidden transition-all duration-200 hover:-translate-y-0.5 group ${t.card}`}>
                     <div className="relative">
                       <CardGallery ponto={ponto} onExpand={(p, idx) => setLightbox({ ponto: p, imageIndex: idx })} />
-                      {isCommercial && !submitted && (
+                      {isInteractive && !submitted && (
                         <button
                           onClick={(e) => { e.stopPropagation(); toggleClientFav(ponto); }}
                           className={`absolute top-2 right-2 z-10 p-2 rounded-full backdrop-blur-sm transition-all ${
@@ -528,7 +643,7 @@ export default function SharedView() {
                           <i className={clientFavs.has(ponto.id) ? 'ri-heart-3-fill' : 'ri-heart-3-line'} style={{ fontSize: 14 }} />
                         </button>
                       )}
-                      {isCommercial && submitted && clientFavs.has(ponto.id) && (
+                      {isInteractive && submitted && clientFavs.has(ponto.id) && (
                         <div className="absolute top-2 right-2 z-10 p-2 rounded-full bg-brand-orange text-white">
                           <i className="ri-heart-3-fill" style={{ fontSize: 14 }} />
                         </div>
@@ -596,7 +711,7 @@ export default function SharedView() {
                           <div className="text-brand-orange font-bold text-xl">{formatMoney(ponto.preco)}</div>
                           <div className={`text-[10px] uppercase ${t.statsLabel}`}>/ mês</div>
                         </div>
-                        {isCommercial && !submitted && (
+                        {isInteractive && !submitted && (
                           <button
                             onClick={() => toggleClientFav(ponto)}
                             className={`p-2 rounded-full transition-all ${
@@ -619,62 +734,85 @@ export default function SharedView() {
         ))}
       </main>
 
-      {/* ── Commercial floating submit bar ── */}
-      {isCommercial && !submitted && (
+      {/* ── Interactive floating submit bar (commercial + broadcast) ── */}
+      {isInteractive && !submitted && (
         <div className={`fixed bottom-0 inset-x-0 z-50 border-t backdrop-blur-xl transition-all ${isDark ? 'bg-[#050505]/95 border-white/10' : 'bg-white/95 border-[#EFE0D8]'}`}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-            <div className={`text-sm ${t.textSec}`}>
-              {clientFavs.size > 0 ? (
-                <span className="flex items-center gap-2">
-                  <i className="ri-heart-3-fill text-brand-orange" style={{ fontSize: 16 }} />
-                  <span><strong className={t.text}>{clientFavs.size}</strong> ponto{clientFavs.size > 1 ? 's' : ''} selecionado{clientFavs.size > 1 ? 's' : ''}</span>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+            {/* Broadcast discount badge */}
+            {isBroadcast && broadcastDiscount && broadcastDiscount.percent > 0 && (
+              <div className={`flex items-center justify-center gap-3 mb-2 py-1.5 rounded-lg text-xs font-semibold ${isDark ? 'bg-purple-500/10 text-purple-300' : 'bg-purple-50 text-purple-700'}`}>
+                <span>🎉 {broadcastDiscount.percent}% OFF</span>
+                <span className={isDark ? 'text-purple-400/50' : 'text-purple-400'}>•</span>
+                <span className={isDark ? 'text-purple-200/60' : 'text-purple-600/70'}>
+                  de {formatMoney(broadcastDiscount.selectedPreco)} por <strong className="text-brand-orange">{formatMoney(broadcastDiscount.finalPreco)}</strong>/mês
                 </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  <i className="ri-heart-3-line" style={{ fontSize: 16 }} />
-                  Selecione os pontos que mais gostou
-                </span>
-              )}
+              </div>
+            )}
+            {isBroadcast && broadcastDiscount && broadcastDiscount.percent === 0 && clientFavs.size > 0 && clientFavs.size < 2 && (
+              <div className={`flex items-center justify-center gap-2 mb-2 py-1.5 rounded-lg text-[11px] ${isDark ? 'bg-white/5 text-brand-gray-500' : 'bg-neutral-50 text-neutral-500'}`}>
+                Selecione mais {2 - clientFavs.size} ponto{2 - clientFavs.size > 1 ? 's' : ''} para ganhar <strong className="text-purple-400 ml-1">5% OFF</strong>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-4">
+              <div className={`text-sm ${t.textSec}`}>
+                {clientFavs.size > 0 ? (
+                  <span className="flex items-center gap-2">
+                    <i className="ri-heart-3-fill text-brand-orange" style={{ fontSize: 16 }} />
+                    <span><strong className={t.text}>{clientFavs.size}</strong> ponto{clientFavs.size > 1 ? 's' : ''} selecionado{clientFavs.size > 1 ? 's' : ''}</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <i className="ri-heart-3-line" style={{ fontSize: 16 }} />
+                    Selecione os pontos que mais gostou
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={handleSubmitFavorites}
+                disabled={submitting || !clientFavs.size}
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all ${
+                  clientFavs.size
+                    ? 'bg-brand-orange text-white hover:bg-[#E85A25] shadow-lg shadow-brand-orange/20'
+                    : isDark ? 'bg-white/10 text-brand-gray-500 cursor-not-allowed' : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
+                }`}
+              >
+                {submitting ? (
+                  <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
+                ) : (
+                  <><i className="ri-send-plane-fill" style={{ fontSize: 14 }} /> Enviar meus favoritos</>
+                )}
+              </button>
             </div>
-            <button
-              onClick={handleSubmitFavorites}
-              disabled={submitting || !clientFavs.size}
-              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all ${
-                clientFavs.size
-                  ? 'bg-brand-orange text-white hover:bg-[#E85A25] shadow-lg shadow-brand-orange/20'
-                  : isDark ? 'bg-white/10 text-brand-gray-500 cursor-not-allowed' : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
-              }`}
-            >
-              {submitting ? (
-                <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</>
-              ) : (
-                <><i className="ri-send-plane-fill" style={{ fontSize: 14 }} /> Enviar meus favoritos</>
-              )}
-            </button>
           </div>
         </div>
       )}
 
-      {/* ── Commercial submitted state ── */}
-      {isCommercial && submitted && (
+      {/* ── Interactive submitted state (commercial + broadcast) ── */}
+      {isInteractive && submitted && (
         <div className={`border-t bg-gradient-to-t transition-colors duration-300 ${t.footerBg}`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 text-center">
             <div className={`w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center ${isDark ? 'bg-green-500/20' : 'bg-green-50'}`}>
               <i className="ri-check-double-line text-green-400" style={{ fontSize: 28 }} />
             </div>
-            <h3 className="text-lg font-bold mb-2">Obrigado, {clientName}!</h3>
+            <h3 className="text-lg font-bold mb-2">Obrigado, {isBroadcast ? bcClientName : clientName}!</h3>
+            {/* Broadcast discount summary */}
+            {isBroadcast && broadcastDiscount && broadcastDiscount.percent > 0 && (
+              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-4 ${isDark ? 'bg-purple-500/15 text-purple-300 border border-purple-500/25' : 'bg-purple-50 text-purple-700 border border-purple-200'}`}>
+                🎉 Você ganhou {broadcastDiscount.percent}% de desconto — Investimento: {formatMoney(broadcastDiscount.finalPreco)}/mês
+              </div>
+            )}
             <p className={`text-sm mb-5 ${t.footerText}`}>
               Sua seleção de {clientFavs.size} ponto{clientFavs.size > 1 ? 's' : ''} favorito{clientFavs.size > 1 ? 's' : ''} foi enviada com sucesso.
               {vendedor ? ` ${vendedor.firstName} já foi notificado e entrará em contato em breve!` : ' Nossa equipe entrará em contato em breve!'}
             </p>
             {vendedor?.whatsapp ? (
-              <a href={`https://wa.me/${vendedor.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${vendedor.firstName}! Sou ${clientName}, acabei de selecionar meus pontos favoritos na seleção que você preparou. Gostaria de conversar sobre a campanha!`)}`}
+              <a href={`https://wa.me/${vendedor.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${vendedor.firstName}! Sou ${isBroadcast ? bcClientName : clientName}, acabei de selecionar meus pontos favoritos na seleção que você preparou. Gostaria de conversar sobre a campanha!`)}`}
                 target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors shadow-lg shadow-[#25D366]/20">
                 <i className="ri-whatsapp-line" style={{ fontSize: 16 }} />Falar com {vendedor.firstName}
               </a>
             ) : (
-              <a href={`https://wa.me/${WA_COMERCIAL}?text=${encodeURIComponent(`Olá! Sou ${clientName} e acabei de enviar meus pontos favoritos na seleção que recebi. Gostaria de conversar sobre a campanha!`)}`}
+              <a href={`https://wa.me/${WA_COMERCIAL}?text=${encodeURIComponent(`Olá! Sou ${isBroadcast ? bcClientName : clientName} e acabei de enviar meus pontos favoritos na seleção que recebi. Gostaria de conversar sobre a campanha!`)}`}
                 target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors shadow-lg shadow-[#25D366]/20">
                 <i className="ri-whatsapp-line" style={{ fontSize: 16 }} />Falar pelo WhatsApp
@@ -687,8 +825,8 @@ export default function SharedView() {
         </div>
       )}
 
-      {/* ── Footer CTA (non-commercial) ── */}
-      {!isCommercial && (
+      {/* ── Footer CTA (non-interactive) ── */}
+      {!isInteractive && (
         <div className={`border-t bg-gradient-to-t transition-colors duration-300 ${t.footerBg}`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 text-center">
             <h3 className="text-lg font-bold mb-2">Interessado nesta seleção?</h3>
@@ -735,8 +873,8 @@ export default function SharedView() {
         )}
       </AnimatePresence>
 
-      {/* Bottom padding when commercial submit bar is showing */}
-      {isCommercial && !submitted && <div className="h-16" />}
+      {/* Bottom padding when interactive submit bar is showing */}
+      {isInteractive && !submitted && <div className="h-20" />}
     </div>
   );
 }

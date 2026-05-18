@@ -9,7 +9,7 @@ import {
   UtensilsCrossed, Calculator, Scale, Cog, MoreHorizontal,
   Car, Dumbbell, Scissors, PawPrint, Pill, ShoppingCart, Landmark, Plane, Laptop, Cpu,
   Search, Brain, Bot, RefreshCw, MessageCircle, Monitor,
-  Eye, Headphones, BadgeCheck, Lightbulb, Rocket, PhoneCall, Briefcase,
+  Eye, Headphones, BadgeCheck, Lightbulb, Rocket, PhoneCall, Briefcase, AlertCircle,
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import CampaignScore from '../components/CampaignScore';
@@ -502,6 +502,9 @@ export default function CampaignPlanner() {
     setAiPhase('thinking');
     setAiPhaseIndex(0);
     setComputing(true);
+    setAiLoading(true);
+    setAiAnalysis(null);
+    setPointInsights({});
     setStep(4);
 
     // 2. Advance phases on a timer (visual progression)
@@ -656,6 +659,11 @@ export default function CampaignPlanner() {
           if (data?.insights) setPointInsights(data.insights);
         }).catch(() => {});
       }
+    }).catch((err) => {
+      console.error('[CampaignPlanner] recommendation error:', err);
+      setComputing(false);
+      setAiPhase('done');
+      setAiLoading(false);
     });
   }, [allPontos, cidade, publicoAlvo, audienceTags, objetivos, segmento, budget, period, empresa, geoProfiles, censusProfiles]);
 
@@ -932,8 +940,8 @@ export default function CampaignPlanner() {
         IA montando seu plano de campanha
       </h2>
       <p className={`text-sm mb-10 text-center max-w-md ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>
-        Nossa inteligência artificial está analisando {allPontos.filter(p => !cidade || p.cidade === cidade).length} pontos
-        de mídia em {cidade || 'sua cidade'} para criar a melhor estratégia para <span className="font-semibold text-brand-orange">{empresa}</span>.
+        Nossa inteligência artificial está analisando {allPontos.filter(p => !cidade?.length || (Array.isArray(cidade) ? cidade.includes(p.cidade) : p.cidade === cidade)).length} pontos
+        de mídia em {Array.isArray(cidade) ? cidade.join(', ') : cidade || 'sua cidade'} para criar a melhor estratégia para <span className="font-semibold text-brand-orange">{empresa}</span>.
       </p>
 
       {/* Phase list */}
@@ -1003,11 +1011,17 @@ export default function CampaignPlanner() {
 
   const renderResults = () => {
     if (!result) return null;
+    try {
     const { plan, scoreInfo, strategic, ranked } = result;
+    if (!plan || !plan.totals) return (
+      <div className={`rounded-2xl border p-8 text-center ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200'}`}>
+        <p className={`text-sm ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>Não foi possível gerar o plano. Tente ajustar os critérios e gerar novamente.</p>
+      </div>
+    );
     const totals = plan.totals;
     const topRanked = (ranked || []).slice(0, 5);
     const rankVisible = (ranked || []).slice(0, rankExpanded);
-    const selectedIds = new Set(plan.pontos.map((p) => p.id));
+    const selectedIds = new Set((plan.pontos || []).map((p) => p.id));
 
     const TABS = [
       { key: 'ranking', icon: ListOrdered, label: 'Ranking' },
@@ -1070,7 +1084,7 @@ export default function CampaignPlanner() {
                 Recomendação inteligente para <span className="bg-gradient-to-r from-[#FE5C2B] to-[#E85A1A] bg-clip-text text-transparent">{empresa}</span>
               </h2>
               <p className={`text-sm mt-1 ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>
-                {SEGMENTO_LABELS[segmento]} — {objetivos.map((o) => OBJETIVO_LABELS[o] || o).join(', ')} — {cidade}
+                {SEGMENTO_LABELS[segmento]} — {objetivos.map((o) => OBJETIVO_LABELS[o] || o).join(', ')} — {Array.isArray(cidade) ? cidade.join(', ') : cidade}
                 {ranked?.length ? ` — ${ranked.length} pontos analisados` : ''}
               </p>
             </div>
@@ -1643,7 +1657,7 @@ export default function CampaignPlanner() {
                 <span className={`text-sm ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>freq. média</span>
               </div>
               <p className={`text-sm leading-relaxed ${isDark ? 'text-white/50' : 'text-neutral-500'}`}>
-                Com {totals.quantidade} ponto{totals.quantidade !== 1 ? 's' : ''} selecionado{totals.quantidade !== 1 ? 's' : ''} e {formatInt(totals.fluxoTotal)} impactos/mês, a campanha gera uma exposição estimada de {formatInt(top10.reduce((s, p) => s + (p.estimatedReach || 0), 0))} pessoas alcançadas mensalmente.
+                Com {totals.quantidade} ponto{totals.quantidade !== 1 ? 's' : ''} selecionado{totals.quantidade !== 1 ? 's' : ''} e {formatInt(totals.fluxoTotal)} impactos/mês, a campanha gera uma exposição estimada de {formatInt(topRanked.reduce((s, p) => s + (p.estimatedReach || 0), 0))} pessoas alcançadas mensalmente.
               </p>
             </div>
 
@@ -1876,6 +1890,19 @@ export default function CampaignPlanner() {
 
       </motion.div>
     );
+    } catch (err) {
+      console.error('[CampaignPlanner] renderResults error:', err);
+      return (
+        <div className={`rounded-2xl border p-8 text-center ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-neutral-200'}`}>
+          <AlertCircle size={32} className="mx-auto mb-3 text-red-400 opacity-60" />
+          <p className={`text-sm font-medium ${isDark ? 'text-white/70' : 'text-neutral-700'}`}>Erro ao renderizar resultados</p>
+          <p className={`text-xs mt-1 ${isDark ? 'text-white/40' : 'text-neutral-500'}`}>Tente ajustar os critérios e gerar o plano novamente.</p>
+          <button onClick={handleBack} className="mt-4 px-4 py-2 rounded-lg text-sm font-medium bg-brand-orange text-white hover:bg-brand-orange/90">
+            Voltar e tentar novamente
+          </button>
+        </div>
+      );
+    }
   };
 
   return (

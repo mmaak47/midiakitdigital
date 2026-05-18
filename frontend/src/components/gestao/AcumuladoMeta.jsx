@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-  Target, Repeat, Loader2, ChevronDown, ChevronUp, Pencil, CheckCircle2, BarChart3, Users
+  Target, Repeat, Loader2, ChevronDown, ChevronUp, Pencil, CheckCircle2, BarChart3, Users, Building2
 } from 'lucide-react';
 import { fetchGestaoAcumulado, updateGestaoMetasBatch, fetchGestaoVendedores, fetchGestaoVendas } from '../../lib/api';
 
 const GLOBAL_KEY = '__GLOBAL__';
+const ESCRITORIO_KEY = '__ESCRITORIO__';
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 const fmtCurrency = (v) => {
@@ -152,7 +153,12 @@ export default function AcumuladoMeta({ isDark, ano }) {
     (data?.vendas || []).forEach(r => { if (r.vendedor_nome && r.vendedor_nome !== GLOBAL_KEY) keys.add(r.vendedor_nome); });
     // Also from metas, in case a vendedor has meta but no sales
     (data?.metas || []).forEach(r => { if (r.vendedor_nome && r.vendedor_nome !== GLOBAL_KEY) keys.add(r.vendedor_nome); });
-    return Array.from(keys).sort();
+    // Sort: real vendedores first, __ESCRITORIO__ last
+    return Array.from(keys).sort((a, b) => {
+      if (a === ESCRITORIO_KEY) return 1;
+      if (b === ESCRITORIO_KEY) return -1;
+      return a.localeCompare(b, 'pt-BR');
+    });
   }, [data]);
 
   /* Current month totals (all vendedores) */
@@ -398,7 +404,8 @@ export default function AcumuladoMeta({ isDark, ano }) {
             {allVendedorKeys.map(vendedor => {
               const d = vendedorMonthData[vendedor] || { qtde: 0, mensal: 0, contrato: 0 };
               const isExpanded = expandedVendedor === vendedor;
-              const displayName = vendedorDisplayName[vendedor] || vendedor;
+              const isEscritorio = vendedor === ESCRITORIO_KEY;
+              const displayName = isEscritorio ? 'Escritório' : (vendedorDisplayName[vendedor] || vendedor);
 
               return (
                 <div key={vendedor} className={`rounded-xl border ${border} overflow-hidden`}>
@@ -408,13 +415,18 @@ export default function AcumuladoMeta({ isDark, ano }) {
                     className={`w-full flex items-center justify-between px-5 py-4 ${cardBg} hover:opacity-90 transition-all text-left`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`w-11 h-11 rounded-full flex items-center justify-center text-lg font-bold ${isDark ? 'bg-blue-900 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
-                        {displayName.charAt(0).toUpperCase()}
+                      <div className={`w-11 h-11 rounded-full flex items-center justify-center text-lg font-bold ${
+                        isEscritorio
+                          ? isDark ? 'bg-amber-900/50 text-amber-400' : 'bg-amber-100 text-amber-600'
+                          : isDark ? 'bg-blue-900 text-blue-400' : 'bg-blue-100 text-blue-600'
+                      }`}>
+                        {isEscritorio ? <Building2 size={20} /> : displayName.charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <p className={`font-bold text-base ${text}`}>{displayName}</p>
                         <p className={`text-sm ${textMuted}`}>
                           {d.qtde} venda{d.qtde !== 1 ? 's' : ''} no mês
+                          {isEscritorio ? ' (não atribuída a vendedor)' : ''}
                         </p>
                       </div>
                     </div>

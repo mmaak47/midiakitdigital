@@ -53,6 +53,7 @@ function getVendasSemContratoAssinado() {
            v.created_at, v.pontos_nomes
     FROM vendas v
     WHERE v.status = 'ativa'
+      AND TRIM(COALESCE(v.responsavel_nome, '')) != ''
       AND v.id NOT IN (
         SELECT ve.venda_id FROM venda_etapas ve
         WHERE ve.etapa_key = 'contrato_assinado'

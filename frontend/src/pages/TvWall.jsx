@@ -191,80 +191,86 @@ export default function TvWall() {
           valor: item.valor_total || item.valor_mensal || 0,
           status: item.status || 'Venda'
         });
-        // Play loud attention-grabbing sale alert (~10 seconds)
+        // Play loud attention-grabbing sale alert × 2 rounds (~22 seconds total)
         try {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          const t0 = ctx.currentTime;
-          const TOTAL_DURATION = 10;
+          const SINGLE_DURATION = 10;
+          const GAP = 1.5; // pause between rounds
+          const ROUNDS = 2;
 
-          // ── Part 1: Air horn blast (0s–3s) ──
-          // Two detuned sawtooth oscillators for thick brass horn timbre
-          for (const detune of [-8, 8]) {
-            const osc = ctx.createOscillator();
-            const g = ctx.createGain();
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(260, t0);
-            osc.frequency.linearRampToValueAtTime(290, t0 + 0.15);
-            osc.detune.value = detune;
-            g.gain.setValueAtTime(0, t0);
-            g.gain.linearRampToValueAtTime(0.45, t0 + 0.08);
-            // Three blasts
-            g.gain.setValueAtTime(0.45, t0 + 0.8);
-            g.gain.linearRampToValueAtTime(0.05, t0 + 1.0);
-            g.gain.linearRampToValueAtTime(0.45, t0 + 1.2);
-            g.gain.setValueAtTime(0.45, t0 + 1.9);
-            g.gain.linearRampToValueAtTime(0.05, t0 + 2.1);
-            g.gain.linearRampToValueAtTime(0.45, t0 + 2.3);
-            g.gain.setValueAtTime(0.45, t0 + 2.9);
-            g.gain.exponentialRampToValueAtTime(0.001, t0 + 3.2);
-            osc.connect(g).connect(ctx.destination);
-            osc.start(t0);
-            osc.stop(t0 + 3.3);
+          const playAlertRound = (t0) => {
+            // ── Part 1: Air horn blast (0s–3s) ──
+            for (const detune of [-8, 8]) {
+              const osc = ctx.createOscillator();
+              const g = ctx.createGain();
+              osc.type = 'sawtooth';
+              osc.frequency.setValueAtTime(260, t0);
+              osc.frequency.linearRampToValueAtTime(290, t0 + 0.15);
+              osc.detune.value = detune;
+              g.gain.setValueAtTime(0, t0);
+              g.gain.linearRampToValueAtTime(0.45, t0 + 0.08);
+              g.gain.setValueAtTime(0.45, t0 + 0.8);
+              g.gain.linearRampToValueAtTime(0.05, t0 + 1.0);
+              g.gain.linearRampToValueAtTime(0.45, t0 + 1.2);
+              g.gain.setValueAtTime(0.45, t0 + 1.9);
+              g.gain.linearRampToValueAtTime(0.05, t0 + 2.1);
+              g.gain.linearRampToValueAtTime(0.45, t0 + 2.3);
+              g.gain.setValueAtTime(0.45, t0 + 2.9);
+              g.gain.exponentialRampToValueAtTime(0.001, t0 + 3.2);
+              osc.connect(g).connect(ctx.destination);
+              osc.start(t0);
+              osc.stop(t0 + 3.3);
+            }
+
+            // ── Part 2: Rising siren sweep (3s–7s) ──
+            for (let i = 0; i < 4; i++) {
+              const osc = ctx.createOscillator();
+              const g = ctx.createGain();
+              osc.type = 'square';
+              const base = 3.2 + i * 1.0;
+              osc.frequency.setValueAtTime(500, t0 + base);
+              osc.frequency.linearRampToValueAtTime(1200, t0 + base + 0.4);
+              osc.frequency.linearRampToValueAtTime(500, t0 + base + 0.8);
+              g.gain.setValueAtTime(0, t0 + base);
+              g.gain.linearRampToValueAtTime(0.22, t0 + base + 0.05);
+              g.gain.setValueAtTime(0.22, t0 + base + 0.7);
+              g.gain.exponentialRampToValueAtTime(0.001, t0 + base + 0.95);
+              osc.connect(g).connect(ctx.destination);
+              osc.start(t0 + base);
+              osc.stop(t0 + base + 1.0);
+            }
+
+            // ── Part 3: Victory fanfare (7s–10s) ──
+            const fanfare = [
+              { freq: 523, start: 7.0, dur: 0.25 },
+              { freq: 659, start: 7.3, dur: 0.25 },
+              { freq: 784, start: 7.6, dur: 0.25 },
+              { freq: 1047, start: 7.9, dur: 0.6 },
+              { freq: 784, start: 8.5, dur: 0.15 },
+              { freq: 1047, start: 8.7, dur: 1.1 },
+            ];
+            for (const note of fanfare) {
+              const osc = ctx.createOscillator();
+              const g = ctx.createGain();
+              osc.type = 'triangle';
+              osc.frequency.value = note.freq;
+              g.gain.setValueAtTime(0, t0 + note.start);
+              g.gain.linearRampToValueAtTime(0.35, t0 + note.start + 0.03);
+              g.gain.setValueAtTime(0.35, t0 + note.start + note.dur * 0.7);
+              g.gain.exponentialRampToValueAtTime(0.001, t0 + note.start + note.dur);
+              osc.connect(g).connect(ctx.destination);
+              osc.start(t0 + note.start);
+              osc.stop(t0 + note.start + note.dur + 0.05);
+            }
+          };
+
+          // Fire both rounds
+          for (let r = 0; r < ROUNDS; r++) {
+            playAlertRound(ctx.currentTime + r * (SINGLE_DURATION + GAP));
           }
 
-          // ── Part 2: Rising siren sweep (3s–7s) ──
-          for (let i = 0; i < 4; i++) {
-            const osc = ctx.createOscillator();
-            const g = ctx.createGain();
-            osc.type = 'square';
-            const base = 3.2 + i * 1.0;
-            osc.frequency.setValueAtTime(500, t0 + base);
-            osc.frequency.linearRampToValueAtTime(1200, t0 + base + 0.4);
-            osc.frequency.linearRampToValueAtTime(500, t0 + base + 0.8);
-            g.gain.setValueAtTime(0, t0 + base);
-            g.gain.linearRampToValueAtTime(0.22, t0 + base + 0.05);
-            g.gain.setValueAtTime(0.22, t0 + base + 0.7);
-            g.gain.exponentialRampToValueAtTime(0.001, t0 + base + 0.95);
-            osc.connect(g).connect(ctx.destination);
-            osc.start(t0 + base);
-            osc.stop(t0 + base + 1.0);
-          }
-
-          // ── Part 3: Victory fanfare (7s–10s) ──
-          const fanfare = [
-            { freq: 523, start: 7.0, dur: 0.25 },  // C5
-            { freq: 659, start: 7.3, dur: 0.25 },  // E5
-            { freq: 784, start: 7.6, dur: 0.25 },  // G5
-            { freq: 1047, start: 7.9, dur: 0.6 },  // C6 (hold)
-            { freq: 784, start: 8.5, dur: 0.15 },  // G5
-            { freq: 1047, start: 8.7, dur: 1.1 },  // C6 (long hold)
-          ];
-          for (const note of fanfare) {
-            const osc = ctx.createOscillator();
-            const g = ctx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.value = note.freq;
-            g.gain.setValueAtTime(0, t0 + note.start);
-            g.gain.linearRampToValueAtTime(0.35, t0 + note.start + 0.03);
-            g.gain.setValueAtTime(0.35, t0 + note.start + note.dur * 0.7);
-            g.gain.exponentialRampToValueAtTime(0.001, t0 + note.start + note.dur);
-            osc.connect(g).connect(ctx.destination);
-            osc.start(t0 + note.start);
-            osc.stop(t0 + note.start + note.dur + 0.05);
-          }
-
-          // Close audio context after sound ends
-          setTimeout(() => { try { ctx.close(); } catch {} }, (TOTAL_DURATION + 1) * 1000);
+          const totalTime = ROUNDS * SINGLE_DURATION + (ROUNDS - 1) * GAP;
+          setTimeout(() => { try { ctx.close(); } catch {} }, (totalTime + 1) * 1000);
         } catch { /* audio not available */ }
         break; // show one popup at a time
       }
@@ -1528,6 +1534,132 @@ export default function TvWall() {
           animation: sale-fade-in 0.3s ease;
         }
 
+        /* ── GIROFLEX POLICE LED OVERLAY ─────────────────────────────── */
+        .tv-sale-giroflex {
+          position: fixed;
+          inset: 0;
+          z-index: 98;
+          pointer-events: none;
+          overflow: hidden;
+        }
+
+        /* Red beam — sweeps from the left */
+        .tv-sale-giroflex::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background:
+            linear-gradient(90deg,
+              rgba(255, 0, 0, 0.35) 0%,
+              rgba(255, 20, 20, 0.12) 25%,
+              transparent 50%,
+              transparent 100%);
+          animation: giroflex-red 0.35s ease-in-out infinite alternate;
+        }
+
+        /* Blue beam — sweeps from the right */
+        .tv-sale-giroflex::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background:
+            linear-gradient(270deg,
+              rgba(0, 60, 255, 0.35) 0%,
+              rgba(30, 80, 255, 0.12) 25%,
+              transparent 50%,
+              transparent 100%);
+          animation: giroflex-blue 0.35s ease-in-out infinite alternate-reverse;
+        }
+
+        @keyframes giroflex-red {
+          0% {
+            opacity: 1;
+            box-shadow: inset 60px 0 140px -20px rgba(255, 0, 0, 0.5), inset 0 50px 80px -30px rgba(255, 0, 0, 0.15), inset 0 -50px 80px -30px rgba(255, 0, 0, 0.15);
+          }
+          100% {
+            opacity: 0.15;
+            box-shadow: inset 20px 0 40px -20px rgba(255, 0, 0, 0.1), inset 0 10px 20px -10px rgba(255, 0, 0, 0.05), inset 0 -10px 20px -10px rgba(255, 0, 0, 0.05);
+          }
+        }
+
+        @keyframes giroflex-blue {
+          0% {
+            opacity: 1;
+            box-shadow: inset -60px 0 140px -20px rgba(0, 60, 255, 0.5), inset 0 50px 80px -30px rgba(0, 60, 255, 0.15), inset 0 -50px 80px -30px rgba(0, 60, 255, 0.15);
+          }
+          100% {
+            opacity: 0.15;
+            box-shadow: inset -20px 0 40px -20px rgba(0, 60, 255, 0.1), inset 0 10px 20px -10px rgba(0, 60, 255, 0.05), inset 0 -10px 20px -10px rgba(0, 60, 255, 0.05);
+          }
+        }
+
+        /* Edge LED strips — top and bottom light bars */
+        .tv-giroflex-bar-top,
+        .tv-giroflex-bar-bottom {
+          position: absolute;
+          left: 0;
+          right: 0;
+          height: 4px;
+          z-index: 1;
+        }
+        .tv-giroflex-bar-top { top: 0; }
+        .tv-giroflex-bar-bottom { bottom: 0; }
+
+        .tv-giroflex-bar-top::before,
+        .tv-giroflex-bar-bottom::before {
+          content: '';
+          position: absolute;
+          left: 0;
+          width: 50%;
+          height: 100%;
+          background: #ff0000;
+          box-shadow: 0 0 20px 8px rgba(255, 0, 0, 0.6), 0 0 60px 20px rgba(255, 0, 0, 0.3);
+          animation: led-bar-red 0.3s ease-in-out infinite alternate;
+        }
+
+        .tv-giroflex-bar-top::after,
+        .tv-giroflex-bar-bottom::after {
+          content: '';
+          position: absolute;
+          right: 0;
+          width: 50%;
+          height: 100%;
+          background: #003cff;
+          box-shadow: 0 0 20px 8px rgba(0, 60, 255, 0.6), 0 0 60px 20px rgba(0, 60, 255, 0.3);
+          animation: led-bar-blue 0.3s ease-in-out infinite alternate-reverse;
+        }
+
+        @keyframes led-bar-red {
+          0% { opacity: 1; }
+          100% { opacity: 0.2; }
+        }
+        @keyframes led-bar-blue {
+          0% { opacity: 1; }
+          100% { opacity: 0.2; }
+        }
+
+        /* Side vertical LED strips */
+        .tv-giroflex-bar-left,
+        .tv-giroflex-bar-right {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          width: 4px;
+          z-index: 1;
+        }
+        .tv-giroflex-bar-left {
+          left: 0;
+          background: #ff0000;
+          box-shadow: 0 0 20px 8px rgba(255, 0, 0, 0.5), 0 0 50px 16px rgba(255, 0, 0, 0.25);
+          animation: led-bar-red 0.3s ease-in-out infinite alternate;
+        }
+        .tv-giroflex-bar-right {
+          right: 0;
+          background: #003cff;
+          box-shadow: 0 0 20px 8px rgba(0, 60, 255, 0.5), 0 0 50px 16px rgba(0, 60, 255, 0.25);
+          animation: led-bar-blue 0.3s ease-in-out infinite alternate-reverse;
+        }
+
         @keyframes sale-popup-in {
           0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
           50% { transform: translate(-50%, -50%) scale(1.05); }
@@ -2276,6 +2408,13 @@ export default function TvWall() {
 
       {salePopup && (
         <>
+          {/* Giroflex police LED overlay */}
+          <div className="tv-sale-giroflex">
+            <div className="tv-giroflex-bar-top" />
+            <div className="tv-giroflex-bar-bottom" />
+            <div className="tv-giroflex-bar-left" />
+            <div className="tv-giroflex-bar-right" />
+          </div>
           <div className="tv-sale-popup-backdrop" onClick={() => setSalePopup(null)} />
           <div className="tv-sale-popup">
             <div className="tv-sale-bell">

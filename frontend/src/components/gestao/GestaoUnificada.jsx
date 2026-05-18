@@ -96,6 +96,11 @@ function isPermutaVendaType(tipo) {
   return normalized.includes('permuta');
 }
 
+/** Renova\u00e7\u00e3o tracking = rastreamento de contrato a vencer (N\u00c3O \u00e9 venda realizada) */
+function isRenovacaoTracking(v) {
+  return v.renovacao_status != null && v.renovacao_status !== undefined;
+}
+
 /* ─── Progress Card ──────────────────────────────────── */
 function ProgressCard({ title, subtitle, icon, accentBorder, meta, real, pct, isDark, cardBg, text, textMuted }) {
   const hasMeta = meta > 0;
@@ -329,11 +334,12 @@ export default function GestaoUnificada({ isDark, ano }) {
     recorrencia: Number(metasRecorr?.[GLOBAL_KEY]?.[mes] || 0),
   }), [metas, metasRecorr, mes]);
 
-  // Totals for selected month (excluding Permuta from goals)
+  // Totals for selected month (excluding Permuta and Renovação tracking from goals)
   const monthTotals = useMemo(() => {
     let mensal = 0, contrato = 0;
     vendas.forEach(v => {
       if (isPermutaVendaType(v.tipo)) return;
+      if (isRenovacaoTracking(v)) return;
       mensal += Number(v.valor_mensal || 0); contrato += Number(v.total_contrato || 0);
     });
     return { mensal, contrato };
@@ -580,9 +586,9 @@ export default function GestaoUnificada({ isDark, ano }) {
 
           {vendedorKeys.map(vendedor => {
             const items = vendasByVendedor[vendedor] || [];
-            const nonPermutaItems = items.filter(v => !isPermutaVendaType(v.tipo));
-            const totalMensal = nonPermutaItems.reduce((s, v) => s + Number(v.valor_mensal || 0), 0);
-            const totalContrato = nonPermutaItems.reduce((s, v) => s + Number(v.total_contrato || 0), 0);
+            const realSalesItems = items.filter(v => !isPermutaVendaType(v.tipo) && !isRenovacaoTracking(v));
+            const totalMensal = realSalesItems.reduce((s, v) => s + Number(v.valor_mensal || 0), 0);
+            const totalContrato = realSalesItems.reduce((s, v) => s + Number(v.total_contrato || 0), 0);
             const isExpanded = expandedVendedor === vendedor;
             const displayName = vendedorDisplayName[vendedor] || vendedor;
             const vendedorData = vendedorByUsername[vendedor];

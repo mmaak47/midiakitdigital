@@ -8,9 +8,10 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Heart, Users, Send, ExternalLink, Eye, Loader2, RefreshCcw,
   ChevronDown, ChevronUp, Building2, Copy, Check, Link2,
-  MessageCircle, Clock, Filter, Search, Percent, DollarSign
+  MessageCircle, Clock, Filter, Search, Percent, DollarSign,
+  Megaphone, Phone, User, Package
 } from 'lucide-react';
-import { fetchCommercialShares, fetchClientFavorites } from '../../lib/api';
+import { fetchCommercialShares, fetchClientFavorites, fetchPacoteCommercialLeads } from '../../lib/api';
 
 function formatInt(n) {
   return new Intl.NumberFormat('pt-BR').format(Math.round(Number(n) || 0));
@@ -55,28 +56,38 @@ export default function MeusLeads({ isDark, currentUser }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchCommercialShares();
-      setShares(data);
+      const [commercialData, pacoteData] = await Promise.all([
+        fetchCommercialShares().catch(() => []),
+        fetchPacoteCommercialLeads().catch(() => []),
+      ]);
+      // Merge and sort by date (newest first)
+      const merged = [...commercialData, ...pacoteData].sort((a, b) =>
+        new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+      );
+      setShares(merged);
     } catch { setShares([]); }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const toggleExpand = useCallback(async (code) => {
+  const toggleExpand = useCallback(async (code, shareType) => {
     if (expandedCode === code) { setExpandedCode(null); return; }
     setExpandedCode(code);
+    // Pacote leads have data embedded in the share object — no separate fetch needed
+    if (shareType === 'pacote') return;
     if (!clientFavsData[code]) {
       try {
         const data = await fetchClientFavorites(code);
-        setClientFavsData((prev) => ({ ...prev, [code]: data.favorites || [] }));
-      } catch { setClientFavsData((prev) => ({ ...prev, [code]: [] })); }
+        setClientFavsData((prev) => ({ ...prev, [code]: data }));
+      } catch { setClientFavsData((prev) => ({ ...prev, [code]: { favorites: [] } })); }
     }
   }, [expandedCode, clientFavsData]);
 
-  const copyLink = useCallback(async (code) => {
+  const copyLink = useCallback(async (code, shareType) => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/s/${code}`);
+      const path = shareType === 'pacote' ? `/pacote/${code}` : `/s/${code}`;
+      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
       setCopiedCode(code);
       setTimeout(() => setCopiedCode(null), 2000);
     } catch {}
@@ -90,7 +101,7 @@ export default function MeusLeads({ isDark, currentUser }) {
     if (statusFilter === 'waiting') result = result.filter(s => s.clientFavoritesCount === 0);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
-      result = result.filter(s => (s.clientName || '').toLowerCase().includes(q) || (s.vendedorName || '').toLowerCase().includes(q));
+      result = result.filter(s => (s.clientName || '').toLowerCase().includes(q) || (s.vendedorName || '').toLowerCase().includes(q) || (s.pacoteNome || '').toLowerCase().includes(q) || (s.shareType === 'broadcast' && 'disparo em massa'.includes(q)) || (s.shareType === 'pacote' && 'pacote'.includes(q)));
     }
     return result;
   }, [shares, statusFilter, search]);
@@ -228,7 +239,7 @@ export default function MeusLeads({ isDark, currentUser }) {
               return (
                 <div key={share.code}>
                   <button
-                    onClick={() => toggleExpand(share.code)}
+                    onClick={() => toggleExpand(share.code, share.shareType)}
                     className={`w-full px-5 py-4 flex items-center gap-4 text-left transition-colors ${t.cardHover}`}
                   >
                     {/* Status indicator */}
@@ -238,8 +249,18 @@ export default function MeusLeads({ isDark, currentUser }) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                          {share.clientName || 'Cliente N/I'}
+                          {share.shareType === 'broadcast' ? 'Disparo em massa' : (share.clientName || 'Cliente N/I')}
                         </span>
+                        {share.shareType === 'pacote' && (
+                          <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold border ${t.badgeOrange}`}>
+                            <Package size={9} />{share.pacoteNome || 'Pacote'}
+                          </span>
+                        )}
+                        {share.shareType === 'broadcast' && (
+                          <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-purple-500/15 text-purple-300 border-purple-500/30' : 'bg-purple-50 text-purple-700 border-purple-200'}`}>
+                            <Megaphone size={9} />Massa
+                          </span>
+                        )}
                         {share.discount && (
                           <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold border ${t.badgeOrange}`}>
                             {share.discount.mode === 'percent' ? <Percent size={9} /> : <DollarSign size={9} />}
@@ -265,7 +286,7 @@ export default function MeusLeads({ isDark, currentUser }) {
                     <div className="flex items-center gap-2 shrink-0">
                       {hasResponse ? (
                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${t.badgeGreen}`}>
-                          <Heart size={10} fill="currentColor" />{share.clientFavoritesCount} favoritos
+                          <Heart size={10} fill="currentColor" />{share.clientFavoritesCount} {share.shareType === 'broadcast' ? 'respostas' : 'favoritos'}
                         </span>
                       ) : (
                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border ${t.badge}`}>
@@ -274,14 +295,14 @@ export default function MeusLeads({ isDark, currentUser }) {
                       )}
 
                       <button
-                        onClick={(e) => { e.stopPropagation(); copyLink(share.code); }}
+                        onClick={(e) => { e.stopPropagation(); copyLink(share.code, share.shareType); }}
                         className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/10 text-brand-gray-500' : 'hover:bg-neutral-100 text-neutral-400'}`}
                         title="Copiar link"
                       >
                         {copiedCode === share.code ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
                       </button>
                       <a
-                        href={`/s/${share.code}`}
+                        href={share.shareType === 'pacote' ? `/pacote/${share.code}` : `/s/${share.code}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
@@ -295,7 +316,76 @@ export default function MeusLeads({ isDark, currentUser }) {
                   </button>
 
                   {/* Expanded details */}
-                  {isExpanded && (
+                  {isExpanded && share.shareType === 'pacote' && (
+                    <div className={`px-5 pb-5 pt-2 ${t.expanded}`}>
+                      <div className={`flex flex-wrap gap-4 mb-4 text-xs ${t.sub}`}>
+                        <span>Criado: <strong className={isDark ? 'text-white' : 'text-neutral-800'}>{fmtDateTime(share.createdAt)}</strong></span>
+                        <span>Código: <strong className={isDark ? 'text-white' : 'text-neutral-800'}>{share.code}</strong></span>
+                      </div>
+
+                      {!share.leads?.length ? (
+                        <div className={`rounded-lg border p-5 text-center ${isDark ? 'border-white/5 bg-white/[0.02]' : 'border-neutral-100 bg-neutral-50'}`}>
+                          <Clock size={20} className={`mx-auto mb-2 ${t.sub2}`} />
+                          <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-700'}`}>Aguardando interesse</p>
+                          <p className={`text-xs mt-1 ${t.sub}`}>O cliente ainda não demonstrou interesse neste pacote.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {share.leads.map((lead, li) => (
+                            <div key={li} className={`rounded-xl border overflow-hidden ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-neutral-50'}`}>
+                              {/* Lead header */}
+                              <div className={`px-4 py-3 flex items-center justify-between border-b ${isDark ? 'border-white/5' : 'border-neutral-100'}`}>
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isDark ? 'bg-brand-orange/20 text-brand-orange' : 'bg-orange-50 text-[#C94A1A]'}`}>
+                                    {(lead.nome || 'C')[0].toUpperCase()}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-neutral-900'}`}>{lead.nome}</div>
+                                    <div className={`text-xs flex items-center gap-3 ${t.sub2}`}>
+                                      {lead.empresa && <span className="flex items-center gap-1"><Building2 size={10} />{lead.empresa}</span>}
+                                      {lead.telefone && <span className="flex items-center gap-1"><Phone size={10} />{lead.telefone.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')}</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {lead.duracao_meses && <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badge}`}>{lead.duracao_meses} meses</span>}
+                                  {lead.valor_estimado > 0 && <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${t.badgeGreen}`}>{fmtBRL(lead.valor_estimado)}/mês</span>}
+                                  <span className={`text-[10px] ${t.sub2}`}>{timeAgo(lead.created_at)}</span>
+                                  {lead.telefone && (
+                                    <a
+                                      href={`https://wa.me/55${lead.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${lead.nome}! Vi que você demonstrou interesse no pacote "${share.pacoteNome}". Vamos conversar?`)}`}
+                                      target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors"
+                                    >
+                                      <MessageCircle size={10} />Falar
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                              {/* Favorite points */}
+                              {share.favorites?.length > 0 && (
+                                <div className="px-4 py-2 space-y-1">
+                                  <p className={`text-[10px] uppercase tracking-wider font-semibold mb-1 ${t.sub2}`}>
+                                    Pontos selecionados ({share.favorites.length})
+                                  </p>
+                                  {share.favorites.map((fav, fi) => (
+                                    <div key={fi} className={`flex items-center justify-between py-1.5 text-xs ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>
+                                      <span className="flex items-center gap-2">
+                                        <Heart size={10} className="text-brand-orange shrink-0" fill="currentColor" />
+                                        {fav.point_name || `Ponto #${fav.point_id}`}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {isExpanded && share.shareType !== 'pacote' && (
                     <div className={`px-5 pb-5 pt-2 ${t.expanded}`}>
                       {/* Meta info */}
                       <div className={`flex flex-wrap gap-4 mb-4 text-xs ${t.sub}`}>
@@ -309,17 +399,19 @@ export default function MeusLeads({ isDark, currentUser }) {
                           <Loader2 size={14} className="animate-spin text-brand-orange" />
                           <span className={`text-xs ${t.sub}`}>Carregando favoritos do cliente...</span>
                         </div>
-                      ) : clientFavsData[share.code].length === 0 ? (
+                      ) : (clientFavsData[share.code].favorites || clientFavsData[share.code]).length === 0 ? (
                         <div className={`rounded-lg border p-5 text-center ${isDark ? 'border-white/5 bg-white/[0.02]' : 'border-neutral-100 bg-neutral-50'}`}>
                           <Clock size={20} className={`mx-auto mb-2 ${t.sub2}`} />
                           <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-700'}`}>
-                            Aguardando resposta do cliente
+                            Aguardando resposta {share.shareType === 'broadcast' ? 'dos clientes' : 'do cliente'}
                           </p>
                           <p className={`text-xs mt-1 ${t.sub}`}>
-                            O cliente ainda não enviou seus favoritos. Envie o link por WhatsApp para agilizar.
+                            {share.shareType === 'broadcast'
+                              ? 'Nenhum cliente respondeu ainda. Compartilhe o link para receber as seleções.'
+                              : 'O cliente ainda não enviou seus favoritos. Envie o link por WhatsApp para agilizar.'}
                           </p>
                           <a
-                            href={`https://wa.me/?text=${encodeURIComponent(`Olá! Confira nossa seleção de pontos de mídia: ${window.location.origin}/s/${share.code}`)}`}
+                            href={`https://wa.me/?text=${encodeURIComponent(`Confira nossa seleção de pontos de mídia: ${window.location.origin}/s/${share.code}`)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 rounded-lg bg-green-500 text-white text-xs font-semibold hover:bg-green-600 transition-colors"
@@ -328,13 +420,69 @@ export default function MeusLeads({ isDark, currentUser }) {
                             Enviar por WhatsApp
                           </a>
                         </div>
+                      ) : share.shareType === 'broadcast' && clientFavsData[share.code].clients ? (
+                        /* ── Broadcast: grouped by client ── */
+                        <div className="space-y-4">
+                          <p className={`text-[10px] uppercase tracking-wider font-semibold flex items-center gap-2 ${t.sub2}`}>
+                            <Users size={11} className="text-purple-400" />
+                            {clientFavsData[share.code].clients.length} cliente{clientFavsData[share.code].clients.length > 1 ? 's' : ''} responderam
+                          </p>
+                          {clientFavsData[share.code].clients.map((client, ci) => (
+                            <div key={ci} className={`rounded-xl border overflow-hidden ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-neutral-50'}`}>
+                              {/* Client header */}
+                              <div className={`px-4 py-3 flex items-center justify-between border-b ${isDark ? 'border-white/5' : 'border-neutral-100'}`}>
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-50 text-purple-700'}`}>
+                                    {(client.clientName || 'C')[0].toUpperCase()}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                                      {client.clientName}
+                                    </div>
+                                    {client.clientContact && (
+                                      <div className={`text-xs flex items-center gap-1 ${t.sub2}`}>
+                                        <Phone size={10} />{client.clientContact}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className={`text-[10px] ${t.sub2}`}>{timeAgo(client.submittedAt)}</span>
+                                  {client.clientContact && (
+                                    <a
+                                      href={`https://wa.me/${client.clientContact.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${client.clientName}! Vi que você selecionou ${client.favorites.length} pontos de mídia. Vamos conversar sobre a proposta?`)}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#25D366] text-white hover:bg-[#1EB954] transition-colors"
+                                    >
+                                      <MessageCircle size={10} />Falar
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                              {/* Client's favorites */}
+                              <div className="px-4 py-2 space-y-1">
+                                {client.favorites.map((fav, fi) => (
+                                  <div key={fi} className={`flex items-center justify-between py-1.5 text-xs ${isDark ? 'text-brand-gray-400' : 'text-neutral-600'}`}>
+                                    <span className="flex items-center gap-2">
+                                      <Heart size={10} className="text-brand-orange shrink-0" fill="currentColor" />
+                                      {fav.point_name || `Ponto #${fav.point_id}`}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       ) : (
+                        /* ── Commercial: flat favorites list ── */
                         <div className="space-y-2">
                           <p className={`text-[10px] uppercase tracking-wider font-semibold mb-3 flex items-center gap-2 ${t.sub2}`}>
                             <Heart size={11} className="text-brand-orange" fill="currentColor" />
-                            Pontos escolhidos pelo cliente ({clientFavsData[share.code].length})
+                            Pontos escolhidos pelo cliente ({(clientFavsData[share.code].favorites || clientFavsData[share.code]).length})
                           </p>
-                          {clientFavsData[share.code].map((fav, i) => (
+                          {(clientFavsData[share.code].favorites || clientFavsData[share.code]).map((fav, i) => (
                             <div
                               key={i}
                               className={`flex items-center justify-between px-4 py-3 rounded-lg text-sm ${
@@ -354,7 +502,7 @@ export default function MeusLeads({ isDark, currentUser }) {
                           {/* Quick WhatsApp follow-up */}
                           <div className="pt-3 flex justify-end">
                             <a
-                              href={`https://wa.me/?text=${encodeURIComponent(`Olá ${share.clientName || ''}! Vi que você selecionou ${clientFavsData[share.code].length} pontos de mídia. Vamos conversar sobre a proposta?`)}`}
+                              href={`https://wa.me/?text=${encodeURIComponent(`Olá ${share.clientName || ''}! Vi que você selecionou ${(clientFavsData[share.code].favorites || clientFavsData[share.code]).length} pontos de mídia. Vamos conversar sobre a proposta?`)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-green-500 text-white text-xs font-semibold hover:bg-green-600 transition-colors"

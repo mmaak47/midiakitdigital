@@ -31,7 +31,7 @@ const emptyVenda = {
   data_venda: '', cliente: '', cnpj: '', pontos_contratados: '',
   valor_mensal: '', total_contrato: '', qtde_parcelas: 1,
   previsao_veiculacao: '', data_emissao_nf: '', vencimento_boletos: '',
-  contato: '', email: '', obs: '',
+  contato: '', email: '', obs: '', venda_escritorio: false,
 };
 
 export default function PlanilhaMensal({ isDark, ano }) {
@@ -130,7 +130,7 @@ export default function PlanilhaMensal({ isDark, ano }) {
       total_contrato: v.total_contrato || '', qtde_parcelas: v.qtde_parcelas || 1,
       previsao_veiculacao: v.previsao_veiculacao || '', data_emissao_nf: v.data_emissao_nf || '',
       vencimento_boletos: v.vencimento_boletos || '', contato: v.contato || '',
-      email: v.email || '', obs: v.obs || '',
+      email: v.email || '', obs: v.obs || '', venda_escritorio: !!v.venda_escritorio,
     });
     setExpandedVendedor(v.vendedor_nome);
   };
@@ -362,7 +362,10 @@ export default function PlanilhaMensal({ isDark, ano }) {
                                   </td>
                                 ))}
                                 <td className="px-2 py-2 whitespace-nowrap">{v.data_venda || '—'}</td>
-                                <td className="px-2 py-2 font-medium max-w-[150px] truncate">{v.cliente}</td>
+                                <td className="px-2 py-2 font-medium max-w-[150px] truncate">
+                                  {v.cliente}
+                                  {!!v.venda_escritorio && <span className={`ml-1 text-[10px] font-semibold px-1 py-0.5 rounded ${isDark ? 'bg-amber-500/15 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>Escritório</span>}
+                                </td>
                                 <td className="px-2 py-2 whitespace-nowrap text-xs">{v.cnpj || '—'}</td>
                                 <td className="px-2 py-2 max-w-[120px] truncate text-xs">{v.pontos_contratados || '—'}</td>
                                 <td className="px-2 py-2 text-right text-green-500 font-medium whitespace-nowrap">{fmtCurrency(v.valor_mensal)}</td>
@@ -509,7 +512,17 @@ export default function PlanilhaMensal({ isDark, ano }) {
                             />
                           </div>
                         </div>
-                        <div className="flex justify-end gap-2">
+                        <div className="flex items-center justify-between gap-4 flex-wrap">
+                          <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={!!formData.venda_escritorio}
+                              onChange={e => setFormData(prev => ({ ...prev, venda_escritorio: e.target.checked }))}
+                              className="accent-amber-500"
+                            />
+                            <span className={`text-xs font-medium ${textMuted}`}>Venda do Escritório</span>
+                          </label>
+                          <div className="flex gap-2">
                           <button onClick={() => { setShowForm(null); setEditingId(null); setFormData(emptyVenda); }} className={`px-4 py-1.5 rounded text-sm ${textMuted} ${hoverBg}`}>
                             Cancelar
                           </button>
@@ -521,6 +534,7 @@ export default function PlanilhaMensal({ isDark, ano }) {
                             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                             {editingId ? 'Salvar' : 'Adicionar'}
                           </button>
+                          </div>
                         </div>
                       </motion.div>
                     ) : (

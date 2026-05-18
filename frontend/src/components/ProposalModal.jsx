@@ -367,7 +367,7 @@ function applyAgencyCommissionToSummary(summary = {}, { enabled = false, percent
 }
 
 export default function ProposalModal({ onClose, open = true, selectedPoints = null, isDark = true }) {
-  const { favorites } = useFavorites();
+  const { favorites, clearFavorites } = useFavorites();
   const sourcePoints = selectedPoints ?? favorites;
   const [wizardStep, setWizardStep] = useState(1);
   const [showPresentation, setShowPresentation] = useState(false);
@@ -1387,6 +1387,8 @@ export default function ProposalModal({ onClose, open = true, selectedPoints = n
 
       const result = await criarPropostaPublica(proposalData, 7);
       setShareModal(result);
+      // Limpa o carrinho de favoritos após gerar proposta com sucesso
+      clearFavorites();
     } catch (err) {
       if (handleAuthExpired(err, 'Sua sessão expirou antes de compartilhar a proposta. Faça login novamente para gerar o link público/PDF com segurança.')) {
         return;

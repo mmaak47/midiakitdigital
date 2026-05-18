@@ -313,7 +313,7 @@ function CommercialSharesSection({ isDark, t }) {
               <div className="flex-1 min-w-0">
                 <div className={`font-medium text-sm ${isDark ? 'text-white' : 'text-neutral-900'}`}>
                   <Building2 size={13} className="inline mr-1.5 text-blue-400" />
-                  {share.clientName || 'Cliente N/I'}
+                  {share.shareType === 'broadcast' ? 'Disparo em massa' : (share.clientName || 'Cliente N/I')}
                 </div>
                 <div className={`text-xs mt-0.5 flex items-center gap-3 ${isDark ? 'text-brand-gray-500' : 'text-neutral-500'}`}>
                   <span>{formatInt(share.pointCount)} pontos</span>

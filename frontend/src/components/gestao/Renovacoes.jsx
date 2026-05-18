@@ -1,13 +1,10 @@
-﻿import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, Trash2, Save, Loader2, X, RefreshCcw,
-  CheckCircle2, Clock, AlertCircle, ChevronDown, ChevronUp
+  Loader2, RefreshCcw, CheckCircle2, Clock, AlertCircle,
+  ChevronDown, ChevronUp, CalendarClock, FileText
 } from 'lucide-react';
-import {
-  fetchGestaoRenovacoes, createGestaoRenovacao,
-  updateGestaoRenovacao, deleteGestaoRenovacao, fetchGestaoVendedores
-} from '../../lib/api';
+import { fetchGestaoRenovacoes, updateGestaoRenovacao } from '../../lib/api';
 
 const MESES = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
 const STATUS_OPTIONS = [
@@ -23,33 +20,18 @@ const fmtCurrency = (v) => {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
-const emptyRenovacao = {
-  cliente: '', cnpj: '', pontos: '', valor_mensal: '',
-  vendedor_nome: '', status: 'pendente', obs: '',
-};
-
 export default function Renovacoes({ isDark, ano }) {
   const [renovacoes, setRenovacoes] = useState([]);
-  const [vendedores, setVendedores] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filterMes, setFilterMes] = useState(null); // null = ALL
-  const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState(emptyRenovacao);
-  const [formMes, setFormMes] = useState(new Date().getMonth() + 1);
-  const [editingId, setEditingId] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [filterMes, setFilterMes] = useState(null);
   const [expandedMonth, setExpandedMonth] = useState(new Date().getMonth() + 1);
+  const [editObs, setEditObs] = useState(null); // { id, obs }
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, vds] = await Promise.all([
-        fetchGestaoRenovacoes({ ano, mes: filterMes }),
-        fetchGestaoVendedores(),
-      ]);
+      const data = await fetchGestaoRenovacoes({ ano, mes: filterMes });
       setRenovacoes(data);
-      setVendedores(vds || []);
     } catch { /* ignore */ }
     setLoading(false);
   }, [ano, filterMes]);
@@ -77,51 +59,25 @@ export default function Renovacoes({ isDark, ano }) {
     return { total, concluidas, pendentes, perdidas, valorTotal, valorConcluidas };
   }, [renovacoes]);
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      if (editingId) {
-        await updateGestaoRenovacao(editingId, { ...formData });
-      } else {
-        await createGestaoRenovacao({ ...formData, ano, mes: formMes });
-      }
-      setShowForm(false);
-      setEditingId(null);
-      setFormData(emptyRenovacao);
-      await loadData();
-    } catch (err) { alert(err.message); }
-    setSaving(false);
-  };
-
-  const handleEdit = (r) => {
-    setEditingId(r.id);
-    setFormMes(r.mes);
-    setFormData({
-      cliente: r.cliente || '', cnpj: r.cnpj || '', pontos: r.pontos || '',
-      valor_mensal: r.valor_mensal || '', vendedor_nome: r.vendedor_nome || '',
-      status: r.status || 'pendente', obs: r.obs || '',
-    });
-    setShowForm(true);
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await deleteGestaoRenovacao(id);
-      setDeleteConfirm(null);
-      await loadData();
-    } catch (err) { alert(err.message); }
-  };
-
   const handleStatusChange = async (id, newStatus) => {
     try {
       const ren = renovacoes.find(r => r.id === id);
       if (!ren) return;
-      await updateGestaoRenovacao(id, { ...ren, status: newStatus });
+      await updateGestaoRenovacao(id, { status: newStatus, obs: ren.obs || '' });
       setRenovacoes(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
     } catch (err) { alert(err.message); }
   };
 
-  const bg = isDark ? 'bg-gray-900' : 'bg-white';
+  const handleObsSave = async (id) => {
+    if (!editObs || editObs.id !== id) return;
+    try {
+      const ren = renovacoes.find(r => r.id === id);
+      await updateGestaoRenovacao(id, { status: ren?.status || 'pendente', obs: editObs.obs });
+      setRenovacoes(prev => prev.map(r => r.id === id ? { ...r, obs: editObs.obs } : r));
+      setEditObs(null);
+    } catch (err) { alert(err.message); }
+  };
+
   const cardBg = isDark ? 'bg-white/[0.03] shadow-md' : 'bg-white shadow-sm';
   const border = isDark ? 'border-white/10' : 'border-neutral-200';
   const text = isDark ? 'text-white' : 'text-neutral-900';
@@ -129,24 +85,17 @@ export default function Renovacoes({ isDark, ano }) {
   const inputBg = isDark ? 'bg-white/5 text-white border-white/10 placeholder:text-brand-gray-500' : 'bg-white text-neutral-900 border-neutral-200 placeholder:text-neutral-400';
   const hoverBg = isDark ? 'hover:bg-white/5' : 'hover:bg-neutral-50';
 
-  const statusBadge = (status) => {
-    const s = STATUS_OPTIONS.find(o => o.value === status) || STATUS_OPTIONS[0];
-    const Icon = s.icon;
-    const colors = {
-      amber: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-      blue: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      green: 'bg-green-500/20 text-green-400 border-green-500/30',
-      red: 'bg-red-500/20 text-red-400 border-red-500/30',
-    };
-    return (
-      <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${colors[s.color]}`}>
-        <Icon size={12} /> {s.label}
-      </span>
-    );
-  };
-
   return (
     <div className={`space-y-5 ${text}`}>
+      {/* Info banner */}
+      <div className={`flex items-start gap-3 p-4 rounded-xl border ${isDark ? 'border-blue-500/20 bg-blue-500/5' : 'border-blue-200 bg-blue-50'}`}>
+        <CalendarClock size={18} className={isDark ? 'text-blue-400 mt-0.5 shrink-0' : 'text-blue-600 mt-0.5 shrink-0'} />
+        <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
+          Contratos com vencimento em <strong>{ano}</strong> — calculados automaticamente pela data da venda + duração do contrato.
+          Altere o status para acompanhar cada renovação.
+        </p>
+      </div>
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className={`rounded-xl border ${border} ${cardBg} p-4 text-center`}>
@@ -203,123 +152,6 @@ export default function Renovacoes({ isDark, ano }) {
         </div>
       )}
 
-      {/* Add button */}
-      <button
-        onClick={() => { setShowForm(true); setEditingId(null); setFormData(emptyRenovacao); }}
-        className="flex items-center gap-1 text-sm text-brand-orange hover:text-brand-orange/80"
-      >
-        <Plus size={14} /> Nova Renovação
-      </button>
-
-      {/* Form modal */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className={`p-4 rounded-lg border ${border} ${cardBg} space-y-3`}
-          >
-            <div className="flex items-center justify-between">
-              <h4 className="font-semibold">{editingId ? 'Editar Renovação' : 'Nova Renovação'}</h4>
-              <button onClick={() => { setShowForm(false); setEditingId(null); }}>
-                <X size={16} className={textMuted} />
-              </button>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {!editingId && (
-                <div>
-                  <label className={`block text-xs mb-1 ${textMuted}`}>Mês *</label>
-                  <select
-                    value={formMes}
-                    onChange={e => setFormMes(Number(e.target.value))}
-                    className={`w-full px-3 py-1.5 rounded text-sm ${inputBg}`}
-                  >
-                    {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-                  </select>
-                </div>
-              )}
-              <div>
-                <label className={`block text-xs mb-1 ${textMuted}`}>Cliente *</label>
-                <input
-                  value={formData.cliente}
-                  onChange={e => setFormData(prev => ({ ...prev, cliente: e.target.value }))}
-                  className={`w-full px-3 py-1.5 rounded text-sm ${inputBg}`}
-                />
-              </div>
-              <div>
-                <label className={`block text-xs mb-1 ${textMuted}`}>CNPJ</label>
-                <input
-                  value={formData.cnpj}
-                  onChange={e => setFormData(prev => ({ ...prev, cnpj: e.target.value }))}
-                  className={`w-full px-3 py-1.5 rounded text-sm ${inputBg}`}
-                />
-              </div>
-              <div>
-                <label className={`block text-xs mb-1 ${textMuted}`}>Pontos</label>
-                <input
-                  value={formData.pontos}
-                  onChange={e => setFormData(prev => ({ ...prev, pontos: e.target.value }))}
-                  className={`w-full px-3 py-1.5 rounded text-sm ${inputBg}`}
-                />
-              </div>
-              <div>
-                <label className={`block text-xs mb-1 ${textMuted}`}>Valor Mensal</label>
-                <input
-                  type="number"
-                  value={formData.valor_mensal}
-                  onChange={e => setFormData(prev => ({ ...prev, valor_mensal: e.target.value }))}
-                  className={`w-full px-3 py-1.5 rounded text-sm ${inputBg}`}
-                />
-              </div>
-              <div>
-                <label className={`block text-xs mb-1 ${textMuted}`}>Vendedor</label>
-                <select
-                  value={formData.vendedor_nome}
-                  onChange={e => setFormData(prev => ({ ...prev, vendedor_nome: e.target.value }))}
-                  className={`w-full px-3 py-1.5 rounded text-sm ${inputBg}`}
-                >
-                  <option value="">— Selecione —</option>
-                  {vendedores.map(v => <option key={v.username} value={v.username}>{[v.first_name, v.last_name].filter(Boolean).join(' ') || v.username}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={`block text-xs mb-1 ${textMuted}`}>Status</label>
-                <select
-                  value={formData.status}
-                  onChange={e => setFormData(prev => ({ ...prev, status: e.target.value }))}
-                  className={`w-full px-3 py-1.5 rounded text-sm ${inputBg}`}
-                >
-                  {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-              <div className="col-span-2 md:col-span-4">
-                <label className={`block text-xs mb-1 ${textMuted}`}>Observações</label>
-                <textarea
-                  value={formData.obs}
-                  onChange={e => setFormData(prev => ({ ...prev, obs: e.target.value }))}
-                  rows={2}
-                  className={`w-full px-3 py-1.5 rounded text-sm ${inputBg}`}
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => { setShowForm(false); setEditingId(null); }} className={`px-4 py-1.5 rounded text-sm ${textMuted}`}>
-                Cancelar
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving || !formData.cliente}
-                className="flex items-center gap-1 px-4 py-1.5 rounded text-sm bg-brand-orange text-white hover:bg-brand-orange/90 disabled:opacity-50"
-              >
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                {editingId ? 'Salvar' : 'Adicionar'}
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Monthly sections */}
       {!loading && (filterMes ? [filterMes] : Array.from({ length: 12 }, (_, i) => i + 1)).map(m => {
         const items = byMonth[m] || [];
@@ -353,29 +185,41 @@ export default function Renovacoes({ isDark, ano }) {
                   className="overflow-hidden"
                 >
                   {items.length === 0 ? (
-                    <p className={`text-center py-4 ${textMuted}`}>Nenhuma renovação neste mês.</p>
+                    <p className={`text-center py-4 ${textMuted}`}>Nenhum contrato vence neste mês.</p>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className={`${textMuted} border-b ${border}`}>
                             <th className="px-3 py-2 text-left">Cliente</th>
-                            <th className="px-3 py-2 text-left">CNPJ</th>
                             <th className="px-3 py-2 text-left">Pontos</th>
                             <th className="px-3 py-2 text-right">V. Mensal</th>
+                            <th className="px-3 py-2 text-center">Contrato</th>
                             <th className="px-3 py-2 text-left">Vendedor</th>
                             <th className="px-3 py-2 text-center">Status</th>
                             <th className="px-3 py-2 text-left">Obs</th>
-                            <th className="px-3 py-2 text-center">Ações</th>
                           </tr>
                         </thead>
                         <tbody>
                           {items.map(r => (
                             <tr key={r.id} className={`border-b ${border} ${hoverBg}`}>
-                              <td className="px-3 py-2 font-medium">{r.cliente}</td>
-                              <td className="px-3 py-2 text-xs">{r.cnpj || '—'}</td>
-                              <td className="px-3 py-2 text-xs max-w-[120px] truncate">{r.pontos || '—'}</td>
+                              <td className="px-3 py-2">
+                                <p className="font-medium">{r.cliente}</p>
+                                {r.cnpj && <p className={`text-xs ${textMuted}`}>{r.cnpj}</p>}
+                              </td>
+                              <td className="px-3 py-2 text-xs max-w-[140px] truncate" title={r.pontos}>{r.pontos || '—'}</td>
                               <td className="px-3 py-2 text-right text-green-500 font-medium">{fmtCurrency(r.valor_mensal)}</td>
+                              <td className="px-3 py-2 text-center">
+                                <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${
+                                  isDark ? 'border-white/10 bg-white/5 text-brand-gray-300' : 'border-neutral-200 bg-neutral-50 text-neutral-600'
+                                }`}>
+                                  <FileText size={11} />
+                                  {r.qtde_parcelas || '?'} {(r.qtde_parcelas || 0) === 1 ? 'mês' : 'meses'}
+                                  <span className={`ml-1 ${textMuted}`}>
+                                    ({MESES[(r.venda_mes || 1) - 1]?.slice(0,3)}/{r.venda_ano})
+                                  </span>
+                                </span>
+                              </td>
                               <td className="px-3 py-2">{r.vendedor_nome || '—'}</td>
                               <td className="px-3 py-2 text-center">
                                 <select
@@ -386,16 +230,27 @@ export default function Renovacoes({ isDark, ano }) {
                                   {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                 </select>
                               </td>
-                              <td className={`px-3 py-2 text-xs max-w-[150px] truncate ${textMuted}`} title={r.obs}>{r.obs || '—'}</td>
-                              <td className="px-3 py-2 text-center whitespace-nowrap">
-                                <button onClick={() => handleEdit(r)} className="text-brand-orange hover:text-brand-orange/80 mr-2 text-xs">Editar</button>
-                                {deleteConfirm === r.id ? (
-                                  <span className="text-xs">
-                                    <button onClick={() => handleDelete(r.id)} className="text-red-500 font-bold mr-1">Sim</button>
-                                    <button onClick={() => setDeleteConfirm(null)} className={textMuted}>Não</button>
-                                  </span>
+                              <td className="px-3 py-2 min-w-[140px]">
+                                {editObs?.id === r.id ? (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      value={editObs.obs}
+                                      onChange={e => setEditObs({ id: r.id, obs: e.target.value })}
+                                      onKeyDown={e => e.key === 'Enter' && handleObsSave(r.id)}
+                                      className={`w-full text-xs px-2 py-1 rounded ${inputBg}`}
+                                      autoFocus
+                                    />
+                                    <button onClick={() => handleObsSave(r.id)} className="text-green-500 text-xs font-bold shrink-0">OK</button>
+                                    <button onClick={() => setEditObs(null)} className={`${textMuted} text-xs shrink-0`}>✕</button>
+                                  </div>
                                 ) : (
-                                  <button onClick={() => setDeleteConfirm(r.id)} className="text-red-500 hover:text-red-400 text-xs">Excluir</button>
+                                  <button
+                                    onClick={() => setEditObs({ id: r.id, obs: r.obs || '' })}
+                                    className={`text-xs ${r.obs ? text : textMuted} hover:text-brand-orange transition-colors text-left w-full truncate`}
+                                    title={r.obs || 'Clique para adicionar observação'}
+                                  >
+                                    {r.obs || '+ obs'}
+                                  </button>
                                 )}
                               </td>
                             </tr>
@@ -410,6 +265,14 @@ export default function Renovacoes({ isDark, ano }) {
           </div>
         );
       })}
+
+      {!loading && renovacoes.length === 0 && (
+        <div className={`text-center py-12 ${textMuted}`}>
+          <CalendarClock size={40} className="mx-auto mb-3 opacity-40" />
+          <p className="font-medium">Nenhum contrato vence em {ano}</p>
+          <p className="text-sm mt-1">Quando uma venda for registrada com período definido, ela aparecerá aqui automaticamente no mês de vencimento.</p>
+        </div>
+      )}
     </div>
   );
 }
