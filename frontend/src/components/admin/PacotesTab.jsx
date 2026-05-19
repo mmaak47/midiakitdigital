@@ -960,6 +960,22 @@ export default function PacotesTab({ isDark = true, currentUser = null, pontos =
   const [myLinks, setMyLinks] = useState([]);
   const [linksLoading, setLinksLoading] = useState(false);
 
+  // Analytics detalhado por link
+  const [linkAnalytics, setLinkAnalytics] = useState(null);
+  const [linkAnalyticsLoading, setLinkAnalyticsLoading] = useState(false);
+
+  const openLinkAnalytics = useCallback(async (compId) => {
+    setLinkAnalyticsLoading(true);
+    setLinkAnalytics(null);
+    try {
+      const res = await fetch(`/api/pacotes/compartilhamento/${compId}/analytics`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (res.ok) setLinkAnalytics(await res.json());
+    } catch { /* silent */ }
+    finally { setLinkAnalyticsLoading(false); }
+  }, []);
+
   const activePontos = useMemo(() => pontos.filter(p => p.ativo !== false), [pontos]);
 
   const load = useCallback(async () => {
@@ -1449,18 +1465,159 @@ export default function PacotesTab({ isDark = true, currentUser = null, pontos =
                         <span className="flex items-center gap-1"><MousePointerClick size={11} />{link.whatsapp_clicks || 0} cliques</span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/pacote/${link.code}`);
-                        setNotice({ msg: 'Link copiado!', type: 'ok' });
-                      }}
-                      className={`p-2 rounded-lg border transition-colors shrink-0 ${isDark ? 'border-white/10 text-brand-gray-300 hover:bg-white/5' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'}`}
-                      title="Copiar link"
-                    >
-                      <Copy size={13} />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => openLinkAnalytics(link.id)}
+                        className={`p-2 rounded-lg border transition-colors ${isDark ? 'border-white/10 text-brand-orange hover:bg-white/5' : 'border-neutral-200 text-brand-orange hover:bg-neutral-50'}`}
+                        title="Ver funil de comportamento"
+                      >
+                        <BarChart3 size={13} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/pacote/${link.code}`);
+                          setNotice({ msg: 'Link copiado!', type: 'ok' });
+                        }}
+                        className={`p-2 rounded-lg border transition-colors ${isDark ? 'border-white/10 text-brand-gray-300 hover:bg-white/5' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'}`}
+                        title="Copiar link"
+                      >
+                        <Copy size={13} />
+                      </button>
+                    </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* ── Analytics de funil por link ──────────────────── */}
+            {linkAnalyticsLoading && (
+              <div className="flex items-center justify-center gap-2 py-6">
+                <Loader2 size={16} className="animate-spin text-brand-orange" />
+                <span className={`text-sm ${th.muted}`}>Carregando analytics…</span>
+              </div>
+            )}
+            {linkAnalytics && !linkAnalyticsLoading && (
+              <div className={`mt-4 rounded-xl border p-4 ${isDark ? 'border-white/10 bg-white/[0.02]' : 'border-neutral-200 bg-neutral-50'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 size={14} className="text-brand-orange" />
+                    <h4 className={`text-sm font-bold ${th.text}`}>
+                      Funil — {linkAnalytics.compartilhamento?.pacote_nome}
+                    </h4>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${isDark ? 'bg-white/10 text-brand-gray-400' : 'bg-neutral-200 text-neutral-600'}`}>
+                      {linkAnalytics.compartilhamento?.vendedor_nome}
+                    </span>
+                  </div>
+                  <button onClick={() => setLinkAnalytics(null)} className={`p-1 rounded ${isDark ? 'hover:bg-white/10' : 'hover:bg-neutral-200'}`}>
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* Summary cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+                  {[
+                    { label: 'Views', val: linkAnalytics.summary?.total_views || 0, icon: '👁️' },
+                    { label: 'Sessões', val: linkAnalytics.summary?.unique_sessions || 0, icon: '👤' },
+                    { label: 'Interagiram', val: linkAnalytics.summary?.sessions_with_interaction || 0, icon: '👆' },
+                    { label: 'Leads', val: linkAnalytics.summary?.total_leads || 0, icon: '🎯' },
+                  ].map(s => (
+                    <div key={s.label} className={`rounded-lg px-3 py-2 text-center ${isDark ? 'bg-white/5' : 'bg-white border border-neutral-200'}`}>
+                      <span className="text-base">{s.icon}</span>
+                      <p className={`text-lg font-bold ${th.text}`}>{s.val}</p>
+                      <p className={`text-[10px] ${th.muted}`}>{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Engagement metrics */}
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  <div className={`rounded-lg px-3 py-2 ${isDark ? 'bg-white/5' : 'bg-white border border-neutral-200'}`}>
+                    <p className={`text-[10px] uppercase tracking-wider ${th.muted}`}>Scroll médio</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className={`flex-1 h-1.5 rounded-full ${isDark ? 'bg-white/10' : 'bg-neutral-200'}`}>
+                        <div className="h-full rounded-full bg-brand-orange transition-all" style={{ width: `${Math.min(linkAnalytics.summary?.avg_scroll || 0, 100)}%` }} />
+                      </div>
+                      <span className={`text-xs font-bold ${th.text}`}>{linkAnalytics.summary?.avg_scroll || 0}%</span>
+                    </div>
+                  </div>
+                  <div className={`rounded-lg px-3 py-2 ${isDark ? 'bg-white/5' : 'bg-white border border-neutral-200'}`}>
+                    <p className={`text-[10px] uppercase tracking-wider ${th.muted}`}>Tempo médio</p>
+                    <p className={`text-sm font-bold mt-1 ${th.text}`}>
+                      {linkAnalytics.summary?.avg_time_secs >= 60
+                        ? `${Math.floor(linkAnalytics.summary.avg_time_secs / 60)}m ${linkAnalytics.summary.avg_time_secs % 60}s`
+                        : `${linkAnalytics.summary?.avg_time_secs || 0}s`}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Funnel bars */}
+                {linkAnalytics.funnel?.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className={`text-[10px] uppercase tracking-wider font-semibold ${th.muted}`}>Eventos</p>
+                    {linkAnalytics.funnel.map(f => {
+                      const maxTotal = Math.max(...linkAnalytics.funnel.map(x => x.total), 1);
+                      const LABELS = {
+                        page_view: 'Abriu o link', scroll_depth: 'Rolou a página', time_on_page: 'Tempo na página',
+                        section_view: 'Viu seção', point_expand: 'Expandiu ponto', point_detail_view: 'Viu detalhes',
+                        selection_change: 'Selecionou pontos', duration_change: 'Mudou duração', pricing_view: 'Viu preços',
+                        whatsapp_click: 'Clicou WhatsApp', interesse_submit: 'Enviou interesse', share_click: 'Compartilhou',
+                      };
+                      return (
+                        <div key={f.event_type} className="flex items-center gap-2">
+                          <span className={`text-[10px] w-28 truncate text-right ${th.muted}`}>{LABELS[f.event_type] || f.event_type}</span>
+                          <div className={`flex-1 h-4 rounded ${isDark ? 'bg-white/5' : 'bg-neutral-200'}`}>
+                            <div
+                              className="h-full rounded bg-brand-orange/70 flex items-center justify-end pr-1"
+                              style={{ width: `${Math.max((f.total / maxTotal) * 100, 8)}%`, minWidth: 24 }}
+                            >
+                              <span className="text-[9px] font-bold text-white">{f.total}</span>
+                            </div>
+                          </div>
+                          <span className={`text-[10px] w-10 ${th.muted}`}>{f.unique_sessions}u</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Sessions list */}
+                {linkAnalytics.sessions?.length > 0 && (
+                  <div className="mt-4">
+                    <p className={`text-[10px] uppercase tracking-wider font-semibold mb-2 ${th.muted}`}>
+                      Sessões recentes ({linkAnalytics.sessions.length})
+                    </p>
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      {linkAnalytics.sessions.slice(0, 20).map((s, i) => (
+                        <div key={i} className={`flex items-center gap-2 px-2 py-1.5 rounded text-[10px] ${isDark ? 'bg-white/5' : 'bg-white'}`}>
+                          <span className={`font-mono ${th.muted}`}>{s.first_event?.slice(5, 16)?.replace('T', ' ')}</span>
+                          <span className={th.text}>{s.event_count} eventos</span>
+                          <span className={th.muted}>scroll {s.max_scroll || 0}%</span>
+                          <span className={th.muted}>{s.max_time_secs ? `${s.max_time_secs}s` : ''}</span>
+                          {s.lead_submitted > 0 && <span className="text-green-500 font-bold">LEAD ✓</span>}
+                          {s.whatsapp_clicks > 0 && <span className="text-brand-orange font-bold">WA</span>}
+                          {s.sections_viewed && <span className={th.muted}>seções: {s.sections_viewed}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Leads */}
+                {linkAnalytics.leads?.length > 0 && (
+                  <div className="mt-4">
+                    <p className={`text-[10px] uppercase tracking-wider font-semibold mb-2 ${th.muted}`}>Leads ({linkAnalytics.leads.length})</p>
+                    <div className="space-y-1">
+                      {linkAnalytics.leads.map((l, i) => (
+                        <div key={i} className={`flex items-center gap-3 px-2 py-1.5 rounded text-xs ${isDark ? 'bg-white/5' : 'bg-white'}`}>
+                          <span className={`font-medium ${th.text}`}>{l.nome}</span>
+                          {l.empresa && <span className={th.muted}>{l.empresa}</span>}
+                          {l.telefone && <span className={th.muted}>{l.telefone}</span>}
+                          <span className={`text-[10px] ml-auto ${th.muted}`}>{l.created_at?.slice(0, 16)?.replace('T', ' ')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

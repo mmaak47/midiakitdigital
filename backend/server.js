@@ -6063,6 +6063,85 @@ app.get('/api/pacotes/analytics', requireRoles(['admin', 'gerente_comercial', 'd
   }
 });
 
+// ─── Analytics detalhado por compartilhamento (funil de comportamento) ────────
+app.get('/api/pacotes/compartilhamento/:compId/analytics', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
+  try {
+    const compId = Number(req.params.compId);
+    if (!compId) return res.status(400).json({ error: 'ID inválido.' });
+
+    const comp = db.prepare(`
+      SELECT pc.*, p.nome as pacote_nome, u.username as vendedor_nome
+      FROM pacote_compartilhamentos pc
+      JOIN pacotes p ON p.id = pc.pacote_id
+      LEFT JOIN admin_users u ON u.id = pc.vendedor_id
+      WHERE pc.id = ?
+    `).get(compId);
+    if (!comp) return res.status(404).json({ error: 'Compartilhamento não encontrado.' });
+
+    // Funil: contagem de cada tipo de evento
+    const funnel = db.prepare(`
+      SELECT event_type, COUNT(*) as total, COUNT(DISTINCT session_id) as unique_sessions
+      FROM pacote_analytics
+      WHERE compartilhamento_id = ?
+      GROUP BY event_type
+      ORDER BY total DESC
+    `).all(compId);
+
+    // Sessões únicas
+    const sessions = db.prepare(`
+      SELECT session_id,
+        MIN(created_at) as first_event,
+        MAX(created_at) as last_event,
+        COUNT(*) as event_count,
+        MAX(CASE WHEN event_type = 'scroll_depth' THEN json_extract(event_data, '$.depth_pct') ELSE 0 END) as max_scroll,
+        MAX(CASE WHEN event_type = 'time_on_page' THEN json_extract(event_data, '$.seconds') ELSE 0 END) as max_time_secs,
+        SUM(CASE WHEN event_type = 'selection_change' THEN 1 ELSE 0 END) as selection_changes,
+        SUM(CASE WHEN event_type = 'interesse_submit' THEN 1 ELSE 0 END) as lead_submitted,
+        SUM(CASE WHEN event_type = 'whatsapp_click' THEN 1 ELSE 0 END) as whatsapp_clicks,
+        SUM(CASE WHEN event_type = 'point_detail_view' THEN 1 ELSE 0 END) as detail_views,
+        GROUP_CONCAT(DISTINCT CASE WHEN event_type = 'section_view' THEN json_extract(event_data, '$.section') END) as sections_viewed
+      FROM pacote_analytics
+      WHERE compartilhamento_id = ?
+      GROUP BY session_id
+      ORDER BY first_event DESC
+      LIMIT 100
+    `).all(compId);
+
+    // Leads
+    const leads = db.prepare(`
+      SELECT * FROM pacote_leads WHERE compartilhamento_id = ? ORDER BY created_at DESC
+    `).all(compId);
+
+    // Timeline de eventos recentes
+    const recentEvents = db.prepare(`
+      SELECT event_type, event_data, session_id, created_at
+      FROM pacote_analytics
+      WHERE compartilhamento_id = ?
+      ORDER BY created_at DESC
+      LIMIT 200
+    `).all(compId);
+
+    res.json({
+      compartilhamento: comp,
+      funnel,
+      sessions,
+      leads,
+      recentEvents,
+      summary: {
+        total_views: comp.views || 0,
+        unique_sessions: sessions.length,
+        total_leads: leads.length,
+        avg_scroll: sessions.length > 0 ? Math.round(sessions.reduce((s, x) => s + (Number(x.max_scroll) || 0), 0) / sessions.length) : 0,
+        avg_time_secs: sessions.length > 0 ? Math.round(sessions.reduce((s, x) => s + (Number(x.max_time_secs) || 0), 0) / sessions.length) : 0,
+        sessions_with_interaction: sessions.filter(s => s.selection_changes > 0 || s.detail_views > 0).length,
+        sessions_with_lead: sessions.filter(s => s.lead_submitted > 0).length,
+      },
+    });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
 // ─── CRUD: Buscar pacote por ID ───────────────────────────────────────────────
 app.get('/api/pacotes/:id', requireRoles(['admin', 'gerente_comercial', 'vendedor']), (req, res) => {
   try {
@@ -6475,7 +6554,7 @@ app.post('/api/pacote/:code/track', express.json({ limit: '4kb' }), (req, res) =
     if (!comp) return res.status(404).end();
 
     const { session_id, event_type, event_data } = req.body;
-    const allowedTypes = ['page_view', 'point_click', 'point_expand', 'whatsapp_click', 'interesse_submit', 'duration_change', 'selection_change', 'scroll_depth'];
+    const allowedTypes = ['page_view', 'point_click', 'point_expand', 'point_detail_view', 'whatsapp_click', 'interesse_submit', 'duration_change', 'selection_change', 'scroll_depth', 'time_on_page', 'section_view', 'share_click', 'pricing_view'];
     if (!allowedTypes.includes(event_type)) return res.status(400).end();
 
     const crypto = require('crypto');
@@ -8868,6 +8947,7 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
         via_agencia = ?, agencia_nome = ?, comissao_pct = ?, troca_material = ?,
         periodo = ?, dia_pagamento = ?, data_primeira_parcela = ?, dia_pagamento_dia = ?,
         responsavel_nome = ?, responsavel_whatsapp = ?, email = ?, obs = ?, status = ?, vendedor_id = ?, vendedor_nome = ?,
+        venda_escritorio = ?,
         updated_at = datetime('now')
       WHERE id = ?
     `).run(
@@ -8895,6 +8975,7 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
       status || 'ativa',
       vendedorIdCanonical,
       vendedorNomeCanonical,
+      isEscritorio ? 1 : 0,
       id
     );
 
@@ -8921,6 +9002,7 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
           cliente = ?, cnpj = ?, pontos_contratados = COALESCE(?, pontos_contratados),
           valor_mensal = ?, total_contrato = ?, qtde_parcelas = ?,
           contato = ?, email = ?, vendedor_id = ?, vendedor_nome = ?, obs = ?,
+          venda_escritorio = ?,
           updated_at = datetime('now')
         WHERE venda_id = ?
       `).run(
@@ -8935,6 +9017,7 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
         vendedorIdCanonical,
         vendedorNomeCanonical,
         obs || null,
+        isEscritorio ? 1 : 0,
         id
       );
     } catch (syncErr) {
@@ -9553,13 +9636,14 @@ app.put('/api/gestao/vendas/:id', requireRoles(['admin','gerente_comercial','ven
           UPDATE vendas SET
             tipo = ?, razao_social = ?, cnpj = ?, pontos_nomes = ?,
             valor_mensal = ?, vendedor_id = ?, vendedor_nome = ?, email = ?, obs = ?,
+            venda_escritorio = ?,
             updated_at = datetime('now')
           WHERE id = ?
         `).run(
           b.tipo || 'Nova Venda',
           b.cliente || '', b.cnpj || null, pontosNomes,
           b.valor_mensal || null, vendedorIdCanonical, vendedorNomeCanonical,
-          b.email || null, b.obs || null, vc.venda_id
+          b.email || null, b.obs || null, b.venda_escritorio ? 1 : 0, vc.venda_id
         );
       }
     } catch (syncErr) {

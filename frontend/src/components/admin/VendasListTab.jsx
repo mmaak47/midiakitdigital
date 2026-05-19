@@ -68,6 +68,7 @@ function StatusBadge({ status, isDark }) {
 function EditVendaModal({ venda, isDark, onClose, onSaved, pontos = [] }) {
   const [form, setForm] = useState({
     tipo: venda.tipo || 'Nova Venda',
+    venda_escritorio: venda.venda_escritorio == 1,
     razao_social: venda.razao_social || '',
     cnpj: venda.cnpj || '',
     valor_mensal: venda.valor_mensal || '',
@@ -182,6 +183,24 @@ function EditVendaModal({ venda, isDark, onClose, onSaved, pontos = [] }) {
           </div>
         </div>
 
+        {/* Venda do Escritório */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              const next = !form.venda_escritorio;
+              set('venda_escritorio', next);
+              if (next) set('vendedor_nome', 'Escritório');
+            }}
+            className={`w-10 h-5 rounded-full transition-colors relative ${form.venda_escritorio ? 'bg-brand-orange' : isDark ? 'bg-white/20' : 'bg-neutral-300'}`}
+          >
+            <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.venda_escritorio ? 'left-5' : 'left-0.5'}`} />
+          </button>
+          <label className={`text-sm font-medium ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+            Venda do Escritório
+          </label>
+        </div>
+
         {/* CNPJ + Vendedor */}
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
@@ -190,7 +209,7 @@ function EditVendaModal({ venda, isDark, onClose, onSaved, pontos = [] }) {
           </div>
           <div>
             <label className={lbl}>Vendedor</label>
-            <input className={inp} value={form.vendedor_nome} onChange={e => set('vendedor_nome', e.target.value)} />
+            <input className={inp} value={form.venda_escritorio ? 'Escritório' : form.vendedor_nome} onChange={e => set('vendedor_nome', e.target.value)} disabled={form.venda_escritorio} />
           </div>
         </div>
 

@@ -618,6 +618,59 @@ export default function PacotePublico() {
     }
   }, [loading, error, pacote, track]);
 
+  // ── Track scroll depth (0-100%) ──
+  const maxScrollRef = useRef(0);
+  const scrollMilestonesRef = useRef(new Set());
+  useEffect(() => {
+    if (loading || error || !pacote) return;
+    const handler = () => {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (docHeight <= 0) return;
+      const pct = Math.round((scrollTop / docHeight) * 100);
+      if (pct > maxScrollRef.current) maxScrollRef.current = pct;
+      // Trackeia marcos: 25%, 50%, 75%, 100%
+      for (const milestone of [25, 50, 75, 100]) {
+        if (pct >= milestone && !scrollMilestonesRef.current.has(milestone)) {
+          scrollMilestonesRef.current.add(milestone);
+          track('scroll_depth', { depth_pct: milestone });
+        }
+      }
+    };
+    window.addEventListener('scroll', handler, { passive: true });
+    return () => window.removeEventListener('scroll', handler);
+  }, [loading, error, pacote, track]);
+
+  // ── Track time on page (30s, 1min, 2min, 5min) ──
+  useEffect(() => {
+    if (loading || error || !pacote) return;
+    const milestones = [30, 60, 120, 300];
+    const firedRef = new Set();
+    const timers = milestones.map(sec =>
+      setTimeout(() => {
+        if (!firedRef.has(sec)) {
+          firedRef.add(sec);
+          track('time_on_page', { seconds: sec });
+        }
+      }, sec * 1000)
+    );
+    return () => timers.forEach(t => clearTimeout(t));
+  }, [loading, error, pacote, track]);
+
+  // ── Track section visibility (IntersectionObserver) ──
+  const sectionTrackedRef = useRef(new Set());
+  const trackSectionRef = useCallback((sectionName) => (node) => {
+    if (!node || sectionTrackedRef.current.has(sectionName)) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !sectionTrackedRef.current.has(sectionName)) {
+        sectionTrackedRef.current.add(sectionName);
+        track('section_view', { section: sectionName });
+        observer.disconnect();
+      }
+    }, { threshold: 0.3 });
+    observer.observe(node);
+  }, [track]);
+
   // ── Active points ──
   const pontos = useMemo(() => {
     if (!pacote?.pontos) return [];
@@ -987,7 +1040,7 @@ export default function PacotePublico() {
           <div className="min-w-0">
 
             {/* ── POINTS SECTION ──────────────────────────────────────── */}
-            <motion.section initial="hidden" animate="visible" variants={sectionVariants}>
+            <motion.section ref={trackSectionRef('pontos')} initial="hidden" animate="visible" variants={sectionVariants}>
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5">
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold mb-1">
@@ -1310,13 +1363,13 @@ export default function PacotePublico() {
             </motion.section>
 
             {/* ── MAP SECTION ─────────────────────────────────────────── */}
-            <motion.section initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-50px' }}
+            <motion.section ref={trackSectionRef('mapa')} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-50px' }}
               variants={sectionVariants} className="mt-8">
               <PointsMapPreview pontos={pontos} isDark={isDark} t={t} onOpenDetails={handleOpenDetails} />
             </motion.section>
 
             {/* ── LEAD CAPTURE ────────────────────────────────────────── */}
-            <motion.section ref={interesseRef} initial="hidden" whileInView="visible"
+            <motion.section ref={(node) => { interesseRef.current = node; trackSectionRef('formulario')(node); }} initial="hidden" whileInView="visible"
               viewport={{ once: true, margin: '-50px' }} variants={sectionVariants}
               className="mt-10 lg:mt-14">
               <div className={`rounded-2xl border p-6 sm:p-8 ${t.card}`}>
@@ -1405,7 +1458,7 @@ export default function PacotePublico() {
           </div>
 
           {/* ═══ RIGHT: Pricing Sidebar ═══════════════════════════════════ */}
-          <aside ref={pricingSectionRef} className="hidden lg:block">
+          <aside ref={(node) => { pricingSectionRef.current = node; trackSectionRef('pricing')(node); }} className="hidden lg:block">
             <div className="sticky top-20">
               <PricingPanel
                 pricing={pricing} pricingLoading={pricingLoading}

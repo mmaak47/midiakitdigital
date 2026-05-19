@@ -25,16 +25,54 @@ const IMAP_PORT = Number(process.env.IMAP_PORT || 993);
 const IMAP_USER = SMTP_USER;
 const IMAP_PASS = SMTP_PASS;
 
-// ── Logo inline (redimensionado e cacheado) ──────────────────────────────────
+// ── Logo inline (totalmente branco, redimensionado e cacheado) ───────────────
 let _logoBuffer = null;
 async function getLogoBuffer() {
   if (_logoBuffer) return _logoBuffer;
   const logoPath = path.resolve(__dirname, '../../frontend/public/logo.png');
   try {
     const raw = fs.readFileSync(logoPath);
-    _logoBuffer = await sharp(raw).resize(200, null, { withoutEnlargement: true }).png({ quality: 85 }).toBuffer();
-  } catch {
-    _logoBuffer = Buffer.alloc(0); // fallback vazio se não achar
+    // O logo original tem "intermi" branco e "dia" laranja.
+    // Para o header laranja do e-mail, precisamos tudo branco.
+    // Estratégia: extrair canal alpha e usar como máscara em imagem toda branca.
+    const meta = await sharp(raw).metadata();
+    const { width, height } = meta;
+    // Cria imagem toda branca do mesmo tamanho
+    const whiteBg = await sharp({
+      create: { width, height, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 255 } }
+    }).png().toBuffer();
+    // Extrai alpha do logo original
+    const alphaChannel = await sharp(raw).extractChannel(3).toBuffer();
+    // Aplica alpha do logo na imagem branca
+    const whiteLogo = await sharp(whiteBg)
+      .joinChannel(alphaChannel, { raw: { width, height, channels: 1 } })
+      .resize(200, null, { withoutEnlargement: true })
+      .png({ quality: 85 })
+      .toBuffer();
+
+    // Sharp joinChannel com raw alpha substitui o alpha — mas a API varia por versão.
+    // Abordagem alternativa e mais robusta: composite com alpha
+    const whiteBase = await sharp({
+      create: { width, height, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 0 } }
+    }).png().toBuffer();
+
+    // Extraímos o alpha do original e criamos um logo todo branco mantendo transparência
+    const { data, info } = await sharp(raw).raw().toBuffer({ resolveWithObject: true });
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] > 0) { // pixel visível
+        data[i] = 255;     // R -> branco
+        data[i + 1] = 255; // G -> branco
+        data[i + 2] = 255; // B -> branco
+        // alpha inalterado
+      }
+    }
+    _logoBuffer = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } })
+      .resize(200, null, { withoutEnlargement: true })
+      .png()
+      .toBuffer();
+  } catch (err) {
+    console.error('[email] Erro ao gerar logo branco:', err.message);
+    _logoBuffer = Buffer.alloc(0);
   }
   return _logoBuffer;
 }
