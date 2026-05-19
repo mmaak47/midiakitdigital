@@ -19,6 +19,7 @@ export default function Navbar({ transparent = false, showNav = true, showCta = 
   const links = commercial
     ? [
         { to: '/comercial/explorar', label: 'Proposta Comercial', icon: 'ri-file-text-line', cta: true },
+        { to: '/comercial/gestao', label: 'Gestão Comercial', icon: 'ri-bar-chart-box-line' },
         { to: '/comercial/admin', label: 'Admin', icon: 'ri-settings-3-line' }
       ]
     : plannerMode

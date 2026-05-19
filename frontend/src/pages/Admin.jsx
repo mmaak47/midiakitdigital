@@ -1366,14 +1366,6 @@ export default function Admin() {
                 </div>
               </div>
             )}
-            <button
-              onClick={() => navigate('/comercial/gestao')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${isDark ? 'border border-white/15 bg-white/5 text-white hover:bg-white/10' : 'border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 shadow-sm'}`}
-              title="Gestão Comercial"
-            >
-              <BarChart3 size={16} />
-              <span className="hidden sm:inline">Gestão Comercial</span>
-            </button>
             <button onClick={handleLogout} title="Sair" className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${isDark ? 'text-red-400 hover:bg-red-400/10 border border-red-400/20' : 'text-red-600 hover:bg-red-50 border border-red-200'}`}>
               <LogOut size={16} />
               <span className="hidden sm:inline">Sair</span>

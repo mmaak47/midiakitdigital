@@ -125,22 +125,6 @@ export default function GestaoComercial() {
             </div>
           </div>
 
-          {/* Quick action: painel admin */}
-          {(currentUser.role === 'admin' || currentUser.role === 'diretor' || currentUser.role === 'gerente_comercial') && (
-            <button
-              type="button"
-              onClick={() => navigate('/comercial')}
-              className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-all ${
-                isDark
-                  ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
-                  : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 shadow-sm'
-              }`}
-              title="Painel administrativo"
-            >
-              <Settings size={16} />
-              Painel Admin
-            </button>
-          )}
         </div>
 
         {welcome && (
