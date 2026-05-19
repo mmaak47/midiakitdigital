@@ -631,9 +631,11 @@ export default function NovaVendaTab({ isDark = true, pontos = [], currentUser }
       fd.append('pontos_precos', JSON.stringify(
         selectedPontos.reduce((acc, p) => { if (pontoPrecos[p.id]) acc[p.nome] = pontoPrecos[p.id]; return acc; }, {})
       ));
-      fd.append('vendedor_nome', currentUser
-        ? currentUser.username || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Vendedor'
-        : 'Vendedor'
+      fd.append('vendedor_nome', form.venda_escritorio
+        ? 'Escritório'
+        : currentUser
+          ? currentUser.username || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Vendedor'
+          : 'Vendedor'
       );
       if (piFiles.length) piFiles.forEach(f => fd.append('pi', f));
 

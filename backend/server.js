@@ -8052,13 +8052,21 @@ app.post(
       if (!responsavelWhatsappFinal && !responsavelFixoFinal) {
         return res.status(400).json({ error: 'Informe WhatsApp ou Telefone Fixo do responsável pela compra.' });
       }
-      const sellerIdentity = resolveSellerIdentity({
-        userId: req.authUser?.id,
-        sellerName: vendedor_nome,
-        fallbackUsername: req.authUser?.username,
-      });
-      const vendedorIdCanonical = sellerIdentity.sellerId || req.authUser?.id || null;
-      const vendedorNomeCanonical = sellerIdentity.username || String(vendedor_nome || '').trim() || req.authUser?.username || null;
+      const isEscritorio = venda_escritorio === 'true' || venda_escritorio === true;
+      let vendedorIdCanonical, vendedorNomeCanonical;
+      if (isEscritorio) {
+        // Venda do escritório: não atribuir a nenhum vendedor
+        vendedorIdCanonical = null;
+        vendedorNomeCanonical = 'Escritório';
+      } else {
+        const sellerIdentity = resolveSellerIdentity({
+          userId: req.authUser?.id,
+          sellerName: vendedor_nome,
+          fallbackUsername: req.authUser?.username,
+        });
+        vendedorIdCanonical = sellerIdentity.sellerId || req.authUser?.id || null;
+        vendedorNomeCanonical = sellerIdentity.username || String(vendedor_nome || '').trim() || req.authUser?.username || null;
+      }
 
       const tipoNorm = normalizeTextForMatch(tipo);
       const isRenovacaoVenda = tipoNorm.includes('renov');
@@ -8725,15 +8733,22 @@ app.put('/api/vendas/:id', requireRoles(['admin', 'gerente_comercial']), (req, r
       cota_contratada, plano_fidelidade,
       via_agencia, agencia_nome, comissao_pct, troca_material,
       periodo, dia_pagamento, data_primeira_parcela, dia_pagamento_dia,
-      responsavel_nome, responsavel_whatsapp, email, obs, status, vendedor_nome
+      responsavel_nome, responsavel_whatsapp, email, obs, status, vendedor_nome, venda_escritorio
     } = req.body;
-    const sellerIdentity = resolveSellerIdentity({
-      userId: existing.vendedor_id,
-      sellerName: vendedor_nome,
-      fallbackUsername: vendedor_nome,
-    });
-    const vendedorNomeCanonical = sellerIdentity.username || String(vendedor_nome || '').trim() || null;
-    const vendedorIdCanonical = sellerIdentity.sellerId || existing.vendedor_id || null;
+    const isEscritorio = venda_escritorio === 'true' || venda_escritorio === true || venda_escritorio === 1;
+    let vendedorIdCanonical, vendedorNomeCanonical;
+    if (isEscritorio) {
+      vendedorIdCanonical = null;
+      vendedorNomeCanonical = 'Escritório';
+    } else {
+      const sellerIdentity = resolveSellerIdentity({
+        userId: existing.vendedor_id,
+        sellerName: vendedor_nome,
+        fallbackUsername: vendedor_nome,
+      });
+      vendedorNomeCanonical = sellerIdentity.username || String(vendedor_nome || '').trim() || null;
+      vendedorIdCanonical = sellerIdentity.sellerId || existing.vendedor_id || null;
+    }
 
     db.prepare(`
       UPDATE vendas SET
