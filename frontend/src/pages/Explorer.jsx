@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, CheckCircle, ChevronDown, LayoutGrid, Map, Search, SlidersHorizontal, Sparkles, EyeOff } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { AlertCircle, CheckCircle, ChevronDown, LayoutGrid, Map, Search, SlidersHorizontal, Sparkles, EyeOff, BarChart3 } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import FilterSidebar from '../components/FilterSidebar';
 import PointCard from '../components/PointCard';
@@ -22,6 +22,7 @@ import { computeCityBoundingBoxes } from '../lib/geo';
 const SmartMap = lazy(() => import('../components/SmartMap'));
 
 export default function Explorer() {
+  const navigate = useNavigate();
   const mainRef = useRef(null);
   const resultsAnchorRef = useRef(null);
   const filtersInitializedRef = useRef(false);
@@ -248,6 +249,16 @@ export default function Explorer() {
       data-theme={isDark ? 'dark' : 'light'}
     >
       <Navbar commercial isDark={isDark} onToggleTheme={() => setIsDark((prev) => !prev)} />
+
+      {/* Botão voltar para Gestão Comercial */}
+      <button
+        onClick={() => navigate('/comercial/gestao')}
+        className={`fixed top-20 right-4 z-[9990] flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-all shadow-lg ${isDark ? 'border border-white/15 bg-brand-dark/90 text-white hover:bg-white/10 backdrop-blur-sm' : 'border border-neutral-200 bg-white/95 text-neutral-700 hover:bg-neutral-50 backdrop-blur-sm shadow-neutral-200/50'}`}
+        title="Voltar para Gestão Comercial"
+      >
+        <BarChart3 size={16} />
+        <span className="hidden sm:inline">Gestão Comercial</span>
+      </button>
 
       <div className="pt-16 flex h-screen">
         <FilterSidebar
