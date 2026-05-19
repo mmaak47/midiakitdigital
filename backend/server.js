@@ -8341,7 +8341,7 @@ app.post(
         try {
           const mensagem = buildVendaWhatsappMessage({
             tipo,
-            vendedorNome: sellerIdentity.displayName || vendedorNomeCanonical || 'Vendedor',
+            vendedorNome: vendedorNomeCanonical || 'Vendedor',
             razaoSocial: String(razao_social).trim(),
             nomeFantasia: nome_fantasia || '',
             cnpj: cnpj || '',
