@@ -125,8 +125,8 @@ export default function GestaoComercial() {
             </div>
           </div>
 
-          {/* Quick action: painel admin (only for admin/diretor) */}
-          {(currentUser.role === 'admin' || currentUser.role === 'diretor') && (
+          {/* Quick action: painel admin */}
+          {(currentUser.role === 'admin' || currentUser.role === 'diretor' || currentUser.role === 'gerente_comercial') && (
             <button
               type="button"
               onClick={() => navigate('/comercial')}
