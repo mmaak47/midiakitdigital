@@ -54,6 +54,7 @@ function getVendasSemContratoAssinado() {
     FROM vendas v
     WHERE v.status = 'ativa'
       AND TRIM(COALESCE(v.responsavel_nome, '')) != ''
+      AND COALESCE(v.via_agencia, 0) = 0
       AND v.id NOT IN (
         SELECT ve.venda_id FROM venda_etapas ve
         WHERE ve.etapa_key = 'contrato_assinado'

@@ -722,8 +722,11 @@ export default function GestaoUnificada({ isDark, ano }) {
                                 )}
 
                                 {/* Etapas pós-venda (same as vendas page) */}
+                                {/* Via agência (com P.I.): pula etapas de contrato */}
                                 <div className="flex flex-wrap gap-1.5 mb-2">
-                                  {ETAPAS_VENDA.map(et => {
+                                  {ETAPAS_VENDA
+                                  .filter(et => !(v.via_agencia && (et.key === 'contrato_enviado' || et.key === 'contrato_assinado')))
+                                  .map(et => {
                                     const EtapaIcon = et.icon || CircleDot;
                                     const done = isEtapaDone(v, et.key);
                                     return (

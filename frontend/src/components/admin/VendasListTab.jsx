@@ -455,7 +455,9 @@ function VendaRow({ venda, isDark, onEdit, onDelete, onReplayTv, replaying }) {
             <div className={`pt-2.5 mt-2 border-t ${expandBorder}`}>
               <p className={`text-xs font-medium mb-1.5 ${isDark ? 'text-brand-gray-300' : 'text-neutral-600'}`}>Etapas pós-venda</p>
               <div className="flex flex-wrap gap-1.5">
-                {ETAPAS_DEF.map(etapa => {
+                {ETAPAS_DEF
+                .filter(etapa => !(venda.via_agencia && (etapa.key === 'contrato_enviado' || etapa.key === 'contrato_assinado')))
+                .map(etapa => {
                   const done = etapas.find(e => e.etapa_key === etapa.key);
                   return (
                     <span

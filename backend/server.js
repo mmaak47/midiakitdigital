@@ -8253,6 +8253,11 @@ app.post(
           try { db.prepare('INSERT INTO whatsapp_send_log (venda_id, tipo, destino, status, erro, detalhes) VALUES (?, ?, ?, ?, ?, ?)').run(vendaId, 'notificacao_grupo', evo.evolution_dest_number, 'enviado', null, piPath ? 'Com PI anexo' : 'Somente texto'); } catch { /* ignore */ }
 
           // Envia enquete de etapas pós-venda (best-effort)
+          // Via agência (com P.I.): pula etapas de contrato — o P.I. substitui o contrato
+          const isViaAgencia = via_agencia === 'true' || via_agencia === true;
+          const etapasParaPoll = isViaAgencia
+            ? ETAPAS_VENDA.filter(e => e.key !== 'contrato_enviado' && e.key !== 'contrato_assinado')
+            : ETAPAS_VENDA;
           try {
             const pollResp = await sendEvolutionPoll({
               apiUrl: evo.evolution_api_url,
@@ -8260,7 +8265,7 @@ app.post(
               apiKey: evo.evolution_api_key,
               number: evo.evolution_dest_number,
               name: `📋 Etapas — ${String(razao_social).trim()}`,
-              values: ETAPAS_VENDA.map(e => `${e.emoji} ${e.label}`)
+              values: etapasParaPoll.map(e => `${e.emoji} ${e.label}`)
             });
             const pollId = pollResp?.key?.id || pollResp?.[0]?.key?.id || null;
             if (pollId) {
@@ -9275,6 +9280,7 @@ app.get('/api/gestao/vendas', requireRoles(['admin','gerente_comercial','vendedo
     let sql = `
       SELECT
         vc.*,
+        COALESCE(v.via_agencia, 0) AS via_agencia,
         COALESCE(u_vc.username, u_v.username, u_name.username, vc.vendedor_nome) AS vendedor_username_resolved,
         COALESCE(
           NULLIF(TRIM(COALESCE(u_vc.first_name, '') || ' ' || COALESCE(u_vc.last_name, '')), ''),
