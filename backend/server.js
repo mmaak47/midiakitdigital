@@ -40,6 +40,7 @@ const {
 const { createBackupScheduler } = require('./backupService');
 const { startScheduledMessages } = require('./services/scheduledMessagesService');
 const { generatePdfsFromPointNames } = require('./services/technicalPdfService');
+const { sendPropostaTecnicaEmail } = require('./services/emailService');
 const { renderHtmlToPdfCompressed: renderHtmlToPdf, renderHtmlToScreenshot } = require('./pdfService');
 const {
   slugifyCity,
@@ -6404,6 +6405,68 @@ app.get('/api/pacote/:code/preco', (req, res) => {
   }
 });
 
+// ─── PÚBLICO: Entorno de um ponto do pacote (dados cacheados) ────────────────
+app.get('/api/pacote/:code/entorno/:pontoId', (req, res) => {
+  try {
+    const code = String(req.params.code).trim();
+    const pontoId = Number(req.params.pontoId);
+    if (!pontoId || !Number.isFinite(pontoId)) return res.status(400).json({ error: 'ID inválido.' });
+
+    const comp = db.prepare('SELECT pacote_id FROM pacote_compartilhamentos WHERE code = ?').get(code);
+    if (!comp) return res.status(404).json({ error: 'Link não encontrado.' });
+
+    // Verificar que o ponto pertence ao pacote
+    const pp = db.prepare('SELECT ponto_id FROM pacote_pontos WHERE pacote_id = ? AND ponto_id = ?').get(comp.pacote_id, pontoId);
+    if (!pp) return res.status(404).json({ error: 'Ponto não pertence a este pacote.' });
+
+    // Buscar cache de entorno (todos os segmentos disponíveis, raio padrão)
+    const caches = db.prepare(`
+      SELECT segmento_analisado, raio_m, total_estabelecimentos_relacionados,
+             categorias_encontradas, score_relevancia, raw_result
+      FROM entorno_cache
+      WHERE ponto_id = ?
+      ORDER BY updated_at DESC
+    `).all(pontoId);
+
+    if (!caches.length) return res.json({ places: [], segments: [] });
+
+    // Agregar places de todos os segmentos (sem duplicar por nome+lat+lng)
+    const seen = new Set();
+    const allPlaces = [];
+    const segments = [];
+
+    for (const c of caches) {
+      segments.push({
+        segmento: c.segmento_analisado,
+        raio: c.raio_m,
+        total: c.total_estabelecimentos_relacionados,
+        score: c.score_relevancia,
+        categorias: c.categorias_encontradas,
+      });
+      try {
+        const raw = JSON.parse(c.raw_result || '{}');
+        const places = raw.places || raw.results || [];
+        for (const p of places) {
+          const key = `${p.name || ''}|${(p.lat || p.latitude || 0).toFixed(5)}|${(p.lng || p.longitude || 0).toFixed(5)}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          allPlaces.push({
+            name: p.name || p.nome || '',
+            lat: p.lat || p.latitude || 0,
+            lng: p.lng || p.longitude || 0,
+            category: p.category || p.categoria || p.type || c.segmento_analisado,
+            distance: p.distance || p.distancia || null,
+          });
+        }
+      } catch { /* ignore malformed cache */ }
+    }
+
+    res.json({ places: allPlaces.slice(0, 100), segments });
+  } catch (err) {
+    internalError(res, err);
+  }
+});
+
 // ─── PÚBLICO: Tracking de eventos ────────────────────────────────────────────
 app.post('/api/pacote/:code/track', express.json({ limit: '4kb' }), (req, res) => {
   try {
@@ -7668,6 +7731,8 @@ async function sendTechnicalPdfsForVenda({
   planoFidelidade = false,
   trigger = 'auto',
   actorName = '',
+  emailDestinatario = '',
+  emailNomeDestinatario = '',
 }) {
   const triggerLabel = trigger === 'manual_retry'
     ? `retry manual${actorName ? ` por ${actorName}` : ''}`
@@ -7803,6 +7868,31 @@ async function sendTechnicalPdfsForVenda({
       logSend('pdf_mobile', clientPhone, 'falha', err.message, `Falha no mobile (${triggerLabel})`);
     } finally {
       try { fs.unlinkSync(tmpMobile); } catch { /* ignore */ }
+    }
+
+    // ─── Envio por e-mail (se houver e-mail do destinatário) ─────────
+    const emailDest = (emailDestinatario || '').trim();
+    if (emailDest && emailDest.includes('@')) {
+      try {
+        const emailResult = await sendPropostaTecnicaEmail({
+          to: emailDest,
+          nomeDestinatario: emailNomeDestinatario || nomeResponsavel,
+          nomeVendedor: nomeVendedor,
+          nomeEmpresa: pdfTitle,
+          desktopPdf: desktop,
+          desktopFileName: pdfDesktopFileName,
+          mobilePdf: mobile,
+          mobileFileName: pdfMobileFileName,
+          pontosNomes: pontosArr,
+        });
+        if (emailResult.ok) {
+          logSend('email_proposta', emailDest, 'enviado', null, `${pontosArr.length} ponto(s) (${photoModeLabel}; ${triggerLabel})`);
+        } else {
+          logSend('email_proposta', emailDest, 'falha', emailResult.error, `Falha no envio por email (${triggerLabel})`);
+        }
+      } catch (emailErr) {
+        logSend('email_proposta', emailDest, 'falha', emailErr.message, `Erro inesperado no envio por email (${triggerLabel})`);
+      }
     }
   } catch (genErr) {
     logSend('pdf_geracao', clientPhone, 'falha', genErr.message, `Falha ao gerar PDFs (${triggerLabel})`);
@@ -8389,6 +8479,14 @@ app.post(
           const destinoPdf = usaContatoCriativo ? criativoWhatsappFinal : responsavel_whatsapp;
           const nomeDestinoPdf = usaContatoCriativo ? (criativoNomeFinal || 'responsável pelos criativos') : responsavel_nome;
 
+          // E-mail: mesma lógica do WhatsApp — se tem contato criativo, manda pro criativo
+          const emailParaPdf = usaContatoCriativo
+            ? (criativoEmailFinal || '')
+            : (String(email || '').trim());
+          const emailNomePdf = usaContatoCriativo
+            ? (criativoNomeFinal || 'responsável pelos criativos')
+            : (String(responsavel_nome || '').trim());
+
           const pdfResult = await sendTechnicalPdfsForVenda({
             vendaId,
             responsavelWhatsApp: destinoPdf,
@@ -8399,6 +8497,8 @@ app.post(
             razaoSocial: String(razao_social || '').trim(),
             planoFidelidade: planoFidelidadeAtivo,
             trigger: 'auto',
+            emailDestinatario: emailParaPdf,
+            emailNomeDestinatario: emailNomePdf,
           });
 
           if (!usaContatoCriativo || !pdfResult?.ok) {
@@ -8550,7 +8650,8 @@ app.post('/api/vendas/:id/retry-pdf', requireRoles(['admin', 'gerente_comercial'
     }
 
     const venda = db.prepare(`
-      SELECT id, vendedor_id, vendedor_nome, responsavel_nome, responsavel_whatsapp, criativo_nome, criativo_whatsapp, pontos_nomes,
+      SELECT id, vendedor_id, vendedor_nome, responsavel_nome, responsavel_whatsapp,
+             criativo_nome, criativo_whatsapp, criativo_email, email, pontos_nomes,
              nome_fantasia, razao_social, plano_fidelidade
       FROM vendas
       WHERE id = ?
@@ -8566,6 +8667,9 @@ app.post('/api/vendas/:id/retry-pdf', requireRoles(['admin', 'gerente_comercial'
 
     const destinoWhatsApp = venda.criativo_whatsapp || venda.responsavel_whatsapp;
     const destinoNome = venda.criativo_nome || venda.responsavel_nome;
+    const usaCriativo = Boolean(venda.criativo_whatsapp);
+    const emailRetry = usaCriativo ? (venda.criativo_email || '') : (venda.email || '');
+    const emailNomeRetry = usaCriativo ? (venda.criativo_nome || '') : (venda.responsavel_nome || '');
 
     const actorName = String(req.authUser?.username || 'usuario').trim();
     const result = await sendTechnicalPdfsForVenda({
@@ -8579,6 +8683,8 @@ app.post('/api/vendas/:id/retry-pdf', requireRoles(['admin', 'gerente_comercial'
       planoFidelidade: Number(venda.plano_fidelidade || 0) === 1,
       trigger: 'manual_retry',
       actorName,
+      emailDestinatario: emailRetry,
+      emailNomeDestinatario: emailNomeRetry,
     });
 
     if (!result.ok) {
