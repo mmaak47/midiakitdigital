@@ -7,6 +7,9 @@
 
 const nodemailer = require('nodemailer');
 const imapSimple = require('imap-simple');
+const path = require('path');
+const fs = require('fs');
+const sharp = require('sharp');
 
 // ── Configuração SMTP ────────────────────────────────────────────────────────
 const SMTP_HOST = process.env.SMTP_HOST || 'mail.redeintermidia.com';
@@ -21,6 +24,20 @@ const IMAP_HOST = process.env.IMAP_HOST || SMTP_HOST;
 const IMAP_PORT = Number(process.env.IMAP_PORT || 993);
 const IMAP_USER = SMTP_USER;
 const IMAP_PASS = SMTP_PASS;
+
+// ── Logo inline (redimensionado e cacheado) ──────────────────────────────────
+let _logoBuffer = null;
+async function getLogoBuffer() {
+  if (_logoBuffer) return _logoBuffer;
+  const logoPath = path.resolve(__dirname, '../../frontend/public/logo.png');
+  try {
+    const raw = fs.readFileSync(logoPath);
+    _logoBuffer = await sharp(raw).resize(200, null, { withoutEnlargement: true }).png({ quality: 85 }).toBuffer();
+  } catch {
+    _logoBuffer = Buffer.alloc(0); // fallback vazio se não achar
+  }
+  return _logoBuffer;
+}
 
 let _transporter = null;
 
@@ -89,6 +106,10 @@ async function sendPropostaTecnicaEmail({
 
   const empresaLine = empresa ? ` para <strong>${escapeHtml(empresa)}</strong>` : '';
 
+  // Carrega logo redimensionado para anexar inline (CID)
+  const logoBuffer = await getLogoBuffer();
+  const hasLogo = logoBuffer && logoBuffer.length > 0;
+
   const htmlBody = `
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -98,7 +119,7 @@ async function sendPropostaTecnicaEmail({
 
     <!-- Header -->
     <div style="background:linear-gradient(135deg,#FE5C2B,#E04A1F);border-radius:12px 12px 0 0;padding:28px 32px;text-align:center;">
-      <img src="https://redeintermidia.com/images/logo-branca.png" alt="Intermidia" style="height:36px;margin-bottom:12px;" />
+      ${hasLogo ? '<img src="cid:intermidia_logo" alt="Intermidia" style="height:36px;margin-bottom:12px;" />' : '<span style="color:#fff;font-size:18px;font-weight:700;">Intermidia</span>'}
       <h1 style="color:#fff;font-size:20px;margin:0;font-weight:600;">Proposta Técnica</h1>
     </div>
 
@@ -163,6 +184,16 @@ async function sendPropostaTecnicaEmail({
   ].filter(Boolean).join('\n');
 
   const attachments = [];
+  // Logo inline (CID) — aparece no corpo do e-mail, não como anexo
+  if (hasLogo) {
+    attachments.push({
+      filename: 'logo-intermidia.png',
+      content: logoBuffer,
+      cid: 'intermidia_logo',
+      contentType: 'image/png',
+      contentDisposition: 'inline',
+    });
+  }
   if (desktopPdf) {
     attachments.push({ filename: desktopFileName || 'Proposta-Tecnica.pdf', content: desktopPdf, contentType: 'application/pdf' });
   }
