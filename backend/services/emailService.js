@@ -2,10 +2,11 @@
  * emailService.js
  *
  * Serviço de envio de e-mail via SMTP (nodemailer).
- * Usado para enviar a proposta técnica em PDF ao cliente quando há e-mail cadastrado.
+ * Após enviar, salva uma cópia na pasta "Enviados" via IMAP para controle interno.
  */
 
 const nodemailer = require('nodemailer');
+const imapSimple = require('imap-simple');
 
 // ── Configuração SMTP ────────────────────────────────────────────────────────
 const SMTP_HOST = process.env.SMTP_HOST || 'mail.redeintermidia.com';
@@ -14,6 +15,12 @@ const SMTP_USER = process.env.SMTP_USER || 'criacao@redeintermidia.com';
 const SMTP_PASS = process.env.SMTP_PASS || 'M1dia-2023';
 const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || 'Intermidia - Criação';
 const SMTP_FROM = `"${SMTP_FROM_NAME}" <${SMTP_USER}>`;
+
+// ── Configuração IMAP (para salvar na pasta Enviados) ────────────────────────
+const IMAP_HOST = process.env.IMAP_HOST || SMTP_HOST;
+const IMAP_PORT = Number(process.env.IMAP_PORT || 993);
+const IMAP_USER = SMTP_USER;
+const IMAP_PASS = SMTP_PASS;
 
 let _transporter = null;
 
@@ -163,23 +170,108 @@ async function sendPropostaTecnicaEmail({
     attachments.push({ filename: mobileFileName || 'Proposta-Tecnica-Mobile.pdf', content: mobilePdf, contentType: 'application/pdf' });
   }
 
+  const mailOptions = {
+    from: SMTP_FROM,
+    to,
+    subject: `Proposta Técnica${empresa ? ` — ${empresa}` : ''} | Intermidia`,
+    text: textBody,
+    html: htmlBody,
+    attachments,
+  };
+
   try {
     const transporter = getTransporter();
-    const info = await transporter.sendMail({
-      from: SMTP_FROM,
-      to,
-      subject: `Proposta Técnica${empresa ? ` — ${empresa}` : ''} | Intermidia`,
-      text: textBody,
-      html: htmlBody,
-      attachments,
-    });
+    const info = await transporter.sendMail(mailOptions);
 
     console.log(`[email] Proposta enviada para ${to} (messageId: ${info.messageId})`);
+
+    // Salvar cópia na pasta Enviados via IMAP (fire-and-forget, não bloqueia resposta)
+    appendToSentFolder(mailOptions).catch(imapErr => {
+      console.error(`[email/imap] Falha ao salvar na pasta Enviados:`, imapErr.message);
+    });
+
     return { ok: true, messageId: info.messageId };
   } catch (err) {
     console.error(`[email] Falha ao enviar proposta para ${to}:`, err.message);
     return { ok: false, error: err.message };
   }
+}
+
+/**
+ * Conecta via IMAP e salva a mensagem na pasta "Sent" / "INBOX.Sent".
+ * Tenta os nomes mais comuns de pasta de enviados em servidores cPanel/Dovecot.
+ */
+async function appendToSentFolder(mailOptions) {
+  // Compila a mensagem em formato RFC 822 (raw) usando nodemailer MailComposer
+  const MailComposer = require('nodemailer/lib/mail-composer');
+  const compiler = new MailComposer(mailOptions);
+  const rawRfc822 = await new Promise((resolve, reject) => {
+    compiler.compile().build((err, message) => {
+      if (err) return reject(err);
+      resolve(message);
+    });
+  });
+
+  const imapConfig = {
+    imap: {
+      user: IMAP_USER,
+      password: IMAP_PASS,
+      host: IMAP_HOST,
+      port: IMAP_PORT,
+      tls: true,
+      tlsOptions: { rejectUnauthorized: false },
+      authTimeout: 10000,
+      connTimeout: 15000,
+    },
+  };
+
+  let connection;
+  try {
+    connection = await imapSimple.connect(imapConfig);
+
+    // Tenta nomes comuns da pasta Enviados
+    const sentFolderCandidates = ['INBOX.Sent', 'Sent', 'Sent Messages', 'INBOX.Sent Messages'];
+    let sentFolder = null;
+
+    const boxes = await connection.getBoxes();
+    // Busca recursiva nas mailboxes
+    const flatBoxes = flattenBoxes(boxes);
+
+    for (const candidate of sentFolderCandidates) {
+      if (flatBoxes.includes(candidate)) {
+        sentFolder = candidate;
+        break;
+      }
+    }
+
+    if (!sentFolder) {
+      // Fallback: procurar qualquer box que contenha "sent" no nome
+      sentFolder = flatBoxes.find(b => b.toLowerCase().includes('sent')) || 'INBOX.Sent';
+    }
+
+    await connection.append(rawRfc822, { mailbox: sentFolder, flags: ['\\Seen'] });
+    console.log(`[email/imap] Cópia salva na pasta "${sentFolder}"`);
+  } finally {
+    if (connection) {
+      try { connection.end(); } catch { /* ignore */ }
+    }
+  }
+}
+
+/**
+ * Achata a árvore de mailboxes do IMAP em uma lista plana de nomes.
+ */
+function flattenBoxes(boxes, prefix = '') {
+  const result = [];
+  for (const [name, box] of Object.entries(boxes)) {
+    const fullName = prefix ? `${prefix}${name}` : name;
+    result.push(fullName);
+    if (box.children) {
+      const delimiter = box.delimiter || '.';
+      result.push(...flattenBoxes(box.children, `${fullName}${delimiter}`));
+    }
+  }
+  return result;
 }
 
 function escapeHtml(str) {
