@@ -242,8 +242,228 @@ function Lightbox({ ponto, imageIndex, onClose, onChangeIndex }) {
   );
 }
 
+// ── Point Detail Modal (with entorno map) ─────────────────────────────────
+function PointDetailModal({ ponto, code, isDark, t, onClose }) {
+  const [entorno, setEntorno] = useState(null);
+  const [entornoLoading, setEntornoLoading] = useState(true);
+  const images = getPointDisplayImages(ponto);
+
+  useEffect(() => {
+    if (!ponto || !code) return;
+    const pontoId = ponto.ponto_id || ponto.id;
+    setEntornoLoading(true);
+    fetch(`/api/pacote/${code}/entorno/${pontoId}`)
+      .then(r => r.ok ? r.json() : { places: [], segments: [] })
+      .then(setEntorno)
+      .catch(() => setEntorno({ places: [], segments: [] }))
+      .finally(() => setEntornoLoading(false));
+  }, [ponto, code]);
+
+  useEffect(() => {
+    const handler = (e) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  if (!ponto) return null;
+
+  const CATEGORY_COLORS = {
+    hospital: '#ef4444', clinica: '#f97316', educacao: '#eab308', varejo: '#22c55e',
+    automotivo: '#3b82f6', alimentacao: '#a855f7', servicos: '#ec4899', default: '#6b7280',
+  };
+  const getCatColor = (cat) => CATEGORY_COLORS[cat] || CATEGORY_COLORS[Object.keys(CATEGORY_COLORS).find(k => (cat || '').toLowerCase().includes(k))] || CATEGORY_COLORS.default;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+        transition={{ duration: 0.25 }}
+        onClick={(e) => e.stopPropagation()}
+        className={`relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border shadow-2xl ${isDark ? 'bg-neutral-900 border-white/10 text-white' : 'bg-white border-neutral-200 text-neutral-900'}`}
+      >
+        {/* Header image */}
+        {images[0] && (
+          <div className="relative h-48 overflow-hidden rounded-t-2xl">
+            <img src={images[0]} alt={ponto.nome} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+            <div className="absolute bottom-3 left-4 right-4">
+              <h2 className="text-lg font-bold text-white drop-shadow-lg">{ponto.nome}</h2>
+              <p className="text-sm text-white/80">{ponto.tipo} · {ponto.cidade}</p>
+            </div>
+          </div>
+        )}
+        {!images[0] && (
+          <div className={`px-5 pt-5 pb-3 border-b ${isDark ? 'border-white/10' : 'border-neutral-200'}`}>
+            <h2 className="text-lg font-bold">{ponto.nome}</h2>
+            <p className={`text-sm ${t.textMuted}`}>{ponto.tipo} · {ponto.cidade}</p>
+          </div>
+        )}
+
+        {/* Close button */}
+        <button onClick={onClose} className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm transition-colors">
+          <X size={16} />
+        </button>
+
+        <div className="p-5 space-y-4">
+          {/* Point details grid */}
+          <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm`}>
+            {ponto.endereco && (
+              <div className="col-span-2 sm:col-span-3 flex items-start gap-2">
+                <MapPin size={14} className="text-brand-orange mt-0.5 flex-shrink-0" />
+                <span className={t.textMuted}>{ponto.endereco}</span>
+              </div>
+            )}
+            {ponto.fluxo_mensal > 0 && (
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${isDark ? 'bg-white/5' : 'bg-neutral-50'}`}>
+                <Users size={14} className="text-brand-orange" />
+                <div>
+                  <p className={`text-[10px] uppercase tracking-wider ${t.textMuted}`}>Fluxo/mês</p>
+                  <p className="font-semibold">{formatNumber(ponto.fluxo_mensal)}</p>
+                </div>
+              </div>
+            )}
+            {ponto.telas > 0 && (
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${isDark ? 'bg-white/5' : 'bg-neutral-50'}`}>
+                <Monitor size={14} className="text-brand-orange" />
+                <div>
+                  <p className={`text-[10px] uppercase tracking-wider ${t.textMuted}`}>Telas</p>
+                  <p className="font-semibold">{ponto.telas}</p>
+                </div>
+              </div>
+            )}
+            {ponto.publico && (
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${isDark ? 'bg-white/5' : 'bg-neutral-50'}`}>
+                <Users size={14} className="text-brand-orange" />
+                <div>
+                  <p className={`text-[10px] uppercase tracking-wider ${t.textMuted}`}>Público</p>
+                  <p className="font-semibold text-xs">{ponto.publico}</p>
+                </div>
+              </div>
+            )}
+            {ponto.horario && (
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${isDark ? 'bg-white/5' : 'bg-neutral-50'}`}>
+                <Clock size={14} className="text-brand-orange" />
+                <div>
+                  <p className={`text-[10px] uppercase tracking-wider ${t.textMuted}`}>Horário</p>
+                  <p className="font-semibold text-xs">{normalizeHorarioForPdf(ponto.horario)}</p>
+                </div>
+              </div>
+            )}
+            {ponto.insercoes > 0 && (
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${isDark ? 'bg-white/5' : 'bg-neutral-50'}`}>
+                <TrendingUp size={14} className="text-brand-orange" />
+                <div>
+                  <p className={`text-[10px] uppercase tracking-wider ${t.textMuted}`}>Inserções/h</p>
+                  <p className="font-semibold">{ponto.insercoes}</p>
+                </div>
+              </div>
+            )}
+          </div>
+          {ponto.ponto_descricao && (
+            <p className={`text-sm leading-relaxed ${t.textMuted}`}>{ponto.ponto_descricao}</p>
+          )}
+
+          {/* Entorno section */}
+          <div className={`rounded-xl border p-4 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-neutral-200 bg-neutral-50'}`}>
+            <div className="flex items-center gap-2 mb-3">
+              <Building2 size={16} className="text-brand-orange" />
+              <h3 className="text-sm font-bold">Entorno do ponto</h3>
+              {entornoLoading && <Loader2 size={14} className="animate-spin text-brand-orange ml-auto" />}
+            </div>
+
+            {!entornoLoading && entorno?.places?.length > 0 && (
+              <>
+                {/* Mini map with entorno markers */}
+                {ponto.lat && ponto.lng && (
+                  <div className="rounded-lg overflow-hidden mb-3" style={{ height: 260 }}>
+                    <Suspense fallback={<div className={`h-full flex items-center justify-center text-xs ${isDark ? 'bg-neutral-800' : 'bg-neutral-100'}`}>Carregando mapa…</div>}>
+                      <EntornoMiniMap ponto={ponto} places={entorno.places} isDark={isDark} getCatColor={getCatColor} />
+                    </Suspense>
+                  </div>
+                )}
+                {/* Places list */}
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {entorno.places.slice(0, 20).map((p, i) => (
+                    <div key={i} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs ${isDark ? 'bg-white/5' : 'bg-white'}`}>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getCatColor(p.category) }} />
+                      <span className="font-medium truncate flex-1">{p.name}</span>
+                      <span className={`text-[10px] ${t.textMuted}`}>{p.category}</span>
+                      {p.distance && <span className={`text-[10px] ${t.textMuted}`}>{p.distance < 1000 ? `${Math.round(p.distance)}m` : `${(p.distance / 1000).toFixed(1)}km`}</span>}
+                    </div>
+                  ))}
+                  {entorno.places.length > 20 && (
+                    <p className={`text-[10px] text-center py-1 ${t.textMuted}`}>+{entorno.places.length - 20} estabelecimentos</p>
+                  )}
+                </div>
+              </>
+            )}
+            {!entornoLoading && (!entorno?.places?.length) && (
+              <p className={`text-xs ${t.textMuted}`}>Dados de entorno ainda não disponíveis para este ponto.</p>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ── Entorno mini map (leaflet-free, uses SmartMap) ───────────────────────────
+function EntornoMiniMap({ ponto, places, isDark, getCatColor }) {
+  const mapRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const maplibregl = window.maplibregl;
+    if (!maplibregl) return;
+
+    const center = [ponto.lng || ponto.longitude, ponto.lat || ponto.latitude];
+    const map = new maplibregl.Map({
+      container: mapRef.current,
+      style: isDark
+        ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+        : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+      center,
+      zoom: 15,
+      interactive: true,
+      attributionControl: false,
+    });
+
+    map.on('load', () => {
+      // Point marker (orange)
+      const pointEl = document.createElement('div');
+      pointEl.style.cssText = 'width:16px;height:16px;background:#FE5C2B;border:2px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+      new maplibregl.Marker({ element: pointEl }).setLngLat(center).addTo(map);
+
+      // Radius circle (approximate 800m)
+      const radiusEl = document.createElement('div');
+      radiusEl.style.cssText = 'width:200px;height:200px;border:2px dashed rgba(254,92,43,0.4);border-radius:50%;background:rgba(254,92,43,0.06);position:absolute;transform:translate(-50%,-50%);pointer-events:none;';
+      new maplibregl.Marker({ element: radiusEl, anchor: 'center' }).setLngLat(center).addTo(map);
+
+      // Entorno place markers
+      for (const p of places.slice(0, 50)) {
+        if (!p.lat || !p.lng) continue;
+        const el = document.createElement('div');
+        const color = getCatColor(p.category);
+        el.style.cssText = `width:8px;height:8px;background:${color};border:1.5px solid white;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.3);cursor:pointer;`;
+        el.title = `${p.name} (${p.category})`;
+        new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(map);
+      }
+    });
+
+    return () => map.remove();
+  }, [ponto, places, isDark, getCatColor]);
+
+  return <div ref={mapRef} className="w-full h-full" />;
+}
+
 // ── Interactive map (same SmartMap used in /comercial/explorar) ──────────────
-function PointsMapPreview({ pontos, isDark, t }) {
+function PointsMapPreview({ pontos, isDark, t, onOpenDetails }) {
   const validPontos = pontos.filter(p => p.lat && p.lng && Math.abs(p.lat) > 0.1 && Math.abs(p.lng) > 0.1);
   if (!validPontos.length) return null;
 
@@ -269,6 +489,7 @@ function PointsMapPreview({ pontos, isDark, t }) {
           <SmartMap
             pontos={mapPontos}
             isDark={isDark}
+            onOpenDetails={onOpenDetails}
           />
         </Suspense>
       </div>
@@ -340,6 +561,9 @@ export default function PacotePublico() {
 
   // ── Lightbox ──
   const [lightbox, setLightbox] = useState({ ponto: null, imageIndex: 0 });
+
+  // ── Point detail modal (entorno) ──
+  const [selectedDetailPonto, setSelectedDetailPonto] = useState(null);
 
   // ── Mobile pricing panel ──
   const [pricingExpanded, setPricingExpanded] = useState(false);
@@ -565,6 +789,16 @@ export default function PacotePublico() {
   }, [track]);
 
   const closeLightbox = useCallback(() => setLightbox({ ponto: null, imageIndex: 0 }), []);
+
+  // ── Point detail (entorno) handlers ──
+  const handleOpenDetails = useCallback((pontoFromMap) => {
+    // SmartMap passes the point object; match it to our pacote ponto list
+    const match = pontos.find(p => (p.ponto_id || p.id) === (pontoFromMap.ponto_id || pontoFromMap.id));
+    setSelectedDetailPonto(match || pontoFromMap);
+    track('point_detail_view', { ponto_id: pontoFromMap.ponto_id || pontoFromMap.id, ponto_nome: pontoFromMap.nome });
+  }, [pontos, track]);
+
+  const closeDetailModal = useCallback(() => setSelectedDetailPonto(null), []);
 
   // ── Scroll to interesse ──
   const scrollToInteresse = useCallback(() => {
@@ -1078,7 +1312,7 @@ export default function PacotePublico() {
             {/* ── MAP SECTION ─────────────────────────────────────────── */}
             <motion.section initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-50px' }}
               variants={sectionVariants} className="mt-8">
-              <PointsMapPreview pontos={pontos} isDark={isDark} t={t} />
+              <PointsMapPreview pontos={pontos} isDark={isDark} t={t} onOpenDetails={handleOpenDetails} />
             </motion.section>
 
             {/* ── LEAD CAPTURE ────────────────────────────────────────── */}
@@ -1261,6 +1495,19 @@ export default function PacotePublico() {
           <Lightbox ponto={lightbox.ponto} imageIndex={lightbox.imageIndex}
             onClose={closeLightbox}
             onChangeIndex={(idx) => setLightbox((prev) => ({ ...prev, imageIndex: idx }))} />
+        )}
+      </AnimatePresence>
+
+      {/* ═══ POINT DETAIL MODAL (ENTORNO) ════════════════════════════════ */}
+      <AnimatePresence>
+        {selectedDetailPonto && (
+          <PointDetailModal
+            ponto={selectedDetailPonto}
+            code={code}
+            isDark={isDark}
+            t={t}
+            onClose={closeDetailModal}
+          />
         )}
       </AnimatePresence>
 
